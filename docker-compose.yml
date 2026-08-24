@@ -1,0 +1,98 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: browserpilot-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - browserpilot-net
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: browserpilot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-browserpilot}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - browserpilot-net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    container_name: browserpilot-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-browserpilot}?schema=public
+      - REDIS_URL=redis://redis:6379
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-browserpilot-secret-development-key-32chars}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - GITHUB_ID=${GITHUB_ID}
+      - GITHUB_SECRET=${GITHUB_SECRET}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ARTIFACT_STORAGE_PATH=/app/storage/artifacts
+    volumes:
+      - artifacts_data:/app/storage/artifacts
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - browserpilot-net
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: browserpilot-worker
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-browserpilot}?schema=public
+      - REDIS_URL=redis://redis:6379
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ARTIFACT_STORAGE_PATH=/app/storage/artifacts
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-5}
+    volumes:
+      - artifacts_data:/app/storage/artifacts
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - browserpilot-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  artifacts_data:
+
+networks:
+  browserpilot-net:
+    driver: bridge

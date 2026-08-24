@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String?
+  avatarUrl     String?
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+  jobs     Job[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Job {
+  id              String              @id
+  userId          String?
+  prompt          String
+  status          String              @default("QUEUED")
+  progress        Int                 @default(0)
+  allowedDomains  String              @default("[]")
+  maxStepsBudget  Int                 @default(15)
+  goal            String?
+  confidence      Float?
+  summary         String?
+  error           String?
+  result          String?
+  totalDurationMs Int?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  completedAt     DateTime?
+
+  user         User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  steps        JobStep[]
+  observations ObservationRecord[]
+  artifacts    ArtifactRecord[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("jobs")
+}
+
+model JobStep {
+  id            String   @id @default(cuid())
+  jobId         String
+  stepNumber    Int
+  tool          String
+  actionPayload String
+  rationale     String?
+  status        String   @default("PENDING")
+  createdAt     DateTime @default(now())
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, stepNumber])
+  @@map("job_steps")
+}
+
+model ObservationRecord {
+  id             String   @id @default(cuid())
+  jobId          String
+  stepIndex      Int
+  tool           String
+  status         String
+  currentUrl     String
+  title          String
+  pageSummary    String?
+  extractedData  String?
+  screenshotPath String?
+  error          String?
+  elapsedMs      Int
+  timestamp      DateTime @default(now())
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, stepIndex])
+  @@map("observations")
+}
+
+model ArtifactRecord {
+  id         String   @id @default(cuid())
+  jobId      String
+  filename   String
+  storageKey String
+  mimeType   String   @default("image/png")
+  sizeBytes  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("artifacts")
+}

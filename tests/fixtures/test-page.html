@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BrowserPilot Local Test Fixture</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 40px;
+      background: #0f172a;
+      color: #f8fafc;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #1e293b;
+      padding: 32px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    h1 { color: #38bdf8; margin-top: 0; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; margin-bottom: 6px; font-size: 14px; color: #cbd5e1; }
+    input[type="text"], input[type="email"], textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 14px;
+    }
+    button {
+      background: #0284c7;
+      color: #fff;
+      border: 0;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    button:hover { background: #0369a1; }
+    .success-banner {
+      display: none;
+      margin-top: 16px;
+      padding: 12px;
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid #10b981;
+      border-radius: 6px;
+      color: #34d399;
+      font-weight: 600;
+    }
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .modal-content {
+      background: #1e293b;
+      padding: 24px;
+      border-radius: 12px;
+      border: 1px solid #38bdf8;
+      max-width: 400px;
+      text-align: center;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 24px;
+    }
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #334155;
+      text-align: left;
+    }
+    th { color: #38bdf8; }
+  </style>
+</head>
+<body>
+
+  <!-- Dismissible Promo Overlay -->
+  <div id="promo-modal" class="modal-overlay">
+    <div class="modal-content">
+      <h2>Welcome to BrowserPilot Test Bed</h2>
+      <p>This is a dismissible overlay used for interaction testing.</p>
+      <button id="close-modal-btn" onclick="document.getElementById('promo-modal').style.display='none'">
+        Dismiss Overlay
+      </button>
+    </div>
+  </div>
+
+  <div class="container">
+    <h1 id="main-heading">BrowserPilot Automation Target</h1>
+    <p id="page-description">This fixture provides interactive DOM nodes to test all 8 Playwright tool primitives.</p>
+
+    <!-- Form Section -->
+    <form id="test-form" onsubmit="event.preventDefault(); document.getElementById('form-success-banner').style.display='block';">
+      <div class="form-group">
+        <label for="name-input">Full Name</label>
+        <input type="text" id="name-input" placeholder="e.g. Jane Doe">
+      </div>
+      <div class="form-group">
+        <label for="email-input">Email Address</label>
+        <input type="email" id="email-input" placeholder="jane@example.com">
+      </div>
+      <div class="form-group">
+        <label for="notes-input">Automation Goal Notes</label>
+        <textarea id="notes-input" rows="3" placeholder="Enter instructions..."></textarea>
+      </div>
+      <button type="submit" id="submit-btn">Submit Information</button>
+    </form>
+
+    <div id="form-success-banner" class="success-banner">
+      ✓ Form submitted successfully! Data received by test fixture.
+    </div>
+
+    <!-- Structured Data Section -->
+    <h2>Pricing Matrix</h2>
+    <table id="pricing-table">
+      <thead>
+        <tr>
+          <th>Tier</th>
+          <th>Monthly Price</th>
+          <th>Max Workers</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="plan-row">
+          <td class="plan-name">Starter</td>
+          <td class="plan-price">$19</td>
+          <td class="plan-workers">2</td>
+        </tr>
+        <tr class="plan-row">
+          <td class="plan-name">Professional</td>
+          <td class="plan-price">$49</td>
+          <td class="plan-workers">10</td>
+        </tr>
+        <tr class="plan-row">
+          <td class="plan-name">Enterprise</td>
+          <td class="plan-price">$199</td>
+          <td class="plan-workers">50</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</body>
+</html>

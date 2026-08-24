@@ -1,0 +1,45 @@
+FROM node:20-bookworm-slim AS worker
+WORKDIR /app
+
+# Install native dependencies and Playwright system requirements
+RUN apt-get update && apt-get install -y \
+    openssl \
+    python3 \
+    make \
+    g++ \
+    wget \
+    gnupg \
+    ca-certificates \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install node dependencies
+COPY package.json package-lock.json* ./
+COPY prisma ./prisma
+RUN npm ci || npm install
+
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Install Playwright browser dependencies and Chromium binary
+RUN npx playwright install --with-deps chromium
+
+# Copy source code
+COPY . .
+
+# Start the standalone background worker
+CMD ["npx", "tsx", "worker/index.ts"]
