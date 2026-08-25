@@ -5,7 +5,6 @@ import {
   type BrowserJobPayload 
 } from "@/lib/queue/jobQueue";
 import { createRedisConnection, checkRedisHealth } from "@/lib/queue/redis";
-import { jobStore } from "@/lib/queue/store";
 import { 
   updateDbJob, 
   recordDbJobStep, 
@@ -41,18 +40,12 @@ export async function processBrowserJob(
   const { jobId, prompt, allowedDomains, maxStepsBudget } = jobData;
   console.log(`\n[Worker] 🚀 Picked up Job ${jobId} -> "${prompt.slice(0, 60)}..."`);
 
-  // 1. Update status to WORKING in DB & cache
+  // 1. Update status to WORKING in DB
   await updateDbJob(jobId, {
     status: "WORKING",
     progress: 10,
     summary: "Initializing worker & evaluating capability boundaries...",
   }).catch(() => {});
-
-  jobStore.updateJob(jobId, {
-    status: "WORKING",
-    progress: 10,
-    currentStepDescription: "Initializing worker & evaluating capability boundaries...",
-  });
 
   try {
     // 2. Run the complete pipeline (Capability Guard → Planner → Plan Validator → Playwright Execution)
@@ -60,42 +53,41 @@ export async function processBrowserJob(
       jobId,
       allowedDomains,
       maxStepsBudget,
-      onIntentClassified: (intent) => {
-        jobStore.updateJob(jobId, {
+      onIntentClassified: async (intent) => {
+        await updateDbJob(jobId, {
           progress: 25,
-          currentStepDescription: `Intent classified as ${intent.classification}`,
-        });
+          summary: `Intent classified as ${intent.classification}`,
+        }).catch(() => {});
       },
-      onGuardEvaluated: (guard) => {
-        jobStore.updateJob(jobId, {
+      onGuardEvaluated: async (guard) => {
+        await updateDbJob(jobId, {
           progress: 40,
-          currentStepDescription: guard.userMessage,
-        });
+          summary: guard.userMessage,
+        }).catch(() => {});
       },
       onPlanGenerated: async (plan) => {
-        jobStore.updateJob(jobId, {
+        await updateDbJob(jobId, {
           progress: 55,
-          currentStepDescription: `Plan generated with ${plan.steps.length} tool steps.`,
-        });
+          summary: `Plan generated with ${plan.steps.length} tool steps.`,
+        }).catch(() => {});
 
-        // Persist planned steps to database
+        // Persist planned steps directly to database
         for (const step of plan.steps) {
           await recordDbJobStep(jobId, step).catch(() => {});
         }
       },
-      onPlanValidated: (validation) => {
-        jobStore.updateJob(jobId, {
+      onPlanValidated: async (validation) => {
+        await updateDbJob(jobId, {
           progress: 65,
-          currentStepDescription: validation.summary,
-        });
+          summary: validation.summary,
+        }).catch(() => {});
       },
-      onStepProgress: (stepNum, total, tool) => {
+      onStepProgress: async (stepNum, total, tool) => {
         const pct = Math.min(65 + Math.round((stepNum / total) * 30), 95);
-        jobStore.updateJob(jobId, {
+        await updateDbJob(jobId, {
           progress: pct,
-          currentStepNumber: stepNum,
-          currentStepDescription: `Executing Step ${stepNum}/${total} [${tool}]...`,
-        });
+          summary: `Executing Step ${stepNum}/${total} [${tool}]...`,
+        }).catch(() => {});
       },
     });
 
@@ -114,7 +106,7 @@ export async function processBrowserJob(
       }
     }
 
-    // 4. Update final status in DB & Store
+    // 4. Update final status in DB
     if (pipelineResult.success && pipelineResult.execution) {
       console.log(`[Worker] ✅ Job ${jobId} COMPLETED in ${pipelineResult.durationMs}ms`);
 
@@ -127,19 +119,6 @@ export async function processBrowserJob(
         tokensUsed: pipelineResult.tokensUsed,
         memoryMb: pipelineResult.memoryMb,
       }).catch(() => {});
-
-      jobStore.updateJob(jobId, {
-        status: "COMPLETED",
-        progress: 100,
-        currentStepDescription: "Task completed successfully. All artifacts persisted.",
-        observations: pipelineResult.execution.observations,
-        screenshotPaths: pipelineResult.execution.screenshotPaths,
-        result: {
-          extractedData: pipelineResult.execution.finalObservation?.extractedData,
-          summary: pipelineResult.execution.finalObservation?.pageSummary,
-          totalDurationMs: pipelineResult.durationMs,
-        },
-      });
     } else {
       const isBlocked =
         pipelineResult.guard.classification === "BLOCKED" ||
@@ -158,20 +137,6 @@ export async function processBrowserJob(
         tokensUsed: pipelineResult.tokensUsed,
         memoryMb: pipelineResult.memoryMb,
       }).catch(() => {});
-
-      jobStore.updateJob(jobId, {
-        status: finalStatus,
-        progress: 100,
-        currentStepDescription: pipelineResult.error?.userMessage || "Task was halted or failed.",
-        observations: pipelineResult.execution?.observations || [],
-        screenshotPaths: pipelineResult.execution?.screenshotPaths || [],
-        error: {
-          code: pipelineResult.error?.code || "PIPELINE_ERROR",
-          message: pipelineResult.error?.message || "Execution halted.",
-          userMessage: pipelineResult.error?.userMessage || "Task could not be completed.",
-          detail: pipelineResult.error?.reasons,
-        },
-      });
     }
 
     return pipelineResult;
@@ -186,28 +151,17 @@ export async function processBrowserJob(
       error: { code: "FATAL_WORKER_ERROR", message: errorMsg },
     }).catch(() => {});
 
-    jobStore.updateJob(jobId, {
-      status: "FAILED",
-      progress: 100,
-      currentStepDescription: "Fatal worker execution error.",
-      error: {
-        code: "FATAL_WORKER_ERROR",
-        message: errorMsg,
-        userMessage: "An unexpected internal worker error occurred during execution.",
-      },
-    });
-
     throw err;
   }
 }
 
 /**
- * Start the Standalone BullMQ Worker Process
+ * Background Queue Worker Service
  */
-export async function startWorker(): Promise<Worker<BrowserJobPayload>> {
+export async function startWorker() {
   const concurrency = getWorkerConcurrency();
-  console.log("=================================================");
-  console.log("  BROWSERPILOT STANDALONE BULLMQ WORKER ENGINE   ");
+  console.log("\n=================================================");
+  console.log("  BROWSERPILOT BACKGROUND WORKER (BullMQ)");
   console.log("=================================================");
   console.log(`[Config] Queue Name: "${BROWSER_JOBS_QUEUE_NAME}"`);
   console.log(`[Config] Concurrency Limit: ${concurrency} parallel browser jobs`);

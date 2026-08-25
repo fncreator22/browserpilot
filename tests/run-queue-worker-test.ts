@@ -4,7 +4,7 @@ import path from "node:path";
 import { config } from "dotenv";
 import { checkRedisHealth } from "@/lib/queue/redis";
 import { enqueueBrowserJob } from "@/lib/queue/jobQueue";
-import { jobStore } from "@/lib/queue/store";
+import { getDbJobById } from "@/lib/db/jobs";
 import { startWorker, getWorkerConcurrency } from "@/worker/index";
 import { browserPool } from "@/worker/browser";
 
@@ -74,15 +74,15 @@ async function runQueueWorkerTest() {
   console.log("\n--- Starting Standalone BullMQ Worker ---");
   const worker = await startWorker();
 
-  // 5. Poll Job Status until Completion
+  // 5. Poll Job Status directly from Prisma Database until Completion
   console.log("[Test Runner] Waiting for background worker to process job...");
   let attempts = 0;
   const maxAttempts = 60; // 30 seconds max
-  let finalJobState = jobStore.getJob(enqueued.jobId);
+  let finalJobState = await getDbJobById(enqueued.jobId);
 
   while (attempts < maxAttempts) {
     await new Promise((resolve) => setTimeout(resolve, 500));
-    finalJobState = jobStore.getJob(enqueued.jobId);
+    finalJobState = await getDbJobById(enqueued.jobId);
 
     if (finalJobState && (finalJobState.status === "COMPLETED" || finalJobState.status === "FAILED" || finalJobState.status === "BLOCKED")) {
       break;
@@ -94,15 +94,15 @@ async function runQueueWorkerTest() {
   console.log(`  FINAL JOB STATUS: ${finalJobState?.status}     `);
   console.log("=================================================");
   console.log(`Progress: ${finalJobState?.progress}%`);
-  console.log(`Description: ${finalJobState?.currentStepDescription}`);
+  console.log(`Summary: ${finalJobState?.summary}`);
   console.log(`Total Observations: ${finalJobState?.observations.length || 0}`);
-  console.log(`Screenshots Captured: ${finalJobState?.screenshotPaths.length || 0}`);
+  console.log(`Artifacts Saved: ${finalJobState?.artifacts.length || 0}`);
 
   if (finalJobState?.status !== "COMPLETED") {
     throw new Error(`Expected job status COMPLETED, got ${finalJobState?.status}. Error: ${JSON.stringify(finalJobState?.error)}`);
   }
 
-  console.log("\n✅ SUCCESS: Full BullMQ Queue + Standalone Worker asynchronous execution verified!\n");
+  console.log("\n✅ SUCCESS: Full BullMQ Queue + Standalone Worker asynchronous execution verified via Prisma DB!\n");
 
   // Teardown
   await worker.close();
