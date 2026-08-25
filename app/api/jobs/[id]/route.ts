@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/authOptions";
 import { getDbJobById, upsertDbJobFromSync } from "@/lib/db/jobs";
+import { getEffectiveUserGeminiApiKey } from "@/lib/db/users";
+import { getEffectiveGeminiApiKey } from "@/lib/ai/modelSelector";
 
 export async function GET(
   request: Request,
@@ -39,29 +41,6 @@ export async function GET(
       );
     }
 
-    // Serverless execution: Execute pipeline steps synchronously within function lifecycle
-    if (job.status === "QUEUED") {
-      try {
-        const { processBrowserJob } = await import("@/worker/index");
-        const allowed = typeof job.allowedDomains === "string" ? JSON.parse(job.allowedDomains || "[]") : (job.allowedDomains || []);
-        
-        await Promise.race([
-          processBrowserJob({
-            jobId: id,
-            prompt: job.prompt,
-            allowedDomains: allowed,
-            maxStepsBudget: job.maxStepsBudget || 15,
-          }),
-          new Promise((resolve) => setTimeout(resolve, 8000)),
-        ]);
-
-        const refreshed = await getDbJobById(id, userId);
-        if (refreshed) job = refreshed;
-      } catch (err) {
-        console.warn(`[JobSync] Execution step error for ${id}:`, err);
-      }
-    }
-
     return NextResponse.json({
       job,
     });
@@ -90,6 +69,7 @@ export async function POST(
   try {
     const session = await getServerSession(authOptions);
     const userId = (session?.user as { id?: string })?.id || null;
+    const userEmail = (session?.user as { email?: string })?.email || null;
     const body = await request.json().catch(() => ({}));
 
     const prompt = body.prompt || "Autonomous web automation task";
@@ -105,17 +85,21 @@ export async function POST(
     });
 
     // Serverless execution trigger
-    if (job.status === "QUEUED") {
+    if (["QUEUED", "PLANNING"].includes(job.status)) {
       try {
-        const { processBrowserJob } = await import("@/worker/index");
+        const { runServerlessPipeline } = await import("@/lib/serverlessPipeline");
+        const resolvedKey = await getEffectiveUserGeminiApiKey(userId || userEmail || job.userId);
+        const apiKey = getEffectiveGeminiApiKey(body.apiKey || resolvedKey);
+
         await Promise.race([
-          processBrowserJob({
+          runServerlessPipeline({
             jobId: id,
             prompt: job.prompt,
-            allowedDomains,
+            allowedDomains: Array.isArray(allowedDomains) ? allowedDomains : [],
             maxStepsBudget,
+            apiKey: apiKey || undefined,
           }),
-          new Promise((resolve) => setTimeout(resolve, 8000)),
+          new Promise((resolve) => setTimeout(resolve, 15000)),
         ]);
 
         const refreshed = await getDbJobById(id, userId);
