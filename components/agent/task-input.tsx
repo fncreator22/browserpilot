@@ -91,6 +91,22 @@ export function TaskInput({ initialPrompt = "", isCompact = false }: TaskInputPr
       }
 
       if (data.jobId) {
+        try {
+          sessionStorage.setItem(
+            `browserpilot_dispatched_${data.jobId}`,
+            JSON.stringify({
+              id: data.jobId,
+              prompt: prompt.trim(),
+              allowedDomains: domainsList,
+              maxStepsBudget: maxSteps,
+              status: "QUEUED",
+              progress: 0,
+              createdAt: new Date().toISOString(),
+            })
+          );
+        } catch {
+          // Ignore storage quota errors
+        }
         router.push(`/app/jobs/${data.jobId}`);
       }
     } catch (err: unknown) {

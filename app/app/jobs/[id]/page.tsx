@@ -90,6 +90,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const previousStatusRef = useRef<string | null>(null);
+  const retryCountRef = useRef(0);
 
   const isActive = job ? ["QUEUED", "PLANNING", "WORKING", "VERIFYING"].includes(job.status) : false;
 
@@ -132,20 +133,56 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     return () => clearInterval(interval);
   }, [job, isActive]);
 
-  // Poll job data from real API
+  // Poll job data from real API with serverless auto-hydration
   const fetchJob = useCallback(async () => {
     try {
       const res = await fetch(`/api/jobs/${jobId}`);
       if (!res.ok) {
         if (res.status === 404) {
+          // Check if we have cached dispatched task metadata in sessionStorage
+          let cached: any = null;
+          try {
+            const raw = sessionStorage.getItem(`browserpilot_dispatched_${jobId}`);
+            if (raw) cached = JSON.parse(raw);
+          } catch {}
+
+          if (cached) {
+            // Optimistically hydrate state
+            setJob((prev) => prev || {
+              ...cached,
+              steps: [],
+              observations: [],
+              artifacts: [],
+            });
+            setFetchError(null);
+
+            // Attempt auto-sync to current serverless container
+            if (retryCountRef.current < 5) {
+              retryCountRef.current += 1;
+              fetch(`/api/jobs/${jobId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(cached),
+              }).catch(() => {});
+              return;
+            }
+          }
+
+          if (retryCountRef.current < 3) {
+            retryCountRef.current += 1;
+            return;
+          }
+
           throw new Error(`Job "${jobId}" not found in database.`);
         }
         throw new Error(`Failed to load job: ${res.statusText}`);
       }
+
       const data = await res.json();
       const currentJob: DbJobData = data.job;
       setJob(currentJob);
       setFetchError(null);
+      retryCountRef.current = 0;
 
       // Transient state toasts
       if (previousStatusRef.current !== currentJob.status) {
@@ -161,11 +198,13 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         previousStatusRef.current = currentJob.status;
       }
     } catch (err: unknown) {
-      setFetchError((err as Error).message);
+      if (!job) {
+        setFetchError((err as Error).message);
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [jobId]);
+  }, [jobId, job]);
 
   useEffect(() => {
     let isSubscribed = true;

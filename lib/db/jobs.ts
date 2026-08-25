@@ -33,6 +33,15 @@ export interface UpdateJobDbInput {
  * USER-SCOPED DATABASE CRUD & LOGGING HELPERS (§22 / §23 / §27 / §36)
  */
 
+// In-memory fallback cache for fast lookups across concurrent calls within same runtime
+const globalForJobCache = globalThis as unknown as {
+  memoryJobCache: Map<string, any> | undefined;
+};
+export const memoryJobCache = globalForJobCache.memoryJobCache ?? new Map<string, any>();
+if (process.env.NODE_ENV !== "production") {
+  globalForJobCache.memoryJobCache = memoryJobCache;
+}
+
 export async function createDbJob(data: CreateJobDbInput) {
   const calculatedBudget = data.maxDurationMs || calculateJobTimeBudget({
     prompt: data.prompt,
@@ -40,38 +49,94 @@ export async function createDbJob(data: CreateJobDbInput) {
     maxStepsBudget: data.maxStepsBudget,
   }).budgetMs;
 
-  return prisma.job.create({
-    data: {
-      id: data.id,
-      prompt: data.prompt,
-      userId: data.userId || null,
-      status: "QUEUED",
-      progress: 0,
-      allowedDomains: JSON.stringify(data.allowedDomains || []),
-      maxStepsBudget: data.maxStepsBudget || 15,
-      maxDurationMs: calculatedBudget,
-    },
-  });
+  const now = new Date();
+  const jobPayload = {
+    id: data.id,
+    prompt: data.prompt,
+    userId: data.userId || null,
+    status: "QUEUED",
+    progress: 0,
+    allowedDomains: JSON.stringify(data.allowedDomains || []),
+    maxStepsBudget: data.maxStepsBudget || 15,
+    maxDurationMs: calculatedBudget,
+    createdAt: now,
+    updatedAt: now,
+    startedAt: null,
+    completedAt: null,
+    goal: null,
+    confidence: null,
+    summary: null,
+    error: null,
+    result: null,
+    totalDurationMs: null,
+    tokensUsed: null,
+    memoryMb: null,
+    steps: [],
+    observations: [],
+    artifacts: [],
+  };
+
+  // Cache in memory immediately
+  memoryJobCache.set(data.id, jobPayload);
+
+  try {
+    const created = await prisma.job.create({
+      data: {
+        id: data.id,
+        prompt: data.prompt,
+        userId: data.userId || null,
+        status: "QUEUED",
+        progress: 0,
+        allowedDomains: JSON.stringify(data.allowedDomains || []),
+        maxStepsBudget: data.maxStepsBudget || 15,
+        maxDurationMs: calculatedBudget,
+      },
+    });
+    return created;
+  } catch (err) {
+    console.warn(`[JobsDB] Prisma create error for job ${data.id} (relying on memory cache):`, err);
+    return jobPayload;
+  }
 }
 
 /**
  * Retrieves a job by ID, with optional strict user ownership validation.
+ * Checks Prisma DB first, with fallback to in-memory cache.
  */
 export async function getDbJobById(id: string, userId?: string | null) {
-  const job = await prisma.job.findUnique({
-    where: { id },
-    include: {
-      steps: {
-        orderBy: { stepNumber: "asc" },
+  let job: any = null;
+  let dbQueriedSuccessfully = false;
+
+  try {
+    job = await prisma.job.findUnique({
+      where: { id },
+      include: {
+        steps: {
+          orderBy: { stepNumber: "asc" },
+        },
+        observations: {
+          orderBy: { stepIndex: "asc" },
+        },
+        artifacts: {
+          orderBy: { createdAt: "asc" },
+        },
       },
-      observations: {
-        orderBy: { stepIndex: "asc" },
-      },
-      artifacts: {
-        orderBy: { createdAt: "asc" },
-      },
-    },
-  });
+    });
+    dbQueriedSuccessfully = true;
+  } catch (err) {
+    console.warn(`[JobsDB] Prisma query error for job ${id}:`, err);
+  }
+
+  // Only fall back to memory cache if DB query failed (e.g. cold serverless instance)
+  if (!job && !dbQueriedSuccessfully) {
+    job = memoryJobCache.get(id) || null;
+  } else if (job) {
+    // Keep memory cache fresh
+    memoryJobCache.set(id, job);
+  } else {
+    // DB explicitly confirmed row does not exist, purge memory cache
+    memoryJobCache.delete(id);
+  }
 
   if (!job) return null;
 
@@ -81,6 +146,23 @@ export async function getDbJobById(id: string, userId?: string | null) {
   }
 
   return job;
+}
+
+/**
+ * Rehydrates a dispatched job into the current database instance if missing.
+ */
+export async function upsertDbJobFromSync(data: {
+  id: string;
+  prompt: string;
+  userId?: string | null;
+  allowedDomains?: string[];
+  maxStepsBudget?: number;
+  maxDurationMs?: number;
+}) {
+  const existing = await getDbJobById(data.id, data.userId);
+  if (existing) return existing;
+
+  return createDbJob(data);
 }
 
 export async function updateDbJob(id: string, updates: UpdateJobDbInput) {
@@ -300,6 +382,7 @@ export async function purgeExpiredTerminalJobs(olderThanMs: number = 24 * 60 * 6
       where: { id: job.id },
     }).catch(() => {});
 
+    memoryJobCache.delete(job.id);
     purgedJobIds.push(job.id);
   }
 
