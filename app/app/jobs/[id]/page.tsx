@@ -147,6 +147,92 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     return () => clearInterval(interval);
   }, [job, isActive]);
 
+  // Real-time Server-Sent Events (SSE) stream listener (§Prompt 05 / Zero Queue Latency)
+  useEffect(() => {
+    let eventSource: EventSource | null = null;
+    let isCancelled = false;
+
+    try {
+      eventSource = new EventSource(`/api/jobs/${jobId}/events?stream=true`);
+
+      eventSource.addEventListener("snapshot", (e) => {
+        if (isCancelled) return;
+        try {
+          const snapshot = JSON.parse(e.data);
+          setJob((prev) => ({ ...prev, ...snapshot }));
+          setFetchError(null);
+          setIsLoading(false);
+        } catch {}
+      });
+
+      eventSource.addEventListener("status", (e) => {
+        if (isCancelled) return;
+        try {
+          const payload = JSON.parse(e.data);
+          setJob((prev) => (prev ? { ...prev, ...payload } : prev));
+        } catch {}
+      });
+
+      eventSource.addEventListener("plan", (e) => {
+        if (isCancelled) return;
+        try {
+          const plan = JSON.parse(e.data);
+          setJob((prev) => {
+            if (!prev) return prev;
+            const steps = plan.steps.map((s: any) => ({
+              id: `step_${s.stepNumber}`,
+              stepNumber: s.stepNumber,
+              tool: s.action.tool,
+              actionPayload: JSON.stringify(s.action),
+              rationale: s.rationale,
+              status: "EXECUTED",
+              createdAt: new Date().toISOString(),
+            }));
+            return { ...prev, steps, status: "PLANNING", progress: 55 };
+          });
+        } catch {}
+      });
+
+      eventSource.addEventListener("step", (e) => {
+        if (isCancelled) return;
+        try {
+          const stepData = JSON.parse(e.data);
+          setJob((prev) => (prev ? { ...prev, status: "WORKING", progress: stepData.progress } : prev));
+        } catch {}
+      });
+
+      eventSource.addEventListener("observation", (e) => {
+        if (isCancelled) return;
+        try {
+          const obs = JSON.parse(e.data);
+          setJob((prev) => {
+            if (!prev) return prev;
+            const observations = [...(prev.observations || []), obs];
+            return { ...prev, observations };
+          });
+        } catch {}
+      });
+
+      eventSource.addEventListener("completed", (e) => {
+        if (isCancelled) return;
+        try {
+          const completeData = JSON.parse(e.data);
+          setJob((prev) => (prev ? { ...prev, ...completeData, status: "COMPLETED", progress: 100 } : prev));
+          toast.success("Task completed successfully! Verified result ready.");
+        } catch {}
+      });
+    } catch {
+      // Non-fatal, fallback polling will take over
+    }
+
+    return () => {
+      isCancelled = true;
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
+  }, [jobId]);
+
   // Poll job data from real API with serverless auto-hydration
   const fetchJob = useCallback(async () => {
     try {
@@ -200,7 +286,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
       // Transient state toasts
       if (previousStatusRef.current !== currentJob.status) {
-        if (currentJob.status === "WORKING" && previousStatusRef.current === "QUEUED") {
+        if (currentJob.status === "WORKING" && (previousStatusRef.current === "QUEUED" || previousStatusRef.current === "PLANNING")) {
           toast.info("Browser execution started in sandboxed Playwright worker.");
         } else if (currentJob.status === "VERIFYING") {
           toast.info("Evaluating extraction payload against Zod contract.");
@@ -228,7 +314,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       }
     }, 0);
 
-    // Poll every 1000ms while job is in active execution state
+    // Poll every 1500ms while job is in active execution state
     const interval = setInterval(() => {
       if (isSubscribed) {
         fetchJob();
@@ -444,24 +530,28 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                   </Badge>
                 )}
                 {job.status === "QUEUED" && (
-                  <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 font-mono text-xs gap-1.5 py-1 px-3">
-                    <Clock className="h-3.5 w-3.5" />
-                    Queued — Waiting for available worker slot
+                  <Badge className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20 font-mono text-xs gap-1.5 py-1 px-3 animate-pulse">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    Initializing Agent Session ({job.progress || 10}%)
                   </Badge>
                 )}
-                {isActive && job.status !== "QUEUED" && (
-                  <>
-                    <Badge className="bg-primary/10 text-primary border-primary/20 font-mono text-xs gap-1.5 py-1 px-3 animate-pulse">
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      {job.status} ({job.progress}%)
-                    </Badge>
-                    {secondsRemaining !== null && (
-                      <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 font-mono text-xs gap-1.5 py-1 px-3">
-                        <Clock className="h-3.5 w-3.5 animate-pulse" />
-                        Running — {secondsRemaining}s of {Math.round((job.maxDurationMs || 120000) / 1000)}s remaining
-                      </Badge>
-                    )}
-                  </>
+                {job.status === "PLANNING" && (
+                  <Badge className="bg-primary/10 text-primary border-primary/20 font-mono text-xs gap-1.5 py-1 px-3 animate-pulse">
+                    <Bot className="h-3.5 w-3.5 animate-pulse" />
+                    Planning — Gemini 2.5 Flash ({job.progress || 25}%)
+                  </Badge>
+                )}
+                {isActive && job.status !== "QUEUED" && job.status !== "PLANNING" && (
+                  <Badge className="bg-primary/10 text-primary border-primary/20 font-mono text-xs gap-1.5 py-1 px-3 animate-pulse">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    {job.status} ({job.progress}%)
+                  </Badge>
+                )}
+                {isActive && secondsRemaining !== null && (
+                  <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 font-mono text-xs gap-1.5 py-1 px-3">
+                    <Clock className="h-3.5 w-3.5 animate-pulse" />
+                    Running — {secondsRemaining}s of {Math.round((job.maxDurationMs || 120000) / 1000)}s remaining
+                  </Badge>
                 )}
                 {(job.status === "BLOCKED" || job.status === "FAILED") && (
                   <Badge className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20 font-mono text-xs gap-1.5 py-1 px-3">

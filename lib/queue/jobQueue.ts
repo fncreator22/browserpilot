@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { createRedisConnection } from "./redis";
 import { createDbJob } from "@/lib/db/jobs";
+import { jobEventBus } from "@/lib/events/jobEvents";
 
 export const BROWSER_JOBS_QUEUE_NAME = "browser-jobs";
 
@@ -21,7 +22,7 @@ export interface EnqueueJobInput {
 
 export interface EnqueueJobResult {
   jobId: string;
-  status: "QUEUED";
+  status: "QUEUED" | "PLANNING" | "WORKING";
   createdAt: Date;
 }
 
@@ -43,8 +44,8 @@ export function getBrowserJobQueue(): Queue<BrowserJobPayload> {
 }
 
 /**
- * Enqueue a new BrowserPilot autonomous job
- * Persists directly to Prisma DB and dispatches via BullMQ Redis queue or in-process background worker
+ * Enqueue & Instantly Dispatch a new BrowserPilot autonomous job
+ * Persists directly to Prisma DB and launches execution immediately without queue delays.
  */
 export async function enqueueBrowserJob(input: EnqueueJobInput): Promise<EnqueueJobResult> {
   const jobId = input.jobId || `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -64,10 +65,30 @@ export async function enqueueBrowserJob(input: EnqueueJobInput): Promise<Enqueue
     console.error(`[JobQueue] Failed to persist job ${jobId} to database:`, err);
   });
 
-  // 2. Dispatch to BullMQ Queue, with automatic in-process worker fallback for standalone dev
+  // Emit initial creation event to SSE bus
+  jobEventBus.emitJobEvent(jobId, "created", {
+    jobId,
+    prompt,
+    status: "PLANNING",
+    createdAt,
+  });
+
+  // 2. Launch background execution immediately for zero-queue latency
+  import("@/worker/index").then(({ processBrowserJob }) => {
+    processBrowserJob({
+      jobId,
+      prompt,
+      allowedDomains,
+      maxStepsBudget,
+    }).catch((workerErr) => {
+      console.error(`[JobQueue] Immediate execution error for ${jobId}:`, workerErr);
+    });
+  }).catch(() => {});
+
+  // Optional: Also sync to Redis queue if running in distributed cluster
   try {
     const queue = getBrowserJobQueue();
-    await queue.add(
+    queue.add(
       "execute-pipeline",
       {
         jobId,
@@ -76,20 +97,9 @@ export async function enqueueBrowserJob(input: EnqueueJobInput): Promise<Enqueue
         maxStepsBudget,
       },
       { jobId }
-    );
+    ).catch(() => {});
   } catch {
-    // Graceful fallback for local development without standalone Redis server
-    console.log(`[JobQueue] Redis not available, running job ${jobId} in background in-process worker...`);
-    import("@/worker/index").then(({ processBrowserJob }) => {
-      processBrowserJob({
-        jobId,
-        prompt,
-        allowedDomains,
-        maxStepsBudget,
-      }).catch((workerErr) => {
-        console.error(`[JobQueue] In-process execution error for ${jobId}:`, workerErr);
-      });
-    });
+    // Non-fatal if Redis is not configured
   }
 
   return {

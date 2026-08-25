@@ -18,6 +18,7 @@ import { synthesizeFinalAnswerWithMetadata } from "@/lib/ai/synthesizer";
 import { calculateJobTimeBudget } from "@/lib/capabilities/timeBudget";
 import { mapInternalErrorToHuman } from "@/lib/verification/errorMapper";
 import { startAutoPurgeScheduler, stopAutoPurgeScheduler } from "./cleanup";
+import { jobEventBus } from "@/lib/events/jobEvents";
 
 config();
 
@@ -52,14 +53,20 @@ export async function processBrowserJob(
   const maxDurationMs = budgetResult.budgetMs;
   const startedAt = new Date();
 
-  // 1. Update status to WORKING in DB with persisted startedAt and maxDurationMs
+  // 1. Update status to PLANNING in DB with persisted startedAt and maxDurationMs
   await updateDbJob(jobId, {
-    status: "WORKING",
+    status: "PLANNING",
     progress: 10,
     startedAt,
     maxDurationMs,
-    summary: `Initializing worker (time budget: ${Math.round(maxDurationMs / 1000)}s)...`,
+    summary: `Decomposing goal into structured tool steps (time budget: ${Math.round(maxDurationMs / 1000)}s)...`,
   }).catch(() => {});
+
+  jobEventBus.emitJobEvent(jobId, "status", {
+    status: "PLANNING",
+    progress: 10,
+    summary: "Decomposing goal into structured tool steps...",
+  });
 
   let timeoutTimer: NodeJS.Timeout | null = null;
   let forceKillTimer: NodeJS.Timeout | null = null;
@@ -90,18 +97,25 @@ export async function processBrowserJob(
         maxStepsBudget,
         onIntentClassified: async (intent) => {
           await updateDbJob(jobId, {
+            status: "PLANNING",
             progress: 25,
             summary: `Intent classified as ${intent.classification}`,
           }).catch(() => {});
+
+          jobEventBus.emitJobEvent(jobId, "intent", intent);
         },
         onGuardEvaluated: async (guard) => {
           await updateDbJob(jobId, {
+            status: "PLANNING",
             progress: 40,
             summary: guard.userMessage,
           }).catch(() => {});
+
+          jobEventBus.emitJobEvent(jobId, "guard", guard);
         },
         onPlanGenerated: async (plan) => {
           await updateDbJob(jobId, {
+            status: "PLANNING",
             progress: 55,
             summary: `Plan generated with ${plan.steps.length} tool steps.`,
           }).catch(() => {});
@@ -110,19 +124,32 @@ export async function processBrowserJob(
           for (const step of plan.steps) {
             await recordDbJobStep(jobId, step).catch(() => {});
           }
+
+          jobEventBus.emitJobEvent(jobId, "plan", plan);
         },
         onPlanValidated: async (validation) => {
           await updateDbJob(jobId, {
+            status: "PLANNING",
             progress: 65,
             summary: validation.summary,
           }).catch(() => {});
+
+          jobEventBus.emitJobEvent(jobId, "plan_validated", validation);
         },
         onStepProgress: async (stepNum, total, tool) => {
-          const pct = Math.min(65 + Math.round((stepNum / total) * 30), 95);
+          const pct = Math.min(65 + Math.round((stepNum / total) * 25), 90);
           await updateDbJob(jobId, {
+            status: "WORKING",
             progress: pct,
             summary: `Executing Step ${stepNum}/${total} [${tool}]...`,
           }).catch(() => {});
+
+          jobEventBus.emitJobEvent(jobId, "step", {
+            step: stepNum,
+            total,
+            tool,
+            progress: pct,
+          });
         },
       }),
       timeoutPromise,
@@ -144,12 +171,27 @@ export async function processBrowserJob(
             mimeType: "image/png",
           }).catch(() => {});
         }
+
+        jobEventBus.emitJobEvent(jobId, "observation", obs);
       }
     }
 
     // 4. Update final status in DB
     if (pipelineResult.success && pipelineResult.execution) {
       console.log(`[Worker] ✅ Job ${jobId} COMPLETED in ${pipelineResult.durationMs}ms`);
+
+      // Indicate verification phase
+      await updateDbJob(jobId, {
+        status: "VERIFYING",
+        progress: 95,
+        summary: "Verifying extracted data against factual schema...",
+      }).catch(() => {});
+
+      jobEventBus.emitJobEvent(jobId, "status", {
+        status: "VERIFYING",
+        progress: 95,
+        summary: "Verifying extracted data against factual schema...",
+      });
 
       // Extract primary data and synthesize comprehensive final answer leading with factual results
       const allExtracted = pipelineResult.execution.observations
@@ -177,6 +219,14 @@ export async function processBrowserJob(
         tokensUsed: totalTokens > 0 ? totalTokens : undefined,
         memoryMb: pipelineResult.memoryMb,
       }).catch(() => {});
+
+      jobEventBus.emitJobEvent(jobId, "completed", {
+        status: "COMPLETED",
+        progress: 100,
+        summary: finalSummary,
+        result: primaryData,
+        totalDurationMs: pipelineResult.durationMs,
+      });
     } else {
       const isBlocked =
         pipelineResult.guard.classification === "BLOCKED" ||
@@ -195,6 +245,13 @@ export async function processBrowserJob(
         tokensUsed: pipelineResult.tokensUsed,
         memoryMb: pipelineResult.memoryMb,
       }).catch(() => {});
+
+      jobEventBus.emitJobEvent(jobId, "status", {
+        status: finalStatus,
+        progress: 100,
+        summary: pipelineResult.error?.userMessage || "Task was halted or failed.",
+        error: pipelineResult.error,
+      });
     }
 
     return pipelineResult;
