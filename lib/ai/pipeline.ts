@@ -138,6 +138,15 @@ export async function runAutonomousPipeline(
       const totalTokens = intentTokens + planTokens;
       const rssMemoryMb = Math.round((process.memoryUsage().rss / (1024 * 1024)) * 10) / 10;
 
+      const hasFailed = executionResult.status !== "SUCCESS";
+      const executionError = hasFailed
+        ? executionResult.error || (executionResult.finalObservation?.error ? {
+            code: executionResult.finalObservation.error.code || "ACTION_EXECUTION_ERROR",
+            message: executionResult.finalObservation.error.message || "Action execution error",
+            userMessage: executionResult.finalObservation.error.userMessage || "An error occurred during browser action execution.",
+          } : undefined)
+        : undefined;
+
       return {
         jobId,
         prompt,
@@ -151,6 +160,7 @@ export async function runAutonomousPipeline(
         durationMs: Date.now() - startTime,
         tokensUsed: totalTokens > 0 ? totalTokens : undefined,
         memoryMb: rssMemoryMb,
+        error: executionError,
       };
     } finally {
       if (session) {
@@ -160,7 +170,7 @@ export async function runAutonomousPipeline(
   } catch (err: unknown) {
     const errorObj = err as Error;
     const mapped = mapInternalErrorToHuman(errorObj);
-    const errCode = (errorObj as unknown as { code?: string }).code || "PIPELINE_ERROR";
+    const errCode = (errorObj as unknown as { code?: string }).code || mapped.code || "PIPELINE_ERROR";
 
     return {
       jobId,
@@ -186,7 +196,7 @@ export async function runAutonomousPipeline(
       durationMs: Date.now() - startTime,
       error: {
         code: errCode,
-        message: mapped.technicalDetail,
+        message: mapped.technicalDetail || errorObj.message,
         userMessage: mapped.userMessage,
       },
     };

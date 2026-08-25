@@ -15,6 +15,7 @@ import { runMultiUserIntegrationTests } from "./integration/multiUser.test";
 import { runConcurrentUserIsolationTests } from "./integration/concurrentUserIsolation.test";
 import { runWorkerConcurrencyLimitTest } from "./integration/workerConcurrencyLimit.test";
 import { runTimeBudgetWatchdogIntegrationTest } from "./integration/timeBudgetWatchdog.test";
+import { runImmediateFailurePropagationTest } from "./integration/immediateFailurePropagation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
 
 async function runMasterTestSuite() {
@@ -39,6 +40,7 @@ async function runMasterTestSuite() {
     { name: "Integration: Real Concurrent User Isolation (Prompt C1)", fn: runConcurrentUserIsolationTests },
     { name: "Integration: Worker Concurrency Limit & Throttling", fn: runWorkerConcurrencyLimitTest },
     { name: "Integration: Time Budget Watchdog & Timeout (Prompt C2)", fn: runTimeBudgetWatchdogIntegrationTest },
+    { name: "Integration: Immediate Real Failure Propagation (Prompt C3)", fn: runImmediateFailurePropagationTest },
     { name: "E2E: Full Autonomous Agent Pipeline", fn: runEndToEndPipelineTest },
   ];
 

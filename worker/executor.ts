@@ -8,6 +8,7 @@ import {
 } from "@/schemas/actions";
 import { artifactStorage } from "@/lib/storage";
 import { InteractionGuard, type InteractionInspectionResult } from "./interaction-guard";
+import { mapInternalErrorToHuman } from "@/lib/verification/errorMapper";
 
 export interface ExecutorOptions {
   jobId: string;
@@ -221,20 +222,13 @@ export class BrowserExecutor {
     } catch (err: unknown) {
       status = "FAILED";
       const errorMsg = (err as Error).message || String(err);
-      const isTimeout = errorMsg.toLowerCase().includes("timeout");
-      const isSelector = errorMsg.toLowerCase().includes("waiting for locator") || errorMsg.toLowerCase().includes("not found");
+      const mapped = mapInternalErrorToHuman(errorMsg);
 
       errorPayload = {
-        code: isTimeout ? "NAVIGATION_TIMEOUT" : isSelector ? "SELECTOR_NOT_FOUND" : "ACTION_EXECUTION_ERROR",
+        code: mapped.code,
         message: errorMsg,
-        userMessage: isTimeout 
-          ? "The operation timed out waiting for the page or element to respond."
-          : isSelector
-          ? "The target element was not found in the DOM."
-          : "An unexpected error occurred during browser action execution.",
-        suggestion: isTimeout
-          ? "Check the target URL or increase the action timeout threshold."
-          : "Verify that the CSS/XPath selector matches elements on the page.",
+        userMessage: mapped.userMessage,
+        suggestion: mapped.suggestedAction,
       };
     }
 
