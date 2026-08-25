@@ -252,9 +252,20 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     if (executeAttemptedRef.current) return;
     executeAttemptedRef.current = true;
 
+    let cached: any = null;
+    try {
+      const raw = typeof window !== "undefined" ? sessionStorage.getItem(`browserpilot_dispatched_${jobId}`) : null;
+      if (raw) cached = JSON.parse(raw);
+    } catch {}
+
     fetch(`/api/jobs/${jobId}/execute`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: job?.prompt || cached?.prompt,
+        allowedDomains: job?.allowedDomains || cached?.allowedDomains,
+        maxStepsBudget: job?.maxStepsBudget || cached?.maxStepsBudget,
+      }),
     })
       .then((res) => res.json())
       .then((data) => {
@@ -269,7 +280,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       .catch((err) => {
         console.warn("[Client Execute Trigger]:", err);
       });
-  }, [jobId]);
+  }, [jobId, job?.prompt]);
 
   // Poll job data from real API with serverless auto-hydration
   const fetchJob = useCallback(async () => {

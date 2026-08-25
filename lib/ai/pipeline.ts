@@ -1,10 +1,9 @@
 import { classifyIntent } from "./intent";
 import { generateActionPlan } from "./planner";
-import { executeActionPlan, type PlanExecutionResult } from "./toolcall";
+import { type PlanExecutionResult } from "./toolcall";
 import { validateCapabilityPreflight, type CapabilityGuardResult } from "@/lib/capabilities/guard";
 import { validateActionPlan, type PlanValidationResult } from "@/lib/verification/planValidator";
 import { mapInternalErrorToHuman } from "@/lib/verification/errorMapper";
-import { browserPool, type BrowserSession } from "@/worker/browser";
 import { type ActionPlan, type IntentClassification } from "@/schemas/jobs";
 
 export interface PipelineExecutionOptions {
@@ -119,12 +118,13 @@ export async function runAutonomousPipeline(
 
     const approvedPlan = planValidation.validatedPlan;
 
-    // Step 5: Launch Isolated Browser Session (with serverless fallback)
-    let session: BrowserSession | null = null;
+    // Step 5: Launch Browser Session (Playwright in full environment, Serverless Fetch in Lambda)
+    let session: any = null;
     let executionResult: PlanExecutionResult;
 
     try {
       try {
+        const { browserPool } = await import("@/worker/browser");
         session = await browserPool.createSession({
           jobId,
           allowedDomains: approvedPlan.targetDomains,
@@ -136,6 +136,7 @@ export async function runAutonomousPipeline(
 
       // Step 6: Execute Plan via Application ToolCall Dispatcher Layer
       if (session) {
+        const { executeActionPlan } = await import("./toolcall");
         executionResult = await executeActionPlan(session.page, approvedPlan, {
           jobId,
           onStepStart: (stepNum, action) => {
@@ -175,9 +176,9 @@ export async function runAutonomousPipeline(
         plan: approvedPlan,
         planValidation,
         execution: executionResult,
-        success: executionResult.status === "SUCCESS",
+        success: !hasFailed,
         durationMs: Date.now() - startTime,
-        tokensUsed: totalTokens > 0 ? totalTokens : undefined,
+        tokensUsed: totalTokens,
         memoryMb: rssMemoryMb,
         error: executionError,
       };
@@ -187,9 +188,8 @@ export async function runAutonomousPipeline(
       }
     }
   } catch (err: unknown) {
-    const errorObj = err as Error;
-    const mapped = mapInternalErrorToHuman(errorObj);
-    const errCode = (errorObj as unknown as { code?: string }).code || mapped.code || "PIPELINE_ERROR";
+    const totalDurationMs = Date.now() - startTime;
+    const humanError = mapInternalErrorToHuman(err);
 
     return {
       jobId,
@@ -197,26 +197,24 @@ export async function runAutonomousPipeline(
       intent: {
         classification: "UNSUPPORTED",
         confidence: 0,
-        rationale: "Pipeline execution failed during planning or initialization.",
+        rationale: "Pipeline caught fatal execution error.",
         targetDomains: [],
         requiredCapabilities: [],
       },
       guard: {
         allowed: false,
         classification: "UNSUPPORTED",
-        errorCode: errCode,
-        userMessage: mapped.userMessage,
-        technicalDetail: mapped.technicalDetail,
+        userMessage: humanError.userMessage,
         matchedCapabilities: [],
         blockedCapabilities: [],
       },
       plannerCalled: false,
       success: false,
-      durationMs: Date.now() - startTime,
+      durationMs: totalDurationMs,
       error: {
-        code: errCode,
-        message: mapped.technicalDetail || errorObj.message,
-        userMessage: mapped.userMessage,
+        code: humanError.code,
+        message: humanError.technicalDetail || humanError.userMessage,
+        userMessage: humanError.userMessage,
       },
     };
   }

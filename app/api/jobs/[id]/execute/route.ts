@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/authOptions";
-import { getDbJobById } from "@/lib/db/jobs";
+import { getDbJobById, createDbJob } from "@/lib/db/jobs";
 import { getEffectiveUserGeminiApiKey } from "@/lib/db/users";
 import { getEffectiveGeminiApiKey } from "@/lib/ai/modelSelector";
 import { runServerlessPipeline } from "@/lib/serverlessPipeline";
@@ -35,11 +35,35 @@ export async function POST(
       // Session retrieval fallback
     }
 
-    // 1. Fetch current job
-    const job = await getDbJobById(jobId, sessionUserId);
+    let bodyData: any = {};
+    try {
+      bodyData = await request.json().catch(() => ({}));
+    } catch {}
+
+    // 1. Fetch current job (with serverless ephemeral container rehydration)
+    let job = await getDbJobById(jobId, sessionUserId);
+
+    if (!job && bodyData?.prompt) {
+      try {
+        let allowed = bodyData.allowedDomains;
+        if (typeof allowed === "string") {
+          try { allowed = JSON.parse(allowed); } catch { allowed = []; }
+        }
+        job = await createDbJob({
+          id: jobId,
+          prompt: bodyData.prompt,
+          userId: sessionUserId || undefined,
+          allowedDomains: Array.isArray(allowed) ? allowed : [],
+          maxStepsBudget: bodyData.maxStepsBudget || 15,
+        });
+      } catch (createErr) {
+        console.warn(`[ExecuteRoute] Rehydration error for ${jobId}:`, createErr);
+      }
+    }
+
     if (!job) {
       return NextResponse.json(
-        { error: "NOT_FOUND", message: `Job ${jobId} not found.` },
+        { error: "NOT_FOUND", message: `Job ${jobId} not found in database.` },
         { status: 404 }
       );
     }
@@ -54,12 +78,7 @@ export async function POST(
     }
 
     // 2. Resolve Gemini API Key (BYOK)
-    let bodyApiKey: string | undefined = undefined;
-    try {
-      const body = await request.json().catch(() => ({}));
-      bodyApiKey = body?.apiKey;
-    } catch {}
-
+    const bodyApiKey = bodyData?.apiKey;
     const resolvedUserKey = 
       (await getEffectiveUserGeminiApiKey(sessionUserId)) ||
       (await getEffectiveUserGeminiApiKey(sessionUserEmail)) ||
