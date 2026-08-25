@@ -31,6 +31,8 @@ export async function POST(
     const errCode = (errorObj as unknown as { code?: string }).code;
     const errorMsg = errorObj.message;
 
+    console.error(`[CancelRoute] Error cancelling job ${id}:`, err);
+
     if (errCode === "NOT_FOUND" || errorMsg.includes("not found")) {
       return NextResponse.json(
         { error: "NOT_FOUND", message: `Job ${id} does not exist.` },
@@ -48,7 +50,7 @@ export async function POST(
     return NextResponse.json(
       {
         error: "CANCELLATION_FAILED",
-        message: errorMsg,
+        message: errorMsg || "Failed to cancel job.",
       },
       { status: 500 }
     );

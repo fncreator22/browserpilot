@@ -36,7 +36,7 @@ export function clearJobCancellation(jobId: string): void {
  */
 export async function cancelJob(jobId: string, userId?: string | null) {
   // 1. Multi-Tenant Authorization Check via resilient getDbJobById (with memory cache fallback)
-  let job = await getDbJobById(jobId, userId);
+  let job = await getDbJobById(jobId, userId).catch(() => null);
 
   if (!job) {
     job = memoryJobCache.get(jobId) || null;
@@ -80,13 +80,16 @@ export async function cancelJob(jobId: string, userId?: string | null) {
   // 3. Signal in-flight cancellation
   requestJobCancellation(jobId);
 
-  // 4. If QUEUED: Remove from BullMQ Queue
+  // 4. If QUEUED: Remove from BullMQ Queue (safe timeout race)
   if (job.status === "QUEUED") {
     try {
       const queue = getBrowserJobQueue();
-      const bullJob = await queue.getJob(jobId);
+      const bullJob = await Promise.race([
+        queue.getJob(jobId).catch(() => null),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 300)),
+      ]);
       if (bullJob) {
-        await bullJob.remove();
+        await bullJob.remove().catch(() => {});
       }
     } catch {
       // Non-fatal if BullMQ is offline or in-process
@@ -94,7 +97,11 @@ export async function cancelJob(jobId: string, userId?: string | null) {
   }
 
   // 5. If RUNNING: Force-kill active Playwright Browser Context
-  await browserPool.forceCloseJobSession(jobId).catch(() => {});
+  try {
+    await browserPool.forceCloseJobSession(jobId).catch(() => {});
+  } catch {
+    // Non-fatal
+  }
 
   // 6. Update Database Status to CANCELLED
   const updatedJob = await updateDbJob(jobId, {
@@ -107,7 +114,12 @@ export async function cancelJob(jobId: string, userId?: string | null) {
       userMessage: "Task was cancelled by user request.",
     },
     completedAt: new Date(),
-  });
+  }).catch(() => ({
+    ...job,
+    status: "CANCELLED",
+    progress: 100,
+    summary: "Task was cancelled by user request.",
+  }));
 
   clearJobCancellation(jobId);
 
