@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaLibSql } from "@prisma/adapter-libsql";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
@@ -13,6 +14,24 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /**
+ * Check if Turso cloud database credentials are configured
+ */
+export function getTursoConfig(): { url: string; authToken: string } | null {
+  const url =
+    process.env.TURSO_DATABASE_URL ||
+    process.env.TURSO_URL ||
+    (process.env.DATABASE_URL?.startsWith("libsql:") ? process.env.DATABASE_URL : null);
+  const authToken =
+    process.env.TURSO_AUTH_TOKEN ||
+    process.env.TURSO_TOKEN;
+
+  if (url && authToken) {
+    return { url, authToken };
+  }
+  return null;
+}
+
+/**
  * Determine accurate database file path across local dev and Vercel serverless environments
  */
 export function getDatabaseUrl(): string {
@@ -21,10 +40,7 @@ export function getDatabaseUrl(): string {
     return envUrl;
   }
 
-  // In Vercel serverless functions or AWS Lambda, the root directory is read-only.
-  // /tmp is the only writable storage location.
   if (process.env.VERCEL === "1" || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === "production") {
-    // If not an external DB, use writable /tmp
     if (!envUrl || envUrl.startsWith("file:")) {
       return "file:/tmp/dev.db";
     }
@@ -34,7 +50,7 @@ export function getDatabaseUrl(): string {
 }
 
 /**
- * Automatically creates and validates SQLite schema tables on the fly
+ * Automatically creates and validates SQLite schema tables on the fly (for local offline dev)
  */
 export function ensureSqliteSchemaTables(dbUrl: string): void {
   if (globalForPrisma.initializedTables) return;
@@ -134,7 +150,6 @@ export function ensureSqliteSchemaTables(dbUrl: string): void {
         CREATE INDEX IF NOT EXISTS idx_artifacts_jobId ON artifacts (jobId);
       `);
 
-      // Safe column migrations for existing SQLite databases
       try { db.exec(`ALTER TABLE users ADD COLUMN name TEXT;`); } catch {}
       try { db.exec(`ALTER TABLE users ADD COLUMN geminiApiKey TEXT;`); } catch {}
       try { db.exec(`ALTER TABLE users ADD COLUMN updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch {}
@@ -147,7 +162,24 @@ export function ensureSqliteSchemaTables(dbUrl: string): void {
   }
 }
 
+/**
+ * Initialize Prisma Client with Turso libSQL cloud adapter or BetterSqlite3 local adapter
+ */
 export function createPrismaClient(): PrismaClient {
+  const turso = getTursoConfig();
+
+  if (turso) {
+    const adapter = new PrismaLibSql({
+      url: turso.url,
+      authToken: turso.authToken,
+    });
+
+    return new PrismaClient({
+      adapter,
+      log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+    });
+  }
+
   const url = getDatabaseUrl();
   ensureSqliteSchemaTables(url);
 
