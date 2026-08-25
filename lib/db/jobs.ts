@@ -127,15 +127,17 @@ export async function getDbJobById(id: string, userId?: string | null) {
     console.warn(`[JobsDB] Prisma query error for job ${id}:`, err);
   }
 
-  // Only fall back to memory cache if DB query failed (e.g. cold serverless instance)
-  if (!job && !dbQueriedSuccessfully) {
+  // Check memory cache if not found in database
+  if (!job) {
     job = memoryJobCache.get(id) || null;
-  } else if (job) {
-    // Keep memory cache fresh
-    memoryJobCache.set(id, job);
   } else {
-    // DB explicitly confirmed row does not exist, purge memory cache
-    memoryJobCache.delete(id);
+    // Keep memory cache in sync with latest state
+    const cached = memoryJobCache.get(id);
+    if (cached && cached.updatedAt && new Date(cached.updatedAt) > new Date(job.updatedAt)) {
+      job = { ...job, ...cached };
+    } else {
+      memoryJobCache.set(id, job);
+    }
   }
 
   if (!job) return null;
