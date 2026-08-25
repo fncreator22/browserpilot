@@ -14,6 +14,11 @@ export interface SynthesisInput {
   missingFields?: string[];
 }
 
+export interface SynthesisResult {
+  answer: string;
+  tokensUsed?: number;
+}
+
 const SYNTHESIZER_SYSTEM_INSTRUCTION = `
 You are the Final Result Synthesizer for BrowserPilot.
 Your task is to take the extracted web data, user goal, and verified observations from an autonomous browser execution session, and produce a clear, concise, and structured answer for the user.
@@ -26,10 +31,11 @@ Guidelines:
 `;
 
 /**
- * Synthesizes final user-facing response from verified execution data
+ * Synthesizes final user-facing response with token usage metadata
  */
-export async function synthesizeFinalAnswer(input: SynthesisInput): Promise<string> {
+export async function synthesizeFinalAnswerWithMetadata(input: SynthesisInput): Promise<SynthesisResult> {
   const { goal, verificationStatus, extractedData, satisfiedCriteria = [], missingFields = [] } = input;
+  let tokensUsed: number | undefined;
 
   // Try live Gemini synthesis if API key is present
   try {
@@ -53,8 +59,10 @@ ${typeof extractedData === "object" ? JSON.stringify(extractedData, null, 2) : S
         },
       });
 
+      tokensUsed = response.usageMetadata?.totalTokenCount;
+
       if (response.text?.trim()) {
-        return response.text.trim();
+        return { answer: response.text.trim(), tokensUsed };
       }
     }
   } catch {
@@ -62,20 +70,32 @@ ${typeof extractedData === "object" ? JSON.stringify(extractedData, null, 2) : S
   }
 
   // Deterministic Synthesizer Fallback
+  let fallbackAnswer = "";
   if (verificationStatus === "VERIFIED") {
     if (typeof extractedData === "string") {
-      return `### Task Complete (Verified)\n\n${extractedData}\n\n*Satisfied: ${satisfiedCriteria.join(", ") || "All criteria met"}*`;
+      fallbackAnswer = `### Task Complete (Verified)\n\n${extractedData}\n\n*Satisfied: ${satisfiedCriteria.join(", ") || "All criteria met"}*`;
+    } else {
+      fallbackAnswer = `### Task Complete (Verified)\n\n${JSON.stringify(extractedData, null, 2)}`;
     }
-    return `### Task Complete (Verified)\n\n${JSON.stringify(extractedData, null, 2)}`;
   } else if (verificationStatus === "PARTIAL") {
-    return `### Partial Result\n\nThe task executed with partial success. Retrieved data:\n\n${JSON.stringify(
+    fallbackAnswer = `### Partial Result\n\nThe task executed with partial success. Retrieved data:\n\n${JSON.stringify(
       extractedData || "Limited text captured",
       null,
       2
     )}\n\n**Missing or unverified items:** ${missingFields.join(", ") || "Target selectors partially matched"}.`;
   } else if (verificationStatus === "BLOCKED") {
-    return `### Task Blocked\n\nExecution was halted because the website presented a security verification or authentication barrier that cannot be completed autonomously.`;
+    fallbackAnswer = `### Task Blocked\n\nExecution was halted because the website presented a security verification or authentication barrier that cannot be completed autonomously.`;
+  } else {
+    fallbackAnswer = `### Task Execution Finished (${verificationStatus})\n\nGoal: "${goal}".`;
   }
 
-  return `### Task Execution Finished (${verificationStatus})\n\nGoal: "${goal}".`;
+  return { answer: fallbackAnswer, tokensUsed };
+}
+
+/**
+ * Synthesizes final user-facing response from verified execution data
+ */
+export async function synthesizeFinalAnswer(input: SynthesisInput): Promise<string> {
+  const result = await synthesizeFinalAnswerWithMetadata(input);
+  return result.answer;
 }

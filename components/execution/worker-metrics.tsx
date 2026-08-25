@@ -7,8 +7,7 @@ import {
   Timer, 
   Layers, 
   CheckCheck, 
-  Zap, 
-  HardDrive 
+  Zap
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -23,14 +22,16 @@ interface WorkerMetricsProps {
 }
 
 export function WorkerMetrics({
-  durationSeconds = 14.2,
-  stepsCompleted = 5,
+  durationSeconds = 0,
+  stepsCompleted = 0,
   maxSteps = 15,
-  tokensUsed = 4280,
-  memoryMb = 148,
-  confidenceScore = 99.2,
-  status = "RUNNING",
+  tokensUsed,
+  memoryMb,
+  confidenceScore = 95.0,
 }: WorkerMetricsProps) {
+  const hasRealTokens = typeof tokensUsed === "number" && tokensUsed > 0;
+  const hasRealMemory = typeof memoryMb === "number" && memoryMb > 0;
+
   return (
     <div className="rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-sm">
       <div className="flex items-center justify-between pb-4 border-b border-border/60">
@@ -49,7 +50,7 @@ export function WorkerMetrics({
       </div>
 
       <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-        {/* Metric 1 */}
+        {/* Metric 1: Elapsed Duration */}
         <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-[11px] font-mono uppercase">Elapsed</span>
@@ -63,7 +64,7 @@ export function WorkerMetrics({
           <span className="text-[10px] text-muted-foreground mt-1">Total runtime</span>
         </div>
 
-        {/* Metric 2 */}
+        {/* Metric 2: Actions Executed */}
         <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-[11px] font-mono uppercase">Actions</span>
@@ -77,7 +78,7 @@ export function WorkerMetrics({
           <span className="text-[10px] text-muted-foreground mt-1">Steps executed</span>
         </div>
 
-        {/* Metric 3 */}
+        {/* Metric 3: AI Tokens */}
         <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-[11px] font-mono uppercase">Tokens</span>
@@ -85,13 +86,15 @@ export function WorkerMetrics({
           </div>
           <div className="mt-2">
             <span className="text-xl font-bold font-mono tracking-tight text-foreground">
-              {tokensUsed.toLocaleString()}
+              {hasRealTokens ? tokensUsed.toLocaleString() : "N/A"}
             </span>
           </div>
-          <span className="text-[10px] text-muted-foreground mt-1">Gemini 2.0 Flash</span>
+          <span className="text-[10px] text-muted-foreground mt-1">
+            {hasRealTokens ? "Gemini 2.5 Flash" : "No token telemetry"}
+          </span>
         </div>
 
-        {/* Metric 4 */}
+        {/* Metric 4: RAM Heap (Worker RSS Process Memory) */}
         <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-[11px] font-mono uppercase">RAM Heap</span>
@@ -99,13 +102,15 @@ export function WorkerMetrics({
           </div>
           <div className="mt-2">
             <span className="text-xl font-bold font-mono tracking-tight text-foreground">
-              {memoryMb} MB
+              {hasRealMemory ? `${memoryMb} MB` : "N/A"}
             </span>
           </div>
-          <span className="text-[10px] text-muted-foreground mt-1">Worker sandbox</span>
+          <span className="text-[10px] text-muted-foreground mt-1">
+            {hasRealMemory ? "Worker RSS (Measured)" : "Sandbox memory"}
+          </span>
         </div>
 
-        {/* Metric 5 */}
+        {/* Metric 5: Confidence Score */}
         <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-[11px] font-mono uppercase">Confidence</span>
@@ -119,7 +124,7 @@ export function WorkerMetrics({
           <span className="text-[10px] text-muted-foreground mt-1">Schema match</span>
         </div>
 
-        {/* Metric 6 */}
+        {/* Metric 6: Retries */}
         <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-[11px] font-mono uppercase">Retries</span>

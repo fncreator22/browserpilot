@@ -152,5 +152,7 @@ export async function classifyIntent(prompt: string): Promise<IntentClassificati
   }
 
   const parsed = JSON.parse(text);
-  return IntentClassificationSchema.parse(parsed);
+  const validated = IntentClassificationSchema.parse(parsed);
+  const tokensUsed = response.usageMetadata?.totalTokenCount;
+  return Object.assign(validated, { tokensUsed });
 }

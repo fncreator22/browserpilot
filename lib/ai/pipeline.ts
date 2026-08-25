@@ -30,6 +30,8 @@ export interface PipelineResult {
   execution?: PlanExecutionResult;
   success: boolean;
   durationMs: number;
+  tokensUsed?: number;
+  memoryMb?: number;
   error?: {
     code: string;
     message: string;
@@ -131,6 +133,11 @@ export async function runAutonomousPipeline(
         },
       });
 
+      const intentTokens = (intent as unknown as { tokensUsed?: number }).tokensUsed || 0;
+      const planTokens = (rawPlan as unknown as { tokensUsed?: number }).tokensUsed || 0;
+      const totalTokens = intentTokens + planTokens;
+      const rssMemoryMb = Math.round((process.memoryUsage().rss / (1024 * 1024)) * 10) / 10;
+
       return {
         jobId,
         prompt,
@@ -142,6 +149,8 @@ export async function runAutonomousPipeline(
         execution: executionResult,
         success: executionResult.status === "SUCCESS",
         durationMs: Date.now() - startTime,
+        tokensUsed: totalTokens > 0 ? totalTokens : undefined,
+        memoryMb: rssMemoryMb,
       };
     } finally {
       if (session) {

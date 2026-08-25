@@ -124,6 +124,8 @@ export async function processBrowserJob(
         summary: pipelineResult.execution.finalObservation?.pageSummary || "Task completed successfully.",
         result: pipelineResult.execution.finalObservation?.extractedData,
         totalDurationMs: pipelineResult.durationMs,
+        tokensUsed: pipelineResult.tokensUsed,
+        memoryMb: pipelineResult.memoryMb,
       }).catch(() => {});
 
       jobStore.updateJob(jobId, {
@@ -153,6 +155,8 @@ export async function processBrowserJob(
         summary: pipelineResult.error?.userMessage || "Task was halted or failed.",
         error: pipelineResult.error,
         totalDurationMs: pipelineResult.durationMs,
+        tokensUsed: pipelineResult.tokensUsed,
+        memoryMb: pipelineResult.memoryMb,
       }).catch(() => {});
 
       jobStore.updateJob(jobId, {

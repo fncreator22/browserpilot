@@ -38,6 +38,8 @@ interface DbJobData {
   error?: string;
   result?: string;
   totalDurationMs?: number;
+  tokensUsed?: number;
+  memoryMb?: number;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
@@ -439,8 +441,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             durationSeconds={job.totalDurationMs ? Math.round((job.totalDurationMs / 1000) * 10) / 10 : Math.max(0, Math.round((new Date(job.updatedAt).getTime() - new Date(job.createdAt).getTime()) / 1000))}
             stepsCompleted={job.observations.length}
             maxSteps={job.maxStepsBudget}
-            tokensUsed={Math.min(1200 + job.observations.length * 450, 6000)}
-            memoryMb={140}
+            tokensUsed={job.tokensUsed ?? undefined}
+            memoryMb={job.memoryMb ?? undefined}
             confidenceScore={job.confidence ? Math.round(job.confidence * 100) : 95.0}
             status={job.status}
           />

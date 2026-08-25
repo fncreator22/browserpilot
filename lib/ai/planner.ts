@@ -158,5 +158,7 @@ export async function generateActionPlan(
   }
 
   const parsed = JSON.parse(text);
-  return ActionPlanSchema.parse(parsed);
+  const validated = ActionPlanSchema.parse(parsed);
+  const tokensUsed = response.usageMetadata?.totalTokenCount;
+  return Object.assign(validated, { tokensUsed });
 }

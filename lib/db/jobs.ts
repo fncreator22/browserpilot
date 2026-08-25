@@ -19,6 +19,8 @@ export interface UpdateJobDbInput {
   error?: unknown;
   result?: unknown;
   totalDurationMs?: number;
+  tokensUsed?: number;
+  memoryMb?: number;
   completedAt?: Date;
 }
 
@@ -78,6 +80,8 @@ export async function updateDbJob(id: string, updates: UpdateJobDbInput) {
   if (updates.confidence !== undefined) dataToUpdate.confidence = updates.confidence;
   if (updates.summary !== undefined) dataToUpdate.summary = updates.summary;
   if (updates.totalDurationMs !== undefined) dataToUpdate.totalDurationMs = updates.totalDurationMs;
+  if (updates.tokensUsed !== undefined) dataToUpdate.tokensUsed = updates.tokensUsed;
+  if (updates.memoryMb !== undefined) dataToUpdate.memoryMb = updates.memoryMb;
 
   if (updates.error !== undefined) {
     dataToUpdate.error = typeof updates.error === "string" ? updates.error : JSON.stringify(updates.error);
