@@ -81,11 +81,12 @@ export async function POST(request: Request) {
     );
   } catch (err: unknown) {
     const errorMsg = (err as Error).message || "Internal server error";
+    console.error("[Register] Account registration failed:", err);
     return NextResponse.json(
       {
         error: "REGISTRATION_FAILED",
         message: "An error occurred while creating your account. Please try again.",
-        detail: process.env.NODE_ENV === "development" ? errorMsg : undefined,
+        detail: errorMsg,
       },
       { status: 500 }
     );
