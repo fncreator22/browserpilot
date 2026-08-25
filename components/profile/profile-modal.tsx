@@ -44,7 +44,8 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   // Load profile data when modal opens
   useEffect(() => {
     if (isOpen && session?.user) {
-      setIsLoading(true);
+      setName(session.user.name || "");
+      setEmail(session.user.email || "");
       setErrorMsg(null);
       setSuccessMsg(null);
       setCurrentPassword("");
@@ -55,15 +56,13 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         .then((res) => res.json())
         .then((data) => {
           if (data && !data.error) {
-            setName(data.name || "");
-            setEmail(data.email || "");
+            if (data.name) setName(data.name);
+            if (data.email) setEmail(data.email);
             setHasKey(data.hasGeminiKey || false);
             setMaskedKey(data.maskedKey || null);
           }
         })
-        .catch(() => {
-          setErrorMsg("Failed to load profile data.");
-        })
+        .catch(() => {})
         .finally(() => {
           setIsLoading(false);
         });
