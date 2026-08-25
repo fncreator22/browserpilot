@@ -39,7 +39,7 @@ export function getBrowserJobQueue(): Queue<BrowserJobPayload> {
 
 /**
  * Enqueue a new BrowserPilot autonomous job
- * Persists to Prisma DB and returns immediately with { jobId, status: "QUEUED" }
+ * Persists to Prisma DB and dispatches either via BullMQ Redis queue or in-process worker
  */
 export async function enqueueBrowserJob(input: EnqueueJobInput): Promise<{
   jobId: string;
@@ -71,7 +71,7 @@ export async function enqueueBrowserJob(input: EnqueueJobInput): Promise<{
     maxStepsBudget,
   });
 
-  // 3. Push job to BullMQ queue
+  // 3. Dispatch to BullMQ Queue, with automatic in-process worker fallback for standalone dev
   try {
     const queue = getBrowserJobQueue();
     await queue.add(
@@ -85,13 +85,18 @@ export async function enqueueBrowserJob(input: EnqueueJobInput): Promise<{
       { jobId }
     );
   } catch (err: unknown) {
-    const health = await checkRedisHealth();
-    if (!health.connected) {
-      throw new Error(
-        `Failed to enqueue job: ${health.troubleshooting} (Original error: ${(err as Error).message})`
-      );
-    }
-    throw err;
+    // Graceful fallback for local development without standalone Redis server
+    console.log(`[JobQueue] Redis not available, running job ${jobId} in background in-process worker...`);
+    import("@/worker/index").then(({ processBrowserJob }) => {
+      processBrowserJob({
+        jobId,
+        prompt,
+        allowedDomains,
+        maxStepsBudget,
+      }).catch((workerErr) => {
+        console.error(`[JobQueue] In-process execution error for ${jobId}:`, workerErr);
+      });
+    });
   }
 
   return {
