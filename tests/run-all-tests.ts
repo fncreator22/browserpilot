@@ -11,6 +11,8 @@ import { runAuthTests } from "./unit/auth.test";
 import { runCleanupUnitTests } from "./unit/cleanup.test";
 import { runExecutorIntegrationTests } from "./integration/executor.test";
 import { runMultiUserIntegrationTests } from "./integration/multiUser.test";
+import { runConcurrentUserIsolationTests } from "./integration/concurrentUserIsolation.test";
+import { runWorkerConcurrencyLimitTest } from "./integration/workerConcurrencyLimit.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
 
 async function runMasterTestSuite() {
@@ -31,6 +33,8 @@ async function runMasterTestSuite() {
     { name: "Unit: 24-Hour Auto-Purge & Retention", fn: runCleanupUnitTests },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },
     { name: "Integration: Multi-User Isolation & Limits (§36 Test 6)", fn: runMultiUserIntegrationTests },
+    { name: "Integration: Real Concurrent User Isolation (Prompt C1)", fn: runConcurrentUserIsolationTests },
+    { name: "Integration: Worker Concurrency Limit & Throttling", fn: runWorkerConcurrencyLimitTest },
     { name: "E2E: Full Autonomous Agent Pipeline", fn: runEndToEndPipelineTest },
   ];
 

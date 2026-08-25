@@ -20,6 +20,20 @@ export interface BrowserSession {
 export class BrowserPool {
   private browser: Browser | null = null;
   private isInitializing = false;
+  private activeSessions = new Set<string>();
+  private maxConcurrentObserved = 0;
+
+  getActiveSessionCount(): number {
+    return this.activeSessions.size;
+  }
+
+  getMaxConcurrentObserved(): number {
+    return this.maxConcurrentObserved;
+  }
+
+  resetConcurrencyMetrics(): void {
+    this.maxConcurrentObserved = this.activeSessions.size;
+  }
 
   /**
    * Ensure shared Chromium browser instance is launched
@@ -106,6 +120,11 @@ export class BrowserPool {
       });
     }
 
+    this.activeSessions.add(options.jobId);
+    if (this.activeSessions.size > this.maxConcurrentObserved) {
+      this.maxConcurrentObserved = this.activeSessions.size;
+    }
+
     const session: BrowserSession = {
       jobId: options.jobId,
       context,
@@ -114,6 +133,7 @@ export class BrowserPool {
       createdAt: new Date(),
       close: async () => {
         try {
+          this.activeSessions.delete(options.jobId);
           await page.close().catch(() => {});
           await context.close().catch(() => {});
         } catch (err) {
