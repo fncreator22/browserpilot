@@ -4,7 +4,7 @@ import {
   type ActionPlan, 
   ActionPlanSchema 
 } from "@/schemas/jobs";
-import { getGeminiClient, GEMINI_MODEL_NAME } from "./intent";
+import { GEMINI_MODEL_NAME, isTestHarnessEnvironment } from "./intent";
 
 config();
 
@@ -83,16 +83,26 @@ export interface PlanGenerationOptions {
 }
 
 /**
- * Generates an ActionPlan using Gemini 2.5 structured output with offline test fallback
+ * Generates an ActionPlan using Gemini 2.5 structured output.
+ * Gated: Offline test fallback ONLY activates when NODE_ENV === 'test' or IS_TEST_HARNESS === 'true'.
  */
 export async function generateActionPlan(
   prompt: string,
   options: PlanGenerationOptions = {}
 ): Promise<ActionPlan> {
-  const ai = getGeminiClient();
+  const isTest = isTestHarnessEnvironment();
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const hasValidKey = apiKey && apiKey !== "your-gemini-api-key" && apiKey.trim() !== "";
 
-  if (!ai) {
-    // Offline deterministic test fallback
+  // In test harness mode or when key is missing in test mode, use deterministic test fallback
+  if (isTest || !hasValidKey) {
+    if (!isTest && !hasValidKey) {
+      const err = new Error("MISSING_GEMINI_API_KEY: Gemini API Key is required for action planning outside test mode.");
+      (err as unknown as { code: string }).code = "MISSING_GEMINI_API_KEY";
+      throw err;
+    }
+
+    // Offline deterministic test fallback (ONLY permitted in test harness mode)
     const urlMatch = prompt.match(/https?:\/\/[^\s,]+/i);
     const targetUrl = urlMatch ? urlMatch[0] : "http://127.0.0.1:3997";
     const domainMatch = targetUrl.match(/https?:\/\/([^\s/:]+)/i);
@@ -130,6 +140,7 @@ export async function generateActionPlan(
     });
   }
 
+  const ai = new GoogleGenAI({ apiKey: apiKey! });
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_NAME,
     contents: `User Goal: "${prompt}"\nConstraints: Allowed Domains = ${JSON.stringify(options.allowedDomains || [])}, Max Steps = ${options.maxStepsBudget || 15}`,

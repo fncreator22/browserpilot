@@ -55,10 +55,10 @@ export const ERROR_CATALOG_7: Record<string, HumanReadableError> = {
   RATE_LIMIT_EXCEEDED: {
     code: "RATE_LIMIT_EXCEEDED",
     category: "AI",
-    title: "AI Reasoning Rate Limit Reached",
-    userMessage: "The Gemini AI planning agent reached the maximum requests per minute quota threshold.",
-    technicalDetail: "429 Too Many Requests or quota exhaustion returned by the AI planning gateway.",
-    suggestedAction: "Wait 10-15 seconds before retrying the task, or configure an enterprise quota key.",
+    title: "AI Reasoning Service Unavailable",
+    userMessage: "The Gemini AI planning service is temporarily unavailable or requires API key configuration.",
+    technicalDetail: "AI planning gateway returned a quota, rate limit, or configuration exception. Ensure valid credentials are set.",
+    suggestedAction: "Wait a few moments before retrying the task, or verify that your API credentials have active quota.",
     recoverable: true,
   },
   BROWSER_CRASH: {
@@ -158,8 +158,11 @@ export function mapInternalErrorToHuman(input: unknown): HumanReadableError {
     return ERROR_CATALOG_7.SELECTOR_NOT_FOUND;
   }
 
-  // 5. Rate Limits & Quotas
+  // 5. Rate Limits & Quotas / AI Configuration
   if (
+    combined.includes("missing_gemini_api_key") ||
+    combined.includes("gemini_api_key") ||
+    combined.includes("api_key") ||
     combined.includes("rate_limit") ||
     combined.includes("429") ||
     combined.includes("quota") ||

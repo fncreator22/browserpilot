@@ -7,18 +7,47 @@ import {
 
 config();
 
+export const GEMINI_MODEL_NAME = "gemini-2.5-flash";
+
 /**
- * Validates presence of Gemini API credentials
+ * Helper to determine if execution is strictly running inside an automated test runner
  */
-export function getGeminiClient(): GoogleGenAI | null {
+export function isTestHarnessEnvironment(): boolean {
+  return process.env.NODE_ENV === "test" || process.env.IS_TEST_HARNESS === "true";
+}
+
+/**
+ * Validates presence of Gemini API credentials for startup and pre-flight checks
+ */
+export function validateGeminiCredentialsOnStartup(): { valid: boolean; error?: string } {
+  if (isTestHarnessEnvironment()) {
+    return { valid: true };
+  }
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!apiKey || apiKey === "your-gemini-api-key") {
-    return null;
+  if (!apiKey || apiKey === "your-gemini-api-key" || apiKey.trim() === "") {
+    return {
+      valid: false,
+      error: "MISSING_GEMINI_API_KEY",
+    };
+  }
+  return { valid: true };
+}
+
+/**
+ * Returns a configured GoogleGenAI instance or throws a configuration error outside test mode
+ */
+export function getGeminiClient(): GoogleGenAI {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey || apiKey === "your-gemini-api-key" || apiKey.trim() === "") {
+    if (isTestHarnessEnvironment()) {
+      return null as unknown as GoogleGenAI;
+    }
+    const err = new Error("MISSING_GEMINI_API_KEY: Gemini API Key is required for autonomous operations outside test mode.");
+    (err as unknown as { code: string }).code = "MISSING_GEMINI_API_KEY";
+    throw err;
   }
   return new GoogleGenAI({ apiKey });
 }
-
-export const GEMINI_MODEL_NAME = "gemini-2.5-flash";
 
 const INTENT_RESPONSE_SCHEMA: Schema = {
   type: Type.OBJECT,
@@ -55,13 +84,23 @@ Your task is to analyze a natural language user prompt and classify it into EXAC
 `;
 
 /**
- * Classify user intent using Gemini 2.5 structured output with offline deterministic fallback
+ * Classify user intent using Gemini 2.5 structured output.
+ * Gated: Offline test fallback ONLY activates when NODE_ENV === 'test' or IS_TEST_HARNESS === 'true'.
  */
 export async function classifyIntent(prompt: string): Promise<IntentClassification> {
-  const ai = getGeminiClient();
+  const isTest = isTestHarnessEnvironment();
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const hasValidKey = apiKey && apiKey !== "your-gemini-api-key" && apiKey.trim() !== "";
 
-  if (!ai) {
-    // Offline deterministic fallback
+  // In test harness mode or when key is missing in test mode, use deterministic test fallback
+  if (isTest || !hasValidKey) {
+    if (!isTest && !hasValidKey) {
+      const err = new Error("MISSING_GEMINI_API_KEY: Gemini API Key is required for intent classification outside test mode.");
+      (err as unknown as { code: string }).code = "MISSING_GEMINI_API_KEY";
+      throw err;
+    }
+
+    // Offline deterministic test fallback (ONLY permitted in test harness mode)
     const lower = prompt.toLowerCase();
     const urlMatch = prompt.match(/https?:\/\/([^\s/]+)/i);
     const domain = urlMatch ? urlMatch[1] : "localhost";
@@ -95,6 +134,7 @@ export async function classifyIntent(prompt: string): Promise<IntentClassificati
     };
   }
 
+  const ai = new GoogleGenAI({ apiKey: apiKey! });
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_NAME,
     contents: prompt,

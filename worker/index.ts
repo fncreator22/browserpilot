@@ -13,6 +13,7 @@ import {
   recordDbArtifact 
 } from "@/lib/db/jobs";
 import { runAutonomousPipeline, type PipelineResult } from "@/lib/ai/pipeline";
+import { validateGeminiCredentialsOnStartup } from "@/lib/ai/intent";
 import { browserPool } from "./browser";
 
 config();
@@ -206,6 +207,14 @@ export async function startWorker(): Promise<Worker<BrowserJobPayload>> {
   console.log("=================================================");
   console.log(`[Config] Queue Name: "${BROWSER_JOBS_QUEUE_NAME}"`);
   console.log(`[Config] Concurrency Limit: ${concurrency} parallel browser jobs`);
+
+  // Fail-fast configuration guard: Verify GEMINI_API_KEY presence outside test harness
+  const geminiCheck = validateGeminiCredentialsOnStartup();
+  if (!geminiCheck.valid) {
+    console.error("\n❌ CRITICAL CONFIGURATION ERROR: GEMINI_API_KEY is missing or invalid!");
+    console.error("BrowserPilot worker requires a valid GEMINI_API_KEY in .env to plan and execute tasks.\n");
+    throw new Error("MISSING_GEMINI_API_KEY: Gemini API Key is required to start worker.");
+  }
 
   // Check Redis Connection
   const health = await checkRedisHealth();

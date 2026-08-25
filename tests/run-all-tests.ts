@@ -1,8 +1,12 @@
+process.env.IS_TEST_HARNESS = "true";
+(process.env as Record<string, string | undefined>).NODE_ENV = "test";
+
 import { browserPool } from "@/worker/browser";
 import { runPlanValidatorTests } from "./unit/planValidator.test";
 import { runCapabilityGuardTests } from "./unit/capabilityGuard.test";
 import { runResultVerifierTests } from "./unit/resultVerifier.test";
 import { runErrorMapperUnitTests } from "./unit/errorMapper.test";
+import { runGeminiGuardTests } from "./unit/geminiGuard.test";
 import { runExecutorIntegrationTests } from "./integration/executor.test";
 import { runMultiUserIntegrationTests } from "./integration/multiUser.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -20,6 +24,7 @@ async function runMasterTestSuite() {
     { name: "Unit: Capability Guard", fn: runCapabilityGuardTests },
     { name: "Unit: Result Verifier", fn: runResultVerifierTests },
     { name: "Unit: Error Mapper (§26)", fn: runErrorMapperUnitTests },
+    { name: "Unit: Gemini Key Fallback Guard", fn: runGeminiGuardTests },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },
     { name: "Integration: Multi-User Isolation & Limits (§36 Test 6)", fn: runMultiUserIntegrationTests },
     { name: "E2E: Full Autonomous Agent Pipeline", fn: runEndToEndPipelineTest },

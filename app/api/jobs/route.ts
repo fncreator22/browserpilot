@@ -5,6 +5,8 @@ import { authOptions } from "@/lib/auth/authOptions";
 import { checkUserJobLimits } from "@/lib/auth/limits";
 import { enqueueBrowserJob } from "@/lib/queue/jobQueue";
 import { listDbJobs } from "@/lib/db/jobs";
+import { validateGeminiCredentialsOnStartup } from "@/lib/ai/intent";
+import { mapInternalErrorToHuman } from "@/lib/verification/errorMapper";
 
 const CreateJobRequestSchema = z.object({
   prompt: z.string().min(1, "Task prompt is required").max(2000, "Prompt must be under 2000 characters"),
@@ -15,7 +17,7 @@ const CreateJobRequestSchema = z.object({
 
 /**
  * POST /api/jobs
- * Non-blocking job dispatcher with user ownership and concurrency rate limits (§22 / §27)
+ * Non-blocking job dispatcher with user ownership, rate limits, and configuration guards (§22 / §27)
  */
 export async function POST(request: Request) {
   const startTime = Date.now();
@@ -33,6 +35,20 @@ export async function POST(request: Request) {
           details: parseResult.error.issues,
         },
         { status: 400 }
+      );
+    }
+
+    // Fail-fast configuration guard: Verify GEMINI_API_KEY presence outside test harness
+    const geminiCheck = validateGeminiCredentialsOnStartup();
+    if (!geminiCheck.valid) {
+      const mapped = mapInternalErrorToHuman(geminiCheck.error);
+      return NextResponse.json(
+        {
+          error: "CONFIGURATION_ERROR",
+          message: mapped.userMessage,
+          category: mapped.category,
+        },
+        { status: 503 }
       );
     }
 
