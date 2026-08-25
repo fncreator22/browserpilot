@@ -21,6 +21,7 @@ export class BrowserPool {
   private browser: Browser | null = null;
   private isInitializing = false;
   private activeSessions = new Set<string>();
+  private activeSessionMap = new Map<string, BrowserSession>();
   private maxConcurrentObserved = 0;
 
   getActiveSessionCount(): number {
@@ -134,6 +135,7 @@ export class BrowserPool {
       close: async () => {
         try {
           this.activeSessions.delete(options.jobId);
+          this.activeSessionMap.delete(options.jobId);
           await page.close().catch(() => {});
           await context.close().catch(() => {});
         } catch (err) {
@@ -142,7 +144,23 @@ export class BrowserPool {
       },
     };
 
+    this.activeSessionMap.set(options.jobId, session);
+
     return session;
+  }
+
+  /**
+   * Force-kill and close an active Playwright browser context for a specific job (§Prompt C4)
+   */
+  async forceCloseJobSession(jobId: string): Promise<boolean> {
+    const session = this.activeSessionMap.get(jobId);
+    if (session) {
+      await session.close().catch(() => {});
+      this.activeSessionMap.delete(jobId);
+      this.activeSessions.delete(jobId);
+      return true;
+    }
+    return false;
   }
 
   /**

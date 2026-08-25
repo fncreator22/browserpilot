@@ -11,7 +11,9 @@ import {
   AlertTriangle, 
   RefreshCw, 
   Radio,
-  Clock
+  Clock,
+  Square,
+  Ban
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +30,7 @@ import { UplinkExecutionVisualizer, type ExecutionState } from "@/components/thr
 interface DbJobData {
   id: string;
   prompt: string;
-  status: "QUEUED" | "PLANNING" | "WORKING" | "VERIFYING" | "COMPLETED" | "FAILED" | "BLOCKED";
+  status: "QUEUED" | "PLANNING" | "WORKING" | "VERIFYING" | "COMPLETED" | "FAILED" | "BLOCKED" | "CANCELLED";
   progress: number;
   allowedDomains: string;
   maxStepsBudget: number;
@@ -86,9 +88,28 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
   const previousStatusRef = useRef<string | null>(null);
 
   const isActive = job ? ["QUEUED", "PLANNING", "WORKING", "VERIFYING"].includes(job.status) : false;
+
+  const handleCancelJob = async () => {
+    if (!job || !isActive) return;
+    try {
+      setIsCancelling(true);
+      const res = await fetch(`/api/jobs/${jobId}/cancel`, { method: "POST" });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to cancel job.");
+      }
+      toast.warning("Task execution cancelled by user.");
+      await fetchJob();
+    } catch (err: unknown) {
+      toast.error((err as Error).message || "Cancellation failed.");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   // Live Time Budget Countdown Timer (§Prompt C2)
   useEffect(() => {
@@ -324,6 +345,22 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           </div>
 
           <div className="flex items-center gap-2">
+            {isActive && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleCancelJob}
+                disabled={isCancelling}
+                className="font-mono text-xs gap-1.5 h-8 bg-rose-600/90 hover:bg-rose-700 text-white shadow-xs"
+              >
+                {isCancelling ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Square className="h-3.5 w-3.5 fill-current" />
+                )}
+                {isCancelling ? "Cancelling..." : "Cancel Task"}
+              </Button>
+            )}
             <Badge variant="outline" className="font-mono text-[11px] gap-1.5 py-1 px-3 bg-secondary/40">
               <Clock className="h-3 w-3" />
               {new Date(job.createdAt).toLocaleTimeString()}
@@ -345,6 +382,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                   <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono text-xs gap-1.5 py-1 px-3">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     TASK COMPLETE (VERIFIED)
+                  </Badge>
+                )}
+                {job.status === "CANCELLED" && (
+                  <Badge className="bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20 font-mono text-xs gap-1.5 py-1 px-3">
+                    <Ban className="h-3.5 w-3.5" />
+                    TASK CANCELLED
                   </Badge>
                 )}
                 {job.status === "QUEUED" && (

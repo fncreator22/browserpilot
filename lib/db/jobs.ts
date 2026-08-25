@@ -14,7 +14,7 @@ export interface CreateJobDbInput {
 }
 
 export interface UpdateJobDbInput {
-  status?: "QUEUED" | "PLANNING" | "WORKING" | "VERIFYING" | "COMPLETED" | "FAILED" | "BLOCKED";
+  status?: "QUEUED" | "PLANNING" | "WORKING" | "VERIFYING" | "COMPLETED" | "FAILED" | "BLOCKED" | "CANCELLED";
   progress?: number;
   goal?: string;
   confidence?: number;
@@ -228,19 +228,20 @@ export async function cancelDbJob(jobId: string, userId?: string | null) {
     throw new Error("Job not found or access unauthorized.");
   }
 
-  if (job.status === "COMPLETED" || job.status === "FAILED" || job.status === "BLOCKED") {
+  if (job.status === "COMPLETED" || job.status === "FAILED" || job.status === "BLOCKED" || job.status === "CANCELLED") {
     return job; // Already in terminal state
   }
 
   return updateDbJob(jobId, {
-    status: "BLOCKED",
+    status: "CANCELLED",
     progress: 100,
     summary: "Task was cancelled by user request.",
     error: {
       code: "USER_CANCELLED",
-      message: "Job execution was aborted by the user.",
-      userMessage: "You cancelled this job execution.",
+      message: "Job execution was cancelled by user request.",
+      userMessage: "Task was cancelled by user request.",
     },
+    completedAt: new Date(),
   });
 }
 

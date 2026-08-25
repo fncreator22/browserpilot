@@ -10,6 +10,7 @@ import {
   BrowserActionSchema 
 } from "@/schemas/actions";
 import { BrowserExecutor } from "@/worker/executor";
+import { isJobCancelled } from "@/lib/queue/cancellation";
 
 export interface PlanExecutionResult {
   jobId: string;
@@ -65,6 +66,17 @@ export async function executeActionPlan(
     const stepNumber = i + 1;
 
     options.onStepStart?.(stepNumber, plannedStep.action);
+
+    // Immediate cancellation checkpoint (§Prompt C4)
+    if (isJobCancelled(options.jobId)) {
+      overallStatus = "BLOCKED";
+      fatalError = {
+        code: "USER_CANCELLED",
+        message: "Job execution was aborted by user request.",
+        userMessage: "Task was cancelled by user request.",
+      };
+      break;
+    }
 
     // Explicit application-side parameter validation before execution
     const validatedAction = BrowserActionSchema.parse(plannedStep.action);

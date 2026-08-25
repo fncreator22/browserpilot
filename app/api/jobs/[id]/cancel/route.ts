@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/authOptions";
-import { cancelDbJob } from "@/lib/db/jobs";
+import { cancelJob } from "@/lib/queue/cancellation";
 
 /**
- * POST /api/jobs/:id/cancel (§27)
- * Ownership-checked cancellation of in-flight execution
+ * POST /api/jobs/:id/cancel (§27 / §Prompt C4)
+ * Ownership-checked cancellation of in-flight execution, BullMQ queue removal, and browser kill
  */
 export async function POST(
   request: Request,
@@ -18,23 +18,39 @@ export async function POST(
     const session = await getServerSession(authOptions);
     const userId = (session?.user as { id?: string })?.id || null;
 
-    const cancelledJob = await cancelDbJob(id, userId);
+    const result = await cancelJob(id, userId);
 
     return NextResponse.json({
       success: true,
-      message: "Job cancelled successfully.",
-      job: cancelledJob,
+      alreadyTerminated: result.alreadyTerminated,
+      message: result.alreadyTerminated ? "Job is already in a terminal state." : "Job cancelled successfully.",
+      job: result.job,
     });
   } catch (err: unknown) {
-    const errorMsg = (err as Error).message;
-    const isAuth = errorMsg.includes("unauthorized") || errorMsg.includes("not found");
+    const errorObj = err as Error;
+    const errCode = (errorObj as unknown as { code?: string }).code;
+    const errorMsg = errorObj.message;
+
+    if (errCode === "NOT_FOUND" || errorMsg.includes("not found")) {
+      return NextResponse.json(
+        { error: "NOT_FOUND", message: `Job ${id} does not exist.` },
+        { status: 404 }
+      );
+    }
+
+    if (errCode === "UNAUTHORIZED" || errorMsg.includes("Unauthorized")) {
+      return NextResponse.json(
+        { error: "UNAUTHORIZED", message: "Unauthorized to cancel this job." },
+        { status: 403 }
+      );
+    }
 
     return NextResponse.json(
       {
-        error: isAuth ? "UNAUTHORIZED" : "CANCELLATION_FAILED",
+        error: "CANCELLATION_FAILED",
         message: errorMsg,
       },
-      { status: isAuth ? 403 : 500 }
+      { status: 500 }
     );
   }
 }
