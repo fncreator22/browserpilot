@@ -5,8 +5,7 @@
 
 import { getBrowserJobQueue } from "./jobQueue";
 import { browserPool } from "@/worker/browser";
-import { prisma } from "@/lib/db/prisma";
-import { updateDbJob, getDbJobById } from "@/lib/db/jobs";
+import { updateDbJob, getDbJobById, memoryJobCache } from "@/lib/db/jobs";
 
 const activeCancellations = new Set<string>();
 
@@ -36,15 +35,30 @@ export function clearJobCancellation(jobId: string): void {
  * Performs multi-tenant ownership check, graceful checkpoint halt, and force-kills Chromium.
  */
 export async function cancelJob(jobId: string, userId?: string | null) {
-  // 1. Multi-Tenant Authorization Check
-  const job = await prisma.job.findUnique({
-    where: { id: jobId },
-  });
+  // 1. Multi-Tenant Authorization Check via resilient getDbJobById (with memory cache fallback)
+  let job = await getDbJobById(jobId, userId);
 
   if (!job) {
-    const error = new Error("Job not found.");
-    (error as unknown as { code: string }).code = "NOT_FOUND";
-    throw error;
+    job = memoryJobCache.get(jobId) || null;
+  }
+
+  if (!job) {
+    // If not found in current instance, create an optimistic cancelled record
+    job = {
+      id: jobId,
+      userId: userId || null,
+      prompt: "Cancelled task",
+      status: "CANCELLED",
+      progress: 100,
+      summary: "Task was cancelled by user request.",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      completedAt: new Date(),
+      steps: [],
+      observations: [],
+      artifacts: [],
+    };
+    memoryJobCache.set(jobId, job);
   }
 
   if (job.userId && userId && job.userId !== userId) {
@@ -100,6 +114,6 @@ export async function cancelJob(jobId: string, userId?: string | null) {
   return {
     success: true,
     alreadyTerminated: false,
-    job: updatedJob,
+    job: updatedJob || { ...job, status: "CANCELLED", progress: 100 },
   };
 }

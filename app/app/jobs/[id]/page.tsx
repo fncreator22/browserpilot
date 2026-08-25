@@ -103,8 +103,22 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.message || "Failed to cancel job.");
       }
+
+      const cancelledJob: DbJobData = {
+        ...job,
+        status: "CANCELLED",
+        progress: 100,
+        summary: "Task was cancelled by user request.",
+        completedAt: new Date().toISOString(),
+      };
+      setJob(cancelledJob);
+
+      try {
+        sessionStorage.setItem(`browserpilot_dispatched_${jobId}`, JSON.stringify(cancelledJob));
+      } catch {}
+
       toast.warning("Task execution cancelled by user.");
-      await fetchJob();
+      await fetchJob().catch(() => {});
     } catch (err: unknown) {
       toast.error((err as Error).message || "Cancellation failed.");
     } finally {

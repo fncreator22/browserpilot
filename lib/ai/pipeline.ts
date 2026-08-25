@@ -116,22 +116,38 @@ export async function runAutonomousPipeline(
 
     const approvedPlan = planValidation.validatedPlan;
 
-    // Step 5: Launch Isolated Browser Session
+    // Step 5: Launch Isolated Browser Session (with serverless fallback)
     let session: BrowserSession | null = null;
+    let executionResult: PlanExecutionResult;
+
     try {
-      session = await browserPool.createSession({
-        jobId,
-        allowedDomains: approvedPlan.targetDomains,
-        headless: options.headless !== false,
-      });
+      try {
+        session = await browserPool.createSession({
+          jobId,
+          allowedDomains: approvedPlan.targetDomains,
+          headless: options.headless !== false,
+        });
+      } catch (browserLaunchErr) {
+        console.warn(`[Pipeline] Chromium browser session unavailable, using serverless fetch execution:`, (browserLaunchErr as Error).message);
+      }
 
       // Step 6: Execute Plan via Application ToolCall Dispatcher Layer
-      const executionResult = await executeActionPlan(session.page, approvedPlan, {
-        jobId,
-        onStepStart: (stepNum, action) => {
-          options.onStepProgress?.(stepNum, approvedPlan.steps.length, action.tool);
-        },
-      });
+      if (session) {
+        executionResult = await executeActionPlan(session.page, approvedPlan, {
+          jobId,
+          onStepStart: (stepNum, action) => {
+            options.onStepProgress?.(stepNum, approvedPlan.steps.length, action.tool);
+          },
+        });
+      } else {
+        const { executeServerlessActionPlan } = await import("./serverlessExecutor");
+        executionResult = await executeServerlessActionPlan(approvedPlan, {
+          jobId,
+          onStepStart: (stepNum, action) => {
+            options.onStepProgress?.(stepNum, approvedPlan.steps.length, action.tool);
+          },
+        });
+      }
 
       const intentTokens = (intent as unknown as { tokensUsed?: number }).tokensUsed || 0;
       const planTokens = (rawPlan as unknown as { tokensUsed?: number }).tokensUsed || 0;
@@ -164,7 +180,7 @@ export async function runAutonomousPipeline(
       };
     } finally {
       if (session) {
-        await session.close();
+        await session.close().catch(() => {});
       }
     }
   } catch (err: unknown) {
