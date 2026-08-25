@@ -99,6 +99,7 @@ export function ExecutionLogs({ logs = [] }: { logs?: ToolExecutionLog[] }) {
                     size="icon"
                     className="h-6 w-6"
                     onClick={() => handleCopy(log)}
+                    aria-label="Copy JSON Payload"
                     title="Copy JSON Payload"
                   >
                     {copiedId === log.id ? (

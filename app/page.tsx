@@ -68,7 +68,7 @@ export default function LandingPage() {
                 {
                   step: "02",
                   title: "Autonomous Planning",
-                  desc: "Gemini 2.0 Flash synthesizes DOM accessibility trees into structured tool action sequences.",
+                  desc: "Gemini 2.5 Flash synthesizes DOM accessibility trees into structured tool action sequences.",
                   icon: Cpu,
                 },
                 {
@@ -95,7 +95,7 @@ export default function LandingPage() {
                     className="rounded-2xl border border-border/80 bg-card p-5 relative shadow-sm hover:shadow-md hover:border-primary/40 transition-all"
                   >
                     <div className="flex items-center justify-between mb-4">
-                      <span className="font-mono text-2xl font-bold text-primary/40">{item.step}</span>
+                      <span className="font-mono text-2xl font-bold text-primary/75 dark:text-primary/60">{item.step}</span>
                       <div className="p-2 rounded-lg bg-primary/10 text-primary">
                         <Icon className="h-4 w-4" />
                       </div>

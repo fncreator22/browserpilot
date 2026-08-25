@@ -125,11 +125,12 @@ export default function SignupPage() {
             )}
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
+              <label htmlFor="signup-email" className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
                 <Mail className="h-3.5 w-3.5 text-muted-foreground" />
                 Email Address
               </label>
               <Input
+                id="signup-email"
                 type="email"
                 required
                 value={email}
@@ -140,11 +141,12 @@ export default function SignupPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
+              <label htmlFor="signup-password" className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
                 <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
                 Password (min 8 characters)
               </label>
               <Input
+                id="signup-password"
                 type="password"
                 required
                 value={password}
@@ -155,11 +157,12 @@ export default function SignupPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
+              <label htmlFor="signup-confirm-password" className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
                 <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
                 Confirm Password
               </label>
               <Input
+                id="signup-confirm-password"
                 type="password"
                 required
                 value={confirmPassword}

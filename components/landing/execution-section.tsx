@@ -14,7 +14,7 @@ const EXECUTION_DEMO_STEPS: TimelineStep[] = [
   {
     id: "s1",
     name: "Understanding request",
-    description: "Gemini 2.0 synthesizes natural language goal into a structured 5-step navigation plan.",
+    description: "Gemini 2.5 synthesizes natural language goal into a structured 5-step navigation plan.",
     status: "COMPLETED",
     durationMs: 320,
     toolCall: "ai.planGoal({ goal: 'Extract AI stories' })",

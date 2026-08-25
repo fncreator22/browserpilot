@@ -43,7 +43,7 @@ export function HeroSection() {
             <Sparkles className="h-3.5 w-3.5" />
             <span>Next-Gen Autonomous Web Agent</span>
             <span className="text-muted-foreground">•</span>
-            <span className="text-foreground font-semibold">Gemini 2.0 + Playwright</span>
+            <span className="text-foreground font-semibold">Gemini 2.5 + Playwright</span>
           </motion.div>
 
           {/* Heading */}

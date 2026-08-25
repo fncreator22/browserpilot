@@ -64,6 +64,7 @@ export function Navbar() {
                 size="sm"
                 onClick={() => signOut({ callbackUrl: "/" })}
                 className="font-mono text-xs gap-1.5 text-muted-foreground hover:text-rose-500"
+                aria-label="Sign Out"
                 title="Sign Out"
               >
                 <LogOut className="h-3.5 w-3.5" />

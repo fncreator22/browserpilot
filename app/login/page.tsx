@@ -65,11 +65,12 @@ function LoginForm() {
         )}
 
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
+          <label htmlFor="email" className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
             <Mail className="h-3.5 w-3.5 text-muted-foreground" />
             Email Address
           </label>
           <Input
+            id="email"
             type="email"
             required
             value={email}
@@ -81,12 +82,13 @@ function LoginForm() {
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
+            <label htmlFor="password" className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
               <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
               Password
             </label>
           </div>
           <Input
+            id="password"
             type="password"
             required
             value={password}

@@ -94,7 +94,7 @@ export function ScreenshotCard({
           {displayUrl && !imageError ? (
             <img
               src={displayUrl}
-              alt="Playwright Execution Screenshot"
+              alt={url && url !== "about:blank" ? `Playwright Viewport Capture at Step ${step} on ${url}` : "Playwright Browser Viewport Capture"}
               onError={() => setImageError(true)}
               className="w-full h-auto rounded-lg object-contain shadow-sm max-h-[500px]"
             />

@@ -428,9 +428,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           <div className="mt-4 flex flex-wrap items-center gap-6 font-mono text-xs text-muted-foreground">
             <div>Engine: <strong className="text-foreground">Playwright Sandboxed</strong></div>
             <div>•</div>
-            <div>Model: <strong className="text-foreground">Gemini 3.6 Flash</strong></div>
+            <div>Model: <strong className="text-foreground">Gemini 2.5 Flash</strong></div>
             <div>•</div>
-            <div>Time Budget: <strong className="text-foreground">{Math.round((job.maxDurationMs || 120000) / 1000)}s (5m hard ceiling)</strong></div>
+            <div>Time Budget: <strong className="text-foreground">{Math.round((job.maxDurationMs || 120000) / 1000)}s (Allocated, 5m Max)</strong></div>
             <div>•</div>
             <div>Progress: <strong className="text-foreground">{job.progress}%</strong></div>
           </div>
