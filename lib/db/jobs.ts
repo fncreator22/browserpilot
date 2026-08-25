@@ -187,14 +187,29 @@ export async function updateDbJob(id: string, updates: UpdateJobDbInput) {
   }
   if (updates.completedAt !== undefined) {
     dataToUpdate.completedAt = updates.completedAt;
-  } else if (updates.status === "COMPLETED" || updates.status === "FAILED" || updates.status === "BLOCKED") {
+  } else if (updates.status === "COMPLETED" || updates.status === "FAILED" || updates.status === "BLOCKED" || updates.status === "CANCELLED") {
     dataToUpdate.completedAt = new Date();
   }
 
-  return prisma.job.update({
-    where: { id },
-    data: dataToUpdate,
-  });
+  // Update memory cache immediately
+  const cached = memoryJobCache.get(id) || {};
+  const updatedInMemory = {
+    ...cached,
+    ...dataToUpdate,
+    id,
+    updatedAt: new Date(),
+  };
+  memoryJobCache.set(id, updatedInMemory);
+
+  try {
+    return await prisma.job.update({
+      where: { id },
+      data: dataToUpdate,
+    });
+  } catch (err) {
+    console.warn(`[JobsDB] Prisma update error for job ${id}, falling back to in-memory state:`, err);
+    return updatedInMemory;
+  }
 }
 
 /**
@@ -218,35 +233,82 @@ export async function listDbJobs(userId?: string | null, limit = 50) {
 }
 
 export async function recordDbJobStep(jobId: string, step: PlannedStep) {
-  return prisma.jobStep.create({
-    data: {
-      jobId,
-      stepNumber: step.stepNumber,
-      tool: step.action.tool,
-      actionPayload: JSON.stringify(step.action),
-      rationale: step.rationale || null,
-      status: "EXECUTED",
-    },
-  });
+  const stepRecord = {
+    id: `step_${Date.now()}_${step.stepNumber}`,
+    jobId,
+    stepNumber: step.stepNumber,
+    tool: step.action.tool,
+    actionPayload: JSON.stringify(step.action),
+    rationale: step.rationale || null,
+    status: "EXECUTED",
+    createdAt: new Date(),
+  };
+
+  const cached = memoryJobCache.get(jobId);
+  if (cached) {
+    if (!cached.steps) cached.steps = [];
+    cached.steps.push(stepRecord);
+  }
+
+  try {
+    return await prisma.jobStep.create({
+      data: {
+        jobId,
+        stepNumber: step.stepNumber,
+        tool: step.action.tool,
+        actionPayload: JSON.stringify(step.action),
+        rationale: step.rationale || null,
+        status: "EXECUTED",
+      },
+    });
+  } catch {
+    return stepRecord;
+  }
 }
 
 export async function recordDbObservation(jobId: string, observation: Observation) {
-  return prisma.observationRecord.create({
-    data: {
-      jobId,
-      stepIndex: observation.stepIndex,
-      tool: observation.action.tool,
-      status: observation.status,
-      currentUrl: observation.currentUrl,
-      title: observation.title,
-      pageSummary: observation.pageSummary || null,
-      extractedData: observation.extractedData !== undefined ? JSON.stringify(observation.extractedData) : null,
-      screenshotPath: observation.screenshotPath || null,
-      error: observation.error ? JSON.stringify(observation.error) : null,
-      elapsedMs: observation.elapsedMs,
-      timestamp: new Date(observation.timestamp),
-    },
-  });
+  const obsRecord = {
+    id: `obs_${Date.now()}_${observation.stepIndex}`,
+    jobId,
+    stepIndex: observation.stepIndex,
+    tool: observation.action.tool,
+    status: observation.status,
+    currentUrl: observation.currentUrl,
+    title: observation.title,
+    pageSummary: observation.pageSummary || null,
+    extractedData: observation.extractedData !== undefined ? JSON.stringify(observation.extractedData) : null,
+    screenshotPath: observation.screenshotPath || null,
+    error: observation.error ? JSON.stringify(observation.error) : null,
+    elapsedMs: observation.elapsedMs,
+    timestamp: new Date(observation.timestamp),
+  };
+
+  const cached = memoryJobCache.get(jobId);
+  if (cached) {
+    if (!cached.observations) cached.observations = [];
+    cached.observations.push(obsRecord);
+  }
+
+  try {
+    return await prisma.observationRecord.create({
+      data: {
+        jobId,
+        stepIndex: observation.stepIndex,
+        tool: observation.action.tool,
+        status: observation.status,
+        currentUrl: observation.currentUrl,
+        title: observation.title,
+        pageSummary: observation.pageSummary || null,
+        extractedData: observation.extractedData !== undefined ? JSON.stringify(observation.extractedData) : null,
+        screenshotPath: observation.screenshotPath || null,
+        error: observation.error ? JSON.stringify(observation.error) : null,
+        elapsedMs: observation.elapsedMs,
+        timestamp: new Date(observation.timestamp),
+      },
+    });
+  } catch {
+    return obsRecord;
+  }
 }
 
 export async function recordDbArtifact(
