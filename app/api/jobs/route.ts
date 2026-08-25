@@ -92,6 +92,9 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         jobId: enqueued.jobId,
+        prompt,
+        allowedDomains,
+        maxStepsBudget,
         status: enqueued.status,
         createdAt: enqueued.createdAt,
         elapsedMs,
