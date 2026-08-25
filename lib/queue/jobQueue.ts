@@ -36,7 +36,7 @@ export function getBrowserJobQueue(): Queue<BrowserJobPayload> {
     browserQueue = new Queue<BrowserJobPayload>(BROWSER_JOBS_QUEUE_NAME, {
       connection,
       defaultJobOptions: {
-        attempts: 1, // Deterministic browser jobs do not retry blind crashes
+        attempts: 1,
         removeOnComplete: 100,
         removeOnFail: 200,
       },
@@ -47,7 +47,7 @@ export function getBrowserJobQueue(): Queue<BrowserJobPayload> {
 
 /**
  * Enqueue & Instantly Dispatch a new BrowserPilot autonomous job
- * Persists directly to Prisma DB and launches execution immediately without queue delays.
+ * Persists directly to Prisma DB and triggers execution pipeline.
  */
 export async function enqueueBrowserJob(input: EnqueueJobInput): Promise<EnqueueJobResult> {
   const jobId = input.jobId || `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -57,7 +57,7 @@ export async function enqueueBrowserJob(input: EnqueueJobInput): Promise<Enqueue
   const apiKey = input.apiKey;
   const createdAt = new Date();
 
-  // 1. Persist directly to Prisma Database
+  // 1. Persist directly to Database
   await createDbJob({
     id: jobId,
     prompt,
@@ -76,40 +76,22 @@ export async function enqueueBrowserJob(input: EnqueueJobInput): Promise<Enqueue
     createdAt,
   });
 
-  // 2. Launch background execution immediately for zero-queue latency
-  import("@/worker/index").then(({ processBrowserJob }) => {
-    processBrowserJob({
+  // 2. Launch serverless-safe execution immediately (BullMQ-free)
+  import("@/lib/serverlessPipeline").then(({ runServerlessPipeline }) => {
+    runServerlessPipeline({
       jobId,
       prompt,
       allowedDomains,
       maxStepsBudget,
       apiKey,
     }).catch((workerErr) => {
-      console.error(`[JobQueue] Immediate execution error for ${jobId}:`, workerErr);
+      console.error(`[JobQueue] Execution error for ${jobId}:`, workerErr);
     });
   }).catch(() => {});
 
-  // Optional: Also sync to Redis queue if running in distributed cluster
-  try {
-    const queue = getBrowserJobQueue();
-    queue.add(
-      "execute-pipeline",
-      {
-        jobId,
-        prompt,
-        allowedDomains,
-        maxStepsBudget,
-        apiKey,
-      },
-      { jobId }
-    ).catch(() => {});
-  } catch {
-    // Non-fatal if Redis is not configured
-  }
-
   return {
     jobId,
-    status: "QUEUED",
+    status: "PLANNING",
     createdAt,
   };
 }

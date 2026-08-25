@@ -213,16 +213,29 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         } catch {}
       });
 
-      eventSource.addEventListener("completed", (e) => {
+      const handleCompleted = (e: MessageEvent) => {
         if (isCancelled) return;
         try {
           const completeData = JSON.parse(e.data);
           setJob((prev) => (prev ? { ...prev, ...completeData, status: "COMPLETED", progress: 100 } : prev));
           toast.success("Task completed successfully! Verified result ready.");
         } catch {}
+      };
+
+      eventSource.addEventListener("complete", handleCompleted);
+      eventSource.addEventListener("completed", handleCompleted);
+
+      eventSource.addEventListener("error", (e: any) => {
+        if (isCancelled) return;
+        try {
+          if (e?.data) {
+            const errData = JSON.parse(e.data);
+            setJob((prev) => (prev ? { ...prev, ...errData, progress: 100 } : prev));
+          }
+        } catch {}
       });
     } catch {
-      // Non-fatal, fallback polling will take over
+      // Non-fatal, fallback polling and active execute will take over
     }
 
     return () => {
@@ -231,6 +244,31 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         eventSource.close();
       }
     };
+  }, [jobId]);
+
+  // Active Serverless Execution Trigger: Guarantee Lambda execution without freeze
+  const executeAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (executeAttemptedRef.current) return;
+    executeAttemptedRef.current = true;
+
+    fetch(`/api/jobs/${jobId}/execute`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.job) {
+          setJob(data.job);
+          setIsLoading(false);
+          if (data.job.status === "COMPLETED") {
+            toast.success("Task completed successfully!");
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn("[Client Execute Trigger]:", err);
+      });
   }, [jobId]);
 
   // Poll job data from real API with serverless auto-hydration

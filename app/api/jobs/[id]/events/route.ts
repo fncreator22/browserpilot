@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/authOptions";
 import { getDbJobEvents, getDbJobById } from "@/lib/db/jobs";
+import { getUserGeminiApiKey } from "@/lib/db/users";
 import { jobEventBus } from "@/lib/events/jobEvents";
 
 export const dynamic = "force-dynamic";
@@ -47,11 +48,6 @@ export async function GET(
         }
       };
 
-      // Read Gemini API key directly from JWT session (survives cross-Lambda — no DB lookup)
-      const session = await getServerSession(authOptions).catch(() => null);
-      const sessionUser = session?.user as { id?: string; geminiApiKey?: string } | undefined;
-      const apiKeyFromSession = sessionUser?.geminiApiKey;
-
       // Subscribe to real-time agent updates from in-process event bus
       const unsubscribe = jobEventBus.subscribe(id, async ({ event, data }) => {
         await sendEvent(event, data);
@@ -69,17 +65,9 @@ export async function GET(
               // CRITICAL: import serverlessPipeline (NOT worker/index which has BullMQ)
               const { runServerlessPipeline } = await import("@/lib/serverlessPipeline");
 
-              // Use API key from JWT session (no DB lookup — works cross-Lambda)
-              const apiKey = apiKeyFromSession || undefined;
-
-              if (!apiKey) {
-                await sendEvent("error", {
-                  status: "FAILED",
-                  message: "No Gemini API key found in your session. Please log out and log back in, or update your API key in your profile.",
-                  code: "MISSING_GEMINI_API_KEY",
-                });
-                await writer.close().catch(() => {});
-                return;
+              let apiKey: string | undefined = undefined;
+              if (userId) {
+                apiKey = (await getUserGeminiApiKey(userId)) || undefined;
               }
 
               let allowedDomains: string[] = [];
