@@ -39,19 +39,27 @@ export async function GET(
       );
     }
 
-    // Trigger worker execution if job is still in initial QUEUED state on serverless
+    // Serverless execution: Execute pipeline steps synchronously within function lifecycle
     if (job.status === "QUEUED") {
-      import("@/worker/index").then(({ processBrowserJob }) => {
+      try {
+        const { processBrowserJob } = await import("@/worker/index");
         const allowed = typeof job.allowedDomains === "string" ? JSON.parse(job.allowedDomains || "[]") : (job.allowedDomains || []);
-        processBrowserJob({
-          jobId: id,
-          prompt: job.prompt,
-          allowedDomains: allowed,
-          maxStepsBudget: job.maxStepsBudget || 15,
-        }).catch((err) => {
-          console.warn(`[JobSync] In-process execution trigger failed for ${id}:`, err);
-        });
-      }).catch(() => {});
+        
+        await Promise.race([
+          processBrowserJob({
+            jobId: id,
+            prompt: job.prompt,
+            allowedDomains: allowed,
+            maxStepsBudget: job.maxStepsBudget || 15,
+          }),
+          new Promise((resolve) => setTimeout(resolve, 8000)),
+        ]);
+
+        const refreshed = await getDbJobById(id, userId);
+        if (refreshed) job = refreshed;
+      } catch (err) {
+        console.warn(`[JobSync] Execution step error for ${id}:`, err);
+      }
     }
 
     return NextResponse.json({
@@ -88,7 +96,7 @@ export async function POST(
     const allowedDomains = body.allowedDomains || [];
     const maxStepsBudget = body.maxStepsBudget || 15;
 
-    const job = await upsertDbJobFromSync({
+    let job = await upsertDbJobFromSync({
       id,
       prompt,
       userId,
@@ -96,18 +104,25 @@ export async function POST(
       maxStepsBudget,
     });
 
-    // Trigger background execution if in QUEUED state
+    // Serverless execution trigger
     if (job.status === "QUEUED") {
-      import("@/worker/index").then(({ processBrowserJob }) => {
-        processBrowserJob({
-          jobId: id,
-          prompt,
-          allowedDomains,
-          maxStepsBudget,
-        }).catch((err) => {
-          console.warn(`[JobSync] Execution error for ${id}:`, err);
-        });
-      }).catch(() => {});
+      try {
+        const { processBrowserJob } = await import("@/worker/index");
+        await Promise.race([
+          processBrowserJob({
+            jobId: id,
+            prompt: job.prompt,
+            allowedDomains,
+            maxStepsBudget,
+          }),
+          new Promise((resolve) => setTimeout(resolve, 8000)),
+        ]);
+
+        const refreshed = await getDbJobById(id, userId);
+        if (refreshed) job = refreshed;
+      } catch (err) {
+        console.warn(`[JobSync] Execution error for ${id}:`, err);
+      }
     }
 
     return NextResponse.json({
