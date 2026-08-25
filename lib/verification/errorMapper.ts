@@ -2,8 +2,8 @@ import { z } from "zod";
 
 /**
  * §26 HUMAN-READABLE ERROR CATALOG & MAPPING ENGINE
- * Every internal error, crash, timeout, or guard rejection must map to one of these 7 user-facing definitions.
- * Raw exceptions, database traces, or raw enums must NEVER leak to the client UI.
+ * Every internal error, crash, timeout, or guard rejection maps to an honest user-facing definition.
+ * The verification wall diagnosis is strictly reserved for verified anti-bot/CAPTCHA barriers.
  */
 
 export type HumanReadableCategory = 
@@ -57,7 +57,7 @@ export const ERROR_CATALOG_7: Record<string, HumanReadableError> = {
     category: "AI",
     title: "AI Reasoning Service Unavailable",
     userMessage: "The Gemini AI planning service is temporarily unavailable or requires API key configuration.",
-    technicalDetail: "AI planning gateway returned a quota, rate limit, or configuration exception. Ensure valid credentials are set.",
+    technicalDetail: "AI planning gateway returned a quota, rate limit, or model configuration exception. Ensure valid credentials are set.",
     suggestedAction: "Wait a few moments before retrying the task, or verify that your API credentials have active quota.",
     recoverable: true,
   },
@@ -74,8 +74,8 @@ export const ERROR_CATALOG_7: Record<string, HumanReadableError> = {
     code: "DOMAIN_NOT_ALLOWED",
     category: "SECURITY",
     title: "Domain Whitelist Block",
-    userMessage: "The agent was prevented from navigating to a domain that is outside the configured whitelist.",
-    technicalDetail: "Destination URL domain or protocol was blocked by the security policy.",
+    userMessage: "The agent was prevented from navigating to a destination outside the configured whitelist or private IP range.",
+    technicalDetail: "Destination URL domain or protocol was blocked by the security policy or SSRF protection.",
     suggestedAction: "Add the destination domain to the job's Allowed Domains configuration if intentional.",
     recoverable: false,
   },
@@ -88,14 +88,24 @@ export const ERROR_CATALOG_7: Record<string, HumanReadableError> = {
     suggestedAction: "Break the complex workflow into smaller discrete sub-tasks or increase the step budget.",
     recoverable: true,
   },
+  PIPELINE_ERROR: {
+    code: "PIPELINE_ERROR",
+    category: "SYSTEM",
+    title: "Task Execution Failure",
+    userMessage: "An unexpected error occurred while planning or executing this browsing task.",
+    technicalDetail: "Internal execution failure occurred during the agent pipeline workflow.",
+    suggestedAction: "Check the system telemetry logs or retry the task with more specific instructions.",
+    recoverable: true,
+  },
 };
 
 /**
- * Maps any internal error code, string, or Exception object to one of the 7 §26 HumanReadableError shapes.
+ * Maps any internal error code, string, or Exception object to an honest HumanReadableError shape.
+ * NEVER presents a verification wall diagnosis unless the Interaction Guard specifically detected one.
  */
 export function mapInternalErrorToHuman(input: unknown): HumanReadableError {
   if (!input) {
-    return ERROR_CATALOG_7.VERIFICATION_BLOCKED;
+    return ERROR_CATALOG_7.PIPELINE_ERROR;
   }
 
   let codeStr = "";
@@ -112,23 +122,33 @@ export function mapInternalErrorToHuman(input: unknown): HumanReadableError {
 
   const combined = `${codeStr} ${messageStr}`.toLowerCase();
 
-  // 1. Verification / CAPTCHA / Auth checks
-  if (
-    combined.includes("verification") ||
-    combined.includes("captcha") ||
-    combined.includes("turnstile") ||
-    combined.includes("auth") ||
-    combined.includes("login") ||
-    combined.includes("requires_auth") ||
-    combined.includes("cf-challenge")
-  ) {
-    return ERROR_CATALOG_7.VERIFICATION_BLOCKED;
+  // 1. Exact catalog match
+  if (ERROR_CATALOG_7[codeStr]) {
+    return ERROR_CATALOG_7[codeStr];
   }
 
-  // 2. Domain Whitelist / Protocol checks
+  // 2. AI Reasoning, Quotas & Rate Limits
+  if (
+    combined.includes("missing_gemini_api_key") ||
+    combined.includes("gemini") ||
+    combined.includes("api_key") ||
+    combined.includes("rate_limit") ||
+    combined.includes("429") ||
+    combined.includes("quota") ||
+    combined.includes("resource_exhausted") ||
+    combined.includes("too many requests") ||
+    combined.includes("not_found") ||
+    combined.includes("model")
+  ) {
+    return ERROR_CATALOG_7.RATE_LIMIT_EXCEEDED;
+  }
+
+  // 3. Domain Whitelist & SSRF Guards
   if (
     combined.includes("domain") ||
     combined.includes("whitelist") ||
+    combined.includes("ssrf") ||
+    combined.includes("private network") ||
     combined.includes("unsupported_protocol") ||
     combined.includes("policy_violation") ||
     combined.includes("not allowed")
@@ -136,18 +156,20 @@ export function mapInternalErrorToHuman(input: unknown): HumanReadableError {
     return ERROR_CATALOG_7.DOMAIN_NOT_ALLOWED;
   }
 
-  // 3. Navigation Timeouts
+  // 4. Navigation Timeouts & Connection Failures
   if (
     combined.includes("timeout") ||
+    combined.includes("timed out") ||
     combined.includes("navigation") ||
     combined.includes("econnrefused") ||
+    combined.includes("net::") ||
     combined.includes("504") ||
-    combined.includes("timed out")
+    combined.includes("fetch failed")
   ) {
     return ERROR_CATALOG_7.NAVIGATION_TIMEOUT;
   }
 
-  // 4. Missing Selector
+  // 5. Missing DOM Selector / Element
   if (
     combined.includes("selector") ||
     combined.includes("locator") ||
@@ -158,21 +180,7 @@ export function mapInternalErrorToHuman(input: unknown): HumanReadableError {
     return ERROR_CATALOG_7.SELECTOR_NOT_FOUND;
   }
 
-  // 5. Rate Limits & Quotas / AI Configuration
-  if (
-    combined.includes("missing_gemini_api_key") ||
-    combined.includes("gemini_api_key") ||
-    combined.includes("api_key") ||
-    combined.includes("rate_limit") ||
-    combined.includes("429") ||
-    combined.includes("quota") ||
-    combined.includes("resource_exhausted") ||
-    combined.includes("too many requests")
-  ) {
-    return ERROR_CATALOG_7.RATE_LIMIT_EXCEEDED;
-  }
-
-  // 6. Max Steps Budget
+  // 6. Max Steps Budget Reached
   if (
     combined.includes("max_steps") ||
     combined.includes("budget") ||
@@ -182,7 +190,7 @@ export function mapInternalErrorToHuman(input: unknown): HumanReadableError {
     return ERROR_CATALOG_7.MAX_STEPS_EXCEEDED;
   }
 
-  // 7. Browser Crashes & Process failures
+  // 7. Browser Crashes & Worker Process Terminations
   if (
     combined.includes("crash") ||
     combined.includes("closed") ||
@@ -195,11 +203,28 @@ export function mapInternalErrorToHuman(input: unknown): HumanReadableError {
     return ERROR_CATALOG_7.BROWSER_CRASH;
   }
 
-  // Check exact code match if present in catalog
-  if (ERROR_CATALOG_7[codeStr]) {
-    return ERROR_CATALOG_7[codeStr];
+  // 8. STRICT VERIFICATION CHECK: Only if explicitly detected by Interaction Guard / CAPTCHA detector
+  if (
+    codeStr === "VERIFICATION_BLOCKED" ||
+    codeStr === "VERIFICATION_REQUIRED" ||
+    codeStr === "REQUIRES_AUTH" ||
+    codeStr === "CAPTCHA_DETECTED" ||
+    combined.includes("captcha") ||
+    combined.includes("cloudflare turnstile") ||
+    combined.includes("cf-challenge") ||
+    combined.includes("anti-bot challenge") ||
+    combined.includes("human verification wall")
+  ) {
+    return ERROR_CATALOG_7.VERIFICATION_BLOCKED;
   }
 
-  // Safe fallback
-  return ERROR_CATALOG_7.VERIFICATION_BLOCKED;
+  // 9. Honest Default Fallback: Pipeline Error with actual technical context
+  if (messageStr.trim()) {
+    return {
+      ...ERROR_CATALOG_7.PIPELINE_ERROR,
+      technicalDetail: messageStr.length > 200 ? `${messageStr.slice(0, 200)}...` : messageStr,
+    };
+  }
+
+  return ERROR_CATALOG_7.PIPELINE_ERROR;
 }

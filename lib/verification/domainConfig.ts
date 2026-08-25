@@ -55,7 +55,8 @@ export function getDomainSecurityConfig(customAllowed?: string[]): DomainSecurit
     new Set([...(customAllowed || []), ...envAllowed].map((d) => d.toLowerCase().trim()).filter(Boolean))
   );
 
-  const allowWildcard = combinedAllowed.includes("*");
+  // If no specific domain restriction is specified, permit public internet destinations (while SSRF guards block private IPs/metadata)
+  const allowWildcard = combinedAllowed.length === 0 || combinedAllowed.includes("*");
 
   return {
     allowedDomains: combinedAllowed.filter((d) => d !== "*"),

@@ -215,14 +215,18 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       tool: "ai.planGoal",
       actionPayload: JSON.stringify({ goal: job.prompt }),
       rationale: "Deconstructing goal into structured action plan",
-      status: job.progress >= 25 ? "COMPLETED" : "RUNNING",
+      status: job.status === "COMPLETED" ? "COMPLETED" : (job.status === "FAILED" || job.status === "BLOCKED") ? (job.status === "BLOCKED" ? "BLOCKED" : "FAILED") : (job.progress >= 25 ? "COMPLETED" : "RUNNING"),
       createdAt: job.createdAt,
     }
   ]).map((st) => {
     const matchingObs = job.observations.find((o) => o.stepIndex === st.stepNumber);
+    const isTerminal = job.status === "COMPLETED" || job.status === "FAILED" || job.status === "BLOCKED";
     let stepStatus: TimelineStep["status"] = "PENDING";
+
     if (matchingObs) {
       stepStatus = matchingObs.status === "SUCCESS" ? "COMPLETED" : matchingObs.status === "BLOCKED" ? "BLOCKED" : "FAILED";
+    } else if (isTerminal) {
+      stepStatus = job.status === "COMPLETED" ? "COMPLETED" : job.status === "BLOCKED" ? "BLOCKED" : "FAILED";
     } else if (job.progress > (st.stepNumber / (job.steps.length || 1)) * 80) {
       stepStatus = "RUNNING";
     }
