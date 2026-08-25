@@ -11,8 +11,8 @@ export async function runMultiUserIntegrationTests() {
   console.log("▶ [INTEGRATION] Running Multi-User Isolation & Limits Tests (§36 Test 6)...");
 
   const ts = Date.now();
-  const user1 = await prisma.user.create({ data: { email: `u1-${ts}@test.ai`, name: "Tenant 1" } });
-  const user2 = await prisma.user.create({ data: { email: `u2-${ts}@test.ai`, name: "Tenant 2" } });
+  const user1 = await prisma.user.create({ data: { email: `u1-${ts}@test.ai`, passwordHash: "testHash123" } });
+  const user2 = await prisma.user.create({ data: { email: `u2-${ts}@test.ai`, passwordHash: "testHash123" } });
 
   const job1Id = `job-tenant-1-${ts}`;
   const job2Id = `job-tenant-2-${ts}`;

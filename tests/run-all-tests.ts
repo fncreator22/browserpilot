@@ -7,6 +7,7 @@ import { runCapabilityGuardTests } from "./unit/capabilityGuard.test";
 import { runResultVerifierTests } from "./unit/resultVerifier.test";
 import { runErrorMapperUnitTests } from "./unit/errorMapper.test";
 import { runGeminiGuardTests } from "./unit/geminiGuard.test";
+import { runAuthTests } from "./unit/auth.test";
 import { runExecutorIntegrationTests } from "./integration/executor.test";
 import { runMultiUserIntegrationTests } from "./integration/multiUser.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -25,6 +26,7 @@ async function runMasterTestSuite() {
     { name: "Unit: Result Verifier", fn: runResultVerifierTests },
     { name: "Unit: Error Mapper (§26)", fn: runErrorMapperUnitTests },
     { name: "Unit: Gemini Key Fallback Guard", fn: runGeminiGuardTests },
+    { name: "Unit: Email/Password Auth & Minimal Schema", fn: runAuthTests },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },
     { name: "Integration: Multi-User Isolation & Limits (§36 Test 6)", fn: runMultiUserIntegrationTests },
     { name: "E2E: Full Autonomous Agent Pipeline", fn: runEndToEndPipelineTest },

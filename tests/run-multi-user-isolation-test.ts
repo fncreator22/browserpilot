@@ -26,14 +26,14 @@ async function runMultiUserIsolationTest() {
   const userA = await prisma.user.create({
     data: {
       email: userAEmail,
-      name: "Alice Engineer",
+      passwordHash: "testHash123",
     },
   });
 
   const userB = await prisma.user.create({
     data: {
       email: userBEmail,
-      name: "Bob Security",
+      passwordHash: "testHash123",
     },
   });
 
