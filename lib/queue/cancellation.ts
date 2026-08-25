@@ -3,8 +3,6 @@
  * Coordinates in-flight execution halts, BullMQ queue removal, and Playwright session termination.
  */
 
-import { getBrowserJobQueue } from "./jobQueue";
-import { browserPool } from "@/worker/browser";
 import { updateDbJob, getDbJobById, memoryJobCache } from "@/lib/db/jobs";
 
 const activeCancellations = new Set<string>();
@@ -83,6 +81,7 @@ export async function cancelJob(jobId: string, userId?: string | null) {
   // 4. If QUEUED: Remove from BullMQ Queue (safe timeout race)
   if (job.status === "QUEUED") {
     try {
+      const { getBrowserJobQueue } = await import("./jobQueue");
       const queue = getBrowserJobQueue();
       const bullJob = await Promise.race([
         queue.getJob(jobId).catch(() => null),
@@ -98,6 +97,7 @@ export async function cancelJob(jobId: string, userId?: string | null) {
 
   // 5. If RUNNING: Force-kill active Playwright Browser Context
   try {
+    const { browserPool } = await import("@/worker/browser");
     await browserPool.forceCloseJobSession(jobId).catch(() => {});
   } catch {
     // Non-fatal

@@ -15,8 +15,13 @@ export async function POST(
   const { id } = params;
 
   try {
-    const session = await getServerSession(authOptions);
-    const userId = (session?.user as { id?: string })?.id || null;
+    let userId: string | null = null;
+    try {
+      const session = await getServerSession(authOptions);
+      userId = (session?.user as { id?: string })?.id || null;
+    } catch {
+      // Allow unauthenticated fallback for public sessions
+    }
 
     const result = await cancelJob(id, userId);
 
