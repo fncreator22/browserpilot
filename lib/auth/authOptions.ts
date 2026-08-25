@@ -1,7 +1,7 @@
 import { type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/db/prisma";
+import { getUserByEmail } from "@/lib/db/users";
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -28,9 +28,7 @@ export const authOptions: NextAuthOptions = {
         const password = credentials.password;
 
         // Lookup user by email in database
-        const user = await prisma.user.findUnique({
-          where: { email },
-        });
+        const user = await getUserByEmail(email);
 
         if (!user || !user.passwordHash) {
           // Reject with generic error without revealing user existence
@@ -45,6 +43,7 @@ export const authOptions: NextAuthOptions = {
 
         return {
           id: user.id,
+          name: user.name || undefined,
           email: user.email,
         };
       },
@@ -54,13 +53,17 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        token.name = user.name;
         token.email = user.email;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.id) {
-        (session.user as { id?: string; email?: string | null }).id = token.id as string;
+        (session.user as { id?: string; name?: string | null; email?: string | null }).id = token.id as string;
+        if (token.name) {
+          session.user.name = token.name as string;
+        }
       }
       return session;
     },

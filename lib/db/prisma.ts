@@ -55,9 +55,12 @@ export function ensureSqliteSchemaTables(dbUrl: string): void {
       db.exec(`
         CREATE TABLE IF NOT EXISTS users (
           id TEXT PRIMARY KEY,
+          name TEXT,
           email TEXT UNIQUE NOT NULL,
           passwordHash TEXT NOT NULL,
-          createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          geminiApiKey TEXT,
+          createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS jobs (
@@ -130,6 +133,11 @@ export function ensureSqliteSchemaTables(dbUrl: string): void {
         CREATE INDEX IF NOT EXISTS idx_observations_jobId_stepIndex ON observations (jobId, stepIndex);
         CREATE INDEX IF NOT EXISTS idx_artifacts_jobId ON artifacts (jobId);
       `);
+
+      // Safe column migrations for existing SQLite databases
+      try { db.exec(`ALTER TABLE users ADD COLUMN name TEXT;`); } catch {}
+      try { db.exec(`ALTER TABLE users ADD COLUMN geminiApiKey TEXT;`); } catch {}
+      try { db.exec(`ALTER TABLE users ADD COLUMN updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch {}
 
       db.close();
       globalForPrisma.initializedTables = true;

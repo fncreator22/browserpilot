@@ -83,14 +83,24 @@ Your task is to analyze a natural language user prompt and classify it into EXAC
 5. BLOCKED: Goal violates security boundaries: bypassing CAPTCHA, payment checkout, dark patterns.
 `;
 
+import { 
+  createGeminiClient, 
+  getEffectiveGeminiApiKey, 
+  detectOptimalGeminiModel,
+  DEFAULT_GEMINI_MODEL 
+} from "./modelSelector";
+
 /**
- * Classify user intent using Gemini 2.5 structured output.
+ * Classify user intent using Gemini structured output with dynamic model selection.
  * Gated: Offline test fallback ONLY activates when NODE_ENV === 'test' or IS_TEST_HARNESS === 'true'.
  */
-export async function classifyIntent(prompt: string): Promise<IntentClassification> {
+export async function classifyIntent(
+  prompt: string,
+  options?: { apiKey?: string }
+): Promise<IntentClassification> {
   const isTest = isTestHarnessEnvironment();
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  const hasValidKey = apiKey && apiKey !== "your-gemini-api-key" && apiKey.trim() !== "";
+  const effectiveKey = getEffectiveGeminiApiKey(options?.apiKey);
+  const hasValidKey = !!effectiveKey;
 
   // In test harness mode or when key is missing in test mode, use deterministic test fallback
   if (isTest || !hasValidKey) {
@@ -134,9 +144,11 @@ export async function classifyIntent(prompt: string): Promise<IntentClassificati
     };
   }
 
-  const ai = new GoogleGenAI({ apiKey: apiKey! });
+  const ai = createGeminiClient(effectiveKey);
+  const modelName = await detectOptimalGeminiModel(effectiveKey);
+
   const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_NAME,
+    model: modelName || DEFAULT_GEMINI_MODEL,
     contents: prompt,
     config: {
       systemInstruction: INTENT_SYSTEM_INSTRUCTION,

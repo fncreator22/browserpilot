@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/db/prisma";
+import { createUser, getUserByEmail } from "@/lib/db/users";
 
 const RegisterSchema = z.object({
+  name: z.string().trim().optional(),
   email: z
     .string()
     .trim()
@@ -12,11 +13,15 @@ const RegisterSchema = z.object({
   password: z
     .string()
     .min(8, { message: "Password must be at least 8 characters long." }),
+  geminiApiKey: z
+    .string()
+    .trim()
+    .min(10, { message: "Please provide a valid Gemini API Key from Google AI Studio." }),
 });
 
 /**
  * POST /api/auth/register
- * Real email + password account registration
+ * Real email + password + BYOK Gemini API Key account registration
  */
 export async function POST(request: Request) {
   try {
@@ -40,13 +45,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const { email, password } = parseResult.data;
+    const { name, email, password, geminiApiKey } = parseResult.data;
 
     // Check if user already exists
-    const existing = await prisma.user.findUnique({
-      where: { email },
-    });
-
+    const existing = await getUserByEmail(email);
     if (existing) {
       return NextResponse.json(
         {
@@ -60,20 +62,21 @@ export async function POST(request: Request) {
     // Hash password securely with bcrypt
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Create user in database
-    const newUser = await prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-      },
+    // Create user in database with BYOK Gemini API key
+    const newUser = await createUser({
+      name,
+      email,
+      passwordHash,
+      geminiApiKey,
     });
 
     return NextResponse.json(
       {
         success: true,
-        message: "Account created successfully.",
+        message: "Account created successfully with Gemini API Key configured.",
         user: {
           id: newUser.id,
+          name: newUser.name,
           email: newUser.email,
         },
       },

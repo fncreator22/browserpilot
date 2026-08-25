@@ -12,6 +12,7 @@ export interface PipelineExecutionOptions {
   allowedDomains?: string[];
   maxStepsBudget?: number;
   headless?: boolean;
+  apiKey?: string;
   onIntentClassified?: (intent: IntentClassification) => void;
   onGuardEvaluated?: (guardResult: CapabilityGuardResult) => void;
   onPlanGenerated?: (plan: ActionPlan) => void;
@@ -53,14 +54,14 @@ export async function runAutonomousPipeline(
 
   try {
     // Step 1: Classify Intent
-    const intent = await classifyIntent(prompt);
+    const intent = await classifyIntent(prompt, { apiKey: options.apiKey });
     options.onIntentClassified?.(intent);
 
     // Step 2: PRE-FLIGHT CAPABILITY GUARD (Runs BEFORE Planner per §8 / Prompt 09)
     const guard = validateCapabilityPreflight(intent, prompt);
     options.onGuardEvaluated?.(guard);
 
-    if (!guard.allowed) {
+    if (guard.classification === "BLOCKED" || guard.classification === "REQUIRES_AUTH") {
       return {
         jobId,
         prompt,
@@ -69,8 +70,9 @@ export async function runAutonomousPipeline(
         plannerCalled: false,
         success: false,
         durationMs: Date.now() - startTime,
+        tokensUsed: (intent as any).tokensUsed,
         error: {
-          code: guard.errorCode || "CAPABILITY_GUARD_REJECTION",
+          code: guard.errorCode || (guard.classification === "REQUIRES_AUTH" ? "REQUIRES_AUTHENTICATION" : "SECURITY_POLICY_VIOLATION"),
           message: guard.technicalDetail || guard.userMessage,
           userMessage: guard.userMessage,
         },
@@ -83,6 +85,7 @@ export async function runAutonomousPipeline(
     const rawPlan = await generateActionPlan(prompt, {
       allowedDomains,
       maxStepsBudget,
+      apiKey: options.apiKey,
     });
     options.onPlanGenerated?.(rawPlan);
 

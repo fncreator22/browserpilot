@@ -95,6 +95,7 @@ export async function processBrowserJob(
         jobId,
         allowedDomains,
         maxStepsBudget,
+        apiKey: jobData.apiKey,
         onIntentClassified: async (intent) => {
           await updateDbJob(jobId, {
             status: "PLANNING",
@@ -205,6 +206,7 @@ export async function processBrowserJob(
         extractedData: primaryData,
         observations: pipelineResult.execution.observations,
         satisfiedCriteria: ["Goal achieved", "Target web page inspected", "Visual screenshot captured"],
+        apiKey: jobData.apiKey,
       });
 
       const finalSummary = synthesis.answer || pipelineResult.execution.finalObservation?.pageSummary || "Task completed successfully.";

@@ -107,6 +107,19 @@ export async function runAuthTests() {
   }
   console.log("  ✓ authorize() rejected nonexistent user with identical generic message");
 
+  // 5. Test BYOK Gemini API Key Storage and Profile Updates
+  const { getUserGeminiApiKey, updateUserProfile } = await import("@/lib/db/users");
+  await updateUserProfile(createdUser.id, {
+    name: "Alex Tester",
+    geminiApiKey: "AIzaSyTestApiKey123456789",
+  });
+
+  const retrievedKey = await getUserGeminiApiKey(createdUser.id);
+  if (retrievedKey !== "AIzaSyTestApiKey123456789") {
+    throw new Error(`Failed to retrieve user Gemini API key. Got: ${retrievedKey}`);
+  }
+  console.log("  ✓ Verified BYOK Gemini API key storage and retrieval");
+
   // Clean up test user
   await prisma.user.delete({ where: { id: createdUser.id } }).catch(() => {});
 

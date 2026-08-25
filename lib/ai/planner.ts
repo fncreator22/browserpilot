@@ -77,13 +77,21 @@ You are the Planner subsystem of BrowserPilot, an autonomous browser agent.
 Decompose the user's web automation goal into a strict sequential ActionPlan using ONLY the 8 authorized tools.
 `;
 
+import { 
+  createGeminiClient, 
+  getEffectiveGeminiApiKey, 
+  detectOptimalGeminiModel,
+  DEFAULT_GEMINI_MODEL 
+} from "./modelSelector";
+
 export interface PlanGenerationOptions {
   allowedDomains?: string[];
   maxStepsBudget?: number;
+  apiKey?: string;
 }
 
 /**
- * Generates an ActionPlan using Gemini 2.5 structured output.
+ * Generates an ActionPlan using Gemini structured output with dynamic model selection.
  * Gated: Offline test fallback ONLY activates when NODE_ENV === 'test' or IS_TEST_HARNESS === 'true'.
  */
 export async function generateActionPlan(
@@ -91,8 +99,8 @@ export async function generateActionPlan(
   options: PlanGenerationOptions = {}
 ): Promise<ActionPlan> {
   const isTest = isTestHarnessEnvironment();
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  const hasValidKey = apiKey && apiKey !== "your-gemini-api-key" && apiKey.trim() !== "";
+  const effectiveKey = getEffectiveGeminiApiKey(options.apiKey);
+  const hasValidKey = !!effectiveKey;
 
   // In test harness mode or when key is missing in test mode, use deterministic test fallback
   if (isTest || !hasValidKey) {
@@ -140,9 +148,11 @@ export async function generateActionPlan(
     });
   }
 
-  const ai = new GoogleGenAI({ apiKey: apiKey! });
+  const ai = createGeminiClient(effectiveKey);
+  const modelName = await detectOptimalGeminiModel(effectiveKey);
+
   const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_NAME,
+    model: modelName || DEFAULT_GEMINI_MODEL,
     contents: `User Goal: "${prompt}"\nConstraints: Allowed Domains = ${JSON.stringify(options.allowedDomains || [])}, Max Steps = ${options.maxStepsBudget || 15}`,
     config: {
       systemInstruction: PLANNER_SYSTEM_INSTRUCTION,

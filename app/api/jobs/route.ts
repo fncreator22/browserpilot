@@ -5,19 +5,21 @@ import { authOptions } from "@/lib/auth/authOptions";
 import { checkUserJobLimits } from "@/lib/auth/limits";
 import { enqueueBrowserJob } from "@/lib/queue/jobQueue";
 import { listDbJobs } from "@/lib/db/jobs";
-import { validateGeminiCredentialsOnStartup } from "@/lib/ai/intent";
-import { mapInternalErrorToHuman } from "@/lib/verification/errorMapper";
+import { getUserGeminiApiKey } from "@/lib/db/users";
+import { getEffectiveGeminiApiKey } from "@/lib/ai/modelSelector";
+import { isTestHarnessEnvironment } from "@/lib/ai/intent";
 
 const CreateJobRequestSchema = z.object({
   prompt: z.string().min(1, "Task prompt is required").max(2000, "Prompt must be under 2000 characters"),
   userId: z.string().optional(),
   allowedDomains: z.array(z.string()).optional(),
   maxStepsBudget: z.number().int().min(1).max(25).optional(),
+  apiKey: z.string().optional(),
 });
 
 /**
  * POST /api/jobs
- * Non-blocking job dispatcher with user ownership, rate limits, and configuration guards (§22 / §27)
+ * Non-blocking job dispatcher with user ownership, BYOK Gemini key resolution, rate limits, and configuration guards (§22 / §27)
  */
 export async function POST(request: Request) {
   const startTime = Date.now();
@@ -38,22 +40,27 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fail-fast configuration guard: Verify GEMINI_API_KEY presence outside test harness
-    const geminiCheck = validateGeminiCredentialsOnStartup();
-    if (!geminiCheck.valid) {
-      const mapped = mapInternalErrorToHuman(geminiCheck.error);
+    const { prompt, allowedDomains, maxStepsBudget, apiKey: explicitKey } = parseResult.data;
+    const effectiveUserId = (session?.user as { id?: string })?.id || null;
+
+    // Resolve user's BYOK Gemini API key from database or explicit request parameter
+    let userApiKey: string | null = null;
+    if (effectiveUserId) {
+      userApiKey = await getUserGeminiApiKey(effectiveUserId);
+    }
+    const resolvedApiKey = getEffectiveGeminiApiKey(userApiKey || explicitKey);
+
+    // Fail-fast configuration guard: Verify Gemini API key presence outside test harness
+    if (!resolvedApiKey && !isTestHarnessEnvironment()) {
       return NextResponse.json(
         {
-          error: "CONFIGURATION_ERROR",
-          message: mapped.userMessage,
-          category: mapped.category,
+          error: "MISSING_GEMINI_API_KEY",
+          message: "Please configure your Gemini API Key in your Profile settings or enter your API key to dispatch tasks.",
+          category: "CONFIGURATION_ERROR",
         },
-        { status: 503 }
+        { status: 400 }
       );
     }
-
-    const { prompt, allowedDomains, maxStepsBudget } = parseResult.data;
-    const effectiveUserId = (session?.user as { id?: string })?.id || null;
 
     // Multi-tenant concurrency & rate limit check (§22)
     if (effectiveUserId) {
@@ -71,12 +78,13 @@ export async function POST(request: Request) {
       }
     }
 
-    // Enqueue job into BullMQ & persist in DB (non-blocking)
+    // Enqueue job into execution engine & persist in DB (non-blocking)
     const enqueued = await enqueueBrowserJob({
       prompt,
       userId: effectiveUserId || undefined,
       allowedDomains,
       maxStepsBudget,
+      apiKey: resolvedApiKey || undefined,
     });
 
     const elapsedMs = Date.now() - startTime;
@@ -91,22 +99,22 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (err: unknown) {
-    const errorMsg = (err as Error).message || String(err);
-    const isRedisError = errorMsg.includes("Redis") || errorMsg.includes("connect");
-
+    const errorMsg = (err as Error).message || "Internal server error";
+    console.error("[JobsAPI] Failed creating job:", err);
     return NextResponse.json(
       {
-        error: isRedisError ? "REDIS_UNAVAILABLE" : "JOB_CREATION_FAILED",
-        message: errorMsg,
+        error: "INTERNAL_ERROR",
+        message: "Failed to dispatch autonomous job. Please try again.",
+        detail: errorMsg,
       },
-      { status: isRedisError ? 503 : 500 }
+      { status: 500 }
     );
   }
 }
 
 /**
  * GET /api/jobs
- * List jobs scoped strictly by authenticated user ID (§22 multi-tenancy)
+ * List jobs scoped strictly by authenticated user
  */
 export async function GET() {
   try {

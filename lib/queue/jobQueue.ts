@@ -10,6 +10,7 @@ export interface BrowserJobPayload {
   prompt: string;
   allowedDomains: string[];
   maxStepsBudget: number;
+  apiKey?: string;
 }
 
 export interface EnqueueJobInput {
@@ -18,6 +19,7 @@ export interface EnqueueJobInput {
   allowedDomains?: string[];
   maxStepsBudget?: number;
   jobId?: string;
+  apiKey?: string;
 }
 
 export interface EnqueueJobResult {
@@ -52,6 +54,7 @@ export async function enqueueBrowserJob(input: EnqueueJobInput): Promise<Enqueue
   const prompt = input.prompt.trim();
   const allowedDomains = input.allowedDomains || [];
   const maxStepsBudget = input.maxStepsBudget || 15;
+  const apiKey = input.apiKey;
   const createdAt = new Date();
 
   // 1. Persist directly to Prisma Database
@@ -80,6 +83,7 @@ export async function enqueueBrowserJob(input: EnqueueJobInput): Promise<Enqueue
       prompt,
       allowedDomains,
       maxStepsBudget,
+      apiKey,
     }).catch((workerErr) => {
       console.error(`[JobQueue] Immediate execution error for ${jobId}:`, workerErr);
     });
@@ -95,6 +99,7 @@ export async function enqueueBrowserJob(input: EnqueueJobInput): Promise<Enqueue
         prompt,
         allowedDomains,
         maxStepsBudget,
+        apiKey,
       },
       { jobId }
     ).catch(() => {});

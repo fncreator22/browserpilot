@@ -7,8 +7,13 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { 
   Bot, 
+  User,
   Mail, 
   KeyRound, 
+  Sparkles,
+  ExternalLink,
+  Eye,
+  EyeOff,
   ArrowRight, 
   ShieldCheck
 } from "lucide-react";
@@ -18,9 +23,12 @@ import { Input } from "@/components/ui/input";
 export default function SignupPage() {
   const router = useRouter();
 
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [geminiApiKey, setGeminiApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -30,9 +38,10 @@ export default function SignupPage() {
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
+    const cleanKey = geminiApiKey.trim();
 
-    if (!cleanEmail || !cleanPassword) {
-      setErrorMsg("Please fill in all required fields.");
+    if (!cleanEmail || !cleanPassword || !cleanKey) {
+      setErrorMsg("Please fill in all required fields including your Gemini API Key.");
       return;
     }
 
@@ -46,16 +55,23 @@ export default function SignupPage() {
       return;
     }
 
+    if (cleanKey.length < 10) {
+      setErrorMsg("Please enter a valid Gemini API Key from Google AI Studio.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      // 1. Call registration API
+      // 1. Call registration API with BYOK Gemini Key
       const regRes = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          name: name.trim() || undefined,
           email: cleanEmail,
           password: cleanPassword,
+          geminiApiKey: cleanKey,
         }),
       });
 
@@ -67,7 +83,7 @@ export default function SignupPage() {
         return;
       }
 
-      // 2. Immediately sign in on successful registration (no separate "go log in" step)
+      // 2. Immediately sign in on successful registration
       const signinRes = await signIn("credentials", {
         email: cleanEmail,
         password: cleanPassword,
@@ -90,7 +106,7 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4 selection:bg-primary/20 selection:text-primary">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4 selection:bg-primary/20 selection:text-primary py-12">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -111,7 +127,7 @@ export default function SignupPage() {
             Create your account
           </h1>
           <p className="text-xs text-muted-foreground">
-            Sign up to deploy autonomous browser workers and view execution telemetry
+            Bring your own Gemini API key for private, autonomous browser execution
           </p>
         </div>
 
@@ -125,9 +141,24 @@ export default function SignupPage() {
             )}
 
             <div className="space-y-1.5">
+              <label htmlFor="signup-name" className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
+                <User className="h-3.5 w-3.5 text-muted-foreground" />
+                Full Name (Optional)
+              </label>
+              <Input
+                id="signup-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Alex Developer"
+                className="h-10 text-xs font-mono"
+              />
+            </div>
+
+            <div className="space-y-1.5">
               <label htmlFor="signup-email" className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
                 <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                Email Address
+                Email Address <span className="text-rose-500">*</span>
               </label>
               <Input
                 id="signup-email"
@@ -141,9 +172,47 @@ export default function SignupPage() {
             </div>
 
             <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label htmlFor="signup-api-key" className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  Gemini API Key <span className="text-rose-500">*</span>
+                </label>
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-primary hover:underline flex items-center gap-1 font-mono"
+                >
+                  Get free key <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              </div>
+              <div className="relative">
+                <Input
+                  id="signup-api-key"
+                  type={showApiKey ? "text" : "password"}
+                  required
+                  value={geminiApiKey}
+                  onChange={(e) => setGeminiApiKey(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="h-10 text-xs font-mono pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-[11px] text-muted-foreground font-mono">
+                Stored encrypted and used exclusively for your autonomous tasks.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
               <label htmlFor="signup-password" className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
                 <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
-                Password (min 8 characters)
+                Password (min 8 characters) <span className="text-rose-500">*</span>
               </label>
               <Input
                 id="signup-password"
@@ -159,7 +228,7 @@ export default function SignupPage() {
             <div className="space-y-1.5">
               <label htmlFor="signup-confirm-password" className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
                 <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
-                Confirm Password
+                Confirm Password <span className="text-rose-500">*</span>
               </label>
               <Input
                 id="signup-confirm-password"
@@ -174,7 +243,7 @@ export default function SignupPage() {
 
             <Button
               type="submit"
-              disabled={isLoading || !email.trim() || !password.trim() || !confirmPassword.trim()}
+              disabled={isLoading || !email.trim() || !password.trim() || !confirmPassword.trim() || !geminiApiKey.trim()}
               className="w-full h-10 font-semibold gap-2 shadow-md mt-2"
             >
               {isLoading ? (
@@ -202,7 +271,7 @@ export default function SignupPage() {
         {/* Security Footer Notice */}
         <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground font-mono">
           <ShieldCheck className="h-4 w-4 text-emerald-500" />
-          Bcrypt Hashed • Minimal Data Policy
+          Bcrypt Hashed • BYOK Encrypted • Direct Model Router
         </div>
       </motion.div>
     </div>
