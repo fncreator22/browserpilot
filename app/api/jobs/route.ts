@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     }
 
     const { prompt, allowedDomains, maxStepsBudget } = parseResult.data;
-    const effectiveUserId = (session?.user as { id?: string })?.id || parseResult.data.userId || null;
+    const effectiveUserId = (session?.user as { id?: string })?.id || null;
 
     // Multi-tenant concurrency & rate limit check (§22)
     if (effectiveUserId) {
