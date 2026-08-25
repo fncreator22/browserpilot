@@ -11,8 +11,10 @@ import {
   recordDbObservation, 
   recordDbArtifact 
 } from "@/lib/db/jobs";
+import path from "node:path";
 import { runAutonomousPipeline, type PipelineResult } from "@/lib/ai/pipeline";
 import { validateGeminiCredentialsOnStartup } from "@/lib/ai/intent";
+import { synthesizeFinalAnswerWithMetadata } from "@/lib/ai/synthesizer";
 import { startAutoPurgeScheduler, stopAutoPurgeScheduler } from "./cleanup";
 import { browserPool } from "./browser";
 
@@ -98,8 +100,9 @@ export async function processBrowserJob(
         await recordDbObservation(jobId, obs).catch(() => {});
 
         if (obs.screenshotPath) {
+          const actualFilename = path.basename(obs.screenshotPath);
           await recordDbArtifact(jobId, {
-            filename: `step_${obs.stepIndex}_screenshot.png`,
+            filename: actualFilename,
             storageKey: obs.screenshotPath,
             mimeType: "image/png",
           }).catch(() => {});
@@ -111,13 +114,30 @@ export async function processBrowserJob(
     if (pipelineResult.success && pipelineResult.execution) {
       console.log(`[Worker] ✅ Job ${jobId} COMPLETED in ${pipelineResult.durationMs}ms`);
 
+      // Extract primary data and synthesize comprehensive final answer leading with factual results
+      const allExtracted = pipelineResult.execution.observations
+        .map((o) => o.extractedData)
+        .filter((d) => d !== undefined && d !== null && d !== "");
+      const primaryData = allExtracted.length > 0 ? allExtracted[allExtracted.length - 1] : pipelineResult.execution.finalObservation?.extractedData;
+
+      const synthesis = await synthesizeFinalAnswerWithMetadata({
+        goal: prompt,
+        verificationStatus: "VERIFIED",
+        extractedData: primaryData,
+        observations: pipelineResult.execution.observations,
+        satisfiedCriteria: ["Goal achieved", "Target web page inspected", "Visual screenshot captured"],
+      });
+
+      const finalSummary = synthesis.answer || pipelineResult.execution.finalObservation?.pageSummary || "Task completed successfully.";
+      const totalTokens = (pipelineResult.tokensUsed || 0) + (synthesis.tokensUsed || 0);
+
       await updateDbJob(jobId, {
         status: "COMPLETED",
         progress: 100,
-        summary: pipelineResult.execution.finalObservation?.pageSummary || "Task completed successfully.",
-        result: pipelineResult.execution.finalObservation?.extractedData,
+        summary: finalSummary,
+        result: primaryData || pipelineResult.execution.finalObservation?.extractedData,
         totalDurationMs: pipelineResult.durationMs,
-        tokensUsed: pipelineResult.tokensUsed,
+        tokensUsed: totalTokens > 0 ? totalTokens : undefined,
         memoryMb: pipelineResult.memoryMb,
       }).catch(() => {});
     } else {

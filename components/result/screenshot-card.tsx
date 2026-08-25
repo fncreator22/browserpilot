@@ -102,7 +102,11 @@ export function ScreenshotCard({
             <div className="flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
               <ImageIcon className="h-10 w-10 mb-2 opacity-40" />
               <p className="text-xs font-medium">
-                {isWorking ? "Capturing visual state milestone..." : "No visual screenshot artifact generated for this step."}
+                {isWorking 
+                  ? "Capturing visual state milestone..." 
+                  : imageError 
+                  ? "Screenshot capture or artifact retrieval failed." 
+                  : "No visual screenshot artifact generated for this step."}
               </p>
             </div>
           )}

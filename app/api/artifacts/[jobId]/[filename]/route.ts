@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth/next";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { authOptions } from "@/lib/auth/authOptions";
-import { getDbJobById } from "@/lib/db/jobs";
+import { prisma } from "@/lib/db/prisma";
 import { artifactStorage } from "@/lib/storage";
 
 /**
@@ -38,14 +38,23 @@ export async function GET(
     const userId = (session?.user as { id?: string })?.id || null;
 
     // 2. Multi-tenant Ownership Check
-    if (userId) {
-      const job = await getDbJobById(jobId, userId);
-      if (!job) {
-        return NextResponse.json(
-          { error: "UNAUTHORIZED", message: "Job artifact access denied." },
-          { status: 403 }
-        );
-      }
+    const rawJob = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { id: true, userId: true },
+    });
+
+    if (!rawJob) {
+      return NextResponse.json(
+        { error: "JOB_NOT_FOUND", message: `Job ${jobId} does not exist.` },
+        { status: 404 }
+      );
+    }
+
+    if (rawJob.userId && userId && rawJob.userId !== userId) {
+      return NextResponse.json(
+        { error: "UNAUTHORIZED", message: "Job artifact access denied." },
+        { status: 403 }
+      );
     }
 
     const filePath = artifactStorage.getArtifactPath(jobId, filename);
