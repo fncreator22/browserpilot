@@ -10,7 +10,9 @@ export const maxDuration = 60; // Max serverless stream duration
 
 /**
  * GET /api/jobs/:id/events (§27)
- * High-concurrency Server-Sent Events (SSE) streaming & serverless pipeline execution endpoint
+ * Server-Sent Events (SSE) streaming endpoint.
+ * Executes the autonomous pipeline INSIDE the active SSE stream connection
+ * to prevent Vercel Lambda freeze (frozen background promises).
  */
 export async function GET(
   request: Request,
@@ -46,49 +48,50 @@ export async function GET(
         }
       };
 
-      // Subscribe to real-time agent updates
+      // Subscribe to real-time agent updates from in-process event bus
       const unsubscribe = jobEventBus.subscribe(id, async ({ event, data }) => {
         await sendEvent(event, data);
       });
 
-      // Send initial state snapshot and trigger serverless pipeline if not finished
+      // Send initial snapshot and trigger pipeline inside the open stream
       getDbJobById(id, userId).then(async (currentJob) => {
         if (currentJob) {
           await sendEvent("snapshot", currentJob);
 
-          // If job is in active execution state, run autonomous pipeline inside the active stream
+          // Execute pipeline INSIDE active stream connection (prevents serverless freeze)
           const isActive = ["QUEUED", "PLANNING", "WORKING"].includes(currentJob.status);
           if (isActive) {
-            import("@/worker/index").then(async ({ processBrowserJob }) => {
-              try {
-                let allowedDomains: string[] = [];
-                try {
-                  allowedDomains = JSON.parse(currentJob.allowedDomains || "[]");
-                } catch {
-                  allowedDomains = [];
-                }
+            try {
+              // CRITICAL: import serverlessPipeline (NOT worker/index which has BullMQ)
+              const { runServerlessPipeline } = await import("@/lib/serverlessPipeline");
 
-                let apiKey: string | undefined = undefined;
-                if (userId) {
-                  apiKey = (await getUserGeminiApiKey(userId)) || undefined;
-                }
-
-                await processBrowserJob({
-                  jobId: id,
-                  prompt: currentJob.prompt,
-                  allowedDomains,
-                  maxStepsBudget: currentJob.maxStepsBudget || 15,
-                  apiKey,
-                });
-              } catch (pipelineErr) {
-                console.error(`[SSE Pipeline Execution Error for ${id}]:`, pipelineErr);
+              let apiKey: string | undefined = undefined;
+              if (userId) {
+                apiKey = (await getUserGeminiApiKey(userId)) || undefined;
               }
-            }).catch(() => {});
+
+              let allowedDomains: string[] = [];
+              try { allowedDomains = JSON.parse(currentJob.allowedDomains || "[]"); } catch { allowedDomains = []; }
+
+              await runServerlessPipeline({
+                jobId: id,
+                prompt: currentJob.prompt,
+                allowedDomains,
+                maxStepsBudget: currentJob.maxStepsBudget || 15,
+                apiKey,
+              });
+            } catch (pipelineErr) {
+              console.error(`[SSE Pipeline Error for ${id}]:`, pipelineErr);
+              await sendEvent("error", {
+                status: "FAILED",
+                message: (pipelineErr as Error).message || "Pipeline execution failed.",
+              });
+            }
           }
         }
       }).catch(() => {});
 
-      // Cleanup on abort
+      // Cleanup on disconnect
       request.signal.addEventListener("abort", () => {
         unsubscribe();
         writer.close().catch(() => {});

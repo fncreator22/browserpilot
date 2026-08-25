@@ -2,7 +2,8 @@ import { GoogleGenAI } from "@google/genai";
 
 /**
  * §DYNAMIC GEMINI MODEL AUTO-DETECTOR & PROVIDER
- * Selects the optimal Gemini Flash model based on API Key capabilities and availability
+ * Selects the optimal Gemini Flash model based on API Key capabilities and availability.
+ * Uses static resolution (no probe API call) to avoid adding latency on every job.
  */
 export const SUPPORTED_GEMINI_MODELS = [
   "gemini-2.5-flash",
@@ -12,7 +13,9 @@ export const SUPPORTED_GEMINI_MODELS = [
 
 export type SupportedGeminiModel = (typeof SUPPORTED_GEMINI_MODELS)[number];
 
+// Default to 2.5-flash (most capable), fall back to 2.0-flash if issues arise
 export const DEFAULT_GEMINI_MODEL: SupportedGeminiModel = "gemini-2.5-flash";
+export const FALLBACK_GEMINI_MODEL: SupportedGeminiModel = "gemini-2.0-flash";
 
 /**
  * Get effective Gemini API Key from explicit key or environment
@@ -42,29 +45,21 @@ export function createGeminiClient(apiKey?: string | null): GoogleGenAI {
 }
 
 /**
- * Auto-detect optimal available model for the given Gemini API key
+ * Auto-detect optimal available model for the given Gemini API key.
+ * Returns 2.5-flash if the key looks like a standard Google AI Studio key,
+ * else falls back to 2.0-flash (stable, widely supported).
  */
 export async function detectOptimalGeminiModel(
   apiKey?: string | null
 ): Promise<SupportedGeminiModel> {
   const effectiveKey = getEffectiveGeminiApiKey(apiKey);
-  if (!effectiveKey) return DEFAULT_GEMINI_MODEL;
+  if (!effectiveKey) return FALLBACK_GEMINI_MODEL;
 
-  try {
-    const ai = createGeminiClient(effectiveKey);
-    // Quick probe on primary model
-    const testRes = await ai.models.generateContent({
-      model: DEFAULT_GEMINI_MODEL,
-      contents: "ping",
-    });
-    if (testRes) return DEFAULT_GEMINI_MODEL;
-  } catch (err: unknown) {
-    const msg = (err as Error).message || "";
-    // If 2.5 is not accessible, fall back to 2.0-flash or 1.5-flash
-    if (msg.includes("not found") || msg.includes("unsupported") || msg.includes("404")) {
-      return "gemini-2.0-flash";
-    }
+  // Standard AI Studio keys (AIzaSy...) support 2.5-flash
+  if (effectiveKey.startsWith("AIzaSy") || effectiveKey.startsWith("AIza")) {
+    return DEFAULT_GEMINI_MODEL; // gemini-2.5-flash
   }
 
-  return DEFAULT_GEMINI_MODEL;
+  // Enterprise/Vertex or other formats — use stable 2.0-flash
+  return FALLBACK_GEMINI_MODEL;
 }

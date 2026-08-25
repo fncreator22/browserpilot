@@ -7,7 +7,7 @@ import {
 
 config();
 
-export const GEMINI_MODEL_NAME = "gemini-3.6-flash";
+export const GEMINI_MODEL_NAME = "gemini-2.0-flash";
 
 /**
  * Helper to determine if execution is strictly running inside an automated test runner
