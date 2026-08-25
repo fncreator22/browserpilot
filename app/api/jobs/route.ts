@@ -5,7 +5,6 @@ import { authOptions } from "@/lib/auth/authOptions";
 import { checkUserJobLimits } from "@/lib/auth/limits";
 import { enqueueBrowserJob } from "@/lib/queue/jobQueue";
 import { listDbJobs } from "@/lib/db/jobs";
-import { getUserGeminiApiKey } from "@/lib/db/users";
 import { getEffectiveGeminiApiKey } from "@/lib/ai/modelSelector";
 import { isTestHarnessEnvironment } from "@/lib/ai/intent";
 
@@ -43,12 +42,10 @@ export async function POST(request: Request) {
     const { prompt, allowedDomains, maxStepsBudget, apiKey: explicitKey } = parseResult.data;
     const effectiveUserId = (session?.user as { id?: string })?.id || null;
 
-    // Resolve user's BYOK Gemini API key from database or explicit request parameter
-    let userApiKey: string | null = null;
-    if (effectiveUserId) {
-      userApiKey = await getUserGeminiApiKey(effectiveUserId);
-    }
-    const resolvedApiKey = getEffectiveGeminiApiKey(userApiKey || explicitKey);
+    // Resolve BYOK Gemini API key: JWT session > explicit request param > env
+    // Using session JWT avoids SQLite DB lookup across serverless Lambda instances
+    const sessionApiKey = (session?.user as { geminiApiKey?: string })?.geminiApiKey;
+    const resolvedApiKey = getEffectiveGeminiApiKey(sessionApiKey || explicitKey);
 
     // Fail-fast configuration guard: Verify Gemini API key presence outside test harness
     if (!resolvedApiKey && !isTestHarnessEnvironment()) {
