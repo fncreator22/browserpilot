@@ -587,7 +587,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                 {job.status === "PLANNING" && (
                   <Badge className="bg-primary/10 text-primary border-primary/20 font-mono text-xs gap-1.5 py-1 px-3 animate-pulse">
                     <Bot className="h-3.5 w-3.5 animate-pulse" />
-                    Planning — Gemini 2.5 Flash ({job.progress || 25}%)
+                    Planning — Gemini 3.6 Flash ({job.progress || 25}%)
                   </Badge>
                 )}
                 {isActive && job.status !== "QUEUED" && job.status !== "PLANNING" && (
@@ -620,7 +620,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           <div className="mt-4 flex flex-wrap items-center gap-6 font-mono text-xs text-muted-foreground">
             <div>Engine: <strong className="text-foreground">Playwright Sandboxed</strong></div>
             <div>•</div>
-            <div>Model: <strong className="text-foreground">Gemini 2.5 Flash</strong></div>
+            <div>Model: <strong className="text-foreground">Gemini 3.6 Flash</strong></div>
             <div>•</div>
             <div>Time Budget: <strong className="text-foreground">{Math.round((job.maxDurationMs || 120000) / 1000)}s (Allocated, 5m Max)</strong></div>
             <div>•</div>

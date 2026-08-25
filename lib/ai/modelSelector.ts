@@ -3,19 +3,20 @@ import { GoogleGenAI } from "@google/genai";
 /**
  * §DYNAMIC GEMINI MODEL AUTO-DETECTOR & PROVIDER
  * Selects the optimal Gemini Flash model based on API Key capabilities and availability.
- * Uses static resolution (no probe API call) to avoid adding latency on every job.
+ * Defaults to gemini-3.6-flash (current generation).
  */
 export const SUPPORTED_GEMINI_MODELS = [
+  "gemini-3.6-flash",
+  "gemini-3.6-pro",
   "gemini-2.5-flash",
   "gemini-2.0-flash",
-  "gemini-1.5-flash",
 ] as const;
 
 export type SupportedGeminiModel = (typeof SUPPORTED_GEMINI_MODELS)[number];
 
-// Default to 2.5-flash (most capable), fall back to 2.0-flash if issues arise
-export const DEFAULT_GEMINI_MODEL: SupportedGeminiModel = "gemini-2.5-flash";
-export const FALLBACK_GEMINI_MODEL: SupportedGeminiModel = "gemini-2.0-flash";
+// Default to Gemini 3.6 Flash (fastest, most capable, active Google API tier)
+export const DEFAULT_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.6-flash";
+export const FALLBACK_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.6-flash";
 
 /**
  * Get effective Gemini API Key from explicit key or environment
@@ -46,20 +47,10 @@ export function createGeminiClient(apiKey?: string | null): GoogleGenAI {
 
 /**
  * Auto-detect optimal available model for the given Gemini API key.
- * Returns 2.5-flash if the key looks like a standard Google AI Studio key,
- * else falls back to 2.0-flash (stable, widely supported).
+ * Always resolves to high-performance gemini-3.6-flash.
  */
 export async function detectOptimalGeminiModel(
   apiKey?: string | null
 ): Promise<SupportedGeminiModel> {
-  const effectiveKey = getEffectiveGeminiApiKey(apiKey);
-  if (!effectiveKey) return FALLBACK_GEMINI_MODEL;
-
-  // Standard AI Studio keys (AIzaSy...) support 2.5-flash
-  if (effectiveKey.startsWith("AIzaSy") || effectiveKey.startsWith("AIza")) {
-    return DEFAULT_GEMINI_MODEL; // gemini-2.5-flash
-  }
-
-  // Enterprise/Vertex or other formats — use stable 2.0-flash
-  return FALLBACK_GEMINI_MODEL;
+  return DEFAULT_GEMINI_MODEL;
 }

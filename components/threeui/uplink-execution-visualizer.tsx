@@ -45,7 +45,7 @@ export const STATE_CONFIG_MAP: Record<ExecutionState, ExecutionStateConfig> = {
     state: "PLANNING",
     label: "AGENT PLANNING",
     sysTag: "SYS.PLAN // SYNTHESIS",
-    subtitle: "Gemini 2.0 Flash decomposing goal into structured tool steps...",
+    subtitle: ">_ Gemini 3.6 Flash decomposing goal into structured tool steps...",
     progressPercent: 18,
     badgeClass: "bg-amber-500/10 text-amber-500 border-amber-500/30",
     glowColor: "rgba(245, 158, 11, 0.2)",

@@ -271,7 +271,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                     </button>
                   </div>
                   <p className="text-[10px] text-muted-foreground font-mono">
-                    System automatically detects and selects Gemini 2.5 Flash / 2.0 Flash models.
+                    System automatically detects and selects Gemini 3.6 Flash / 3.6 Pro models.
                   </p>
                 </div>
 
