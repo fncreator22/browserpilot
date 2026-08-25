@@ -79,6 +79,15 @@ export const ERROR_CATALOG_7: Record<string, HumanReadableError> = {
     suggestedAction: "Add the destination domain to the job's Allowed Domains configuration if intentional.",
     recoverable: false,
   },
+  TIMED_OUT: {
+    code: "TIMED_OUT",
+    category: "SYSTEM",
+    title: "Time Budget Exceeded",
+    userMessage: "This task took longer than expected and was stopped automatically.",
+    technicalDetail: "Execution time exceeded the assigned time budget ceiling.",
+    suggestedAction: "Try breaking down the task into smaller sub-goals or increasing the step constraints.",
+    recoverable: true,
+  },
   MAX_STEPS_EXCEEDED: {
     code: "MAX_STEPS_EXCEEDED",
     category: "WORKFLOW",
@@ -127,7 +136,17 @@ export function mapInternalErrorToHuman(input: unknown): HumanReadableError {
     return ERROR_CATALOG_7[codeStr];
   }
 
-  // 2. AI Reasoning, Quotas & Rate Limits
+  // 2. Task-level hard time budget timeouts
+  if (
+    combined.includes("task_timed_out") ||
+    combined.includes("time budget") ||
+    combined.includes("timed_out") ||
+    combined.includes("longer than expected and was stopped")
+  ) {
+    return ERROR_CATALOG_7.TIMED_OUT;
+  }
+
+  // 3. AI Reasoning, Quotas & Rate Limits
   if (
     combined.includes("missing_gemini_api_key") ||
     combined.includes("gemini") ||
@@ -143,7 +162,7 @@ export function mapInternalErrorToHuman(input: unknown): HumanReadableError {
     return ERROR_CATALOG_7.RATE_LIMIT_EXCEEDED;
   }
 
-  // 3. Domain Whitelist & SSRF Guards
+  // 4. Domain Whitelist & SSRF Guards
   if (
     combined.includes("domain") ||
     combined.includes("whitelist") ||
@@ -156,7 +175,7 @@ export function mapInternalErrorToHuman(input: unknown): HumanReadableError {
     return ERROR_CATALOG_7.DOMAIN_NOT_ALLOWED;
   }
 
-  // 4. Navigation Timeouts & Connection Failures
+  // 5. Navigation Timeouts & Connection Failures
   if (
     combined.includes("timeout") ||
     combined.includes("timed out") ||

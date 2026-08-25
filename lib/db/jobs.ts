@@ -2,6 +2,7 @@ import { prisma } from "./prisma";
 import { type Observation } from "@/schemas/actions";
 import { type PlannedStep } from "@/schemas/jobs";
 import { artifactStorage } from "@/lib/storage";
+import { calculateJobTimeBudget } from "@/lib/capabilities/timeBudget";
 
 export interface CreateJobDbInput {
   id: string;
@@ -9,6 +10,7 @@ export interface CreateJobDbInput {
   userId?: string | null;
   allowedDomains?: string[];
   maxStepsBudget?: number;
+  maxDurationMs?: number;
 }
 
 export interface UpdateJobDbInput {
@@ -22,6 +24,8 @@ export interface UpdateJobDbInput {
   totalDurationMs?: number;
   tokensUsed?: number;
   memoryMb?: number;
+  maxDurationMs?: number;
+  startedAt?: Date;
   completedAt?: Date;
 }
 
@@ -30,6 +34,12 @@ export interface UpdateJobDbInput {
  */
 
 export async function createDbJob(data: CreateJobDbInput) {
+  const calculatedBudget = data.maxDurationMs || calculateJobTimeBudget({
+    prompt: data.prompt,
+    allowedDomains: data.allowedDomains,
+    maxStepsBudget: data.maxStepsBudget,
+  }).budgetMs;
+
   return prisma.job.create({
     data: {
       id: data.id,
@@ -39,6 +49,7 @@ export async function createDbJob(data: CreateJobDbInput) {
       progress: 0,
       allowedDomains: JSON.stringify(data.allowedDomains || []),
       maxStepsBudget: data.maxStepsBudget || 15,
+      maxDurationMs: calculatedBudget,
     },
   });
 }
@@ -83,6 +94,8 @@ export async function updateDbJob(id: string, updates: UpdateJobDbInput) {
   if (updates.totalDurationMs !== undefined) dataToUpdate.totalDurationMs = updates.totalDurationMs;
   if (updates.tokensUsed !== undefined) dataToUpdate.tokensUsed = updates.tokensUsed;
   if (updates.memoryMb !== undefined) dataToUpdate.memoryMb = updates.memoryMb;
+  if (updates.maxDurationMs !== undefined) dataToUpdate.maxDurationMs = updates.maxDurationMs;
+  if (updates.startedAt !== undefined) dataToUpdate.startedAt = updates.startedAt;
 
   if (updates.error !== undefined) {
     dataToUpdate.error = typeof updates.error === "string" ? updates.error : JSON.stringify(updates.error);

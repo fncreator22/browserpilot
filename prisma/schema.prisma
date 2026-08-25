@@ -33,6 +33,8 @@ model Job {
   totalDurationMs Int?
   tokensUsed      Int?
   memoryMb        Float?
+  maxDurationMs   Int                 @default(120000)
+  startedAt       DateTime?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   completedAt     DateTime?

@@ -15,6 +15,8 @@ import path from "node:path";
 import { runAutonomousPipeline, type PipelineResult } from "@/lib/ai/pipeline";
 import { validateGeminiCredentialsOnStartup } from "@/lib/ai/intent";
 import { synthesizeFinalAnswerWithMetadata } from "@/lib/ai/synthesizer";
+import { calculateJobTimeBudget } from "@/lib/capabilities/timeBudget";
+import { mapInternalErrorToHuman } from "@/lib/verification/errorMapper";
 import { startAutoPurgeScheduler, stopAutoPurgeScheduler } from "./cleanup";
 import { browserPool } from "./browser";
 
@@ -43,56 +45,92 @@ export async function processBrowserJob(
   const { jobId, prompt, allowedDomains, maxStepsBudget } = jobData;
   console.log(`\n[Worker] 🚀 Picked up Job ${jobId} -> "${prompt.slice(0, 60)}..."`);
 
-  // 1. Update status to WORKING in DB
+  const budgetResult = calculateJobTimeBudget({
+    prompt,
+    allowedDomains,
+    maxStepsBudget,
+  });
+  const maxDurationMs = budgetResult.budgetMs;
+  const startedAt = new Date();
+
+  // 1. Update status to WORKING in DB with persisted startedAt and maxDurationMs
   await updateDbJob(jobId, {
     status: "WORKING",
     progress: 10,
-    summary: "Initializing worker & evaluating capability boundaries...",
+    startedAt,
+    maxDurationMs,
+    summary: `Initializing worker (time budget: ${Math.round(maxDurationMs / 1000)}s)...`,
   }).catch(() => {});
 
-  try {
-    // 2. Run the complete pipeline (Capability Guard → Planner → Plan Validator → Playwright Execution)
-    const pipelineResult = await runAutonomousPipeline(prompt, {
-      jobId,
-      allowedDomains,
-      maxStepsBudget,
-      onIntentClassified: async (intent) => {
-        await updateDbJob(jobId, {
-          progress: 25,
-          summary: `Intent classified as ${intent.classification}`,
-        }).catch(() => {});
-      },
-      onGuardEvaluated: async (guard) => {
-        await updateDbJob(jobId, {
-          progress: 40,
-          summary: guard.userMessage,
-        }).catch(() => {});
-      },
-      onPlanGenerated: async (plan) => {
-        await updateDbJob(jobId, {
-          progress: 55,
-          summary: `Plan generated with ${plan.steps.length} tool steps.`,
-        }).catch(() => {});
+  let timeoutTimer: NodeJS.Timeout | null = null;
+  let forceKillTimer: NodeJS.Timeout | null = null;
 
-        // Persist planned steps directly to database
-        for (const step of plan.steps) {
-          await recordDbJobStep(jobId, step).catch(() => {});
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutTimer = setTimeout(() => {
+      console.warn(`[Worker] ⏱️ Hard time budget (${maxDurationMs}ms) exceeded for Job ${jobId}. Initiating graceful stop...`);
+
+      // Grace period: allow in-flight tool call 5s to halt gracefully, otherwise force kill
+      forceKillTimer = setTimeout(async () => {
+        console.warn(`[Worker] 🛑 Force-closing browser session for timed-out Job ${jobId}`);
+        const session = await browserPool.createSession({ jobId }).catch(() => null);
+        if (session) {
+          await session.close().catch(() => {});
         }
-      },
-      onPlanValidated: async (validation) => {
-        await updateDbJob(jobId, {
-          progress: 65,
-          summary: validation.summary,
-        }).catch(() => {});
-      },
-      onStepProgress: async (stepNum, total, tool) => {
-        const pct = Math.min(65 + Math.round((stepNum / total) * 30), 95);
-        await updateDbJob(jobId, {
-          progress: pct,
-          summary: `Executing Step ${stepNum}/${total} [${tool}]...`,
-        }).catch(() => {});
-      },
-    });
+      }, 5000);
+
+      reject(new Error("TASK_TIMED_OUT: This task took longer than expected and was stopped automatically."));
+    }, maxDurationMs);
+  });
+
+  try {
+    // 2. Run the complete pipeline within unified time budget watchdog
+    const pipelineResult = await Promise.race([
+      runAutonomousPipeline(prompt, {
+        jobId,
+        allowedDomains,
+        maxStepsBudget,
+        onIntentClassified: async (intent) => {
+          await updateDbJob(jobId, {
+            progress: 25,
+            summary: `Intent classified as ${intent.classification}`,
+          }).catch(() => {});
+        },
+        onGuardEvaluated: async (guard) => {
+          await updateDbJob(jobId, {
+            progress: 40,
+            summary: guard.userMessage,
+          }).catch(() => {});
+        },
+        onPlanGenerated: async (plan) => {
+          await updateDbJob(jobId, {
+            progress: 55,
+            summary: `Plan generated with ${plan.steps.length} tool steps.`,
+          }).catch(() => {});
+
+          // Persist planned steps directly to database
+          for (const step of plan.steps) {
+            await recordDbJobStep(jobId, step).catch(() => {});
+          }
+        },
+        onPlanValidated: async (validation) => {
+          await updateDbJob(jobId, {
+            progress: 65,
+            summary: validation.summary,
+          }).catch(() => {});
+        },
+        onStepProgress: async (stepNum, total, tool) => {
+          const pct = Math.min(65 + Math.round((stepNum / total) * 30), 95);
+          await updateDbJob(jobId, {
+            progress: pct,
+            summary: `Executing Step ${stepNum}/${total} [${tool}]...`,
+          }).catch(() => {});
+        },
+      }),
+      timeoutPromise,
+    ]);
+
+    if (timeoutTimer) clearTimeout(timeoutTimer);
+    if (forceKillTimer) clearTimeout(forceKillTimer);
 
     // 3. Persist Observations and Artifacts to Database
     if (pipelineResult.execution) {
@@ -162,17 +200,62 @@ export async function processBrowserJob(
 
     return pipelineResult;
   } catch (err: unknown) {
+    if (timeoutTimer) clearTimeout(timeoutTimer);
+    if (forceKillTimer) clearTimeout(forceKillTimer);
+
     const errorMsg = (err as Error).message || String(err);
-    console.error(`[Worker] ❌ Fatal error on Job ${jobId}:`, err);
+    const isTimeout = errorMsg.includes("TASK_TIMED_OUT") || errorMsg.includes("time budget");
+    const humanError = mapInternalErrorToHuman(isTimeout ? "TIMED_OUT" : err);
+
+    console.error(`[Worker] ⚠️ Halted execution on Job ${jobId}: ${humanError.title}`);
 
     await updateDbJob(jobId, {
-      status: "FAILED",
+      status: "BLOCKED",
       progress: 100,
-      summary: "Fatal worker execution error.",
-      error: { code: "FATAL_WORKER_ERROR", message: errorMsg },
+      summary: humanError.userMessage,
+      error: humanError,
+      totalDurationMs: isTimeout ? maxDurationMs : undefined,
     }).catch(() => {});
 
-    throw err;
+    return {
+      jobId,
+      prompt,
+      intent: {
+        classification: "SUPPORTED",
+        targetDomains: [],
+        confidence: 1,
+        rationale: "Default fallback",
+        requiredCapabilities: ["NAVIGATION"],
+      },
+      guard: {
+        allowed: false,
+        classification: "BLOCKED",
+        userMessage: humanError.userMessage,
+        matchedCapabilities: [],
+        blockedCapabilities: [],
+      },
+      plannerCalled: false,
+      planValidation: {
+        valid: false,
+        summary: humanError.userMessage,
+        reasons: [
+          {
+            code: "UNSUPPORTED_CAPABILITY",
+            message: humanError.userMessage,
+            detail: humanError.technicalDetail || humanError.userMessage,
+          },
+        ],
+        totalSteps: 0,
+        maxAllowedSteps: 15,
+      },
+      success: false,
+      error: {
+        code: humanError.code,
+        message: humanError.technicalDetail || humanError.userMessage,
+        userMessage: humanError.userMessage,
+      },
+      durationMs: isTimeout ? maxDurationMs : 0,
+    };
   }
 }
 

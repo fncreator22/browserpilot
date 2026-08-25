@@ -40,6 +40,8 @@ interface DbJobData {
   totalDurationMs?: number;
   tokensUsed?: number;
   memoryMb?: number;
+  maxDurationMs?: number;
+  startedAt?: string;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
@@ -83,7 +85,31 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [job, setJob] = useState<DbJobData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const previousStatusRef = useRef<string | null>(null);
+
+  const isActive = job ? ["QUEUED", "PLANNING", "WORKING", "VERIFYING"].includes(job.status) : false;
+
+  // Live Time Budget Countdown Timer (§Prompt C2)
+  useEffect(() => {
+    if (!job || !isActive || job.status === "QUEUED") {
+      setSecondsRemaining(null);
+      return;
+    }
+
+    const budgetSec = Math.round((job.maxDurationMs || 120000) / 1000);
+    const startMs = job.startedAt ? new Date(job.startedAt).getTime() : new Date(job.createdAt).getTime();
+
+    const updateTimer = () => {
+      const elapsedSec = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+      const remaining = Math.max(0, budgetSec - elapsedSec);
+      setSecondsRemaining(remaining);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [job, isActive]);
 
   // Poll job data from real API
   const fetchJob = useCallback(async () => {
@@ -202,7 +228,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     );
   }
 
-  const isActive = job.status === "QUEUED" || job.status === "PLANNING" || job.status === "WORKING" || job.status === "VERIFYING";
   const parsedError = job.error ? (() => {
     try { return JSON.parse(job.error); } catch { return { message: job.error }; }
   })() : null;
@@ -322,11 +347,25 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                     TASK COMPLETE (VERIFIED)
                   </Badge>
                 )}
-                {isActive && (
-                  <Badge className="bg-primary/10 text-primary border-primary/20 font-mono text-xs gap-1.5 py-1 px-3 animate-pulse">
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    {job.status} ({job.progress}%)
+                {job.status === "QUEUED" && (
+                  <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 font-mono text-xs gap-1.5 py-1 px-3">
+                    <Clock className="h-3.5 w-3.5" />
+                    Queued — Waiting for available worker slot
                   </Badge>
+                )}
+                {isActive && job.status !== "QUEUED" && (
+                  <>
+                    <Badge className="bg-primary/10 text-primary border-primary/20 font-mono text-xs gap-1.5 py-1 px-3 animate-pulse">
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      {job.status} ({job.progress}%)
+                    </Badge>
+                    {secondsRemaining !== null && (
+                      <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 font-mono text-xs gap-1.5 py-1 px-3">
+                        <Clock className="h-3.5 w-3.5 animate-pulse" />
+                        Running — {secondsRemaining}s of {Math.round((job.maxDurationMs || 120000) / 1000)}s remaining
+                      </Badge>
+                    )}
+                  </>
                 )}
                 {(job.status === "BLOCKED" || job.status === "FAILED") && (
                   <Badge className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20 font-mono text-xs gap-1.5 py-1 px-3">
@@ -346,7 +385,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           <div className="mt-4 flex flex-wrap items-center gap-6 font-mono text-xs text-muted-foreground">
             <div>Engine: <strong className="text-foreground">Playwright Sandboxed</strong></div>
             <div>•</div>
-            <div>Model: <strong className="text-foreground">Gemini 2.5 Flash</strong></div>
+            <div>Model: <strong className="text-foreground">Gemini 3.6 Flash</strong></div>
+            <div>•</div>
+            <div>Time Budget: <strong className="text-foreground">{Math.round((job.maxDurationMs || 120000) / 1000)}s (5m hard ceiling)</strong></div>
             <div>•</div>
             <div>Progress: <strong className="text-foreground">{job.progress}%</strong></div>
           </div>

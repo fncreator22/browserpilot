@@ -9,10 +9,12 @@ import { runErrorMapperUnitTests } from "./unit/errorMapper.test";
 import { runGeminiGuardTests } from "./unit/geminiGuard.test";
 import { runAuthTests } from "./unit/auth.test";
 import { runCleanupUnitTests } from "./unit/cleanup.test";
+import { runTimeBudgetUnitTests } from "./unit/timeBudget.test";
 import { runExecutorIntegrationTests } from "./integration/executor.test";
 import { runMultiUserIntegrationTests } from "./integration/multiUser.test";
 import { runConcurrentUserIsolationTests } from "./integration/concurrentUserIsolation.test";
 import { runWorkerConcurrencyLimitTest } from "./integration/workerConcurrencyLimit.test";
+import { runTimeBudgetWatchdogIntegrationTest } from "./integration/timeBudgetWatchdog.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
 
 async function runMasterTestSuite() {
@@ -31,10 +33,12 @@ async function runMasterTestSuite() {
     { name: "Unit: Gemini Key Fallback Guard", fn: runGeminiGuardTests },
     { name: "Unit: Email/Password Auth & Minimal Schema", fn: runAuthTests },
     { name: "Unit: 24-Hour Auto-Purge & Retention", fn: runCleanupUnitTests },
+    { name: "Unit: Fast-Calculated Time Budget (Prompt C2)", fn: runTimeBudgetUnitTests },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },
     { name: "Integration: Multi-User Isolation & Limits (§36 Test 6)", fn: runMultiUserIntegrationTests },
     { name: "Integration: Real Concurrent User Isolation (Prompt C1)", fn: runConcurrentUserIsolationTests },
     { name: "Integration: Worker Concurrency Limit & Throttling", fn: runWorkerConcurrencyLimitTest },
+    { name: "Integration: Time Budget Watchdog & Timeout (Prompt C2)", fn: runTimeBudgetWatchdogIntegrationTest },
     { name: "E2E: Full Autonomous Agent Pipeline", fn: runEndToEndPipelineTest },
   ];
 
