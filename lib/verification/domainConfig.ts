@@ -11,10 +11,42 @@ export interface DomainSecurityConfig {
 }
 
 /**
+ * Checks if target IP/hostname is a private subnet, loopback, or cloud metadata endpoint
+ */
+export function isPrivateOrMetadataHost(hostname: string): boolean {
+  // 1. Cloud metadata endpoints & loopback IPs
+  if (
+    hostname === "169.254.169.254" ||
+    hostname === "0.0.0.0" ||
+    hostname === "::1" ||
+    hostname === "metadata.google.internal" ||
+    hostname.startsWith("169.254.")
+  ) {
+    return true;
+  }
+
+  // 2. IPv4 Private Ranges (RFC 1918):
+  // 10.0.0.0/8
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+    return true;
+  }
+  // 172.16.0.0/12 (172.16.x.x - 172.31.x.x)
+  if (/^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+    return true;
+  }
+  // 192.168.0.0/16
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Global default Domain Security Configuration
- * Configurable via environment without changing application code
  */
 export function getDomainSecurityConfig(customAllowed?: string[]): DomainSecurityConfig {
+  const isTest = process.env.NODE_ENV === "test" || process.env.IS_TEST_HARNESS === "true";
   const envAllowed = process.env.ALLOWED_DOMAINS
     ? process.env.ALLOWED_DOMAINS.split(",").map((d) => d.trim().toLowerCase())
     : [];
@@ -23,13 +55,12 @@ export function getDomainSecurityConfig(customAllowed?: string[]): DomainSecurit
     new Set([...(customAllowed || []), ...envAllowed].map((d) => d.toLowerCase().trim()).filter(Boolean))
   );
 
-  // If wildcard "*" is included or no domain whitelist is specified in dev mode, allowWildcard is true
-  const allowWildcard = combinedAllowed.includes("*") || (combinedAllowed.length === 0 && process.env.NODE_ENV !== "production");
+  const allowWildcard = combinedAllowed.includes("*");
 
   return {
     allowedDomains: combinedAllowed.filter((d) => d !== "*"),
     allowWildcard,
-    allowLocalhost: true,
+    allowLocalhost: isTest,
     blockedProtocols: ["file:", "javascript:", "data:", "chrome:", "about:config", "vbscript:"],
     blockedIpRanges: ["169.254.169.254", "0.0.0.0"],
   };
@@ -44,23 +75,24 @@ export function isUrlPermitted(
 ): { permitted: boolean; reason?: string } {
   try {
     const parsed = new URL(targetUrl);
+    const protocol = parsed.protocol.toLowerCase();
 
     // 1. Protocol check
-    if (config.blockedProtocols.includes(parsed.protocol.toLowerCase())) {
+    if (config.blockedProtocols.includes(protocol)) {
       return {
         permitted: false,
-        reason: `Protocol "${parsed.protocol}" is blocked for security isolation.`,
+        reason: `Protocol "${protocol}" is blocked for security isolation.`,
       };
     }
 
-    if (!["http:", "https:", "about:"].includes(parsed.protocol.toLowerCase())) {
+    if (!["http:", "https:", "about:"].includes(protocol)) {
       return {
         permitted: false,
-        reason: `Protocol "${parsed.protocol}" is not supported. Only http: and https: are allowed.`,
+        reason: `Protocol "${protocol}" is not supported. Only http: and https: are allowed.`,
       };
     }
 
-    if (parsed.protocol.toLowerCase() === "about:") {
+    if (protocol === "about:") {
       return parsed.pathname === "blank"
         ? { permitted: true }
         : { permitted: false, reason: "Only about:blank is permitted." };
@@ -68,19 +100,24 @@ export function isUrlPermitted(
 
     const hostname = parsed.hostname.toLowerCase();
 
-    // 2. IP range & private subnet checks
-    if (config.blockedIpRanges.includes(hostname)) {
+    // 2. Unconditional SSRF Guard: Private subnets, link-local, and cloud metadata endpoints
+    if (isPrivateOrMetadataHost(hostname)) {
       return {
         permitted: false,
-        reason: `Direct access to link-local/internal IP ${hostname} is blocked.`,
+        reason: `Security SSRF Halt: Access to private network or metadata address "${hostname}" is prohibited.`,
       };
     }
 
-    // 3. Localhost check
+    // 3. Localhost check (Allowed only in test harness mode for local test fixtures)
     if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return config.allowLocalhost
-        ? { permitted: true }
-        : { permitted: false, reason: "Localhost access is disabled." };
+      const isTest = process.env.NODE_ENV === "test" || process.env.IS_TEST_HARNESS === "true";
+      if (!config.allowLocalhost && !isTest) {
+        return {
+          permitted: false,
+          reason: `Security SSRF Halt: Localhost access is disabled in production.`,
+        };
+      }
+      return { permitted: true };
     }
 
     // 4. Wildcard check

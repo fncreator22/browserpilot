@@ -8,7 +8,7 @@ import { artifactStorage } from "@/lib/storage";
 
 /**
  * GET /api/artifacts/:jobId/:filename
- * Serves stored screenshot PNGs with multi-tenant ownership validation
+ * Serves stored screenshot PNGs with multi-tenant ownership validation and strict path traversal guards
  */
 export async function GET(
   request: Request,
@@ -17,11 +17,27 @@ export async function GET(
   const params = await props.params;
   const { jobId, filename } = params;
 
+  // 1. Strict Path Traversal & Filename Sanitization Guard
+  if (
+    !filename ||
+    !jobId ||
+    filename.includes("..") ||
+    filename.includes("/") ||
+    filename.includes("\\") ||
+    filename.includes("\0") ||
+    !/^[a-zA-Z0-9._-]+$/.test(filename)
+  ) {
+    return NextResponse.json(
+      { error: "INVALID_FILENAME", message: "Malicious or invalid filename path." },
+      { status: 400 }
+    );
+  }
+
   try {
     const session = await getServerSession(authOptions);
     const userId = (session?.user as { id?: string })?.id || null;
 
-    // Verify user has ownership or permission to access job artifacts
+    // 2. Multi-tenant Ownership Check
     if (userId) {
       const job = await getDbJobById(jobId, userId);
       if (!job) {

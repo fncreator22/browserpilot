@@ -29,6 +29,11 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 .env*
 !.env.example
 
@@ -39,10 +44,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# local artifacts and tools
+# local artifacts and databases
 graphify-out/
 storage/
 *.db
 *.db-journal
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite3
+dev.db
