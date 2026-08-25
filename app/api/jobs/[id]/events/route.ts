@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/authOptions";
 import { getDbJobEvents, getDbJobById } from "@/lib/db/jobs";
+import { getUserGeminiApiKey } from "@/lib/db/users";
 import { jobEventBus } from "@/lib/events/jobEvents";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // Max serverless stream duration
 
 /**
  * GET /api/jobs/:id/events (§27)
- * High-concurrency Server-Sent Events (SSE) streaming & JSON timeline endpoint
+ * High-concurrency Server-Sent Events (SSE) streaming & serverless pipeline execution endpoint
  */
 export async function GET(
   request: Request,
@@ -44,17 +46,47 @@ export async function GET(
         }
       };
 
-      // Send initial state snapshot
-      getDbJobById(id, userId).then(async (currentJob) => {
-        if (currentJob) {
-          await sendEvent("snapshot", currentJob);
-        }
-      }).catch(() => {});
-
       // Subscribe to real-time agent updates
       const unsubscribe = jobEventBus.subscribe(id, async ({ event, data }) => {
         await sendEvent(event, data);
       });
+
+      // Send initial state snapshot and trigger serverless pipeline if not finished
+      getDbJobById(id, userId).then(async (currentJob) => {
+        if (currentJob) {
+          await sendEvent("snapshot", currentJob);
+
+          // If job is in active execution state, run autonomous pipeline inside the active stream
+          const isActive = ["QUEUED", "PLANNING", "WORKING"].includes(currentJob.status);
+          if (isActive) {
+            import("@/worker/index").then(async ({ processBrowserJob }) => {
+              try {
+                let allowedDomains: string[] = [];
+                try {
+                  allowedDomains = JSON.parse(currentJob.allowedDomains || "[]");
+                } catch {
+                  allowedDomains = [];
+                }
+
+                let apiKey: string | undefined = undefined;
+                if (userId) {
+                  apiKey = (await getUserGeminiApiKey(userId)) || undefined;
+                }
+
+                await processBrowserJob({
+                  jobId: id,
+                  prompt: currentJob.prompt,
+                  allowedDomains,
+                  maxStepsBudget: currentJob.maxStepsBudget || 15,
+                  apiKey,
+                });
+              } catch (pipelineErr) {
+                console.error(`[SSE Pipeline Execution Error for ${id}]:`, pipelineErr);
+              }
+            }).catch(() => {});
+          }
+        }
+      }).catch(() => {});
 
       // Cleanup on abort
       request.signal.addEventListener("abort", () => {
