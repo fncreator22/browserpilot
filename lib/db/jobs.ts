@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { type Observation } from "@/schemas/actions";
 import { type PlannedStep } from "@/schemas/jobs";
+import { artifactStorage } from "@/lib/storage";
 
 export interface CreateJobDbInput {
   id: string;
@@ -247,3 +248,50 @@ export async function retryDbJob(jobId: string, userId?: string | null) {
     result: null,
   });
 }
+
+/**
+ * Auto-purges terminal jobs and their associated filesystem artifacts older than 24 hours (§Prompt B2)
+ */
+export async function purgeExpiredTerminalJobs(olderThanMs: number = 24 * 60 * 60 * 1000): Promise<{
+  purgedCount: number;
+  purgedJobIds: string[];
+}> {
+  const cutoffDate = new Date(Date.now() - olderThanMs);
+
+  // 1. Find all terminal jobs completed before the cutoff threshold
+  const expiredJobs = await prisma.job.findMany({
+    where: {
+      status: {
+        in: ["COMPLETED", "PARTIAL", "BLOCKED", "FAILED", "CANCELLED"],
+      },
+      completedAt: {
+        lte: cutoffDate,
+      },
+    },
+    select: {
+      id: true,
+      status: true,
+      completedAt: true,
+    },
+  });
+
+  const purgedJobIds: string[] = [];
+
+  for (const job of expiredJobs) {
+    // 2. Delete artifact files on filesystem
+    await artifactStorage.deleteJobArtifacts(job.id).catch(() => {});
+
+    // 3. Delete from Prisma Database (Cascade deletes steps, observations, artifacts)
+    await prisma.job.delete({
+      where: { id: job.id },
+    }).catch(() => {});
+
+    purgedJobIds.push(job.id);
+  }
+
+  return {
+    purgedCount: purgedJobIds.length,
+    purgedJobIds,
+  };
+}
+

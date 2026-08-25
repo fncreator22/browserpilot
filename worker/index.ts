@@ -13,6 +13,7 @@ import {
 } from "@/lib/db/jobs";
 import { runAutonomousPipeline, type PipelineResult } from "@/lib/ai/pipeline";
 import { validateGeminiCredentialsOnStartup } from "@/lib/ai/intent";
+import { startAutoPurgeScheduler, stopAutoPurgeScheduler } from "./cleanup";
 import { browserPool } from "./browser";
 
 config();
@@ -201,6 +202,9 @@ export async function startWorker() {
     }
   );
 
+  // Start Repeatable 24h Auto-Purge Scheduler (§Prompt B2)
+  startAutoPurgeScheduler();
+
   worker.on("ready", () => {
     console.log(`[Worker] Ready and listening for incoming jobs (concurrency: ${concurrency})...\n`);
   });
@@ -212,6 +216,7 @@ export async function startWorker() {
   // Graceful shutdown handlers
   const cleanup = async () => {
     console.log("\n[Worker] Shutting down worker gracefully...");
+    stopAutoPurgeScheduler();
     await worker.close();
     await browserPool.closeAll();
     process.exit(0);
