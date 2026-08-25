@@ -18,7 +18,6 @@ import { synthesizeFinalAnswerWithMetadata } from "@/lib/ai/synthesizer";
 import { calculateJobTimeBudget } from "@/lib/capabilities/timeBudget";
 import { mapInternalErrorToHuman } from "@/lib/verification/errorMapper";
 import { startAutoPurgeScheduler, stopAutoPurgeScheduler } from "./cleanup";
-import { browserPool } from "./browser";
 
 config();
 
@@ -72,10 +71,10 @@ export async function processBrowserJob(
       // Grace period: allow in-flight tool call 5s to halt gracefully, otherwise force kill
       forceKillTimer = setTimeout(async () => {
         console.warn(`[Worker] 🛑 Force-closing browser session for timed-out Job ${jobId}`);
-        const session = await browserPool.createSession({ jobId }).catch(() => null);
-        if (session) {
-          await session.close().catch(() => {});
-        }
+        try {
+          const { browserPool } = await import("./browser");
+          await browserPool.forceCloseJobSession(jobId).catch(() => {});
+        } catch {}
       }, 5000);
 
       reject(new Error("TASK_TIMED_OUT: This task took longer than expected and was stopped automatically."));
@@ -321,7 +320,10 @@ export async function startWorker() {
     console.log("\n[Worker] Shutting down worker gracefully...");
     stopAutoPurgeScheduler();
     await worker.close();
-    await browserPool.closeAll();
+    try {
+      const { browserPool } = await import("./browser");
+      await browserPool.closeAll().catch(() => {});
+    } catch {}
     process.exit(0);
   };
 
