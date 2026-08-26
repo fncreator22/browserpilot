@@ -11,19 +11,19 @@
 - **Deployment**: Vercel Production (`https://browserpilot-iota.vercel.app`), GitHub (`https://github.com/fncreator22/browserpilot`).
 
 ## Feature Inventory
-| # | Feature | Description | Milestone | Source |
-|---|---------|-------------|-----------|--------|
-| 1 | Ponytail Codebase Optimization | Remove dead files (`CLAUDE.md`, `lib/serverlessPipeline.ts`, unused SVGs), unify DB adapter on `@libsql/client` + `@prisma/adapter-libsql`, remove `better-sqlite3`. | M1 | ORIGINAL_REQUEST §R1 |
-| 2 | Package Ecosystem Integration | Consolidate usage of `@google/genai`, `@base-ui/react`, `sonner`, and `zod`, eliminating custom duplicated abstractions. | M1 | ORIGINAL_REQUEST §R1 |
-| 3 | Turso Cloud Database Persistence | Ensure all queries route to Turso cloud database (`users`, `jobs`, `job_steps`, `observations`, `artifacts`) with zero ephemeral SQLite discrepancies. | M2 | ORIGINAL_REQUEST §R3 |
-| 4 | Serverless Execution Guarantee | Active SSE stream execution and execute endpoint to prevent background promise freezes on Vercel Serverless Lambda. | M2 | ORIGINAL_REQUEST §R3 |
-| 5 | User Auth & BYOK Key Storage | Full registration (`/signup`), login (`/login`), JWT session tokens, and encrypted BYOK Gemini API key persistence in profile. | M3 | ORIGINAL_REQUEST §R2 |
-| 6 | Live Execution Streaming & Progression | Task dispatch (`/app`), live SSE streaming (`/app/jobs/[id]`), deterministic 10%–100% stage transitions, answer synthesis. | M3 | ORIGINAL_REQUEST §R2 |
-| 7 | Visual Screenshot Captures | Playwright / worker viewport screenshot generation, disk persistence, and secure artifact streaming route. | M3 | ORIGINAL_REQUEST §R2 |
-| 8 | Dynamic Model Selection | Dynamic Google API tier selector defaulting to active `gemini-3.6-flash`. | M3 | ORIGINAL_REQUEST §R2 |
-| 9 | 16/16 Automated Test Matrix | Run and pass all 16 test suites (8 unit, 7 integration, 1 E2E) via `npm test`. | M4 | ORIGINAL_REQUEST §R4 |
-| 10 | TypeScript Strict Typecheck | Strict TypeScript validation (`tsc --noEmit`) passing with 0 errors. | M4 | ORIGINAL_REQUEST §R4 |
-| 11 | Vercel Production Deploy & GitHub Sync | Production deployment to `https://browserpilot-iota.vercel.app` and git repository sync to `main` and `develop`. | M4 | ORIGINAL_REQUEST §R4 |
+| # | Feature | Description | Milestone | Source | Status |
+|---|---------|-------------|-----------|--------|--------|
+| 1 | Ponytail Codebase Optimization | Remove dead files (`CLAUDE.md`, `lib/serverlessPipeline.ts`, unused SVGs), unify DB adapter on `@libsql/client` + `@prisma/adapter-libsql`, remove `better-sqlite3`. | M1 | ORIGINAL_REQUEST §R1 | DONE |
+| 2 | Package Ecosystem Integration | Consolidate usage of `@google/genai`, `@base-ui/react`, `sonner`, and `zod`, eliminating custom duplicated abstractions. | M1 | ORIGINAL_REQUEST §R1 | DONE |
+| 3 | Turso Cloud Database Persistence | Ensure all queries route to Turso cloud database (`users`, `jobs`, `job_steps`, `observations`, `artifacts`) with zero ephemeral SQLite discrepancies. | M2 | ORIGINAL_REQUEST §R3 | DONE |
+| 4 | Serverless Execution Guarantee | Active SSE stream execution and execute endpoint to prevent background promise freezes on Vercel Serverless Lambda. | M2 | ORIGINAL_REQUEST §R3 | DONE |
+| 5 | User Auth & BYOK Key Storage | Full registration (`/signup`), login (`/login`), JWT session tokens, and encrypted BYOK Gemini API key persistence in profile. | M3 | ORIGINAL_REQUEST §R2 | DONE |
+| 6 | Live Execution Streaming & Progression | Task dispatch (`/app`), live SSE streaming (`/app/jobs/[id]`), deterministic 10%–100% stage transitions, answer synthesis. | M3 | ORIGINAL_REQUEST §R2 | DONE |
+| 7 | Visual Screenshot Captures | Playwright / worker viewport screenshot generation, disk persistence, and secure artifact streaming route. | M3 | ORIGINAL_REQUEST §R2 | DONE |
+| 8 | Dynamic Model Selection | Dynamic Google API tier selector defaulting to active `gemini-3.6-flash`. | M3 | ORIGINAL_REQUEST §R2 | DONE |
+| 9 | 16/16 Automated Test Matrix | Run and pass all 16 test suites (8 unit, 7 integration, 1 E2E) via `npm test`. | M4 | ORIGINAL_REQUEST §R4 | DONE |
+| 10 | TypeScript Strict Typecheck | Strict TypeScript validation (`tsc --noEmit`) passing with 0 errors. | M4 | ORIGINAL_REQUEST §R4 | DONE |
+| 11 | Vercel Production Deploy & GitHub Sync | Production deployment to `https://browserpilot-iota.vercel.app` and git repository sync to `main` and `develop`. | M4 | ORIGINAL_REQUEST §R4 | DONE |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
