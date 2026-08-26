@@ -31,7 +31,7 @@
 | M1 | Ponytail Code & Package Optimization | Eliminate dead files, unify database on `@libsql/client` + `@prisma/adapter-libsql`, consolidate pipeline imports. | None | DONE |
 | M2 | Cloud DB & Serverless Guarantee | Verify Turso cloud DB queries, schema tables, zero ephemeral discrepancies, and Lambda execution. | M1 | DONE |
 | M3 | E2E Visual & Functional Verification | Verify auth, BYOK Gemini key, task streaming 10%->100%, screenshots, model selector. | M2 | DONE |
-| M4 | Automated Tests, Production Deploy & Sync | 16/16 test suites pass, TypeScript typecheck passes, Vercel production deploy, GitHub sync. | M3 | IN_PROGRESS |
+| M4 | Automated Tests, Production Deploy & Sync | 16/16 test suites pass, TypeScript typecheck passes, Vercel production deploy, GitHub sync. | M3 | DONE |
 
 ## Interface Contracts
 ### Client ↔ Serverless API
