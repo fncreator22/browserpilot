@@ -4,6 +4,12 @@ import {
   type IntentClassification, 
   IntentClassificationSchema 
 } from "@/schemas/jobs";
+import { 
+  createGeminiClient, 
+  getEffectiveGeminiApiKey, 
+  detectOptimalGeminiModel,
+  DEFAULT_GEMINI_MODEL 
+} from "./modelSelector";
 
 config();
 
@@ -23,8 +29,8 @@ export function validateGeminiCredentialsOnStartup(): { valid: boolean; error?: 
   if (isTestHarnessEnvironment()) {
     return { valid: true };
   }
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!apiKey || apiKey === "your-gemini-api-key" || apiKey.trim() === "") {
+  const apiKey = getEffectiveGeminiApiKey();
+  if (!apiKey) {
     return {
       valid: false,
       error: "MISSING_GEMINI_API_KEY",
@@ -36,9 +42,9 @@ export function validateGeminiCredentialsOnStartup(): { valid: boolean; error?: 
 /**
  * Returns a configured GoogleGenAI instance or throws a configuration error outside test mode
  */
-export function getGeminiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!apiKey || apiKey === "your-gemini-api-key" || apiKey.trim() === "") {
+export function getGeminiClient(explicitApiKey?: string): GoogleGenAI {
+  const apiKey = getEffectiveGeminiApiKey(explicitApiKey);
+  if (!apiKey) {
     if (isTestHarnessEnvironment()) {
       return null as unknown as GoogleGenAI;
     }
@@ -46,7 +52,7 @@ export function getGeminiClient(): GoogleGenAI {
     (err as unknown as { code: string }).code = "MISSING_GEMINI_API_KEY";
     throw err;
   }
-  return new GoogleGenAI({ apiKey });
+  return createGeminiClient(apiKey);
 }
 
 const INTENT_RESPONSE_SCHEMA: Schema = {
@@ -82,13 +88,6 @@ Your task is to analyze a natural language user prompt and classify it into EXAC
 4. UNSUPPORTED: Goal requires capabilities outside BrowserPilot v1.
 5. BLOCKED: Goal violates security boundaries: bypassing CAPTCHA, payment checkout, dark patterns.
 `;
-
-import { 
-  createGeminiClient, 
-  getEffectiveGeminiApiKey, 
-  detectOptimalGeminiModel,
-  DEFAULT_GEMINI_MODEL 
-} from "./modelSelector";
 
 /**
  * Classify user intent using Gemini structured output with dynamic model selection.

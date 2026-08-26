@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
-import { z } from "zod";
 import { authOptions } from "@/lib/auth/authOptions";
 import { checkUserJobLimits } from "@/lib/auth/limits";
 import { enqueueBrowserJob } from "@/lib/queue/jobQueue";
@@ -8,14 +7,7 @@ import { listDbJobs } from "@/lib/db/jobs";
 import { getUserGeminiApiKey } from "@/lib/db/users";
 import { getEffectiveGeminiApiKey } from "@/lib/ai/modelSelector";
 import { isTestHarnessEnvironment } from "@/lib/ai/intent";
-
-const CreateJobRequestSchema = z.object({
-  prompt: z.string().min(1, "Task prompt is required").max(2000, "Prompt must be under 2000 characters"),
-  userId: z.string().optional(),
-  allowedDomains: z.array(z.string()).optional(),
-  maxStepsBudget: z.number().int().min(1).max(25).optional(),
-  apiKey: z.string().optional(),
-});
+import { CreateJobRequestSchema } from "@/schemas/jobs";
 
 /**
  * POST /api/jobs
@@ -25,7 +17,12 @@ export async function POST(request: Request) {
   const startTime = Date.now();
 
   try {
-    const session = await getServerSession(authOptions);
+    let session = null;
+    try {
+      session = await getServerSession(authOptions);
+    } catch {
+      // Outside active request scope or header context
+    }
     const body = await request.json();
     const parseResult = CreateJobRequestSchema.safeParse(body);
 
@@ -121,7 +118,12 @@ export async function POST(request: Request) {
  */
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    let session = null;
+    try {
+      session = await getServerSession(authOptions);
+    } catch {
+      // Outside active request scope or header context
+    }
     const userId = (session?.user as { id?: string })?.id || null;
 
     const jobs = await listDbJobs(userId);

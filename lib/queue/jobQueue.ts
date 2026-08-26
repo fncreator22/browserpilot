@@ -77,8 +77,8 @@ export async function enqueueBrowserJob(input: EnqueueJobInput): Promise<Enqueue
   });
 
   // 2. Launch serverless-safe execution immediately (BullMQ-free)
-  import("@/lib/serverlessPipeline").then(({ runServerlessPipeline }) => {
-    runServerlessPipeline({
+  import("@/lib/ai/pipelineEngine").then(({ executeJobPipeline }) => {
+    executeJobPipeline({
       jobId,
       prompt,
       allowedDomains,

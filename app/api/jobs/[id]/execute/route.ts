@@ -4,7 +4,8 @@ import { authOptions } from "@/lib/auth/authOptions";
 import { getDbJobById, createDbJob } from "@/lib/db/jobs";
 import { getEffectiveUserGeminiApiKey } from "@/lib/db/users";
 import { getEffectiveGeminiApiKey } from "@/lib/ai/modelSelector";
-import { runServerlessPipeline } from "@/lib/serverlessPipeline";
+import { executeJobPipeline } from "@/lib/ai/pipelineEngine";
+import { parseAllowedDomains } from "@/schemas/jobs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Up to 60s max serverless duration
@@ -45,15 +46,12 @@ export async function POST(
 
     if (!job && bodyData?.prompt) {
       try {
-        let allowed = bodyData.allowedDomains;
-        if (typeof allowed === "string") {
-          try { allowed = JSON.parse(allowed); } catch { allowed = []; }
-        }
+        const allowedDomains = parseAllowedDomains(bodyData.allowedDomains);
         job = await createDbJob({
           id: jobId,
           prompt: bodyData.prompt,
           userId: sessionUserId || undefined,
-          allowedDomains: Array.isArray(allowed) ? allowed : [],
+          allowedDomains,
           maxStepsBudget: bodyData.maxStepsBudget || 15,
         });
       } catch (createErr) {
@@ -97,20 +95,12 @@ export async function POST(
     }
 
     // 3. Parse allowedDomains and budget
-    let allowedDomains: string[] = [];
-    try {
-      allowedDomains = typeof job.allowedDomains === "string" 
-        ? JSON.parse(job.allowedDomains || "[]") 
-        : (job.allowedDomains || []);
-    } catch {
-      allowedDomains = [];
-    }
-
+    const allowedDomains = parseAllowedDomains(job.allowedDomains);
     const maxStepsBudget = job.maxStepsBudget || 15;
 
     // 4. Run autonomous pipeline directly within this active request
     console.log(`[ExecuteRoute] 🚀 Executing active pipeline for job ${jobId}...`);
-    const pipelineResult = await runServerlessPipeline({
+    const pipelineResult = await executeJobPipeline({
       jobId,
       prompt: job.prompt,
       allowedDomains,

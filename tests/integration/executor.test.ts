@@ -97,3 +97,18 @@ export async function runExecutorIntegrationTests() {
     server.close();
   }
 }
+
+if (require.main === module || process.argv[1]?.includes("executor.test")) {
+  runExecutorIntegrationTests()
+    .then(async () => {
+      await browserPool.closeAll();
+      process.exit(0);
+    })
+    .catch(async (err) => {
+      await browserPool.closeAll();
+      console.error("FATAL EXECUTOR INTEGRATION ERROR:", err);
+      process.exit(1);
+    });
+}
+
+

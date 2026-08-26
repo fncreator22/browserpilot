@@ -13,7 +13,12 @@ export async function GET(
   const { id } = params;
 
   try {
-    const session = await getServerSession(authOptions);
+    let session = null;
+    try {
+      session = await getServerSession(authOptions);
+    } catch {
+      // Outside active request scope or header context
+    }
     const userId = (session?.user as { id?: string })?.id || null;
 
     let job = await getDbJobById(id, userId);
@@ -67,13 +72,19 @@ export async function POST(
   const { id } = params;
 
   try {
-    const session = await getServerSession(authOptions);
+    let session = null;
+    try {
+      session = await getServerSession(authOptions);
+    } catch {
+      // Outside active request scope or header context
+    }
     const userId = (session?.user as { id?: string })?.id || null;
     const userEmail = (session?.user as { email?: string })?.email || null;
     const body = await request.json().catch(() => ({}));
 
     const prompt = body.prompt || "Autonomous web automation task";
-    const allowedDomains = body.allowedDomains || [];
+    const { parseAllowedDomains } = await import("@/schemas/jobs");
+    const allowedDomains = parseAllowedDomains(body.allowedDomains);
     const maxStepsBudget = body.maxStepsBudget || 15;
 
     let job = await upsertDbJobFromSync({
@@ -87,15 +98,15 @@ export async function POST(
     // Serverless execution trigger
     if (["QUEUED", "PLANNING"].includes(job.status)) {
       try {
-        const { runServerlessPipeline } = await import("@/lib/serverlessPipeline");
+        const { executeJobPipeline } = await import("@/lib/ai/pipelineEngine");
         const resolvedKey = await getEffectiveUserGeminiApiKey(userId || userEmail || job.userId);
         const apiKey = getEffectiveGeminiApiKey(body.apiKey || resolvedKey);
 
         await Promise.race([
-          runServerlessPipeline({
+          executeJobPipeline({
             jobId: id,
             prompt: job.prompt,
-            allowedDomains: Array.isArray(allowedDomains) ? allowedDomains : [],
+            allowedDomains,
             maxStepsBudget,
             apiKey: apiKey || undefined,
           }),

@@ -62,18 +62,18 @@ export async function GET(
           const isActive = ["QUEUED", "PLANNING", "WORKING"].includes(currentJob.status);
           if (isActive) {
             try {
-              // CRITICAL: import serverlessPipeline (NOT worker/index which has BullMQ)
-              const { runServerlessPipeline } = await import("@/lib/serverlessPipeline");
+              // CRITICAL: Execute pipeline via unified engine (BullMQ-free, safe for serverless SSE)
+              const { executeJobPipeline } = await import("@/lib/ai/pipelineEngine");
+              const { parseAllowedDomains } = await import("@/schemas/jobs");
 
               let apiKey: string | undefined = undefined;
               if (userId) {
                 apiKey = (await getUserGeminiApiKey(userId)) || undefined;
               }
 
-              let allowedDomains: string[] = [];
-              try { allowedDomains = JSON.parse(currentJob.allowedDomains || "[]"); } catch { allowedDomains = []; }
+              const allowedDomains = parseAllowedDomains(currentJob.allowedDomains);
 
-              await runServerlessPipeline({
+              await executeJobPipeline({
                 jobId: id,
                 prompt: currentJob.prompt,
                 allowedDomains,

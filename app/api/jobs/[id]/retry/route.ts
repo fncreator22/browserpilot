@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/authOptions";
 import { retryDbJob, getDbJobById } from "@/lib/db/jobs";
 import { enqueueBrowserJob } from "@/lib/queue/jobQueue";
 import { checkUserJobLimits } from "@/lib/auth/limits";
+import { parseAllowedDomains } from "@/schemas/jobs";
 
 /**
  * POST /api/jobs/:id/retry (§27)
@@ -41,10 +42,7 @@ export async function POST(
       }
     }
 
-    let parsedDomains: string[] = [];
-    try {
-      parsedDomains = JSON.parse(existingJob.allowedDomains);
-    } catch {}
+    const parsedDomains = parseAllowedDomains(existingJob.allowedDomains);
 
     // Dispatch fresh retry job
     const retried = await enqueueBrowserJob({

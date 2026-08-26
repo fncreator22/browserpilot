@@ -48,3 +48,72 @@ export const ActionPlanSchema = z.object({
 });
 export type ActionPlan = z.infer<typeof ActionPlanSchema>;
 export type ActionPlanInput = z.input<typeof ActionPlanSchema>;
+
+/**
+ * Safely parses and normalizes allowedDomains from diverse formats:
+ * - JSON string: '["news.ycombinator.com", "github.com"]'
+ * - Comma-separated string: 'news.ycombinator.com, github.com'
+ * - String array: ['news.ycombinator.com']
+ * - Null / undefined / empty string: []
+ */
+export function parseAllowedDomains(input: unknown): string[] {
+  if (!input) return [];
+
+  if (Array.isArray(input)) {
+    return Array.from(
+      new Set(
+        input
+          .filter((item): item is string => typeof item === "string")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean)
+      )
+    );
+  }
+
+  if (typeof input === "string") {
+    const trimmed = input.trim();
+    if (!trimmed || trimmed === "[]") return [];
+
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return Array.from(
+            new Set(
+              parsed
+                .filter((item): item is string => typeof item === "string")
+                .map((s) => s.trim().toLowerCase())
+                .filter(Boolean)
+            )
+          );
+        }
+      } catch {
+        // Fallback to comma-delimited
+      }
+    }
+
+    return Array.from(
+      new Set(
+        trimmed
+          .split(",")
+          .map((d) => d.trim().toLowerCase())
+          .filter(Boolean)
+      )
+    );
+  }
+
+  return [];
+}
+
+/**
+ * Standard Job Creation Request Schema
+ */
+export const CreateJobRequestSchema = z.object({
+  prompt: z.string().min(1, "Task prompt is required").max(2000, "Prompt must be under 2000 characters"),
+  userId: z.string().optional(),
+  allowedDomains: z.preprocess((val) => parseAllowedDomains(val), z.array(z.string())).optional().default([]),
+  maxStepsBudget: z.number().int().min(1).max(25).optional().default(15),
+  apiKey: z.string().optional(),
+});
+export type CreateJobRequest = z.infer<typeof CreateJobRequestSchema>;
+

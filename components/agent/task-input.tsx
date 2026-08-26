@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { parseAllowedDomains } from "@/schemas/jobs";
 
 interface TaskInputProps {
   initialPrompt?: string;
@@ -70,9 +71,7 @@ export function TaskInput({ initialPrompt = "", isCompact = false }: TaskInputPr
     setSubmitError(null);
 
     try {
-      const domainsList = allowedDomains
-        ? allowedDomains.split(",").map((d) => d.trim()).filter(Boolean)
-        : [];
+      const domainsList = parseAllowedDomains(allowedDomains);
 
       const res = await fetch("/api/jobs", {
         method: "POST",
