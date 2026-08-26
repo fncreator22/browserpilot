@@ -48,6 +48,7 @@ next-env.d.ts
 # local artifacts and databases
 graphify-out/
 storage/
+!lib/storage/
 *.db
 *.db-journal
 *.db-shm
