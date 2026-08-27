@@ -1,7 +1,7 @@
 /**
- * §AUTONOMOUS SEARCH & URL RESOLVER (Anti-Bot Resilient)
+ * §AUTONOMOUS SEARCH & URL RESOLVER (Ad-Filtering & Platform-Smart)
  * Resolves natural language entity queries to real landing page URLs
- * using deterministic direct platform mapping + DuckDuckGo HTML fallback (0 Google CAPTCHAs).
+ * using deterministic direct platform mapping + DuckDuckGo HTML fallback with strict ad filtering.
  */
 
 export interface ResolvedTarget {
@@ -32,12 +32,12 @@ export function extractUrlFromText(text: string): string | null {
 }
 
 /**
- * Extracts search keywords from a conversational prompt (strips "go to", "find me", "at least 10", etc.)
+ * Extracts search keywords from a conversational prompt (strips conversational filler)
  */
 export function extractKeywordsFromPrompt(prompt: string): string {
   return prompt
-    .replace(/\b(go\s*to|find\s*me|search\s*for|look\s*up|get\s*me|give\s*me|scrape|atleast|at\s*least|\d+\s*(of\s*the\s*)?links|to\s*fill|jobs?|roles?|under\s*the\s*roles?\s*of)\b/gi, " ")
-    .replace(/\b(linkedin|github|wikipedia|indeed|amazon|google)\b/gi, " ")
+    .replace(/\b(go\s*to|find\s*me|search\s*for|look\s*up|get\s*me|give\s*me|scrape|atleast|at\s*least|\d+\s*(of\s*the\s*)?links|to\s*fill|jobs?|roles?|under\s*the\s*roles?\s*of|internships?|openings?)\b/gi, " ")
+    .replace(/\b(linkedin|github|wikipedia|indeed|amazon|google|ycombinator|yc)\b/gi, " ")
     .replace(/[^\w\s.-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -65,16 +65,6 @@ export async function resolveTargetUrl(
   const keywords = extractKeywordsFromPrompt(prompt) || "AI Engineer";
 
   // 2. Direct Platform URL Mappings (Zero-Search Direct Navigation)
-  if (lower.includes("linkedin")) {
-    const url = `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(keywords)}`;
-    return {
-      url,
-      domain: "linkedin.com",
-      source: "PLATFORM_MAPPED",
-      queryUsed: keywords,
-    };
-  }
-
   if (lower.includes("github")) {
     const url = `https://github.com/search?q=${encodeURIComponent(keywords)}`;
     return {
@@ -115,7 +105,19 @@ export async function resolveTargetUrl(
     };
   }
 
-  // 3. Perform organic search discovery via DuckDuckGo HTML endpoint (Never Google to avoid bot CAPTCHAs)
+  // 3. Smart Intent Detection: If prompt is asking for jobs/roles/internships (even without naming LinkedIn)
+  const isJobQuery = /\b(job|jobs|role|roles|intern|internship|internships|hire|hiring|career|careers|vacancy|position|positions)\b/i.test(lower);
+  if (isJobQuery) {
+    const url = `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(keywords)}`;
+    return {
+      url,
+      domain: "linkedin.com",
+      source: "PLATFORM_MAPPED",
+      queryUsed: keywords,
+    };
+  }
+
+  // 4. Perform organic search discovery via DuckDuckGo HTML endpoint with strict Ad filtering
   const query = searchHint || prompt;
   const cleanQuery = query
     .replace(/[^\w\s.-]/g, " ")
@@ -136,14 +138,18 @@ export async function resolveTargetUrl(
 
     if (response.ok) {
       const html = await response.text();
-      const resultLinkRegex = /<a[^>]*class=["'][^"']*result__url[^"']*["'][^>]*href=["']([^"']+)["']/i;
-      const snippetRegex = /<a[^>]*class=["'][^"']*result__snippet[^"']*["'][^>]*>([\s\S]*?)<\/a>/i;
 
-      const linkMatch = html.match(resultLinkRegex);
-      const snippetMatch = html.match(snippetRegex);
+      // Extract all result links and filter out ad/tracking URLs (e.g. y.js, ad_domain)
+      const linkRegex = /<a[^>]*class=["'][^"']*(?:result__url|result__snippet)[^"']*["'][^>]*href=["']([^"']+)["']/gi;
+      let match;
+      while ((match = linkRegex.exec(html)) !== null) {
+        let rawHref = match[1];
 
-      if (linkMatch && linkMatch[1]) {
-        let rawHref = linkMatch[1];
+        // Skip ads and tracking scripts
+        if (rawHref.includes("/y.js") || rawHref.includes("ad_domain") || rawHref.includes("ad_provider") || rawHref.includes("bingv7aa")) {
+          continue;
+        }
+
         if (rawHref.includes("uddg=")) {
           const params = new URL(`https://duckduckgo.com${rawHref}`).searchParams;
           const decoded = params.get("uddg");
@@ -152,27 +158,26 @@ export async function resolveTargetUrl(
           rawHref = `https:${rawHref}`;
         }
 
-        const resolvedUrl = new URL(rawHref).toString();
-        const domain = new URL(resolvedUrl).hostname.toLowerCase();
-        const snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]+>/g, "").trim() : undefined;
+        try {
+          const resolvedUrl = new URL(rawHref).toString();
+          const domain = new URL(resolvedUrl).hostname.toLowerCase();
 
-        return {
-          url: resolvedUrl,
-          domain,
-          source: "ORGANIC_SEARCH",
-          queryUsed: cleanQuery,
-          snippet,
-        };
+          return {
+            url: resolvedUrl,
+            domain,
+            source: "ORGANIC_SEARCH",
+            queryUsed: cleanQuery,
+          };
+        } catch {}
       }
     }
   } catch (err) {
     console.warn(`[SearchResolver] Organic DuckDuckGo search timed out:`, err);
   }
 
-  // 4. Default Fallback: DuckDuckGo HTML search (CAPTCHA-immune)
-  const fallbackUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(cleanQuery)}`;
+  // 5. Default Fallback
   return {
-    url: fallbackUrl,
+    url: `https://html.duckduckgo.com/html/?q=${encodeURIComponent(cleanQuery)}`,
     domain: "duckduckgo.com",
     source: "DEFAULT_FALLBACK",
     queryUsed: cleanQuery,

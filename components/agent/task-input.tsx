@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { parseAllowedDomains } from "@/schemas/jobs";
+import { PromptEnhancer } from "@/components/prompt/prompt-enhancer";
 
 interface TaskInputProps {
   initialPrompt?: string;
@@ -114,6 +115,58 @@ export function TaskInput({ initialPrompt = "", isCompact = false }: TaskInputPr
     }
   };
 
+  const executeWithCustomPrompt = async (customPrompt: string) => {
+    const text = customPrompt.trim();
+    if (!text) return;
+
+    setPrompt(text);
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const domainsList = parseAllowedDomains(allowedDomains);
+
+      const res = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: text,
+          allowedDomains: domainsList.length > 0 ? domainsList : undefined,
+          maxStepsBudget: maxSteps,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to dispatch job to queue");
+      }
+
+      if (data.jobId) {
+        try {
+          sessionStorage.setItem(
+            `browserpilot_dispatched_${data.jobId}`,
+            JSON.stringify({
+              id: data.jobId,
+              prompt: text,
+              allowedDomains: domainsList,
+              maxStepsBudget: maxSteps,
+              status: "QUEUED",
+              progress: 0,
+              createdAt: new Date().toISOString(),
+            })
+          );
+        } catch {
+          // Ignore storage quota errors
+        }
+        router.push(`/app/jobs/${data.jobId}`);
+      }
+    } catch (err: unknown) {
+      setSubmitError((err as Error).message || "An unexpected error occurred while dispatching the task.");
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSelectPreset = (preset: typeof PRESET_TEMPLATES[0]) => {
     setPrompt(preset.goal);
     setAllowedDomains(preset.domains);
@@ -137,7 +190,7 @@ export function TaskInput({ initialPrompt = "", isCompact = false }: TaskInputPr
           </span>
         </div>
 
-        <div className="relative">
+        <div className="relative space-y-2">
           <Textarea
             id="task-goal"
             aria-label="Describe your web automation task"
@@ -146,6 +199,12 @@ export function TaskInput({ initialPrompt = "", isCompact = false }: TaskInputPr
             placeholder="Describe your web task in natural language (e.g. 'Navigate to news.ycombinator.com, find the top 3 AI stories, and extract titles and scores into a table')..."
             rows={isCompact ? 3 : 4}
             className="w-full resize-none rounded-xl border-border/70 bg-background/80 p-4 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-primary shadow-inner font-sans"
+          />
+
+          <PromptEnhancer
+            currentPrompt={prompt}
+            onApplyPrompt={(newP) => setPrompt(newP)}
+            onExecutePrompt={(newP) => executeWithCustomPrompt(newP)}
           />
         </div>
 
