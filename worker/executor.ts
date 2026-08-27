@@ -193,12 +193,16 @@ export class BrowserExecutor {
           }
 
           case "browser.screenshot": {
-            const { fullPage, filename } = validatedAction.parameters;
+            const { fullPage, filename, saveArtifact = true } = validatedAction.parameters;
             const artifactName = filename || `step_${stepIndex}_${Date.now()}.png`;
             const imageBuffer = await page.screenshot({ fullPage, type: "png" });
-            const savedPath = await artifactStorage.saveArtifact(options.jobId, artifactName, imageBuffer);
-            screenshotPath = savedPath;
-            pageSummary = `Captured ${fullPage ? "full-page" : "viewport"} screenshot saved to ${artifactName}.`;
+            if (saveArtifact) {
+              await artifactStorage.saveArtifact(options.jobId, artifactName, imageBuffer);
+              // Store the API URL (not the raw FS path) so UI and DB have a usable URL.
+              // BUG #1 fix: previously stored absolute FS path which broke artifact serving.
+              screenshotPath = artifactStorage.getArtifactUrl(options.jobId, artifactName);
+            }
+            pageSummary = `Captured ${fullPage ? "full-page" : "viewport"} screenshot saved as ${artifactName}.`;
             break;
           }
 
@@ -237,7 +241,9 @@ export class BrowserExecutor {
       try {
         const artifactName = `step_${stepIndex}_${status.toLowerCase()}.png`;
         const imageBuffer = await page.screenshot({ fullPage: false, type: "png" });
-        screenshotPath = await artifactStorage.saveArtifact(options.jobId, artifactName, imageBuffer);
+        await artifactStorage.saveArtifact(options.jobId, artifactName, imageBuffer);
+        // Store API URL (not raw FS path) — B1 fix
+        screenshotPath = artifactStorage.getArtifactUrl(options.jobId, artifactName);
       } catch {
         // Screenshot capture failure should not overwrite original action observation
       }

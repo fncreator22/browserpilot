@@ -6,10 +6,10 @@ import {
   Lock, 
   RefreshCw, 
   Download, 
-  ExternalLink,
-  ImageIcon
+  Cloud,
+  ImageIcon,
+  Info
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 interface ScreenshotCardProps {
@@ -20,6 +20,8 @@ interface ScreenshotCardProps {
   screenshotUrl?: string | null;
   jobId?: string;
   filename?: string;
+  /** Set to true when running in serverless/Lambda mode with no Playwright */
+  isServerlessMode?: boolean;
 }
 
 export function ScreenshotCard({
@@ -30,10 +32,13 @@ export function ScreenshotCard({
   screenshotUrl,
   jobId,
   filename,
+  isServerlessMode = false,
 }: ScreenshotCardProps) {
   const [imageError, setImageError] = useState(false);
 
   const displayUrl = screenshotUrl || (jobId && filename ? `/api/artifacts/${jobId}/${filename}` : null);
+  // Show serverless notice when there's no artifact and we're not currently working
+  const showServerlessNotice = !displayUrl && !isWorking && !imageError;
 
   return (
     <div className="rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-md">
@@ -89,7 +94,7 @@ export function ScreenshotCard({
           </div>
         </div>
 
-        {/* Real Screenshot Canvas */}
+        {/* Screenshot Canvas */}
         <div className="relative min-h-[340px] bg-muted/10 flex items-center justify-center p-2">
           {displayUrl && !imageError ? (
             <img
@@ -98,16 +103,35 @@ export function ScreenshotCard({
               onError={() => setImageError(true)}
               className="w-full h-auto rounded-lg object-contain shadow-sm max-h-[500px]"
             />
+          ) : showServerlessNotice ? (
+            /* Serverless Mode Notice — shown when Playwright is unavailable on Vercel Lambda */
+            <div className="flex flex-col items-center justify-center p-8 text-center gap-4 max-w-sm">
+              <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
+                <Cloud className="h-10 w-10 text-blue-400 mx-auto mb-3" />
+                <p className="text-sm font-semibold text-foreground mb-1">
+                  Serverless Execution Mode
+                </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  This job ran on Vercel Lambda, which cannot launch a Chromium browser.
+                  Text extraction and page navigation still worked — only visual screenshots are unavailable.
+                </p>
+              </div>
+              <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-left">
+                <Info className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-[11px] text-muted-foreground font-mono leading-relaxed">
+                  To enable real screenshots, a Playwright worker container must be deployed separately (Fly.io, Railway, or Render).
+                </p>
+              </div>
+            </div>
+          ) : imageError ? (
+            <div className="flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
+              <ImageIcon className="h-10 w-10 mb-2 opacity-40" />
+              <p className="text-xs font-medium">Screenshot capture or artifact retrieval failed.</p>
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
               <ImageIcon className="h-10 w-10 mb-2 opacity-40" />
-              <p className="text-xs font-medium">
-                {isWorking 
-                  ? "Capturing visual state milestone..." 
-                  : imageError 
-                  ? "Screenshot capture or artifact retrieval failed." 
-                  : "No visual screenshot artifact generated for this step."}
-              </p>
+              <p className="text-xs font-medium">No visual screenshot artifact generated for this step.</p>
             </div>
           )}
 

@@ -88,8 +88,12 @@ export async function executeServerlessActionPlan(
           pageSummary = `No page content available to extract from ${currentUrl}`;
         }
       } else if (validatedAction.tool === "browser.screenshot") {
-        pageSummary = `Screenshot requested at ${currentUrl} (screenshots not available in serverless mode)`;
-        extractedData = `Page content at ${currentUrl}:\n${currentPageText.slice(0, 2000)}`;
+        // SERVERLESS MODE: Playwright/Chromium is not available on Vercel Lambda.
+        // Cannot capture a real screenshot. We record the current page URL so the
+        // UI can display a meaningful "Serverless Execution" notice instead of blank.
+        pageSummary = `[Serverless Mode] Screenshot not available — running on Vercel Lambda without Chromium. Current URL: ${currentUrl}`;
+        extractedData = currentPageText ? `Page content snapshot at ${currentUrl}:\n${currentPageText.slice(0, 2000)}` : `No page content available at ${currentUrl}.`;
+
       } else if (validatedAction.tool === "browser.click") {
         pageSummary = `Simulated click on "${validatedAction.parameters.selector}" at ${currentUrl}`;
       } else if (validatedAction.tool === "browser.fill") {
@@ -116,7 +120,7 @@ export async function executeServerlessActionPlan(
       title: currentTitle,
       pageSummary,
       extractedData,
-      screenshotPath: null,
+      screenshotPath: null,  // Always null in serverless mode — no Playwright
       error: stepError,
       elapsedMs: Math.max(1, Date.now() - stepStart),
       timestamp: new Date().toISOString(),
@@ -124,6 +128,17 @@ export async function executeServerlessActionPlan(
 
     observations.push(observation);
     options.onStepComplete?.(stepNumber, observation);
+
+    // Halt execution on non-optional step failure (mirrors toolcall.ts behavior)
+    if (stepStatus === "FAILED" && !plannedStep.isOptional) {
+      overallStatus = "FAILED";
+      fatalError = stepError || {
+        code: "STEP_EXECUTION_FAILED",
+        message: `Step ${stepNumber} (${validatedAction.tool}) failed in serverless mode.`,
+        userMessage: "A planned action could not be completed.",
+      };
+      break;
+    }
   }
 
   const totalElapsedMs = Date.now() - startTime;

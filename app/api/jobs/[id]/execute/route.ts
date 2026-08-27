@@ -8,7 +8,10 @@ import { executeJobPipeline } from "@/lib/ai/pipelineEngine";
 import { parseAllowedDomains } from "@/schemas/jobs";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // Up to 60s max serverless duration
+// maxDuration: 300 = Vercel Pro max. On Hobby plan this is capped to 60s.
+// The time budget in calculateJobTimeBudget() is also bounded, but may allocate
+// up to 300s for complex tasks. Keep this value >= the max time budget ceiling.
+export const maxDuration = 300;
 
 /**
  * POST /api/jobs/:id/execute

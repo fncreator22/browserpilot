@@ -131,7 +131,13 @@ export async function runAutonomousPipeline(
           headless: options.headless !== false,
         });
       } catch (browserLaunchErr) {
-        console.warn(`[Pipeline] Chromium browser session unavailable, using serverless fetch execution:`, (browserLaunchErr as Error).message);
+        const reason = (browserLaunchErr as Error).message || "unknown";
+        console.warn(
+          `[Pipeline] ⚠️  Chromium unavailable — falling back to serverless fetch executor.\n` +
+          `  Reason: ${reason}\n` +
+          `  Impact: browser.screenshot steps will return null (no Playwright binaries on Vercel Lambda).\n` +
+          `  Fix: Deploy worker container on Fly.io/Railway or use Vercel Puppeteer layer.`
+        );
       }
 
       // Step 6: Execute Plan via Application ToolCall Dispatcher Layer
