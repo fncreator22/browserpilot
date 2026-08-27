@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import Papa from "papaparse";
 import type { InferredExtractionSchema } from "@/lib/scraper/schemaInferrer";
 
 interface DataTableCardProps {
@@ -115,20 +116,13 @@ export function DataTableCard({ data, schema, title = "Extracted Dataset", jobId
   const handleDownloadCsv = () => {
     if (rows.length === 0) return;
     try {
-      const headerLine = columns.map((c) => `"${c.replace(/"/g, '""')}"`).join(",");
-      const rowLines = rows.map((row) =>
-        columns
-          .map((c) => {
-            const val = row[c];
-            if (val === null || val === undefined) return '""';
-            const strVal = typeof val === "object" ? JSON.stringify(val) : String(val);
-            return `"${strVal.replace(/"/g, '""')}"`;
-          })
-          .join(",")
-      );
+      const csvContent = Papa.unparse(rows, {
+        quotes: true,
+        header: true,
+        columns: columns.length > 0 ? columns : undefined,
+      });
 
-      const csvContent = "\uFEFF" + [headerLine, ...rowLines].join("\r\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;

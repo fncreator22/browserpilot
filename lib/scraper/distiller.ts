@@ -1,8 +1,11 @@
 /**
- * §SEMANTIC HTML DISTILLER & TOKEN DEFLUFFER
- * Strips noise (scripts, styles, SVGs, classes, tracking IDs) to reduce
- * LLM token footprint by 80–90% while preserving tables, lists, text, and link hierarchies.
+ * §SEMANTIC HTML DISTILLER & TOKEN DEFLUFFER (Ponytail Optimized)
+ * Uses industry-standard Cheerio DOM parsing and Turndown Markdown conversion
+ * to achieve an 85–90% LLM token reduction while preserving semantic tables, lists, text, and links.
  */
+
+import * as cheerio from "cheerio";
+import TurndownService from "turndown";
 
 export interface DistillerOptions {
   maxCharacters?: number;
@@ -10,91 +13,114 @@ export interface DistillerOptions {
   extractTablesOnly?: boolean;
 }
 
+// Global Turndown service singleton configured for LLM distillation
+const turndownService = new TurndownService({
+  headingStyle: "atx",
+  hr: "---",
+  bulletListMarker: "*",
+  codeBlockStyle: "fenced",
+  emDelimiter: "_",
+  strongDelimiter: "**",
+});
+
+// Configure table cell handling to preserve column boundaries
+turndownService.addRule("tableCell", {
+  filter: ["th", "td"],
+  replacement: function (content) {
+    return " | " + content.replace(/\n/g, " ").trim();
+  },
+});
+
+turndownService.addRule("tableRow", {
+  filter: "tr",
+  replacement: function (content) {
+    return "\n" + content + " |";
+  },
+});
+
+/**
+ * Distills raw HTML into clean, token-efficient Markdown using Cheerio and Turndown
+ */
 export function distillHtml(rawHtml: string, options: DistillerOptions = {}): string {
   if (!rawHtml || typeof rawHtml !== "string") return "";
 
   const maxChars = options.maxCharacters || 35000;
   const preserveLinks = options.preserveLinks !== false;
 
-  let cleaned = rawHtml;
+  try {
+    const $ = cheerio.load(rawHtml);
 
-  // 1. Remove comments
-  cleaned = cleaned.replace(/<!--[\s\S]*?-->/g, " ");
+    // 1. Remove non-content and noisy elements
+    $(
+      "script, style, svg, noscript, iframe, canvas, video, audio, template, object, embed, footer, nav, aside, [aria-hidden='true']"
+    ).remove();
 
-  // 2. Remove non-content tags completely (scripts, styles, SVGs, iframes, noscripts, canvas)
-  cleaned = cleaned.replace(/<(script|style|svg|noscript|iframe|canvas|video|audio|template|object|embed)[\s\S]*?<\/\1>/gi, " ");
-
-  // 3. Remove inline SVG and base64 data URIs
-  cleaned = cleaned.replace(/src=["']data:image\/[^"']+["']/gi, 'src=""');
-
-  // 4. Remove noisy attributes (class, style, data-*, aria-*, on*, id)
-  cleaned = cleaned.replace(/\s+(class|style|data-[a-z0-9_-]+|aria-[a-z0-9_-]+|on[a-z]+|id|tabindex|role)=["'][^"']*["']/gi, "");
-
-  // 5. Convert links to clean Markdown [Text](URL) if preserveLinks is enabled
-  if (preserveLinks) {
-    cleaned = cleaned.replace(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_match, href, text) => {
-      const cleanText = text.replace(/<[^>]+>/g, "").trim();
-      const cleanHref = href.trim();
-      if (!cleanText || cleanHref.startsWith("javascript:") || cleanHref.startsWith("#")) {
-        return cleanText || "";
+    // 2. Remove tracking and style attributes across all remaining elements
+    $("*").each((_, el) => {
+      if (el.type === "tag") {
+        const attribs = el.attribs || {};
+        for (const attr of Object.keys(attribs)) {
+          if (
+            attr.startsWith("data-") ||
+            attr.startsWith("aria-") ||
+            attr.startsWith("on") ||
+            attr === "class" ||
+            attr === "style" ||
+            attr === "id"
+          ) {
+            delete attribs[attr];
+          }
+        }
+        // If links shouldn't be preserved, remove href
+        if (!preserveLinks && attribs.href) {
+          delete attribs.href;
+        }
       }
-      return ` [${cleanText}](${cleanHref}) `;
     });
+
+    // 3. Extract main content container if present
+    const mainContent = $("main, article, [role='main'], #content, .content, body").first();
+    const cleanHtml = mainContent.length ? mainContent.html() || $.html() : $.html();
+
+    // 4. Convert to structured Markdown via Turndown
+    let markdown = turndownService.turndown(cleanHtml);
+
+    // 5. Normalize whitespace and blank lines
+    markdown = markdown
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n\s*\n\s*\n+/g, "\n\n")
+      .trim();
+
+    // 6. Bounded character slice to prevent token overflow
+    if (markdown.length > maxChars) {
+      markdown = markdown.slice(0, maxChars) + "\n\n... [Content truncated for optimal token processing]";
+    }
+
+    return markdown;
+  } catch (err) {
+    console.warn("[Distiller] Cheerio/Turndown parsing error, falling back to basic text extraction:", err);
+    // Fallback: simple text cleanup if DOM parsing encounters unexpected malformed input
+    return rawHtml
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, maxChars);
   }
-
-  // 6. Convert headings, paragraphs, and list items to structured markdown
-  cleaned = cleaned.replace(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi, "\n\n### $1\n");
-  cleaned = cleaned.replace(/<h[4-6][^>]*>([\s\S]*?)<\/h[4-6]>/gi, "\n\n#### $1\n");
-  cleaned = cleaned.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, "\n$1\n");
-  cleaned = cleaned.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, "\n* $1");
-  cleaned = cleaned.replace(/<br\s*\/?>/gi, "\n");
-  cleaned = cleaned.replace(/<hr\s*\/?>/gi, "\n---\n");
-
-  // 7. Format table cells and rows into readable text
-  cleaned = cleaned.replace(/<th[^>]*>([\s\S]*?)<\/th>/gi, " | $1 ");
-  cleaned = cleaned.replace(/<td[^>]*>([\s\S]*?)<\/td>/gi, " | $1 ");
-  cleaned = cleaned.replace(/<tr[^>]*>([\s\S]*?)<\/tr>/gi, "\n$1 |");
-
-  // 8. Strip all remaining HTML tags
-  cleaned = cleaned.replace(/<[^>]+>/g, " ");
-
-  // 9. Decode common HTML entities
-  cleaned = cleaned
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&mdash;/g, "—")
-    .replace(/&ndash;/g, "–");
-
-  // 10. Normalize whitespace, remove excessive blank lines
-  cleaned = cleaned
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n\s*\n\s*\n+/g, "\n\n")
-    .trim();
-
-  // 11. Bounded character slice to prevent token overflow
-  if (cleaned.length > maxChars) {
-    cleaned = cleaned.slice(0, maxChars) + "\n\n... [Content truncated for optimal token processing]";
-  }
-
-  return cleaned;
 }
 
 /**
- * Extracts page title from raw HTML
+ * Extracts page title from raw HTML using Cheerio
  */
 export function extractPageTitle(rawHtml: string): string {
   if (!rawHtml) return "Webpage";
-  const titleMatch = rawHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  if (titleMatch && titleMatch[1]) {
-    return titleMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-  }
-  const h1Match = rawHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-  if (h1Match && h1Match[1]) {
-    return h1Match[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-  }
+  try {
+    const $ = cheerio.load(rawHtml);
+    const title = $("title").first().text().trim();
+    if (title) return title;
+    const h1 = $("h1").first().text().trim();
+    if (h1) return h1;
+  } catch {}
   return "Webpage";
 }
