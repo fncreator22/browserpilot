@@ -24,6 +24,7 @@ import { WorkerMetrics } from "@/components/execution/worker-metrics";
 import { ExecutionLogs } from "@/components/execution/execution-logs";
 import { ResultCard } from "@/components/result/result-card";
 import { DataTableCard } from "@/components/result/data-table-card";
+import { JobDossierDeck } from "@/components/result/job-dossier-deck";
 import { ScreenshotCard } from "@/components/result/screenshot-card";
 import { ScreenshotGallery, type StepScreenshot } from "@/components/result/screenshot-gallery";
 import { LiveScreencastPlayer } from "@/components/execution/live-screencast-player";
@@ -683,13 +684,32 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               confidence={job.confidence || 0.95}
               status={job.status}
             />
-            {job.result && (
-              <DataTableCard
-                data={job.result}
-                jobId={job.id}
-                title="Extracted Structured Data Table"
-              />
-            )}
+            {(() => {
+              let parsedJobItems: any[] = [];
+              if (job.result) {
+                try {
+                  const parsed = JSON.parse(job.result);
+                  if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].title || parsed[0].company || parsed[0].role)) {
+                    parsedJobItems = parsed;
+                  }
+                } catch {}
+              }
+
+              return (
+                <>
+                  {parsedJobItems.length > 0 && (
+                    <JobDossierDeck jobs={parsedJobItems} jobId={job.id} />
+                  )}
+                  {job.result && (
+                    <DataTableCard
+                      data={job.result}
+                      jobId={job.id}
+                      title="Extracted Structured Data Table"
+                    />
+                  )}
+                </>
+              );
+            })()}
           </motion.div>
         )}
 

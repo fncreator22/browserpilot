@@ -188,7 +188,9 @@ export async function executeJobPipeline(
           const dataset = await extractStructuredData(cleanedText, schema, prompt, apiKey);
 
           if (dataset.items && dataset.items.length > 0) {
-            structuredResult = JSON.stringify(dataset.items, null, 2);
+            const { normalizeAndDeduplicateJobs } = await import("@/lib/scraper/normalizer");
+            const normalized = normalizeAndDeduplicateJobs(dataset.items);
+            structuredResult = JSON.stringify(normalized.length > 0 ? normalized : dataset.items, null, 2);
           }
         }
       } catch (extractErr) {
