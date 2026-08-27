@@ -154,16 +154,25 @@ export class InteractionGuard {
         }
       }
 
-      // 2. Check for Authentication Wall
-      for (const selector of AUTH_SELECTORS) {
-        const el = page.locator(selector).first();
-        if (await el.isVisible().catch(() => false)) {
-          return {
-            state: "AUTHENTICATION_REQUIRED",
-            reason: `Authentication login form detected via selector: "${selector}"`,
-            userMessage: "This page requires user login credentials or session authentication.",
-            detectedElements: [selector],
-          };
+      // 2. Check for Authentication Wall (Strict Full-Page Login Barrier Check)
+      const currentUrl = page.url().toLowerCase();
+      const isExplicitLoginUrl =
+        currentUrl.includes("/login") ||
+        currentUrl.includes("/signin") ||
+        currentUrl.includes("/uas/login") ||
+        currentUrl.includes("/checkpoint/challenge");
+
+      if (isExplicitLoginUrl) {
+        for (const selector of AUTH_SELECTORS) {
+          const el = page.locator(selector).first();
+          if (await el.isVisible().catch(() => false)) {
+            return {
+              state: "AUTHENTICATION_REQUIRED",
+              reason: `Explicit authentication login form detected on URL: "${currentUrl}"`,
+              userMessage: "This page requires user login credentials or session authentication.",
+              detectedElements: [selector],
+            };
+          }
         }
       }
 
