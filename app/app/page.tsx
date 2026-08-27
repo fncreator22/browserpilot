@@ -13,6 +13,7 @@ import {
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { TaskInput } from "@/components/agent/task-input";
+import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
 
 export default function AppPage() {
   return (
@@ -57,7 +58,10 @@ export default function AppPage() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="max-w-4xl mx-auto space-y-4"
         >
-          <div className="flex items-center justify-between">
+          {/* AI Provider & Free Token Manager */}
+          <AIProviderSelector />
+
+          <div className="flex items-center justify-between pt-2">
             <h2 className="text-sm font-semibold tracking-tight text-foreground font-mono flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
               New Autonomous Goal
