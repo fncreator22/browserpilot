@@ -25,6 +25,8 @@ import { ExecutionLogs } from "@/components/execution/execution-logs";
 import { ResultCard } from "@/components/result/result-card";
 import { DataTableCard } from "@/components/result/data-table-card";
 import { ScreenshotCard } from "@/components/result/screenshot-card";
+import { ScreenshotGallery, type StepScreenshot } from "@/components/result/screenshot-gallery";
+import { LiveScreencastPlayer } from "@/components/execution/live-screencast-player";
 import { BlockedStateCard } from "@/components/execution/blocked-state-card";
 import { UplinkExecutionVisualizer, type ExecutionState } from "@/components/threeui/uplink-execution-visualizer";
 
@@ -708,14 +710,38 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             transition={{ duration: 0.5, delay: 0.15 }}
             className="lg:col-span-6 space-y-6"
           >
-            <ScreenshotCard
-              url={lastObservation?.currentUrl || "about:blank"}
-              step={lastObservation?.stepIndex || 1}
-              timestamp={lastObservation?.timestamp ? new Date(lastObservation.timestamp).toLocaleTimeString() : undefined}
-              isWorking={isActive}
-              jobId={job.id}
-              filename={latestArtifact?.filename}
-            />
+            {/* Live Interactive Screencast Videography Stream during active runs */}
+            {isActive ? (
+              <LiveScreencastPlayer
+                jobId={job.id}
+                initialScreenshotUrl={latestArtifact ? `/api/artifacts/${job.id}/${latestArtifact.filename}` : (lastObservation?.screenshotPath || null)}
+                status={job.status}
+              />
+            ) : job.observations.filter((o) => o.screenshotPath).length > 1 ? (
+              /* Multi-Step Viewport Gallery when multiple step screenshots exist */
+              <ScreenshotGallery
+                jobId={job.id}
+                screenshots={job.observations
+                  .filter((o) => o.screenshotPath)
+                  .map((o) => ({
+                    stepIndex: o.stepIndex,
+                    tool: o.tool || "browser action",
+                    url: o.currentUrl,
+                    screenshotUrl: o.screenshotPath!,
+                    timestamp: o.timestamp,
+                  }))}
+              />
+            ) : (
+              /* Default Screenshot Card */
+              <ScreenshotCard
+                url={lastObservation?.currentUrl || "about:blank"}
+                step={lastObservation?.stepIndex || 1}
+                timestamp={lastObservation?.timestamp ? new Date(lastObservation.timestamp).toLocaleTimeString() : undefined}
+                isWorking={isActive}
+                jobId={job.id}
+                filename={latestArtifact?.filename}
+              />
+            )}
           </motion.div>
         </div>
 

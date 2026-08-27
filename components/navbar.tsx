@@ -6,6 +6,7 @@ import { useSession, signOut } from "next-auth/react";
 import { Bot, Terminal, ArrowRight, User, LogOut, LogIn, Sparkles, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProfileModal } from "@/components/profile/profile-modal";
+import { HistoryDrawer } from "@/components/history/history-drawer";
 
 export function Navbar() {
   const { data: session } = useSession();
@@ -47,7 +48,9 @@ export function Navbar() {
             </Link>
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <HistoryDrawer />
+
             <Link href="/app" className="hidden sm:inline-flex">
               <Button variant="ghost" size="sm" className="font-mono text-xs gap-1.5 text-muted-foreground">
                 <Terminal className="h-3.5 w-3.5" />
