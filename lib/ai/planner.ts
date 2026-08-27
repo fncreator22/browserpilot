@@ -211,8 +211,8 @@ export async function generateActionPlan(
     // Autonomous Plan Generation via Search Resolver
     const { resolveTargetUrl } = await import("@/lib/scraper/searchResolver");
     const resolved = await resolveTargetUrl(prompt);
-    const targetUrl = resolved.url || `https://www.google.com/search?q=${encodeURIComponent(prompt)}`;
-    const domain = resolved.domain || "google.com";
+    const targetUrl = resolved.url || `https://html.duckduckgo.com/html/?q=${encodeURIComponent(prompt)}`;
+    const domain = resolved.domain || "duckduckgo.com";
 
     const targetDomains = [domain];
     if (domain.includes("linkedin")) {
