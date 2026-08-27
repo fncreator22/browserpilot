@@ -1,9 +1,10 @@
 /**
- * §JOB CANCELLATION ENGINE (Prompt C4)
- * Coordinates in-flight execution halts, BullMQ queue removal, and Playwright session termination.
+ * §JOB CANCELLATION ENGINE
+ * Coordinates in-flight execution halts, queue removal, browser kill, and database sync.
  */
 
 import { updateDbJob, getDbJobById, memoryJobCache } from "@/lib/db/jobs";
+import { jobEventBus } from "@/lib/events/jobEvents";
 
 const activeCancellations = new Set<string>();
 
@@ -12,13 +13,29 @@ const activeCancellations = new Set<string>();
  */
 export function requestJobCancellation(jobId: string): void {
   activeCancellations.add(jobId);
+
+  // Sync cancellation signal to Redis if available
+  if (process.env.REDIS_URL) {
+    try {
+      const { createRedisConnection } = require("./redis");
+      const client = createRedisConnection();
+      client.set(`bp:cancel:${jobId}`, "1", "EX", 3600).catch(() => {});
+    } catch {}
+  }
 }
 
 /**
  * Check whether a job has received an active cancellation signal
  */
 export function isJobCancelled(jobId: string): boolean {
-  return activeCancellations.has(jobId);
+  if (activeCancellations.has(jobId)) {
+    return true;
+  }
+  const cached = memoryJobCache.get(jobId);
+  if (cached?.status === "CANCELLED") {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -30,10 +47,10 @@ export function clearJobCancellation(jobId: string): void {
 
 /**
  * Cancel a job whether it is currently QUEUED or actively RUNNING
- * Performs multi-tenant ownership check, graceful checkpoint halt, and force-kills Chromium.
+ * Performs multi-tenant authorization check, graceful checkpoint halt, and browser session termination.
  */
 export async function cancelJob(jobId: string, userId?: string | null) {
-  // 1. Multi-Tenant Authorization Check via resilient getDbJobById (with memory cache fallback)
+  // 1. Multi-Tenant Authorization Check
   let job = await getDbJobById(jobId, userId).catch(() => null);
 
   if (!job) {
@@ -75,10 +92,17 @@ export async function cancelJob(jobId: string, userId?: string | null) {
     };
   }
 
-  // 3. Signal in-flight cancellation
+  // 3. Signal in-flight cancellation across memory and Redis
   requestJobCancellation(jobId);
 
-  // 4. If QUEUED: Remove from BullMQ Queue (safe timeout race)
+  // 4. Emit instant status cancellation event over SSE stream
+  jobEventBus.emitJobEvent(jobId, "status", {
+    status: "CANCELLED",
+    progress: 100,
+    summary: "Task was cancelled by user request.",
+  });
+
+  // 5. If QUEUED: Remove from BullMQ Queue (safe timeout race)
   if (job.status === "QUEUED") {
     try {
       const { getBrowserJobQueue } = await import("./jobQueue");
@@ -95,7 +119,7 @@ export async function cancelJob(jobId: string, userId?: string | null) {
     }
   }
 
-  // 5. If RUNNING: Force-kill active Playwright Browser Context
+  // 6. If RUNNING: Force-kill active Playwright Browser Context
   try {
     const { browserPool } = await import("@/worker/browser");
     await browserPool.forceCloseJobSession(jobId).catch(() => {});
@@ -103,7 +127,7 @@ export async function cancelJob(jobId: string, userId?: string | null) {
     // Non-fatal
   }
 
-  // 6. Update Database Status to CANCELLED
+  // 7. Update Database Status to CANCELLED
   const updatedJob = await updateDbJob(jobId, {
     status: "CANCELLED" as any,
     progress: 100,

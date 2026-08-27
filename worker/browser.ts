@@ -37,7 +37,7 @@ export class BrowserPool {
   }
 
   /**
-   * Ensure shared Chromium browser instance is launched
+   * Ensure shared Chromium browser instance is launched or connected
    */
   async getBrowser(headless = true): Promise<Browser> {
     if (!this.browser || !this.browser.isConnected()) {
@@ -52,16 +52,24 @@ export class BrowserPool {
 
       this.isInitializing = true;
       try {
-        this.browser = await chromium.launch({
-          headless,
-          args: [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-accelerated-2d-canvas",
-            "--disable-gpu",
-          ],
-        });
+        const wsEndpoint = process.env.BROWSER_WS_ENDPOINT || process.env.PLAYWRIGHT_WS_ENDPOINT;
+        if (wsEndpoint) {
+          console.log(`[BrowserPool] Connecting to remote browser endpoint: ${wsEndpoint.replace(/\?token=.*$/, "?token=***")}`);
+          this.browser = await chromium.connect(wsEndpoint, {
+            timeout: 30000,
+          });
+        } else {
+          this.browser = await chromium.launch({
+            headless,
+            args: [
+              "--no-sandbox",
+              "--disable-setuid-sandbox",
+              "--disable-dev-shm-usage",
+              "--disable-accelerated-2d-canvas",
+              "--disable-gpu",
+            ],
+          });
+        }
       } finally {
         this.isInitializing = false;
       }
