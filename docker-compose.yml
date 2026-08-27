@@ -1,68 +1,44 @@
 version: "3.8"
 
 services:
+  # Redis service for BullMQ distributed queue and Pub/Sub event streaming
   redis:
     image: redis:7-alpine
     container_name: browserpilot-redis
     restart: unless-stopped
     ports:
-      - "127.0.0.1:6379:6379"
+      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 5
-    networks:
-      - browserpilot-net
 
-  postgres:
-    image: postgres:16-alpine
-    container_name: browserpilot-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-browserpilot}
-    ports:
-      - "127.0.0.1:5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - browserpilot-net
-
-  app:
+  # Next.js Application Service
+  web:
     build:
       context: .
       dockerfile: Dockerfile.app
-    container_name: browserpilot-app
+    container_name: browserpilot-web
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-browserpilot}?schema=public
       - REDIS_URL=redis://redis:6379
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-browserpilot-secret-development-key-32chars}
+      - TURSO_DATABASE_URL=${TURSO_DATABASE_URL}
+      - TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - ARTIFACT_STORAGE_PATH=/app/storage/artifacts
-    volumes:
-      - artifacts_data:/app/storage/artifacts
+      - BLOB_READ_WRITE_TOKEN=${BLOB_READ_WRITE_TOKEN}
     depends_on:
       redis:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-    networks:
-      - browserpilot-net
 
+  # Standalone Playwright Execution Worker (AWS ECS Fargate / Fly.io / Container)
   worker:
     build:
       context: .
@@ -71,26 +47,19 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-browserpilot}?schema=public
       - REDIS_URL=redis://redis:6379
+      - TURSO_DATABASE_URL=${TURSO_DATABASE_URL}
+      - TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - WORKER_CONCURRENCY=5
       - ARTIFACT_STORAGE_PATH=/app/storage/artifacts
-      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-5}
+      - BLOB_READ_WRITE_TOKEN=${BLOB_READ_WRITE_TOKEN}
     volumes:
-      - artifacts_data:/app/storage/artifacts
+      - worker_artifacts:/app/storage/artifacts
     depends_on:
       redis:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-    networks:
-      - browserpilot-net
 
 volumes:
-  postgres_data:
   redis_data:
-  artifacts_data:
-
-networks:
-  browserpilot-net:
-    driver: bridge
+  worker_artifacts:

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "functions": {
+    "app/api/jobs/[id]/events/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/jobs/[id]/execute/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/jobs/route.ts": {
+      "maxDuration": 60
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/jobs/(.*)/events",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/event-stream"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-transform"
+        },
+        {
+          "key": "Connection",
+          "value": "keep-alive"
+        },
+        {
+          "key": "X-Accel-Buffering",
+          "value": "no"
+        }
+      ]
+    }
+  ]
+}
