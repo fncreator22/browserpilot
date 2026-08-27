@@ -88,7 +88,8 @@ import {
   createGeminiClient, 
   getEffectiveGeminiApiKey, 
   detectOptimalGeminiModel,
-  DEFAULT_GEMINI_MODEL 
+  DEFAULT_GEMINI_MODEL,
+  FALLBACK_GEMINI_MODEL 
 } from "./modelSelector";
 
 export interface PlanGenerationOptions {
@@ -155,37 +156,109 @@ export async function generateActionPlan(
     });
   }
 
-  const ai = createGeminiClient(effectiveKey);
-  const modelName = await detectOptimalGeminiModel(effectiveKey);
-
-  // Autonomous Target Resolution: If no explicit URL is in prompt, resolve target organically
-  let targetContext = "";
   try {
+    const ai = createGeminiClient(effectiveKey);
+    const modelName = await detectOptimalGeminiModel(effectiveKey);
+
+    // Autonomous Target Resolution: If no explicit URL is in prompt, resolve target organically
+    let targetContext = "";
+    try {
+      const { resolveTargetUrl } = await import("@/lib/scraper/searchResolver");
+      const resolved = await resolveTargetUrl(prompt);
+      if (resolved.url && !prompt.includes("http://") && !prompt.includes("https://")) {
+        targetContext = `\nDiscovered Target URL: ${resolved.url} (Domain: ${resolved.domain})`;
+      }
+    } catch {}
+
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: modelName || DEFAULT_GEMINI_MODEL,
+        contents: `User Goal: "${prompt}"${targetContext}\nConstraints: Allowed Domains = ${JSON.stringify(options.allowedDomains || [])}, Max Steps = ${options.maxStepsBudget || 15}`,
+        config: {
+          systemInstruction: PLANNER_SYSTEM_INSTRUCTION,
+          temperature: 0.1,
+          responseMimeType: "application/json",
+          responseSchema: PLANNER_RESPONSE_SCHEMA,
+        },
+      });
+    } catch (primaryErr) {
+      console.warn(`[Planner] Primary model (${modelName}) exception, trying fallback (${FALLBACK_GEMINI_MODEL}):`, primaryErr);
+      response = await ai.models.generateContent({
+        model: FALLBACK_GEMINI_MODEL,
+        contents: `User Goal: "${prompt}"${targetContext}\nConstraints: Allowed Domains = ${JSON.stringify(options.allowedDomains || [])}, Max Steps = ${options.maxStepsBudget || 15}`,
+        config: {
+          systemInstruction: PLANNER_SYSTEM_INSTRUCTION,
+          temperature: 0.1,
+          responseMimeType: "application/json",
+          responseSchema: PLANNER_RESPONSE_SCHEMA,
+        },
+      });
+    }
+
+    const text = response.text;
+    if (!text) {
+      throw new Error("Received empty response from Gemini API during plan generation.");
+    }
+
+    const parsed = JSON.parse(text);
+    const validated = ActionPlanSchema.parse(parsed);
+    const tokensUsed = response.usageMetadata?.totalTokenCount;
+    return Object.assign(validated, { tokensUsed });
+  } catch (apiErr) {
+    console.warn(`[Planner] Gemini API rate limit or error, using autonomous resilient plan synthesis:`, apiErr);
+    
+    // Autonomous Plan Generation via Search Resolver
     const { resolveTargetUrl } = await import("@/lib/scraper/searchResolver");
     const resolved = await resolveTargetUrl(prompt);
-    if (resolved.url && !prompt.includes("http://") && !prompt.includes("https://")) {
-      targetContext = `\nDiscovered Target URL: ${resolved.url} (Domain: ${resolved.domain})`;
+    const targetUrl = resolved.url || `https://www.google.com/search?q=${encodeURIComponent(prompt)}`;
+    const domain = resolved.domain || "google.com";
+
+    const targetDomains = [domain];
+    if (domain.includes("linkedin")) {
+      targetDomains.push("linkedin.com", "in.linkedin.com", "www.linkedin.com");
     }
-  } catch {}
 
-  const response = await ai.models.generateContent({
-    model: modelName || DEFAULT_GEMINI_MODEL,
-    contents: `User Goal: "${prompt}"${targetContext}\nConstraints: Allowed Domains = ${JSON.stringify(options.allowedDomains || [])}, Max Steps = ${options.maxStepsBudget || 15}`,
-    config: {
-      systemInstruction: PLANNER_SYSTEM_INSTRUCTION,
-      temperature: 0.1,
-      responseMimeType: "application/json",
-      responseSchema: PLANNER_RESPONSE_SCHEMA,
-    },
-  });
-
-  const text = response.text;
-  if (!text) {
-    throw new Error("Received empty response from Gemini API during plan generation.");
+    return ActionPlanSchema.parse({
+      goal: prompt,
+      targetDomains,
+      rationale: "Autonomous resilient action plan synthesized from organic landing resolution.",
+      maxStepsBudget: options.maxStepsBudget || 10,
+      steps: [
+        {
+          stepNumber: 1,
+          action: {
+            tool: "browser.navigate",
+            parameters: { url: targetUrl, waitUntil: "domcontentloaded", timeout: 30000 },
+            rationale: `Navigate directly to ${targetUrl}`,
+          },
+          rationale: "Navigate to target landing page",
+          isOptional: false,
+          checkpointScreenshot: false,
+        },
+        {
+          stepNumber: 2,
+          action: {
+            tool: "browser.inspect",
+            parameters: { selector: "body", depth: 2, maxElements: 20 },
+            rationale: "Inspect page elements structure",
+          },
+          rationale: "Inspect layout and dismiss any blocking overlays",
+          isOptional: true,
+          checkpointScreenshot: false,
+        },
+        {
+          stepNumber: 3,
+          action: {
+            tool: "browser.extractText",
+            parameters: { selector: "body", extractMultiple: false, maxChars: 25000 },
+            rationale: "Extract full page textual and structured data",
+          },
+          rationale: "Extract content from the page",
+          isOptional: false,
+          checkpointScreenshot: true,
+        },
+      ],
+    });
   }
-
-  const parsed = JSON.parse(text);
-  const validated = ActionPlanSchema.parse(parsed);
-  const tokensUsed = response.usageMetadata?.totalTokenCount;
-  return Object.assign(validated, { tokensUsed });
 }

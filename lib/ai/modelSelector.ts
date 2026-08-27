@@ -3,20 +3,20 @@ import { GoogleGenAI } from "@google/genai";
 /**
  * §DYNAMIC GEMINI MODEL AUTO-DETECTOR & PROVIDER
  * Selects the optimal Gemini Flash model based on API Key capabilities and availability.
- * Defaults to gemini-3.6-flash (current generation).
+ * Defaults to gemini-2.5-flash (current generation Google GenAI API endpoint).
  */
 export const SUPPORTED_GEMINI_MODELS = [
-  "gemini-3.6-flash",
-  "gemini-3.6-pro",
   "gemini-2.5-flash",
   "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-2.5-pro",
 ] as const;
 
 export type SupportedGeminiModel = (typeof SUPPORTED_GEMINI_MODELS)[number];
 
-// Default to Gemini 3.6 Flash (fastest, most capable, active Google API tier)
-export const DEFAULT_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.6-flash";
-export const FALLBACK_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.6-flash";
+// Default to Gemini 2.5 Flash (active, fastest, production-ready endpoint)
+export const DEFAULT_GEMINI_MODEL: SupportedGeminiModel = "gemini-2.5-flash";
+export const FALLBACK_GEMINI_MODEL: SupportedGeminiModel = "gemini-2.0-flash";
 
 /**
  * Get effective Gemini API Key from explicit key or environment
@@ -47,7 +47,6 @@ export function createGeminiClient(apiKey?: string | null): GoogleGenAI {
 
 /**
  * Auto-detect optimal available model for the given Gemini API key.
- * Always resolves to high-performance gemini-3.6-flash.
  */
 export async function detectOptimalGeminiModel(
   apiKey?: string | null
