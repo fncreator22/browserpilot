@@ -142,13 +142,22 @@ export async function runAutonomousPipeline(
 
       // Step 6: Execute Plan via Application ToolCall Dispatcher Layer
       if (session) {
-        const { executeActionPlan } = await import("./toolcall");
-        executionResult = await executeActionPlan(session.page, approvedPlan, {
-          jobId,
-          onStepStart: (stepNum, action) => {
-            options.onStepProgress?.(stepNum, approvedPlan.steps.length, action.tool);
-          },
-        });
+        // Start Live CDP Screencast & Virtual Cursor Stream
+        const { startBrowserScreencast, stopBrowserScreencast } = await import("@/lib/browser/screencast");
+        await startBrowserScreencast(session.page, jobId, { quality: 65, everyNthFrame: 1 });
+
+        try {
+          const { executeActionPlan } = await import("./toolcall");
+          executionResult = await executeActionPlan(session.page, approvedPlan, {
+            jobId,
+            onStepStart: (stepNum, action) => {
+              options.onStepProgress?.(stepNum, approvedPlan.steps.length, action.tool);
+            },
+          });
+        } finally {
+          // Stop CDP Screencast stream
+          await stopBrowserScreencast(jobId);
+        }
       } else {
         const { executeServerlessActionPlan } = await import("./serverlessExecutor");
         executionResult = await executeServerlessActionPlan(approvedPlan, {

@@ -142,6 +142,16 @@ export class BrowserExecutor {
             const { selector, button, clickCount, timeout } = validatedAction.parameters;
             const locator = page.locator(selector).first();
             await locator.waitFor({ state: "visible", timeout });
+
+            // Emit virtual cursor coordinates
+            const box = await locator.boundingBox().catch(() => null);
+            if (box) {
+              const x = Math.round(box.x + box.width / 2);
+              const y = Math.round(box.y + box.height / 2);
+              const { updateScreencastCursor } = await import("@/lib/browser/screencast");
+              updateScreencastCursor(options.jobId, { x, y, action: "click" });
+            }
+
             await locator.click({ button, clickCount, timeout });
             pageSummary = `Clicked element matching selector "${selector}" with ${button} button.`;
             break;
@@ -151,6 +161,11 @@ export class BrowserExecutor {
             const { selector, value, clearExisting, timeout } = validatedAction.parameters;
             const locator = page.locator(selector).first();
             await locator.waitFor({ state: "visible", timeout });
+
+            // Emit typing action ticker
+            const { updateScreencastCursor } = await import("@/lib/browser/screencast");
+            updateScreencastCursor(options.jobId, { action: "type", targetText: value });
+
             if (clearExisting) {
               await locator.fill("");
             }

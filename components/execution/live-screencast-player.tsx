@@ -85,10 +85,29 @@ export function LiveScreencastPlayer({
       } catch {}
     });
 
+    eventSource.addEventListener("snapshot", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.status === "COMPLETED" || data.status === "FAILED" || data.status === "BLOCKED") {
+          setIsLive(false);
+        }
+      } catch {}
+    });
+
     eventSource.addEventListener("complete", () => {
       setIsLive(false);
       setActionTicker("Task execution completed successfully.");
     });
+
+    eventSource.onmessage = (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.frame) {
+          setCurrentFrame(data.frame);
+          setIsLive(true);
+        }
+      } catch {}
+    };
 
     return () => {
       eventSource.close();
