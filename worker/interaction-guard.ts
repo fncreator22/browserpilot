@@ -75,14 +75,24 @@ export const DISMISS_CONTROL_SELECTORS = [
   "button[aria-label*='cancel' i]:visible",
   "[aria-label='Close' i]:visible",
   "[aria-label='Dismiss' i]:visible",
+  "button[data-tracking-control-name*='dismiss']:visible",
+  "button[data-tracking-control-name*='close']:visible",
 
-  // B. Standard button IDs / class names
+  // B. Standard button IDs / class names (LinkedIn, Glassdoor, Quora, Generic)
+  "button.modal__dismiss:visible",
+  "button.modal-header__dismiss-btn:visible",
+  "button.contextual-sign-in-modal__modal-dismiss:visible",
+  "button.cta-modal__dismiss-btn:visible",
   "button#close-modal-btn:visible",
   "button.close:visible",
   "button.modal-close:visible",
   "button.btn-close:visible",
   ".close-button:visible",
   "#dismiss-btn:visible",
+  ".modal__dismiss-btn:visible",
+  "button[data-modal='dismiss']:visible",
+  "button:has(svg[data-test-icon*='close']):visible",
+  "button:has(svg.modal__dismiss-icon):visible",
 
   // C. Standard text labels for dismiss / opt-out
   "button:has-text('Dismiss'):visible",
@@ -229,6 +239,23 @@ export class InteractionGuard {
         // Continue to next candidate dismiss selector
       }
     }
+
+    // Fallback: Programmatic modal removal from DOM
+    try {
+      const removedCount = await page.evaluate(() => {
+        const modalOverlays = document.querySelectorAll(
+          ".contextual-sign-in-modal, [data-modal='sign-in'], .modal__overlay, .modal-wormhole, [aria-modal='true'], .authwall-join-form, .contextual-sign-in-modal__screen, .modal, .modal-overlay"
+        );
+        modalOverlays.forEach((el) => el.remove());
+        document.body.style.overflow = "auto";
+        return modalOverlays.length;
+      });
+
+      if (removedCount > 0) {
+        console.log(`[InteractionGuard] ✓ Purged ${removedCount} modal overlay(s) from DOM.`);
+        return { dismissed: true, selectorUsed: "DOM_MODAL_PURGE" };
+      }
+    } catch {}
 
     return {
       dismissed: false,
