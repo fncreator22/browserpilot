@@ -109,6 +109,7 @@ export async function inferExtractionSchema(
   const systemInstruction = `You are an expert web data architect.
 Analyze the user's natural language goal and synthesize the optimal tabular schema for data extraction.
 Extract 3 to 8 clean, meaningful column fields.
+ALWAYS include a 'url', 'applyUrl', or 'link' column field whenever extracting jobs, products, directory items, or articles so users have direct links.
 If a direct URL is present in the prompt, populate targetUrlHint.
 If no URL is present, provide an optimal search query in searchQueryHint.`;
 
