@@ -23,6 +23,7 @@ import { StatusTimeline, type TimelineStep } from "@/components/execution/status
 import { WorkerMetrics } from "@/components/execution/worker-metrics";
 import { ExecutionLogs } from "@/components/execution/execution-logs";
 import { ResultCard } from "@/components/result/result-card";
+import { DataTableCard } from "@/components/result/data-table-card";
 import { ScreenshotCard } from "@/components/result/screenshot-card";
 import { BlockedStateCard } from "@/components/execution/blocked-state-card";
 import { UplinkExecutionVisualizer, type ExecutionState } from "@/components/threeui/uplink-execution-visualizer";
@@ -671,7 +672,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.45 }}
-            className="space-y-3"
+            className="space-y-4"
           >
             <ResultCard
               title="Verified Execution Result"
@@ -680,6 +681,13 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               confidence={job.confidence || 0.95}
               status={job.status}
             />
+            {job.result && (
+              <DataTableCard
+                data={job.result}
+                jobId={job.id}
+                title="Extracted Structured Data Table"
+              />
+            )}
           </motion.div>
         )}
 

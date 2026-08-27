@@ -153,16 +153,18 @@ export async function executeJobPipeline(
     const pageContext = observations.map((o) => `${o.title}: ${o.pageSummary || ""}`.trim()).join(". ");
 
     let finalAnswer = "";
+    let structuredResult: string | undefined = undefined;
     let answerTokens = 0;
 
     if (pipelineResult.success && observations.length > 0) {
       await updateDbJob(jobId, {
         status: "VERIFYING",
         progress: 92,
-        summary: "Synthesizing final answer and verification...",
+        summary: "Synthesizing final answer and structured dataset...",
       }).catch(() => {});
       jobEventBus.emitJobEvent(jobId, "status", { status: "VERIFYING", progress: 92 });
 
+      // 1. Textual Executive Synthesis
       const synthesis = await synthesizeFinalAnswerWithMetadata({
         goal: prompt,
         verificationStatus: "PARTIAL",
@@ -173,6 +175,25 @@ export async function executeJobPipeline(
 
       finalAnswer = synthesis.answer;
       answerTokens = synthesis.tokensUsed || 0;
+
+      // 2. Autonomous Structured Dataset Extraction (if prompt requests data/list/table/products/jobs)
+      try {
+        const fullContent = extractedData || pageContext;
+        if (fullContent && fullContent.length > 50) {
+          const { inferExtractionSchema, extractStructuredData } = await import("@/lib/scraper/schemaInferrer");
+          const { distillHtml } = await import("@/lib/scraper/distiller");
+
+          const cleanedText = distillHtml(fullContent, { maxCharacters: 25000 });
+          const schema = await inferExtractionSchema(prompt, apiKey);
+          const dataset = await extractStructuredData(cleanedText, schema, prompt, apiKey);
+
+          if (dataset.items && dataset.items.length > 0) {
+            structuredResult = JSON.stringify(dataset.items, null, 2);
+          }
+        }
+      } catch (extractErr) {
+        console.warn(`[PipelineEngine] Structured table extraction fallback:`, extractErr);
+      }
     }
 
     const totalDurationMs = Date.now() - startedAt.getTime();
@@ -200,6 +221,7 @@ export async function executeJobPipeline(
       status: finalStatus as "COMPLETED" | "FAILED" | "BLOCKED",
       progress: 100,
       summary: summaryText,
+      result: structuredResult || finalAnswer || undefined,
       completedAt: new Date(),
       totalDurationMs,
       tokensUsed: totalTokens,
@@ -209,6 +231,7 @@ export async function executeJobPipeline(
     jobEventBus.emitJobEvent(jobId, "complete", {
       status: finalStatus,
       summary: summaryText,
+      result: structuredResult || finalAnswer || undefined,
       progress: 100,
       durationMs: totalDurationMs,
       tokensUsed: totalTokens,

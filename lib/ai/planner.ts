@@ -151,9 +151,19 @@ export async function generateActionPlan(
   const ai = createGeminiClient(effectiveKey);
   const modelName = await detectOptimalGeminiModel(effectiveKey);
 
+  // Autonomous Target Resolution: If no explicit URL is in prompt, resolve target organically
+  let targetContext = "";
+  try {
+    const { resolveTargetUrl } = await import("@/lib/scraper/searchResolver");
+    const resolved = await resolveTargetUrl(prompt);
+    if (resolved.url && !prompt.includes("http://") && !prompt.includes("https://")) {
+      targetContext = `\nDiscovered Target URL: ${resolved.url} (Domain: ${resolved.domain})`;
+    }
+  } catch {}
+
   const response = await ai.models.generateContent({
     model: modelName || DEFAULT_GEMINI_MODEL,
-    contents: `User Goal: "${prompt}"\nConstraints: Allowed Domains = ${JSON.stringify(options.allowedDomains || [])}, Max Steps = ${options.maxStepsBudget || 15}`,
+    contents: `User Goal: "${prompt}"${targetContext}\nConstraints: Allowed Domains = ${JSON.stringify(options.allowedDomains || [])}, Max Steps = ${options.maxStepsBudget || 15}`,
     config: {
       systemInstruction: PLANNER_SYSTEM_INSTRUCTION,
       temperature: 0.1,
