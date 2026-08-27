@@ -136,7 +136,7 @@ export async function executeJobPipeline(
           const actualFilename = path.basename(obs.screenshotPath);
           await recordDbArtifact(jobId, {
             filename: actualFilename,
-            storageKey: obs.screenshotPath,
+            storageKey: obs.screenshotStorageKey || obs.screenshotPath,
             mimeType: "image/png",
           }).catch(() => {});
         }

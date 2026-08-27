@@ -128,6 +128,8 @@ export const ObservationSchema = z.object({
   pageSummary: z.string().optional(),
   extractedData: z.union([z.string(), z.array(z.string()), z.record(z.string(), z.unknown())]).optional(),
   screenshotPath: z.string().nullable().optional(),
+  /** Raw backend storage key (Blob URL or local FS path) for DB recording. */
+  screenshotStorageKey: z.string().nullable().optional(),
   error: z.object({
     code: z.string(),
     message: z.string(),

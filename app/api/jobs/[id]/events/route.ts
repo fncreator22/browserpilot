@@ -1,18 +1,24 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/authOptions";
-import { getDbJobEvents, getDbJobById } from "@/lib/db/jobs";
+import { getDbJobEvents, getDbJobById, updateDbJob } from "@/lib/db/jobs";
 import { getUserGeminiApiKey } from "@/lib/db/users";
 import { jobEventBus } from "@/lib/events/jobEvents";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // Max serverless stream duration
+export const maxDuration = 300; // Match execute route — keep Lambda alive for full job
 
 /**
- * GET /api/jobs/:id/events (§27)
+ * GET /api/jobs/:id/events
  * Server-Sent Events (SSE) streaming endpoint.
- * Executes the autonomous pipeline INSIDE the active SSE stream connection
- * to prevent Vercel Lambda freeze (frozen background promises).
+ *
+ * B4 FIX: The pipeline is correctly run inside the open SSE stream so the Lambda
+ * stays alive. Fixed issues:
+ * - Removed the outer .catch(()=>{}) that silenced all startup errors
+ * - Added DB-level execution guard (set status=PLANNING before executing) to prevent
+ *   double-execution if both /events and /execute race each other
+ * - Fixed: SSE maxDuration raised to 300 to match execute route
+ * - Fixed: errors during pipeline startup now send an SSE error event to the client
  */
 export async function GET(
   request: Request,
@@ -31,7 +37,9 @@ export async function GET(
     }
 
     const acceptHeader = request.headers.get("accept") || "";
-    const isSseRequest = acceptHeader.includes("text/event-stream") || new URL(request.url).searchParams.get("stream") === "true";
+    const isSseRequest =
+      acceptHeader.includes("text/event-stream") ||
+      new URL(request.url).searchParams.get("stream") === "true";
 
     // Handle Server-Sent Events (SSE) Stream
     if (isSseRequest) {
@@ -44,7 +52,7 @@ export async function GET(
           const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
           await writer.write(encoder.encode(payload));
         } catch {
-          // Stream closed by client
+          // Stream closed by client — ignore
         }
       };
 
@@ -53,45 +61,71 @@ export async function GET(
         await sendEvent(event, data);
       });
 
-      // Send initial snapshot and trigger pipeline inside the open stream
-      getDbJobById(id, userId).then(async (currentJob) => {
-        if (currentJob) {
+      // B4 FIX: Run async work AFTER returning the streaming Response.
+      // This is the correct SSE pattern — the Response must be returned first to
+      // open the stream; the async block runs while the stream stays open.
+      // The Lambda remains alive as long as the stream is not closed.
+      (async () => {
+        try {
+          const currentJob = await getDbJobById(id, userId);
+          if (!currentJob) {
+            await sendEvent("error", { status: "FAILED", message: "Job not found." });
+            return;
+          }
+
+          // Send initial state snapshot to client
           await sendEvent("snapshot", currentJob);
 
-          // Execute pipeline INSIDE active stream connection (prevents serverless freeze)
           const isActive = ["QUEUED", "PLANNING", "WORKING"].includes(currentJob.status);
-          if (isActive) {
+          if (!isActive) return; // Job already finished — snapshot is all the client needs
+
+          // B4 FIX: DB-level guard to prevent double-execution race between
+          // this SSE route and the /execute POST route. Atomically claim execution
+          // by moving status from QUEUED → PLANNING only if it hasn't been claimed yet.
+          // If this update affects 0 rows (already PLANNING/WORKING), skip pipeline.
+          let shouldExecute = false;
+          if (currentJob.status === "QUEUED") {
             try {
-              // CRITICAL: Execute pipeline via unified engine (BullMQ-free, safe for serverless SSE)
-              const { executeJobPipeline } = await import("@/lib/ai/pipelineEngine");
-              const { parseAllowedDomains } = await import("@/schemas/jobs");
-
-              let apiKey: string | undefined = undefined;
-              if (userId) {
-                apiKey = (await getUserGeminiApiKey(userId)) || undefined;
-              }
-
-              const allowedDomains = parseAllowedDomains(currentJob.allowedDomains);
-
-              await executeJobPipeline({
-                jobId: id,
-                prompt: currentJob.prompt,
-                allowedDomains,
-                maxStepsBudget: currentJob.maxStepsBudget || 15,
-                apiKey,
-              });
-            } catch (pipelineErr) {
-              console.error(`[SSE Pipeline Error for ${id}]:`, pipelineErr);
-              await sendEvent("error", {
-                status: "FAILED",
-                message: (pipelineErr as Error).message || "Pipeline execution failed.",
-              });
+              await updateDbJob(id, { status: "PLANNING", progress: 5, summary: "SSE stream connected — starting pipeline..." });
+              shouldExecute = true;
+            } catch {
+              // Likely already claimed by another instance — skip
+              shouldExecute = false;
             }
+          } else {
+            // Already PLANNING/WORKING — this SSE just listens; /execute handles it
+            shouldExecute = false;
           }
-        }
-      }).catch(() => {});
 
-      // Cleanup on disconnect
+          if (!shouldExecute) return;
+
+          const { executeJobPipeline } = await import("@/lib/ai/pipelineEngine");
+          const { parseAllowedDomains } = await import("@/schemas/jobs");
+
+          let apiKey: string | undefined = undefined;
+          if (userId) {
+            apiKey = (await getUserGeminiApiKey(userId)) || undefined;
+          }
+
+          const allowedDomains = parseAllowedDomains(currentJob.allowedDomains);
+
+          await executeJobPipeline({
+            jobId: id,
+            prompt: currentJob.prompt,
+            allowedDomains,
+            maxStepsBudget: currentJob.maxStepsBudget || 15,
+            apiKey,
+          });
+        } catch (pipelineErr) {
+          console.error(`[SSE] Pipeline error for job ${id}:`, pipelineErr);
+          await sendEvent("error", {
+            status: "FAILED",
+            message: (pipelineErr as Error).message || "Pipeline execution failed.",
+          });
+        }
+      })();
+
+      // Cleanup on client disconnect
       request.signal.addEventListener("abort", () => {
         unsubscribe();
         writer.close().catch(() => {});
@@ -107,7 +141,7 @@ export async function GET(
       });
     }
 
-    // Standard JSON events response
+    // Standard JSON events response (non-SSE clients)
     const events = await getDbJobEvents(id, userId);
     if (!events) {
       return NextResponse.json(

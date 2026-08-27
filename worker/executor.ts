@@ -34,6 +34,7 @@ export class BrowserExecutor {
     let pageSummary: string | undefined;
     let extractedData: string | string[] | Record<string, unknown> | undefined;
     let screenshotPath: string | null = null;
+    let screenshotStorageKey: string | null = null; // raw backend key (Blob URL / FS path)
     let errorPayload: Observation["error"] = null;
 
     try {
@@ -197,9 +198,10 @@ export class BrowserExecutor {
             const artifactName = filename || `step_${stepIndex}_${Date.now()}.png`;
             const imageBuffer = await page.screenshot({ fullPage, type: "png" });
             if (saveArtifact) {
-              await artifactStorage.saveArtifact(options.jobId, artifactName, imageBuffer);
-              // Store the API URL (not the raw FS path) so UI and DB have a usable URL.
-              // BUG #1 fix: previously stored absolute FS path which broke artifact serving.
+              // rawStorageKey = Blob URL (in production) or local FS path (in dev)
+              const rawStorageKey = await artifactStorage.saveArtifact(options.jobId, artifactName, imageBuffer);
+              screenshotStorageKey = rawStorageKey;
+              // screenshotPath = proxy URL for UI (works with both storage backends)
               screenshotPath = artifactStorage.getArtifactUrl(options.jobId, artifactName);
             }
             pageSummary = `Captured ${fullPage ? "full-page" : "viewport"} screenshot saved as ${artifactName}.`;
@@ -241,8 +243,8 @@ export class BrowserExecutor {
       try {
         const artifactName = `step_${stepIndex}_${status.toLowerCase()}.png`;
         const imageBuffer = await page.screenshot({ fullPage: false, type: "png" });
-        await artifactStorage.saveArtifact(options.jobId, artifactName, imageBuffer);
-        // Store API URL (not raw FS path) — B1 fix
+        const rawStorageKey = await artifactStorage.saveArtifact(options.jobId, artifactName, imageBuffer);
+        screenshotStorageKey = rawStorageKey;
         screenshotPath = artifactStorage.getArtifactUrl(options.jobId, artifactName);
       } catch {
         // Screenshot capture failure should not overwrite original action observation
@@ -262,6 +264,7 @@ export class BrowserExecutor {
       pageSummary,
       extractedData,
       screenshotPath,
+      screenshotStorageKey,
       error: errorPayload,
       elapsedMs,
       timestamp: new Date().toISOString(),
