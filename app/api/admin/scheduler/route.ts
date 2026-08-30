@@ -16,17 +16,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const metrics = await adminControlPlaneService.getOverviewMetrics();
+    const data = await adminControlPlaneService.getSchedulerStatus();
 
     return NextResponse.json({
       success: true,
       role: auth.role,
-      userEmail: auth.userEmail,
-      ...metrics,
+      ...data,
     });
   } catch (err: unknown) {
     return NextResponse.json(
-      { error: "METRICS_FETCH_ERROR", message: (err as Error).message },
+      { error: "SCHEDULER_STATUS_FETCH_ERROR", message: (err as Error).message },
       { status: 500 }
     );
   }

@@ -16,17 +16,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const metrics = await adminControlPlaneService.getOverviewMetrics();
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const limit = parseInt(searchParams.get("limit") || "20", 10);
+    const userId = searchParams.get("userId") || undefined;
+    const status = searchParams.get("status") || undefined;
+
+    const data = await adminControlPlaneService.listDiscoveryRuns({ page, limit, userId, status });
 
     return NextResponse.json({
       success: true,
       role: auth.role,
-      userEmail: auth.userEmail,
-      ...metrics,
+      ...data,
     });
   } catch (err: unknown) {
     return NextResponse.json(
-      { error: "METRICS_FETCH_ERROR", message: (err as Error).message },
+      { error: "RUNS_FETCH_ERROR", message: (err as Error).message },
       { status: 500 }
     );
   }

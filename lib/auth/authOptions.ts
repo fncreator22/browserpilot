@@ -41,10 +41,17 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid email or password");
         }
 
+        const adminEmails = (process.env.ADMIN_EMAILS || "")
+          .split(",")
+          .map((e) => e.trim().toLowerCase())
+          .filter(Boolean);
+        const resolvedRole = adminEmails.includes(email) ? "ADMIN" : ((user as any).role || "USER");
+
         return {
           id: user.id,
           name: user.name || undefined,
           email: user.email,
+          role: resolvedRole,
         };
       },
     }),
@@ -55,15 +62,26 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
+        token.role = (user as any).role || "USER";
+      }
+      if (token.email) {
+        const adminEmails = (process.env.ADMIN_EMAILS || "")
+          .split(",")
+          .map((e) => e.trim().toLowerCase())
+          .filter(Boolean);
+        if (adminEmails.includes((token.email as string).toLowerCase().trim())) {
+          token.role = "ADMIN";
+        }
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.id) {
-        (session.user as { id?: string; name?: string | null; email?: string | null }).id = token.id as string;
+        (session.user as { id?: string; name?: string | null; email?: string | null; role?: string }).id = token.id as string;
         if (token.name) {
           session.user.name = token.name as string;
         }
+        (session.user as any).role = (token.role as string) || "USER";
       }
       return session;
     },
