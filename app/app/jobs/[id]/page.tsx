@@ -472,9 +472,31 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     let parsedAction: { tool?: string; parameters?: Record<string, unknown> } = {};
     try { parsedAction = JSON.parse(st.actionPayload); } catch {}
 
+    let friendlyName = `Step ${st.stepNumber}: ${st.tool}`;
+    if (st.tool === "browser.navigate") {
+      const url = parsedAction.parameters?.url as string;
+      try {
+        friendlyName = url ? `Step ${st.stepNumber}: Navigate to ${new URL(url).hostname}` : `Step ${st.stepNumber}: Web Navigation`;
+      } catch {
+        friendlyName = `Step ${st.stepNumber}: Web Navigation`;
+      }
+    } else if (st.tool === "browser.extractText") {
+      friendlyName = `Step ${st.stepNumber}: Extract Job & Page Content`;
+    } else if (st.tool === "browser.scroll") {
+      friendlyName = `Step ${st.stepNumber}: Scroll Listing Feed`;
+    } else if (st.tool === "browser.click") {
+      friendlyName = `Step ${st.stepNumber}: Click Target Action`;
+    } else if (st.tool === "browser.fill") {
+      friendlyName = `Step ${st.stepNumber}: Input Search Keywords`;
+    } else if (st.tool === "browser.wait") {
+      friendlyName = `Step ${st.stepNumber}: Await Dynamic Hydration`;
+    } else if (st.tool === "browser.screenshot") {
+      friendlyName = `Step ${st.stepNumber}: Capture Evidence Proof`;
+    }
+
     return {
       id: st.id,
-      name: `Step ${st.stepNumber}: ${st.tool}`,
+      name: friendlyName,
       description: st.rationale || matchingObs?.pageSummary || `Executed ${st.tool} in Playwright sandbox`,
       status: stepStatus,
       durationMs: matchingObs?.elapsedMs,
@@ -683,33 +705,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               data={job.result}
               confidence={job.confidence || 0.95}
               status={job.status}
+              jobId={job.id}
             />
-            {(() => {
-              let parsedJobItems: any[] = [];
-              if (job.result) {
-                try {
-                  const parsed = JSON.parse(job.result);
-                  if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].title || parsed[0].company || parsed[0].role)) {
-                    parsedJobItems = parsed;
-                  }
-                } catch {}
-              }
-
-              return (
-                <>
-                  {parsedJobItems.length > 0 && (
-                    <JobDossierDeck jobs={parsedJobItems} jobId={job.id} />
-                  )}
-                  {job.result && (
-                    <DataTableCard
-                      data={job.result}
-                      jobId={job.id}
-                      title="Extracted Structured Data Table"
-                    />
-                  )}
-                </>
-              );
-            })()}
           </motion.div>
         )}
 

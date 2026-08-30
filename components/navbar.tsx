@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
-import { Bot, Terminal, History, ArrowRight, User, LogOut, LogIn, Sparkles, Settings } from "lucide-react";
+import { Bot, Terminal, History, ArrowRight, User, LogOut, LogIn, Sparkles, Settings, Bell, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProfileModal } from "@/components/profile/profile-modal";
 import { HistoryDrawer } from "@/components/history/history-drawer";
@@ -11,6 +11,21 @@ import { HistoryDrawer } from "@/components/history/history-drawer";
 export function Navbar() {
   const { data: session } = useSession();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!session?.user) return;
+    async function checkNotifications() {
+      try {
+        const res = await fetch("/api/notifications?unreadOnly=true");
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadCount(data.unreadCount || 0);
+        }
+      } catch {}
+    }
+    checkNotifications();
+  }, [session?.user]);
 
   return (
     <>
@@ -49,6 +64,24 @@ export function Navbar() {
           </nav>
 
           <div className="flex items-center gap-2">
+            {session?.user && (
+              <Link href="/app/history?tab=ALERTS">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="relative font-mono text-xs gap-1.5 text-muted-foreground hover:text-foreground px-2.5"
+                  title={unreadCount > 0 ? `${unreadCount} unread lifecycle alerts` : "Lifecycle Alerts"}
+                >
+                  <Bell className={`h-3.5 w-3.5 ${unreadCount > 0 ? "text-amber-500 animate-pulse" : ""}`} />
+                  {unreadCount > 0 && (
+                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">
+                      {unreadCount}
+                    </span>
+                  )}
+                </Button>
+              </Link>
+            )}
+
             <Link href="/app/history">
               <Button variant="ghost" size="sm" className="font-mono text-xs gap-1.5 text-muted-foreground hover:text-foreground">
                 <History className="h-3.5 w-3.5" />
@@ -62,6 +95,15 @@ export function Navbar() {
                 Workspace
               </Button>
             </Link>
+
+            {session?.user && ((session.user as any).role === "ADMIN" || (session.user as any).role === "SUPERADMIN") && (
+              <Link href="/admin">
+                <Button variant="outline" size="sm" className="font-mono text-xs gap-1.5 border-purple-500/40 text-purple-400 hover:bg-purple-500/10 bg-purple-500/5">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Admin
+                </Button>
+              </Link>
+            )}
 
             {session?.user ? (
               <div className="flex items-center gap-2">
