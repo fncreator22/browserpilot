@@ -12,12 +12,123 @@ model User {
   email        String   @unique
   passwordHash String
   geminiApiKey String?
+  role         String   @default("USER")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now()) @updatedAt
 
-  jobs Job[]
+  jobs      Job[]
+  searches  Search[]
+  savedJobs SavedOpportunity[]
+  alerts    LifecycleAlert[]
+  discoveryWatch  DiscoveryWatch?
+  discoveryRuns   DiscoveryRun[]
+  discoveryEvents OpportunityDiscoveryEvent[]
 
   @@map("users")
+}
+
+model Search {
+  id             String         @id @default(cuid())
+  userId         String?
+  rawQuery       String
+  intentType     String         @default("JOB_SEARCH_GENERAL")
+  parsedRole     String?
+  parsedSkills   String         @default("[]")
+  parsedLocation String?
+  parsedWorkMode String         @default("ANY")
+  targetGradYear Int?
+  status         String         @default("COMPLETED")
+  totalFound     Int            @default(0)
+  createdAt      DateTime       @default(now())
+
+  user    User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  results SearchResult[]
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("searches")
+}
+
+model Opportunity {
+  id              String             @id @default(cuid())
+  canonicalHash   String             @unique
+  title           String
+  companyName     String
+  location        String
+  workMode        String             @default("ANY")
+  experienceLevel String             @default("ENTRY_LEVEL")
+  opportunityType String             @default("FULL_TIME")
+  salaryMin       Float?
+  salaryMax       Float?
+  salaryCurrency  String?            @default("USD")
+  description     String
+  requirements    String             @default("[]")
+  skills          String             @default("[]")
+  primaryApplyUrl String
+  firstSeenAt     DateTime           @default(now())
+  lastVerifiedAt  DateTime           @default(now())
+  status          String             @default("ACTIVE")
+
+  sourceListings  SourceListing[]
+  searchResults   SearchResult[]
+  savedByUsers    SavedOpportunity[]
+  alerts          LifecycleAlert[]
+  discoveryEvents OpportunityDiscoveryEvent[]
+
+  @@index([workMode])
+  @@index([experienceLevel])
+  @@index([lastVerifiedAt])
+  @@map("opportunities")
+}
+
+model SourceListing {
+  id                 String   @id @default(cuid())
+  opportunityId      String
+  sourcePlatform     String
+  externalJobId      String?
+  sourceUrl          String
+  applyUrl           String
+  screenshotPath     String?
+  verificationStatus String   @default("VERIFIED")
+  rawSnippet         String?
+  seenAt             DateTime @default(now())
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@unique([sourcePlatform, sourceUrl])
+  @@index([opportunityId])
+  @@map("source_listings")
+}
+
+model SearchResult {
+  id            String   @id @default(cuid())
+  searchId      String
+  opportunityId String
+  matchScore    Float    @default(0.0)
+  rankPosition  Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  search      Search      @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@unique([searchId, opportunityId])
+  @@index([searchId, rankPosition])
+  @@map("search_results")
+}
+
+model SavedOpportunity {
+  id            String   @id @default(cuid())
+  userId        String
+  opportunityId String
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, opportunityId])
+  @@index([userId])
+  @@map("saved_opportunities")
 }
 
 model Job {
@@ -103,3 +214,106 @@ model ArtifactRecord {
   @@index([jobId])
   @@map("artifacts")
 }
+
+model LifecycleAlert {
+  id             String   @id @default(cuid())
+  userId         String
+  opportunityId  String
+  transitionType String   // "EXPIRED" | "REMOVED" | "RECOVERED_ACTIVE"
+  previousStatus String
+  newStatus      String
+  title          String
+  companyName    String
+  message        String
+  isRead         Boolean  @default(false)
+  idempotencyKey String   @unique
+  createdAt      DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@index([opportunityId])
+  @@map("lifecycle_alerts")
+}
+
+model DiscoveryWatch {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  enabled              Boolean   @default(true)
+  roles                String    @default("[]")
+  skills               String    @default("[]")
+  locations            String    @default("[]")
+  companies            String    @default("[]")
+  workModes            String    @default("[]")
+  experienceLevels     String    @default("[]")
+  opportunityTypes     String    @default("[]")
+  preferredSources     String    @default("[]")
+  minimumMatchScore    Float     @default(70.0)
+  latestOnly           Boolean   @default(false)
+  freshnessWindowHours Int       @default(48)
+  scanIntervalHours    Int       @default(6)
+  lastScannedAt        DateTime?
+  nextScanAt           DateTime?
+  lockedAt             DateTime?
+  lockOwner            String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @default(now()) @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([enabled, nextScanAt])
+  @@map("discovery_watches")
+}
+
+model DiscoveryRun {
+  id                   String    @id @default(cuid())
+  userId               String
+  triggerType          String    @default("MANUAL") // MANUAL, SCHEDULED
+  status               String    @default("RUNNING") // RUNNING, SUCCESS, PARTIAL_SUCCESS, FAILED, TIMEOUT
+  startedAt            DateTime  @default(now())
+  completedAt          DateTime?
+  durationMs           Int?
+  providersAttempted   Int       @default(0)
+  providersSucceeded   Int       @default(0)
+  providersFailed      Int       @default(0)
+  candidatesFound      Int       @default(0)
+  validCandidates      Int       @default(0)
+  newOpportunities     Int       @default(0)
+  newSources           Int       @default(0)
+  alreadyKnown         Int       @default(0)
+  reposted             Int       @default(0)
+  notificationsCreated Int       @default(0)
+  errorMessage         String?
+
+  user   User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events OpportunityDiscoveryEvent[]
+
+  @@index([userId, startedAt])
+  @@index([triggerType])
+  @@map("discovery_runs")
+}
+
+model OpportunityDiscoveryEvent {
+  id                  String   @id @default(cuid())
+  runId               String
+  userId              String
+  opportunityId       String
+  classification      String   // NEW_OPPORTUNITY, NEW_SOURCE, ALREADY_KNOWN, REPOSTED
+  matchScore          Float    @default(0.0)
+  freshnessClass      String   @default("UNKNOWN")
+  notificationCreated Boolean  @default(false)
+  discoveredAt        DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  run         DiscoveryRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  opportunity Opportunity  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, opportunityId, runId])
+  @@index([userId, discoveredAt])
+  @@index([opportunityId])
+  @@map("opportunity_discovery_events")
+}
+
+
