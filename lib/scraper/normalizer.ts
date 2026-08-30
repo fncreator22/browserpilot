@@ -1,10 +1,10 @@
 /**
- * §ANTI-HALLUCINATION SEMANTIC DEDUPLICATOR & DATA NORMALIZER
- * Strips noisy boilerplate, deduplicates repetitive phrases and duplicate job records,
- * and produces clean, high-signal structured dossiers without LLM token waste.
+ * §DETERMINISTIC NORMALIZER & CANONICAL IDENTITY GENERATOR
+ * Provides stable, anti-hallucinatory normalization for Companies, Job Titles, Locations,
+ * and URLs with tracking parameter stripping, cryptographic canonical hashing, and legacy backwards-compatibility.
  */
 
-import * as cheerio from "cheerio";
+import crypto from "crypto";
 
 export interface NormalizedJobItem {
   id: string;
@@ -22,7 +22,181 @@ export interface NormalizedJobItem {
 }
 
 /**
- * Deduplicates repetitive lines and hallucinated repeated sentences in text
+ * Normalizes company names by trimming, lowercasing, stripping punctuation,
+ * and removing common legal/corporate entity suffixes without over-collapsing.
+ */
+export function normalizeCompany(company?: string | null): string {
+  if (!company || typeof company !== "string") return "unknown_company";
+
+  let clean = company
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Strip safe legal and corporate suffixes
+  const legalSuffixRegex = /\b(inc|incorporated|llc|ltd|limited|corp|corporation|technologies|technology|tech|labs|software|solutions|pvt|private|gmbh|co)\b/gi;
+  clean = clean.replace(legalSuffixRegex, " ").replace(/\s+/g, " ").trim();
+
+  return clean || "unknown_company";
+}
+
+/**
+ * Normalizes job titles by lowercasing, normalizing separators, and standardizing whitespace
+ * while strictly preserving seniority and domain terms (Intern, Junior, Senior, Staff, Lead).
+ */
+export function normalizeJobTitle(title?: string | null): string {
+  if (!title || typeof title !== "string") return "unknown_title";
+
+  let clean = title
+    .toLowerCase()
+    .replace(/[-|/–—:]/g, " ")
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Standardize common variations
+  clean = clean
+    .replace(/\b(internship|interns)\b/g, "intern")
+    .replace(/\b(software development engineer|software dev engineer|sde)\b/g, "software engineer")
+    .replace(/\b(ml engineer|machine learning engineer)\b/g, "ai engineer")
+    .replace(/\b(full stack developer|fullstack developer|full stack engineer)\b/g, "full stack engineer")
+    .replace(/\b(front end developer|frontend developer|front end engineer)\b/g, "frontend engineer")
+    .replace(/\b(back end developer|backend developer|back end engineer)\b/g, "backend engineer")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return clean || "unknown_title";
+}
+
+/**
+ * Normalizes locations while preserving meaningful distinctions (Remote vs City vs Country).
+ */
+export function normalizeLocation(location?: string | null): string {
+  if (!location || typeof location !== "string") return "Remote / Unspecified";
+
+  let clean = location
+    .replace(/[^\w\s,.-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (/\b(remote|work from home|wfh|anywhere|telecommute)\b/i.test(clean)) {
+    return "Remote";
+  }
+
+  return clean || "Remote / Unspecified";
+}
+
+/**
+ * Safe URL Canonicalization:
+ * - Lowercases protocol and hostname
+ * - Removes non-essential tracking parameters (utm_*, refId, trackingId, fbclid, gclid, trk)
+ * - Preserves essential query params (id, jk, jobId, view)
+ * - Strips trailing slashes
+ */
+export function canonicalizeUrl(rawUrl?: string | null): string {
+  if (!rawUrl || typeof rawUrl !== "string") return "";
+
+  const trimmed = rawUrl.trim();
+  if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+    return trimmed;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    parsed.protocol = parsed.protocol.toLowerCase();
+    parsed.hostname = parsed.hostname.toLowerCase();
+
+    // Remove tracking query parameters
+    const trackingParams = [
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_term",
+      "utm_content",
+      "refid",
+      "trackingid",
+      "fbclid",
+      "gclid",
+      "trk",
+      "ref",
+      "ref_id",
+      "source",
+    ];
+
+    const keysToRemove: string[] = [];
+    parsed.searchParams.forEach((_, key) => {
+      const lowerKey = key.toLowerCase();
+      if (trackingParams.includes(lowerKey) || lowerKey.startsWith("utm_")) {
+        keysToRemove.push(key);
+      }
+    });
+
+    for (const key of keysToRemove) {
+      parsed.searchParams.delete(key);
+    }
+
+    // Strip trailing slash on path if path has length > 1
+    let pathname = parsed.pathname;
+    if (pathname.length > 1 && pathname.endsWith("/")) {
+      pathname = pathname.slice(0, -1);
+    }
+    parsed.pathname = pathname;
+
+    // Sort query parameters deterministically
+    parsed.searchParams.sort();
+
+    return parsed.toString();
+  } catch {
+    return trimmed;
+  }
+}
+
+/**
+ * Generates a deterministic cryptographic canonical hash for an Opportunity:
+ * canonicalHash = md5(normalizeCompany(company) + "_" + normalizeJobTitle(title))
+ */
+export function generateCanonicalHash(company: string, title: string): string {
+  const normCompany = normalizeCompany(company);
+  const normTitle = normalizeJobTitle(title);
+  const composite = `${normCompany}_${normTitle}`;
+  return crypto.createHash("md5").update(composite).digest("hex");
+}
+
+/**
+ * Bounded Deterministic String Similarity (Dice Coefficient on word bigrams)
+ * Returns a score between 0.0 and 1.0.
+ */
+export function calculateStringSimilarity(str1: string, str2: string): number {
+  if (!str1 || !str2) return 0.0;
+  const s1 = str1.toLowerCase().replace(/[^\w\s]/g, "").trim();
+  const s2 = str2.toLowerCase().replace(/[^\w\s]/g, "").trim();
+  if (s1 === s2) return 1.0;
+  if (s1.length < 2 || s2.length < 2) return 0.0;
+
+  const getBigrams = (str: string) => {
+    const bigrams = new Set<string>();
+    for (let i = 0; i < str.length - 1; i++) {
+      bigrams.add(str.substring(i, i + 2));
+    }
+    return bigrams;
+  };
+
+  const b1 = getBigrams(s1);
+  const b2 = getBigrams(s2);
+
+  let intersection = 0;
+  for (const item of b1) {
+    if (b2.has(item)) {
+      intersection++;
+    }
+  }
+
+  return (2.0 * intersection) / (b1.size + b2.size);
+}
+
+/**
+ * Legacy Helper: Deduplicates repetitive lines and repeated sentences in text
  */
 export function deduplicateTextLines(rawText: string): string {
   if (!rawText) return "";
@@ -39,7 +213,6 @@ export function deduplicateTextLines(rawText: string): string {
     const normalized = line.toLowerCase().replace(/[^\w\s]/g, "").trim();
     if (normalized.length < 3) continue;
 
-    // Filter repeated boilerplate lines
     if (!seenLines.has(normalized)) {
       seenLines.add(normalized);
       uniqueLines.push(line);
@@ -50,7 +223,7 @@ export function deduplicateTextLines(rawText: string): string {
 }
 
 /**
- * Generates a deterministic deduplication fingerprint for a job listing
+ * Legacy Helper: Generates fingerprint for legacy scraper
  */
 export function getJobFingerprint(title: string, company: string, location?: string): string {
   const cleanTitle = (title || "").toLowerCase().replace(/[^\w]/g, "");
@@ -60,7 +233,7 @@ export function getJobFingerprint(title: string, company: string, location?: str
 }
 
 /**
- * Normalizes and deduplicates an array of raw extracted job objects
+ * Legacy Helper: Normalizes and deduplicates raw extracted job objects for UI
  */
 export function normalizeAndDeduplicateJobs(
   rawJobs: Array<Record<string, unknown>>,
@@ -78,21 +251,18 @@ export function normalizeAndDeduplicateJobs(
 
     const fingerprint = getJobFingerprint(title, company, location);
     if (seenFingerprints.has(fingerprint)) {
-      continue; // Skip exact/fuzzy duplicate
+      continue;
     }
     seenFingerprints.add(fingerprint);
 
-    // Extract salary
     const salary = raw.salary || raw.compensation || raw.pay ? String(raw.salary || raw.compensation || raw.pay).trim() : undefined;
 
-    // Detect workplace type
     const locLower = `${location} ${raw.description || ""}`.toLowerCase();
     let workplaceType: NormalizedJobItem["workplaceType"] = "Unspecified";
     if (locLower.includes("remote") || locLower.includes("work from home")) workplaceType = "Remote";
     else if (locLower.includes("hybrid")) workplaceType = "Hybrid";
     else if (locLower.includes("on-site") || locLower.includes("onsite")) workplaceType = "On-site";
 
-    // Extract clean requirements as bullet points
     let requirements: string[] = [];
     if (Array.isArray(raw.requirements)) {
       requirements = raw.requirements.map(String).map((r) => r.trim()).filter(Boolean).slice(0, 5);
@@ -103,7 +273,6 @@ export function normalizeAndDeduplicateJobs(
         .filter((r) => r.length > 5)
         .slice(0, 5);
     } else if (raw.description) {
-      // Extract first 3 high-signal sentences from description
       requirements = String(raw.description)
         .split(/[.\n]/)
         .map((s) => s.trim())
@@ -111,7 +280,6 @@ export function normalizeAndDeduplicateJobs(
         .slice(0, 4);
     }
 
-    // Extract canonical apply URL
     let applyUrl = String(raw.applyUrl || raw.url || raw.link || raw.sourceUrl || "").trim();
     if (!applyUrl.startsWith("http://") && !applyUrl.startsWith("https://")) {
       applyUrl = `https://www.google.com/search?q=${encodeURIComponent(`${company} ${title} apply`)}`;
