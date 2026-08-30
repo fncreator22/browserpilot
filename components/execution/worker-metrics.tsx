@@ -86,11 +86,11 @@ export function WorkerMetrics({
           </div>
           <div className="mt-2">
             <span className="text-xl font-bold font-mono tracking-tight text-foreground">
-              {hasRealTokens ? tokensUsed.toLocaleString() : "N/A"}
+              {hasRealTokens ? tokensUsed.toLocaleString() : tokensUsed === 0 ? "0" : "—"}
             </span>
           </div>
           <span className="text-[10px] text-muted-foreground mt-1">
-            {hasRealTokens ? "Gemini 2.5 Flash" : "No token telemetry"}
+            {hasRealTokens ? "Gemini 2.5 Flash" : tokensUsed === 0 ? "Deterministic (0 tokens)" : "Deterministic pipeline"}
           </span>
         </div>
 

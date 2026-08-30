@@ -116,9 +116,14 @@ export function StatusTimeline({ steps = [] }: StatusTimelineProps) {
                         {step.description}
                       </p>
                       {step.toolCall && (
-                        <div className="mt-2 rounded-lg bg-muted/60 px-2.5 py-1.5 font-mono text-[11px] text-foreground/80 border border-border/40 inline-block max-w-full overflow-x-auto">
-                          <span className="text-muted-foreground">Action:</span> {step.toolCall}
-                        </div>
+                        <details className="mt-2 group text-[11px] font-mono">
+                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 select-none transition-colors py-0.5">
+                            <span>▶ Technical Action & Parameters</span>
+                          </summary>
+                          <div className="mt-1.5 rounded-lg bg-muted/70 p-2 text-[10px] text-foreground/90 border border-border/40 overflow-x-auto max-w-full">
+                            <code>{step.toolCall}</code>
+                          </div>
+                        </details>
                       )}
                     </div>
                   </div>
