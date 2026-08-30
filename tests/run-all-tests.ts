@@ -17,6 +17,34 @@ import { runWorkerConcurrencyLimitTest } from "./integration/workerConcurrencyLi
 import { runTimeBudgetWatchdogIntegrationTest } from "./integration/timeBudgetWatchdog.test";
 import { runImmediateFailurePropagationTest } from "./integration/immediateFailurePropagation.test";
 import { runJobCancellationIntegrationTest } from "./integration/jobCancellation.test";
+import { runOpportunityDbIntegrationTests } from "./integration/opportunityDb.test";
+import { runMultiSearchIntegrationTests } from "./integration/multiSearch.test";
+import { runDeduplicationUnitTests } from "./unit/deduplication.test";
+import { runRankerUnitTests } from "./unit/ranker.test";
+import { runNaturalLanguageIntentTests } from "./unit/naturalLanguageIntent.test";
+import { runUnifiedNaturalLanguageRoutingTests } from "./unit/unifiedNaturalLanguageRouting.test";
+import { runOutboundEmailDeliveryTests } from "./unit/outboundEmailDelivery.test";
+import { runSearchIntegrationTests } from "./integration/searchIntegration.test";
+import { runEvidenceVerifierUnitTests } from "./unit/evidenceVerifier.test";
+import { runEvidenceVerificationIntegrationTests } from "./integration/evidenceVerification.test";
+import { runOpportunityDetailIntegrationTests } from "./integration/opportunityDetail.test";
+import { runSearchHistoryIntegrationTests } from "./integration/searchHistory.test";
+import { runOpportunityFreshnessIntegrationTests } from "./integration/opportunityFreshness.test";
+import { runSavedOpportunityMonitoringIntegrationTests } from "./integration/savedOpportunityMonitoring.test";
+import { runResultPresentationIntegrationTests } from "./integration/resultPresentation.test";
+import { runStructuredOpportunityExtractionIntegrationTests } from "./integration/structuredOpportunityExtraction.test";
+import { runPersonalizedSwarmDiscoveryIntegrationTests } from "./integration/personalizedSwarmDiscovery.test";
+import { runAutonomousDiscoveryIntegrationTests } from "./integration/autonomousDiscovery.test";
+import { runDiscoverySchedulerIntegrationTests } from "./integration/discoveryScheduler.test";
+import { runProductionSchedulerIntegrationTests } from "./integration/productionScheduler.test";
+import { runPostgresProductionSchedulerTests } from "./integration/postgresProductionScheduler.test";
+import { runSwarmConfigurationWatchTests } from "./integration/swarmConfigurationWatch.test";
+import { runAdminControlPlaneHardeningTests } from "./integration/adminControlPlaneHardening.test";
+import { runSwarmRuntimeVerificationTests } from "./integration/swarmRuntimeVerification.test";
+import { runAdminControlPlaneUITests } from "./integration/adminControlPlaneUI.test";
+import { runDiscoveryExecutionIntegrityTests } from "./integration/discoveryExecutionIntegrity.test";
+import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalLanguageWorkflowAcceptance.test";
+import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
 
 async function runMasterTestSuite() {
@@ -36,6 +64,34 @@ async function runMasterTestSuite() {
     { name: "Unit: Email/Password Auth & Minimal Schema", fn: runAuthTests },
     { name: "Unit: 24-Hour Auto-Purge & Retention", fn: runCleanupUnitTests },
     { name: "Unit: Fast-Calculated Time Budget (Prompt C2)", fn: runTimeBudgetUnitTests },
+    { name: "Unit: Normalization & 3-Tier Deduplication (TASK-004)", fn: runDeduplicationUnitTests },
+    { name: "Unit: 100-Point Student Relevance Ranker (TASK-004)", fn: runRankerUnitTests },
+    { name: "Unit: Natural-Language Intent Interpretation (TASK-018)", fn: runNaturalLanguageIntentTests },
+    { name: "Unit: Unified Natural-Language Routing (TASK-019)", fn: runUnifiedNaturalLanguageRoutingTests },
+    { name: "Unit: Outbound LifecycleAlert Email Delivery (TASK-020)", fn: runOutboundEmailDeliveryTests },
+    { name: "Unit: Evidence Verifier & Content Validation (TASK-006)", fn: runEvidenceVerifierUnitTests },
+    { name: "Integration: Opportunity Database & Domain Schema (TASK-001 & 002)", fn: runOpportunityDbIntegrationTests },
+    { name: "Integration: Pluggable Multi-Source Search Adapters (TASK-003)", fn: runMultiSearchIntegrationTests },
+    { name: "Integration: Production Search & Opportunity Integration (TASK-005)", fn: runSearchIntegrationTests },
+    { name: "Integration: Playwright Evidence Verification & Proofs (TASK-006)", fn: runEvidenceVerificationIntegrationTests },
+    { name: "Integration: Opportunity Detail & Evidence Workspace (TASK-007)", fn: runOpportunityDetailIntegrationTests },
+    { name: "Integration: Search History & Re-runable Sessions (TASK-008)", fn: runSearchHistoryIntegrationTests },
+    { name: "Integration: Opportunity Freshness & Lifecycle Revalidation (TASK-009)", fn: runOpportunityFreshnessIntegrationTests },
+    { name: "Integration: Saved Opportunity Monitoring & Alerts (TASK-010)", fn: runSavedOpportunityMonitoringIntegrationTests },
+    { name: "Integration: Result Presentation & Structured Dossier (TASK-011)", fn: runResultPresentationIntegrationTests },
+    { name: "Integration: Structured Opportunity Extraction Contract (TASK-012)", fn: runStructuredOpportunityExtractionIntegrationTests },
+    { name: "Integration: Personalized Swarm Discovery & Freshness (TASK-013)", fn: runPersonalizedSwarmDiscoveryIntegrationTests },
+    { name: "Integration: Autonomous Discovery & Novelty Intelligence (TASK-014)", fn: runAutonomousDiscoveryIntegrationTests },
+    { name: "Integration: Autonomous Watch Scheduler & Orchestration (TASK-015)", fn: runDiscoverySchedulerIntegrationTests },
+    { name: "Integration: Production Scheduler & Proactive Alerts (TASK-016)", fn: runProductionSchedulerIntegrationTests },
+    { name: "Integration: PostgreSQL Production Database & CloudWatch Scheduler (TASK-021)", fn: runPostgresProductionSchedulerTests },
+    { name: "Integration: Swarm Configuration, Company Targeting & Intervals (TASK-022)", fn: runSwarmConfigurationWatchTests },
+    { name: "Integration: Production Hardening & Admin Control Plane (TASK-023)", fn: runAdminControlPlaneHardeningTests },
+    { name: "Integration: Swarm Runtime Verification & Company Targeting (TASK-024)", fn: runSwarmRuntimeVerificationTests },
+    { name: "Integration: Admin Control Plane UI & API Integration (TASK-025)", fn: runAdminControlPlaneUITests },
+    { name: "Integration: Discovery Execution Integrity & Score Transparency (TASK-026)", fn: runDiscoveryExecutionIntegrityTests },
+    { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
+    { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },
     { name: "Integration: Multi-User Isolation & Limits (§36 Test 6)", fn: runMultiUserIntegrationTests },
     { name: "Integration: Real Concurrent User Isolation (Prompt C1)", fn: runConcurrentUserIsolationTests },
@@ -69,7 +125,7 @@ async function runMasterTestSuite() {
   console.log("=================================================");
   summary.forEach((s) => {
     const icon = s.status === "PASS" ? "✅" : "❌";
-    console.log(`${icon} [${s.status}] ${s.suite.padEnd(52)} (${s.durationMs}ms)`);
+    console.log(`${icon} [${s.status}] ${s.suite.padEnd(54)} (${s.durationMs}ms)`);
     if (s.error) console.log(`   Error: ${s.error}`);
   });
 
