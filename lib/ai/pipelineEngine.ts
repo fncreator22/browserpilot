@@ -188,13 +188,29 @@ export async function executeJobPipeline(
           const dataset = await extractStructuredData(cleanedText, schema, prompt, apiKey);
 
           if (dataset.items && dataset.items.length > 0) {
-            const { normalizeAndDeduplicateJobs } = await import("@/lib/scraper/normalizer");
-            const normalized = normalizeAndDeduplicateJobs(dataset.items);
-            structuredResult = JSON.stringify(normalized.length > 0 ? normalized : dataset.items, null, 2);
+            const { validateAndNormalizeExtractionBatch } = await import("@/lib/scraper/extractionContract");
+            const batchVal = validateAndNormalizeExtractionBatch(dataset.items, { allowLocalForTests: true });
+            const allItems = [...batchVal.valid, ...batchVal.partial];
+            if (allItems.length > 0) {
+              structuredResult = JSON.stringify(allItems, null, 2);
+            } else {
+              const { normalizeAndDeduplicateJobs } = await import("@/lib/scraper/normalizer");
+              const normalized = normalizeAndDeduplicateJobs(dataset.items);
+              structuredResult = JSON.stringify(normalized.length > 0 ? normalized : dataset.items, null, 2);
+            }
+          }
+
+          // Deterministic upstream recovery: if dataset was empty but final answer or extracted content contains job listings
+          if (!structuredResult && (finalAnswer || fullContent)) {
+            const { parseTextToDossierItems } = await import("@/lib/scraper/textDossierParser");
+            const parsedDossier = parseTextToDossierItems(finalAnswer || fullContent);
+            if (parsedDossier.items && parsedDossier.items.length > 0) {
+              structuredResult = JSON.stringify(parsedDossier.items, null, 2);
+            }
           }
         }
       } catch (extractErr) {
-        console.warn(`[PipelineEngine] Structured table extraction fallback:`, extractErr);
+        console.warn(`[PipelineEngine] Structured extraction validation fallback:`, extractErr);
       }
     }
 

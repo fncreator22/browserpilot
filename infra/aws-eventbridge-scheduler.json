@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BrowserPilot CloudWatch & EventBridge Autonomous Discovery Scheduler",
+  "description": "AWS EventBridge Scheduler Target Specification for BrowserPilot Scheduled Opportunity Discovery",
+  "schedule": {
+    "name": "browserpilot-discovery-scheduler-rule",
+    "description": "Triggers multi-tenant autonomous opportunity discovery scans every 15 minutes",
+    "scheduleExpression": "cron(0/15 * * * ? *)",
+    "flexibleTimeWindow": {
+      "mode": "FLEXIBLE",
+      "maximumWindowInMinutes": 5
+    },
+    "state": "ENABLED"
+  },
+  "target": {
+    "type": "HTTPS",
+    "endpoint": "https://api.browserpilot.ai/api/discovery/scheduler",
+    "httpMethod": "POST",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer ${CRON_SECRET}",
+      "x-cron-secret": "${CRON_SECRET}"
+    },
+    "body": {
+      "maxWatches": 20,
+      "concurrencyLimit": 4,
+      "maxExecutionBudgetMs": 45000
+    },
+    "retryPolicy": {
+      "maximumRetryAttempts": 2,
+      "maximumEventAgeInSeconds": 300
+    },
+    "deadLetterConfig": {
+      "arn": "arn:aws:sqs:${AWS_REGION}:${AWS_ACCOUNT_ID}:browserpilot-scheduler-dlq"
+    }
+  },
+  "security": {
+    "secretManagerArn": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:browserpilot/production-cron-secret",
+    "iamRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/BrowserPilotEventBridgeSchedulerRole"
+  }
+}
