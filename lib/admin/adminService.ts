@@ -7,6 +7,7 @@
 
 import { prisma, isPostgresDatabase } from "@/lib/db/prisma";
 import { getOnboardingTelemetry, type OnboardingTelemetry } from "@/lib/db/onboarding";
+import { ProviderTelemetryMetrics, getAdminProviderTelemetry } from "@/lib/ai/governance/providerGovernance";
 
 export interface SystemHealthMetrics {
   status: "HEALTHY" | "DEGRADED" | "CRITICAL";
@@ -77,6 +78,7 @@ export interface AdminOverviewMetrics {
   catalog: OpportunityCatalogSummary;
   alerts: LifecycleAlertTelemetrySummary;
   onboarding: OnboardingTelemetry;
+  providers: ProviderTelemetryMetrics;
 }
 
 export class AdminControlPlaneService {
@@ -221,6 +223,7 @@ export class AdminControlPlaneService {
         breakdown: alertBreakdown,
       },
       onboarding: await getOnboardingTelemetry(),
+      providers: await getAdminProviderTelemetry(),
     };
   }
 

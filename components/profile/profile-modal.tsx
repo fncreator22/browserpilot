@@ -16,9 +16,13 @@ import {
   CheckCircle2, 
   AlertTriangle,
   Lock,
-  X
+  X,
+  Zap,
+  ShieldCheck,
+  Activity
 } from "lucide-react";
 import { toast } from "sonner";
+import { usePuter } from "@/hooks/usePuter";
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -27,8 +31,9 @@ interface ProfileModalProps {
 
 export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { data: session, update: updateSession } = useSession();
+  const { isLoaded: isPuterLoaded, isSignedIn: isPuterSignedIn, user: puterUser, isAuthenticating: isPuterAuthenticating, signIn: puterSignIn, signOut: puterSignOut } = usePuter();
 
-  const [activeTab, setActiveTab] = useState<"ACCOUNT" | "PERSONALIZATION">("ACCOUNT");
+  const [activeTab, setActiveTab] = useState<"ACCOUNT" | "PERSONALIZATION" | "PROVIDERS">("ACCOUNT");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [geminiApiKey, setGeminiApiKey] = useState("");
@@ -42,6 +47,10 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Providers & Usage state
+  const [connectedProviders, setConnectedProviders] = useState<any[]>([]);
+  const [usageSummary, setUsageSummary] = useState<any | null>(null);
+
   // Personalization state
   const [userCategory, setUserCategory] = useState("");
   const [usageContext, setUsageContext] = useState("");
@@ -53,6 +62,22 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const [targetSkills, setTargetSkills] = useState<string[]>([]);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
 
+  const loadProvidersAndUsage = () => {
+    fetch("/api/account/providers")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.providers) setConnectedProviders(data.providers);
+      })
+      .catch(() => {});
+
+    fetch("/api/account/usage")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.summary) setUsageSummary(data.summary);
+      })
+      .catch(() => {});
+  };
+
   // Load profile data when modal opens
   useEffect(() => {
     if (isOpen && session?.user) {
@@ -63,6 +88,8 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       setCurrentPassword("");
       setNewPassword("");
       setGeminiApiKey("");
+
+      loadProvidersAndUsage();
 
       fetch("/api/account/profile")
         .then((res) => res.json())
@@ -92,6 +119,34 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         });
     }
   }, [isOpen, session]);
+
+  const handlePuterConnect = async () => {
+    try {
+      const u = await puterSignIn();
+      if (u) {
+        await fetch("/api/account/providers/puter", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: u.username }),
+        });
+        toast.success(`Connected Puter account: ${u.username}`);
+        loadProvidersAndUsage();
+      }
+    } catch (err) {
+      toast.error((err as Error).message || "Failed to connect Puter.");
+    }
+  };
+
+  const handlePuterDisconnect = async () => {
+    try {
+      await puterSignOut();
+      await fetch("/api/account/providers/puter", { method: "DELETE" });
+      toast.info("Disconnected Puter account.");
+      loadProvidersAndUsage();
+    } catch (err) {
+      toast.error((err as Error).message || "Failed to disconnect Puter.");
+    }
+  };
 
   // Handle ESC key to close modal
   useEffect(() => {
@@ -224,6 +279,17 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               >
                 Personalization & Context
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("PROVIDERS")}
+                className={`px-3 py-1 rounded-md transition-colors cursor-pointer ${
+                  activeTab === "PROVIDERS"
+                    ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                AI Providers & Usage
+              </button>
             </div>
 
             {isLoading ? (
@@ -301,6 +367,118 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                   >
                     Adjust Onboarding →
                   </a>
+                </div>
+              </div>
+            ) : activeTab === "PROVIDERS" ? (
+              <div className="space-y-4 pt-3 text-xs font-mono">
+                {/* Puter Provider Card */}
+                <div className="rounded-xl border border-border/80 bg-muted/20 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-amber-500" />
+                      <span className="font-semibold text-foreground">Puter AI Integration</span>
+                    </div>
+                    {isPuterSignedIn ? (
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-semibold text-[10px] flex items-center gap-1">
+                        <ShieldCheck className="h-3 w-3" />
+                        Connected (@{puterUser?.username || "Puter"})
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground text-[10px]">
+                        Not Connected
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Connect your Puter account for free client-side AI execution with Claude 3.7 Sonnet, GPT-4o, and DeepSeek R1.
+                  </p>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[10px] text-muted-foreground">
+                      Quota & Balances: Managed by Puter.js
+                    </span>
+                    {isPuterSignedIn ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePuterDisconnect}
+                        className="h-7 text-[11px] font-mono"
+                      >
+                        Disconnect Puter
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handlePuterConnect}
+                        disabled={isPuterAuthenticating || !isPuterLoaded}
+                        className="h-7 text-[11px] font-mono gap-1"
+                      >
+                        {isPuterAuthenticating ? "Connecting..." : "Connect Puter Account"}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* BYOK Gemini Key Overview */}
+                <div className="rounded-xl border border-border/80 bg-muted/20 p-4 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      <span className="font-semibold text-foreground">BYOK Gemini API Key</span>
+                    </div>
+                    {hasKey && maskedKey ? (
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-semibold text-[10px]">
+                        ● {maskedKey}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground text-[10px]">
+                        Server Environment Fallback
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Direct server-side Google GenAI pipeline for prompt optimization and planning.
+                  </p>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[10px] text-muted-foreground">
+                      Manage in Account & Security tab
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("ACCOUNT")}
+                      className="text-[11px] text-primary hover:underline"
+                    >
+                      Update Key →
+                    </button>
+                  </div>
+                </div>
+
+                {/* Usage Activity Summary */}
+                <div className="rounded-xl border border-border/80 bg-muted/20 p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-cyan-500" />
+                      <span className="font-semibold text-foreground">AI Usage Activity</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {usageSummary?.totalOperations || 0} operations recorded
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                    <div className="bg-background/60 p-2 rounded border border-border/40">
+                      <span className="text-[10px] text-muted-foreground block">Successful</span>
+                      <span className="font-semibold text-emerald-500">{usageSummary?.successfulOperations || 0}</span>
+                    </div>
+                    <div className="bg-background/60 p-2 rounded border border-border/40">
+                      <span className="text-[10px] text-muted-foreground block">Tokens Tracked</span>
+                      <span className="font-semibold text-foreground">{usageSummary?.totalTokensTracked || 0}</span>
+                    </div>
+                    <div className="bg-background/60 p-2 rounded border border-border/40">
+                      <span className="text-[10px] text-muted-foreground block">Failed / Limit</span>
+                      <span className="font-semibold text-rose-400">{usageSummary?.failedOperations || 0}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (
