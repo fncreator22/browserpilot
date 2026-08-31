@@ -400,19 +400,47 @@ export async function getUserUsageSummary(userId: string): Promise<UserUsageSumm
 
 /**
  * Clean architectural entitlement boundary.
- * Checks if a user has access to a capability/feature without coupling to payment logic.
+ * Checks if a user has access to a capability/feature and resolves effective plan and provider.
  */
 export async function checkFeatureEntitlement(
   userId: string,
   capability: string
-): Promise<{ allowed: boolean; reason?: string; effectiveProvider?: string }> {
+): Promise<{ allowed: boolean; reason?: string; effectiveProvider?: string; plan?: string }> {
+  const { getUserEffectivePlan } = await import("@/lib/billing/planService");
+  const { plan } = await getUserEffectivePlan(userId);
+
+  // Capability restrictions
+  if (capability === "COMPANY_TARGETING" && !plan.supportsCompanyTargeting) {
+    return {
+      allowed: false,
+      reason: "COMPANY_TARGETING_REQUIRES_PREMIUM",
+      plan: plan.code,
+    };
+  }
+
+  if (capability === "ADVANCED_FILTERS" && !plan.supportsAdvancedFilters) {
+    return {
+      allowed: false,
+      reason: "ADVANCED_FILTERS_REQUIRES_PREMIUM",
+      plan: plan.code,
+    };
+  }
+
+  if (capability === "PUTER_PREMIUM" && !plan.supportsPuterPremium) {
+    return {
+      allowed: false,
+      reason: "PUTER_PREMIUM_REQUIRES_PREMIUM",
+      plan: plan.code,
+    };
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { providerConnections: true },
   });
 
   if (!user) {
-    return { allowed: false, reason: "USER_NOT_FOUND" };
+    return { allowed: false, reason: "USER_NOT_FOUND", plan: plan.code };
   }
 
   // Active Puter connection
@@ -420,7 +448,7 @@ export async function checkFeatureEntitlement(
     (p) => p.provider === "PUTER" && p.status === "CONNECTED"
   );
   if (puter) {
-    return { allowed: true, effectiveProvider: "PUTER" };
+    return { allowed: true, effectiveProvider: "PUTER", plan: plan.code };
   }
 
   // Active BYOK connection
@@ -428,17 +456,18 @@ export async function checkFeatureEntitlement(
     (p) => p.provider.endsWith("_BYOK") && p.status === "CONNECTED"
   );
   if (byok) {
-    return { allowed: true, effectiveProvider: byok.provider };
+    return { allowed: true, effectiveProvider: byok.provider, plan: plan.code };
   }
 
   // Legacy BYOK key or server environment fallback
   if (user.geminiApiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
-    return { allowed: true, effectiveProvider: "SERVER_MANAGED" };
+    return { allowed: true, effectiveProvider: "SERVER_MANAGED", plan: plan.code };
   }
 
   return {
     allowed: true, // Baseline allowance for standard discovery
     effectiveProvider: "SERVER_MANAGED",
+    plan: plan.code,
   };
 }
 

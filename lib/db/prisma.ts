@@ -299,6 +299,98 @@ CREATE TABLE IF NOT EXISTS ai_usage_events (
   FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS plans (
+  id TEXT PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT 1,
+  priceMonthly REAL NOT NULL DEFAULT 0.0,
+  priceYearly REAL NOT NULL DEFAULT 0.0,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  maxWatches INTEGER NOT NULL DEFAULT 1,
+  maxDailyDiscoveries INTEGER NOT NULL DEFAULT 10,
+  maxMonthlyAIOperations INTEGER NOT NULL DEFAULT 100,
+  allowedIntervals TEXT NOT NULL DEFAULT '["TWENTY_FOUR_HOURS"]',
+  supportsCompanyTargeting BOOLEAN NOT NULL DEFAULT 0,
+  supportsAdvancedFilters BOOLEAN NOT NULL DEFAULT 0,
+  supportsPuterPremium BOOLEAN NOT NULL DEFAULT 0,
+  supportsPriorityExecution BOOLEAN NOT NULL DEFAULT 0,
+  metadata TEXT NOT NULL DEFAULT '{}',
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL,
+  planId TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'ACTIVE',
+  billingInterval TEXT NOT NULL DEFAULT 'MONTHLY',
+  currentPeriodStart DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  currentPeriodEnd DATETIME,
+  cancelAtPeriodEnd BOOLEAN NOT NULL DEFAULT 0,
+  cancelledAt DATETIME,
+  paymentProvider TEXT,
+  providerSubscriptionId TEXT,
+  providerCustomerId TEXT,
+  metadata TEXT NOT NULL DEFAULT '{}',
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE,
+  FOREIGN KEY (planId) REFERENCES plans (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS coupons (
+  id TEXT PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  description TEXT,
+  discountType TEXT NOT NULL DEFAULT 'PERCENTAGE',
+  discountValue REAL NOT NULL DEFAULT 0.0,
+  targetPlanId TEXT,
+  maxRedemptions INTEGER NOT NULL DEFAULT 100,
+  redemptionCount INTEGER NOT NULL DEFAULT 0,
+  validFrom DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  validUntil DATETIME,
+  active BOOLEAN NOT NULL DEFAULT 1,
+  createdById TEXT,
+  metadata TEXT NOT NULL DEFAULT '{}',
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (targetPlanId) REFERENCES plans (id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS coupon_redemptions (
+  id TEXT PRIMARY KEY,
+  couponId TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  redeemedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  discountGranted REAL NOT NULL DEFAULT 0.0,
+  metadata TEXT NOT NULL DEFAULT '{}',
+  FOREIGN KEY (couponId) REFERENCES coupons (id) ON DELETE CASCADE,
+  FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE,
+  UNIQUE(couponId, userId)
+);
+
+CREATE TABLE IF NOT EXISTS payment_transactions (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL,
+  subscriptionId TEXT,
+  planId TEXT,
+  amount REAL NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  provider TEXT NOT NULL DEFAULT 'RAZORPAY',
+  providerOrderId TEXT,
+  providerPaymentId TEXT,
+  providerSignature TEXT,
+  status TEXT NOT NULL DEFAULT 'PENDING',
+  failureReason TEXT,
+  metadata TEXT NOT NULL DEFAULT '{}',
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
 CREATE INDEX IF NOT EXISTS idx_jobs_createdAt ON jobs (createdAt);
 CREATE INDEX IF NOT EXISTS idx_job_steps_jobId_stepNumber ON job_steps (jobId, stepNumber);
@@ -318,6 +410,14 @@ CREATE INDEX IF NOT EXISTS idx_user_profiles_onboardingCompleted ON user_profile
 CREATE INDEX IF NOT EXISTS idx_provider_connections_userId_status ON provider_connections (userId, status);
 CREATE INDEX IF NOT EXISTS idx_ai_usage_events_userId_timestamp ON ai_usage_events (userId, timestamp);
 CREATE INDEX IF NOT EXISTS idx_ai_usage_events_provider_timestamp ON ai_usage_events (provider, timestamp);
+CREATE INDEX IF NOT EXISTS idx_plans_code ON plans (code);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_userId_status ON subscriptions (userId, status);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions (status);
+CREATE INDEX IF NOT EXISTS idx_coupons_code_active ON coupons (code, active);
+CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_userId ON coupon_redemptions (userId);
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_userId_status ON payment_transactions (userId, status);
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_providerOrderId ON payment_transactions (providerOrderId);
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_providerPaymentId ON payment_transactions (providerPaymentId);
 CREATE INDEX IF NOT EXISTS idx_lifecycle_alerts_userId_isRead ON lifecycle_alerts (userId, isRead);
 CREATE INDEX IF NOT EXISTS idx_lifecycle_alerts_userId_createdAt ON lifecycle_alerts (userId, createdAt);
 CREATE INDEX IF NOT EXISTS idx_lifecycle_alerts_opportunityId ON lifecycle_alerts (opportunityId);
