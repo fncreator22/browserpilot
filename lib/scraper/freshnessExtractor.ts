@@ -196,11 +196,64 @@ export function parsePostingDate(
     };
   }
 
-  return {
-    postedAt: null,
-    discoveredAt,
-    freshnessScore: 4,
-    freshnessClass: "UNKNOWN",
-    postedAgoText: "Posting date unavailable",
-  };
+    return {
+      postedAt: null,
+      discoveredAt,
+      freshnessScore: 4,
+      freshnessClass: "UNKNOWN",
+      postedAgoText: "Posting date unavailable",
+    };
+  }
+
+/**
+ * §DETERMINISTIC FRESHNESS BOUNDARY EVALUATOR (TASK-027)
+ * Evaluates whether a candidate or opportunity satisfies a given freshness window constraint.
+ * 
+ * Rules:
+ * 1. Default (isExplicitConstraint === false): returns true (preserves existing discovery behavior).
+ * 2. Explicit constraint (isExplicitConstraint === true):
+ *    - Unknown or missing date (postedAt == null) does NOT satisfy explicit time window -> returns false.
+ *    - Invalid date string -> returns false.
+ *    - Future posted date (clock drift / forward timestamp) is clamped safely to reference time.
+ *    - Timezone-normalized comparison: ageHours = (refUtcMs - postedUtcMs) / 3,600,000.
+ *    - Returns true if ageHours <= freshnessWindowHours; otherwise false.
+ * 
+ * @param postedAt The posting date of the candidate (Date, ISO string, or null)
+ * @param freshnessWindowHours The maximum age in hours allowed (e.g. 24, 48, 72, 168)
+ * @param isExplicitConstraint Whether this is an explicit user constraint (true) or default (false)
+ * @param referenceTime The reference time to evaluate against (defaults to new Date())
+ */
+export function isWithinFreshnessWindow(
+  postedAt?: Date | string | null,
+  freshnessWindowHours: number = 168,
+  isExplicitConstraint: boolean = false,
+  referenceTime: Date = new Date()
+): boolean {
+  // If no explicit constraint was requested by the user, preserve open discovery
+  if (!isExplicitConstraint) {
+    return true;
+  }
+
+  // Under explicit constraint, unknown or missing date must NOT falsely satisfy the boundary
+  if (!postedAt) {
+    return false;
+  }
+
+  const parsedDate = postedAt instanceof Date ? postedAt : new Date(postedAt);
+  if (isNaN(parsedDate.getTime())) {
+    return false;
+  }
+
+  const refMs = referenceTime.getTime();
+  const postedMs = parsedDate.getTime();
+
+  // If posted in future beyond allowable 5-minute clock drift margin, clamp to reference time
+  const effectivePostedMs = postedMs > refMs ? refMs : postedMs;
+
+  // Calculate age in hours (timezone-independent UTC ms comparison)
+  const ageHours = (refMs - effectivePostedMs) / (3600 * 1000);
+
+  // Exact boundary comparison
+  return ageHours <= freshnessWindowHours;
 }
+

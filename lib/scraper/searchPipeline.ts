@@ -13,6 +13,7 @@ import { buildDiscoveryPlan, type DiscoveryPlan, type UserProfilePreferences } f
 import { validateAndNormalizeExtractionBatch } from "./extractionContract";
 import { deduplicateCandidates, type DeduplicatedOpportunity } from "./deduplicator";
 import { rankOpportunities, type RankedOpportunity } from "./ranker";
+import { isWithinFreshnessWindow } from "./freshnessExtractor";
 import { verifyEvidenceForOpportunities, type VerificationTelemetry } from "./evidenceVerifier";
 import {
   createSearch,
@@ -99,8 +100,15 @@ export async function executeSearchPipeline(
     postedAt: (ext as any).postedAt || null,
   }));
 
+  // Enforce explicit freshness filtering before deduplication
+  const filteredCandidates = plan.isExplicitFreshness
+    ? cleanCandidates.filter((c) =>
+        isWithinFreshnessWindow(c.postedAt, plan.freshnessWindowHours, true, new Date(startTime))
+      )
+    : cleanCandidates;
+
   // 4. 3-Tier Multi-Source Deduplication (TASK-004)
-  const deduplicatedOpps = deduplicateCandidates(cleanCandidates as any);
+  const deduplicatedOpps = deduplicateCandidates(filteredCandidates as any);
 
   // 5. Freshness-Aware 100-Point Relevance Ranking (TASK-004 & TASK-013)
   let allRanked = rankOpportunities(deduplicatedOpps, intent, {

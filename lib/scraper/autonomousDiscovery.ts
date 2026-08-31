@@ -11,6 +11,7 @@ import { swarmDiscoveryEngine, type SwarmDiscoveryResult } from "./swarmDiscover
 import { validateAndNormalizeExtractionBatch } from "./extractionContract";
 import { deduplicateCandidates, type DeduplicatedOpportunity } from "./deduplicator";
 import { rankOpportunities, type RankedOpportunity } from "./ranker";
+import { isWithinFreshnessWindow } from "./freshnessExtractor";
 import {
   getDiscoveryWatch,
   upsertOpportunity,
@@ -172,6 +173,8 @@ export class AutonomousDiscoveryEngine {
           experienceLevel: watch.experienceLevels[0] as any,
           experienceLevels: watch.experienceLevels as any,
           minimumMatchScore: watch.minimumMatchScore,
+          isExplicitFreshness: Boolean(watch.latestOnly),
+          freshnessWindowHours: watch.freshnessWindowHours,
         },
         {
           targetRoles: watch.roles,
@@ -182,6 +185,7 @@ export class AutonomousDiscoveryEngine {
           preferredOpportunityType: watch.opportunityTypes[0],
           experienceLevel: watch.experienceLevels[0],
           freshnessWindowHours: watch.freshnessWindowHours,
+          isExplicitFreshness: Boolean(watch.latestOnly),
           sortMode: watch.latestOnly ? "LATEST" : "RELEVANCE_THEN_FRESHNESS",
           minimumMatchScore: watch.minimumMatchScore,
         }
@@ -219,8 +223,16 @@ export class AutonomousDiscoveryEngine {
         postedAgoText: (ext as any).postedAgoText || null,
       }));
 
+      // Filter by watch freshness window as a hard constraint when latestOnly is active (TASK-027)
+      const isExplicitWatchFreshness = Boolean(watch?.latestOnly);
+      const validFreshCandidates = isExplicitWatchFreshness
+        ? cleanCandidates.filter((c) =>
+            isWithinFreshnessWindow(c.postedAt, watch?.freshnessWindowHours || 48, true, new Date(startTime))
+          )
+        : cleanCandidates;
+
       // 7. 3-Tier Multi-Source Deduplication (TASK-004)
-      const deduplicatedOpps = deduplicateCandidates(cleanCandidates as any);
+      const deduplicatedOpps = deduplicateCandidates(validFreshCandidates as any);
 
       // 8. 100-Point Personalized Relevance Ranking (TASK-004 & TASK-013)
       const intent = swarmDiscoveryEngine.planToIntent(plan);

@@ -186,6 +186,16 @@ function mergeOpportunities(
     }
   }
 
+  // Freshness preservation: pick most recent posted date if both available
+  let mergedPostedAt = primary.postedAt || secondary.postedAt || null;
+  let mergedPostedAgoText = primary.postedAgoText || secondary.postedAgoText || null;
+  if (primary.postedAt && secondary.postedAt) {
+    if (new Date(secondary.postedAt).getTime() > new Date(primary.postedAt).getTime()) {
+      mergedPostedAt = secondary.postedAt;
+      mergedPostedAgoText = secondary.postedAgoText || primary.postedAgoText || null;
+    }
+  }
+
   return {
     ...primary,
     description,
@@ -196,8 +206,8 @@ function mergeOpportunities(
     salaryCurrency,
     sourceListings: mergedListings,
     lastVerifiedAt: new Date(),
-    postedAt: primary.postedAt || secondary.postedAt || null,
-    postedAgoText: primary.postedAgoText || secondary.postedAgoText || null,
+    postedAt: mergedPostedAt,
+    postedAgoText: mergedPostedAgoText,
   };
 }
 
