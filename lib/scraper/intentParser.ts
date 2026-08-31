@@ -385,7 +385,7 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
 
   // If no predefined company matched, try regex capture "from/at/company/watch <Company>" (e.g. "at Stripe", "from OpenAI", "watch Datadog")
   if (matchedCompanies.length === 0) {
-    const compMatch = cleanQuery.match(/\b(?:from|at|by|company|companies|watch|watching|track|tracking|monitor|monitoring)\s+([A-Za-z0-9&.-]+(?:\s+[A-Za-z0-9&.-]+)?)(?:\s+(?:for|in|roles?|jobs?|internships?|with|where|seeking|and)|$)/i);
+    const compMatch = cleanQuery.match(/\b(?:from|at|by|company|companies|watch|watching|track|tracking|monitor|monitoring)\s+([A-Za-z0-9&.-]+(?:\s+[A-Za-z0-9&.-]+)?)(?:\s+(?:for|in|roles?|jobs?|internships?|with|where|seeking|and|from|posted|last|past|within|today|yesterday|this)|$)/i);
     if (compMatch && compMatch[1]) {
       const candidateComp = compMatch[1].trim();
       const isGeneric = /^(the|any|all|remote|hybrid|on-site|an?|india|hyderabad|bengaluru|pune|mumbai|delhi|usa|uk|software|developer|engineer|intern|internship|startups?|enterprises?|faang|big\s*tech|companies?|jobs?|internships?|roles?|positions?|openings?|freshers?|graduates?|students?|\d{4})$/i.test(candidateComp);
@@ -397,21 +397,40 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
 
   const primaryCompany = matchedCompanies[0] || undefined;
 
-  // 8. Freshness & Latest Intent Detection
-  const isLatestIntent = /\b(latest|recent|recently posted|new|newest|today|just posted|fresh|this week|24h|past 24 hours|last 3 days|few days)\b/i.test(lower);
-  const sortMode: "LATEST" | "RELEVANCE_THEN_FRESHNESS" = isLatestIntent ? "LATEST" : "RELEVANCE_THEN_FRESHNESS";
-
+  // 8. Freshness & Latest Intent Detection (TASK-027 Enhanced)
+  let isExplicitFreshness = false;
   let freshnessWindowHours = 168; // Default 7 days
-  if (isLatestIntent) {
-    if (/\b(today|24h|past 24 hours|24 hours)\b/i.test(lower)) {
-      freshnessWindowHours = 24;
-    } else if (/\b(last 3 days|few days|3 days)\b/i.test(lower)) {
-      freshnessWindowHours = 72;
-    } else if (/\b(this week|past week|week)\b/i.test(lower)) {
-      freshnessWindowHours = 168;
-    } else {
-      freshnessWindowHours = 48; // Default 48h for latest
-    }
+  let sortMode: "LATEST" | "RELEVANCE_THEN_FRESHNESS" = "RELEVANCE_THEN_FRESHNESS";
+
+  if (/\b(today|posted today|just now|just posted|past 24 hours?|last 24 hours?|24 hours?|24h|past 24h|last 24h)\b/i.test(lower)) {
+    freshnessWindowHours = 24;
+    isExplicitFreshness = true;
+    sortMode = "LATEST";
+  } else if (/\b(yesterday|last 48 hours?|past 48 hours?|48 hours?|48h|past 48h|last 48h|past 2 days|last 2 days|2 days|2d)\b/i.test(lower)) {
+    freshnessWindowHours = 48;
+    isExplicitFreshness = true;
+    sortMode = "LATEST";
+  } else if (/\b(last 72 hours?|past 72 hours?|72 hours?|72h|past 72h|last 72h|last 3 days|past 3 days|3 days|3d|few days)\b/i.test(lower)) {
+    freshnessWindowHours = 72;
+    isExplicitFreshness = true;
+    sortMode = "LATEST";
+  } else if (/\b(last 7 days|past 7 days|7 days|7d|past week|last week|this week|1 week|week)\b/i.test(lower)) {
+    freshnessWindowHours = 168;
+    isExplicitFreshness = true;
+    sortMode = "LATEST";
+  } else if (/\b(latest|newest|recent|recently posted|new|fresh|newest jobs|latest jobs|latest internships|newest internships)\b/i.test(lower)) {
+    freshnessWindowHours = 48; // Default 48h for generic latest/newest
+    isExplicitFreshness = true;
+    sortMode = "LATEST";
+  }
+
+  // Explicit user filter overrides take top priority
+  if (filterOverrides?.freshnessWindowHours !== undefined) {
+    freshnessWindowHours = filterOverrides.freshnessWindowHours;
+    isExplicitFreshness = true;
+  }
+  if (filterOverrides?.isExplicitFreshness !== undefined) {
+    isExplicitFreshness = filterOverrides.isExplicitFreshness;
   }
 
   // 9. Minimum Relevance Expectations
@@ -482,7 +501,8 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     companyType: filterOverrides?.companyType || companyType,
     queryHint: cleanQuery || filterOverrides?.queryHint || primaryRole,
     sortMode: filterOverrides?.sortMode || sortMode,
-    freshnessWindowHours: filterOverrides?.freshnessWindowHours || freshnessWindowHours,
+    freshnessWindowHours: filterOverrides?.freshnessWindowHours !== undefined ? filterOverrides.freshnessWindowHours : freshnessWindowHours,
+    isExplicitFreshness: filterOverrides?.isExplicitFreshness !== undefined ? filterOverrides.isExplicitFreshness : isExplicitFreshness,
     minimumMatchScore: filterOverrides?.minimumMatchScore || minimumMatchScore,
     sources: filterOverrides?.sources || finalSources,
     excludeKnown: filterOverrides?.excludeKnown !== undefined ? filterOverrides.excludeKnown : excludeKnown,

@@ -18,7 +18,7 @@ import { linkedInProvider } from "./providers/linkedInProvider";
 import { ycProvider } from "./providers/ycProvider";
 import { indeedProvider } from "./providers/indeedProvider";
 import { type DiscoveryPlan } from "./discoveryPlanner";
-import { parsePostingDate } from "./freshnessExtractor";
+import { parsePostingDate, isWithinFreshnessWindow } from "./freshnessExtractor";
 import { normalizeCompany } from "./normalizer";
 
 export interface SwarmTelemetry {
@@ -28,6 +28,7 @@ export interface SwarmTelemetry {
   rawCandidates: number;
   validatedCandidates: number;
   rejectedCandidates: number;
+  rejectedByFreshness: number;
   duplicatesRemoved: number;
   freshCandidates: number;
   staleCandidates: number;
@@ -139,6 +140,7 @@ export class SwarmDiscoveryEngine {
           rawCandidates: 0,
           validatedCandidates: 0,
           rejectedCandidates: 0,
+          rejectedByFreshness: 0,
           duplicatesRemoved: 0,
           freshCandidates: 0,
           staleCandidates: 0,
@@ -158,6 +160,8 @@ export class SwarmDiscoveryEngine {
 
     const providerTelemetryList: ProviderTelemetry[] = [];
     const allHarvestedCandidates: RawJobCandidate[] = [];
+    const startTimeDate = new Date(startTime);
+    let totalRejectedFreshness = 0;
 
     // Global timeout controller
     const globalAbort = new AbortController();
@@ -199,19 +203,39 @@ export class SwarmDiscoveryEngine {
             }
 
             // Extract posting dates on raw candidates where available
-            const processed = filteredCandidates.map((c) => {
+            let rejectedFreshnessInBatch = 0;
+            const processed: RawJobCandidate[] = [];
+
+            for (const c of filteredCandidates) {
               if (!c.discoveredAt) c.discoveredAt = new Date();
-              // Check if candidate snippet contains relative date
-              const dateText = c.rawSnippet || c.salaryText || "";
-              const freshness = parsePostingDate(dateText, c.discoveredAt);
-              if (freshness.postedAt) {
-                (c as any).postedAt = freshness.postedAt;
-                (c as any).postedAgoText = freshness.postedAgoText;
+              if (!(c as any).postedAt) {
+                const dateText = c.rawSnippet || c.salaryText || "";
+                const freshness = parsePostingDate(dateText, c.discoveredAt);
+                if (freshness.postedAt) {
+                  (c as any).postedAt = freshness.postedAt;
+                  (c as any).postedAgoText = freshness.postedAgoText;
+                }
               }
-              return c;
-            });
+
+              // Apply explicit freshness filter if requested
+              if (plan.isExplicitFreshness) {
+                const satisfiesFreshness = isWithinFreshnessWindow(
+                  (c as any).postedAt,
+                  plan.freshnessWindowHours,
+                  true,
+                  startTimeDate
+                );
+                if (!satisfiesFreshness) {
+                  rejectedFreshnessInBatch++;
+                  continue; // Reject candidate outside explicit freshness boundary
+                }
+              }
+
+              processed.push(c);
+            }
 
             allHarvestedCandidates.push(...processed);
+            totalRejectedFreshness += rejectedFreshnessInBatch;
 
             providerTelemetryList.push({
               provider: provider.name,
@@ -270,9 +294,10 @@ export class SwarmDiscoveryEngine {
       sourcesRequested: activeProviders.length,
       sourcesCompleted: completedCount,
       sourcesFailed: failedCount,
-      rawCandidates: allHarvestedCandidates.length,
+      rawCandidates: allHarvestedCandidates.length + totalRejectedFreshness,
       validatedCandidates: allHarvestedCandidates.length,
-      rejectedCandidates: 0,
+      rejectedCandidates: totalRejectedFreshness,
+      rejectedByFreshness: totalRejectedFreshness,
       duplicatesRemoved: 0,
       freshCandidates: freshCount,
       staleCandidates: staleCount,

@@ -22,6 +22,7 @@ export interface SearchIntent {
   queryHint?: string;
   sortMode?: "RELEVANCE" | "LATEST" | "RELEVANCE_THEN_FRESHNESS";
   freshnessWindowHours?: number;
+  isExplicitFreshness?: boolean;
   minimumMatchScore?: number;
   sources?: string[];
   excludeKnown?: boolean;

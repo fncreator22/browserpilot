@@ -20,6 +20,7 @@ export interface UserProfilePreferences {
   targetRoles?: string[];
   gradYear?: number;
   freshnessWindowHours?: number;
+  isExplicitFreshness?: boolean;
   sortMode?: SortMode;
   minimumMatchScore?: number;
   preferredSources?: string[];
@@ -37,6 +38,7 @@ export interface DiscoveryPlan {
   experienceLevels: string[];
   targetCompanies: string[];
   freshnessWindowHours: number;
+  isExplicitFreshness: boolean;
   maxResultsPerSource: number;
   sources: string[];
   sortMode: SortMode;
@@ -215,10 +217,15 @@ export function buildDiscoveryPlan(
     sources = profile.preferredSources;
   }
 
-  // 9. Freshness, Sorting, and Relevance Thresholds
+  // 9. Freshness, Sorting, and Relevance Thresholds (TASK-027 Enhanced)
   const isLatestIntent = parsedIntent.sortMode === "LATEST" || filters.sortMode === "LATEST" || profile?.sortMode === "LATEST";
   const finalSortMode: SortMode = isLatestIntent ? "LATEST" : (filters.sortMode || profile?.sortMode || "RELEVANCE_THEN_FRESHNESS");
-  const freshnessWindowHours = filters.freshnessWindowHours || parsedIntent.freshnessWindowHours || profile?.freshnessWindowHours || (isLatestIntent ? 48 : 168);
+  const isExplicitFreshness = filters.isExplicitFreshness !== undefined
+    ? filters.isExplicitFreshness
+    : (parsedIntent.isExplicitFreshness || profile?.isExplicitFreshness || filters.freshnessWindowHours !== undefined || profile?.freshnessWindowHours !== undefined || isLatestIntent);
+  const freshnessWindowHours = filters.freshnessWindowHours !== undefined
+    ? filters.freshnessWindowHours
+    : (parsedIntent.freshnessWindowHours !== undefined ? parsedIntent.freshnessWindowHours : (profile?.freshnessWindowHours || (isLatestIntent ? 48 : 168)));
   const minimumMatchScore = filters.minimumMatchScore || parsedIntent.minimumMatchScore || profile?.minimumMatchScore || 65;
 
   // 10. Exclusion & Watch Intent
@@ -235,6 +242,7 @@ export function buildDiscoveryPlan(
     experienceLevels: Array.from(expLevelsSet),
     targetCompanies,
     freshnessWindowHours,
+    isExplicitFreshness,
     maxResultsPerSource: isLatestIntent ? 12 : 8,
     sources,
     sortMode: finalSortMode,

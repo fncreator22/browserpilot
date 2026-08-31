@@ -43,6 +43,7 @@ import { runAdminControlPlaneHardeningTests } from "./integration/adminControlPl
 import { runSwarmRuntimeVerificationTests } from "./integration/swarmRuntimeVerification.test";
 import { runAdminControlPlaneUITests } from "./integration/adminControlPlaneUI.test";
 import { runDiscoveryExecutionIntegrityTests } from "./integration/discoveryExecutionIntegrity.test";
+import { runDiscoveryFreshnessIntegrityTests } from "./integration/discoveryFreshnessIntegrity.test";
 import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalLanguageWorkflowAcceptance.test";
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -90,6 +91,7 @@ async function runMasterTestSuite() {
     { name: "Integration: Swarm Runtime Verification & Company Targeting (TASK-024)", fn: runSwarmRuntimeVerificationTests },
     { name: "Integration: Admin Control Plane UI & API Integration (TASK-025)", fn: runAdminControlPlaneUITests },
     { name: "Integration: Discovery Execution Integrity & Score Transparency (TASK-026)", fn: runDiscoveryExecutionIntegrityTests },
+    { name: "Integration: Discovery Freshness & Time-Bound Search Integrity (TASK-027)", fn: runDiscoveryFreshnessIntegrityTests },
     { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
     { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },
