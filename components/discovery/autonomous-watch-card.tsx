@@ -93,18 +93,18 @@ export function AutonomousWatchCard({ intent, query, onWatchSaved, className = "
   };
 
   return (
-    <div className={`w-full rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/5 via-card/80 to-primary/5 p-5 shadow-lg backdrop-blur-xl transition-all ${className}`}>
+    <div className={`w-full rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs ${className}`}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Left Info Column */}
         <div className="space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/20 text-primary shadow-sm">
-              <Radio className="h-4 w-4 animate-pulse" />
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Radio className="h-3.5 w-3.5" />
             </span>
-            <h3 className="text-base font-bold tracking-tight text-foreground flex items-center gap-2">
+            <h3 className="text-sm font-semibold tracking-tight text-foreground flex items-center gap-2">
               Autonomous Watch
               {isSaved && (
-                <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-mono text-[10px]">
+                <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 font-mono text-[10px]">
                   <CheckCircle2 className="h-3 w-3 mr-1" /> Active
                 </Badge>
               )}
@@ -155,14 +155,14 @@ export function AutonomousWatchCard({ intent, query, onWatchSaved, className = "
         <div className="flex items-center gap-3 shrink-0">
           {isSaved ? (
             <div className="flex items-center gap-2">
-              <Link href="/app/history?tab=WATCH">
-                <Button variant="outline" size="sm" className="h-9 px-4 font-mono text-xs gap-1.5 border-border/80 hover:bg-muted/40 cursor-pointer">
+              <Link href="/app/watch">
+                <Button variant="outline" size="sm" className="h-8 px-3 font-mono text-xs gap-1.5 border-border/80 hover:bg-muted/40 cursor-pointer">
                   <Sliders className="h-3.5 w-3.5" />
                   Manage Watch
                 </Button>
               </Link>
-              <Link href="/app/history?tab=ALERTS">
-                <Button variant="secondary" size="sm" className="h-9 px-4 font-mono text-xs gap-1.5 cursor-pointer">
+              <Link href="/app/notifications">
+                <Button variant="secondary" size="sm" className="h-8 px-3 font-mono text-xs gap-1.5 cursor-pointer">
                   <Bell className="h-3.5 w-3.5 text-primary" />
                   View Alerts
                 </Button>
@@ -172,7 +172,7 @@ export function AutonomousWatchCard({ intent, query, onWatchSaved, className = "
             <Button
               onClick={handleSaveWatch}
               disabled={isSaving}
-              className="h-10 px-5 font-mono text-xs font-semibold gap-2 shadow-md hover:shadow-primary/25 transition-all cursor-pointer bg-primary text-primary-foreground"
+              className="h-9 px-4 font-mono text-xs font-semibold gap-2 shadow-xs cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {isSaving ? (
                 <>

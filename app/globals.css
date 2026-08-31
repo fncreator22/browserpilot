@@ -131,64 +131,16 @@
 }
 
 /* ==========================================================================
-   Animation System & Visual Effects (§18 / skills/ui.md)
+   Clean Utility Classes & Focus States (TASK-030)
    ========================================================================== */
 
-/* Scanlines overlay */
-.scanlines {
-  background: linear-gradient(
-    rgba(18, 16, 16, 0) 50%, 
-    rgba(0, 0, 0, 0.25) 50%
-  ), linear-gradient(
-    90deg,
-    rgba(255, 0, 0, 0.03),
-    rgba(0, 255, 0, 0.01),
-    rgba(0, 0, 255, 0.03)
-  );
-  background-size: 100% 3px, 6px 100%;
-  pointer-events: none;
+/* Subtle card elevation & focus rings */
+.shadow-subtle {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
-/* Grain texture */
-.bg-grain {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 0);
-  background-size: 24px 24px;
-}
-
-/* Glowing card borders & accents */
-.glow-primary {
-  box-shadow: 0 0 35px -5px oklch(var(--primary) / 0.15);
-}
-
-.glow-emerald {
-  box-shadow: 0 0 35px -5px rgba(16, 185, 129, 0.15);
-}
-
-/* Slow ambient floating background animation */
-@keyframes ambient-float {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(25px, -15px) scale(1.08);
-  }
-}
-
-@keyframes ambient-drift-reverse {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(-30px, 20px) scale(1.12);
-  }
-}
-
-.animate-ambient-float {
-  animation: ambient-float 18s ease-in-out infinite;
-}
-
-.animate-ambient-drift-reverse {
-  animation: ambient-drift-reverse 24s ease-in-out infinite;
+.focus-ring {
+  @apply focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background;
 }
 
 /* Graceful degradation on prefers-reduced-motion */
@@ -200,9 +152,5 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
-  }
-  .animate-ambient-float,
-  .animate-ambient-drift-reverse {
-    animation: none !important;
   }
 }

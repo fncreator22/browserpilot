@@ -62,6 +62,11 @@ export async function runDiscoverySchedulerIntegrationTests() {
     },
   });
 
+  // Clear/defer any pre-existing watches from other tests to avoid interference
+  await prisma.discoveryWatch.updateMany({
+    data: { nextScanAt: new Date(Date.now() + 86400000) }
+  });
+
   // 1. Configure Watches: Due, Future, Disabled, and Overdue Catch-up
   const now = new Date();
   const pastOneHour = new Date(now.getTime() - 3600 * 1000);

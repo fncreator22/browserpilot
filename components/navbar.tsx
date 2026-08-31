@@ -52,18 +52,15 @@ export function Navbar() {
         <div className="container mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
           {/* Logo Brand */}
           <Link href={session?.user ? "/app" : "/"} className="flex items-center gap-2.5 group">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-transform group-hover:scale-105">
-              <Bot className="h-5 w-5" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground transition-transform group-hover:scale-105">
+              <Bot className="h-4 w-4" />
             </div>
-            <div className="flex flex-col">
-              <span className="text-base font-bold tracking-tight text-foreground flex items-center gap-1.5">
+            <div className="flex items-baseline gap-2">
+              <span className="text-sm font-semibold tracking-tight text-foreground">
                 BrowserPilot
-                <span className="inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-mono font-medium text-primary border border-primary/20">
-                  v1.0
-                </span>
               </span>
-              <span className="text-[11px] font-mono text-muted-foreground -mt-1">
-                Autonomous Discovery & Agent Platform
+              <span className="text-[11px] font-mono text-muted-foreground hidden sm:inline-block">
+                Discovery & Monitoring
               </span>
             </div>
           </Link>
@@ -267,6 +264,21 @@ export function Navbar() {
                 >
                   <History className="h-3.5 w-3.5" />
                   History
+                </Button>
+              </Link>
+              <Link href="/app/notifications" onClick={() => setIsMobileMenuOpen(false)} className="col-span-2">
+                <Button
+                  variant={pathname === "/app/notifications" ? "secondary" : "outline"}
+                  size="sm"
+                  className="w-full justify-start font-mono text-xs gap-2"
+                >
+                  <Bell className="h-3.5 w-3.5" />
+                  <span>Alerts & Notifications</span>
+                  {unreadCount > 0 && (
+                    <Badge variant="outline" className="ml-auto text-[10px] font-mono bg-amber-500/15 text-amber-600 border-amber-500/30">
+                      {unreadCount} new
+                    </Badge>
+                  )}
                 </Button>
               </Link>
             </div>

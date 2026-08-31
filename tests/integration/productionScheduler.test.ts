@@ -47,6 +47,11 @@ export async function runProductionSchedulerIntegrationTests() {
     },
   });
 
+  // Clear/defer any pre-existing watches from other tests to avoid interference
+  await prisma.discoveryWatch.updateMany({
+    data: { nextScanAt: new Date(Date.now() + 86400000) }
+  });
+
   const now = new Date();
   const pastTwoHours = new Date(now.getTime() - 2 * 3600 * 1000);
 
