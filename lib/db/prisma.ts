@@ -265,6 +265,40 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS provider_connections (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  connectionMethod TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'CONNECTED',
+  providerUsername TEXT,
+  maskedCredential TEXT,
+  encryptedCredential TEXT,
+  lastVerifiedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  lastVerificationStatus TEXT NOT NULL DEFAULT 'VALID',
+  metadata TEXT NOT NULL DEFAULT '{}',
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE,
+  UNIQUE(userId, provider)
+);
+
+CREATE TABLE IF NOT EXISTS ai_usage_events (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  operation TEXT NOT NULL,
+  inputTokens INTEGER NOT NULL DEFAULT 0,
+  outputTokens INTEGER NOT NULL DEFAULT 0,
+  totalTokens INTEGER NOT NULL DEFAULT 0,
+  durationMs INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'SUCCESS',
+  errorMessage TEXT,
+  timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
 CREATE INDEX IF NOT EXISTS idx_jobs_createdAt ON jobs (createdAt);
 CREATE INDEX IF NOT EXISTS idx_job_steps_jobId_stepNumber ON job_steps (jobId, stepNumber);
@@ -281,6 +315,9 @@ CREATE INDEX IF NOT EXISTS idx_saved_opportunities_userId ON saved_opportunities
 CREATE INDEX IF NOT EXISTS idx_user_profiles_userId ON user_profiles (userId);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_userCategory ON user_profiles (userCategory);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_onboardingCompleted ON user_profiles (onboardingCompleted);
+CREATE INDEX IF NOT EXISTS idx_provider_connections_userId_status ON provider_connections (userId, status);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_events_userId_timestamp ON ai_usage_events (userId, timestamp);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_events_provider_timestamp ON ai_usage_events (provider, timestamp);
 CREATE INDEX IF NOT EXISTS idx_lifecycle_alerts_userId_isRead ON lifecycle_alerts (userId, isRead);
 CREATE INDEX IF NOT EXISTS idx_lifecycle_alerts_userId_createdAt ON lifecycle_alerts (userId, createdAt);
 CREATE INDEX IF NOT EXISTS idx_lifecycle_alerts_opportunityId ON lifecycle_alerts (opportunityId);
