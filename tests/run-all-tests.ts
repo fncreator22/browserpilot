@@ -50,6 +50,7 @@ import { runUIFoundationDesignSystemTests } from "./integration/uiFoundationDesi
 import { runAccountOnboardingProfileTests } from "./integration/accountOnboardingProfile.test";
 import { runProviderUsageGovernanceTests } from "./integration/providerUsageGovernance.test";
 import { runMonetizationEntitlementTests } from "./integration/monetizationEntitlement.test";
+import { runProductionSecurityHardeningTests } from "./integration/productionSecurityHardening.test";
 import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalLanguageWorkflowAcceptance.test";
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -104,6 +105,7 @@ async function runMasterTestSuite() {
     { name: "Integration: Account Onboarding, User Profile & Personalization (TASK-031)", fn: runAccountOnboardingProfileTests },
     { name: "Integration: Provider Connections & AI Usage Governance (TASK-032)", fn: runProviderUsageGovernanceTests },
     { name: "Integration: Monetization, Plans, Usage Limits & Coupons (TASK-033)", fn: runMonetizationEntitlementTests },
+    { name: "Integration: Production Security, Privacy & Tenant Isolation (TASK-034)", fn: runProductionSecurityHardeningTests },
     { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
     { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },

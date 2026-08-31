@@ -7,6 +7,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
 import { paymentGateway } from "@/lib/billing/paymentGateway";
+import { rateLimiter } from "@/lib/security/rateLimiter";
+import { recordSecurityEvent } from "@/lib/security/auditLog";
 import { prisma } from "@/lib/db/prisma";
 import { z } from "zod";
 
@@ -25,6 +27,20 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "UNAUTHORIZED", message: "Authentication required." },
         { status: 401 }
+      );
+    }
+
+    const rl = await rateLimiter.check(`checkout_${userId}`, 20, 60);
+    if (!rl.success) {
+      recordSecurityEvent({
+        type: "RATE_LIMIT_EXCEEDED",
+        userId,
+        path: "/api/billing/checkout",
+        details: { action: "burst_checkout_attempt" },
+      });
+      return NextResponse.json(
+        { error: "TOO_MANY_REQUESTS", message: "Too many checkout requests. Please try again in a moment." },
+        { status: 429 }
       );
     }
 
