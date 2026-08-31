@@ -95,7 +95,7 @@ export default function SignupPage() {
         setErrorMsg("Account created, but automatic sign-in failed. Please log in.");
         router.push("/login");
       } else {
-        router.push("/app");
+        router.push("/app/onboarding");
         router.refresh();
       }
     } catch (err: unknown) {

@@ -245,6 +245,26 @@ CREATE TABLE IF NOT EXISTS opportunity_discovery_events (
   UNIQUE(userId, opportunityId, runId)
 );
 
+CREATE TABLE IF NOT EXISTS user_profiles (
+  id TEXT PRIMARY KEY,
+  userId TEXT UNIQUE NOT NULL,
+  onboardingCompleted BOOLEAN NOT NULL DEFAULT 0,
+  onboardingVersion INTEGER NOT NULL DEFAULT 1,
+  acquisitionSource TEXT,
+  userCategory TEXT,
+  usageContext TEXT,
+  experienceLevel TEXT,
+  preferredRoles TEXT NOT NULL DEFAULT '[]',
+  preferredLocations TEXT NOT NULL DEFAULT '[]',
+  preferredWorkModes TEXT NOT NULL DEFAULT '[]',
+  targetSkills TEXT NOT NULL DEFAULT '[]',
+  organizationName TEXT,
+  organizationSize TEXT,
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
 CREATE INDEX IF NOT EXISTS idx_jobs_createdAt ON jobs (createdAt);
 CREATE INDEX IF NOT EXISTS idx_job_steps_jobId_stepNumber ON job_steps (jobId, stepNumber);
@@ -258,6 +278,9 @@ CREATE INDEX IF NOT EXISTS idx_opportunities_lastVerifiedAt ON opportunities (la
 CREATE INDEX IF NOT EXISTS idx_source_listings_opportunityId ON source_listings (opportunityId);
 CREATE INDEX IF NOT EXISTS idx_search_results_searchId_rankPosition ON search_results (searchId, rankPosition);
 CREATE INDEX IF NOT EXISTS idx_saved_opportunities_userId ON saved_opportunities (userId);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_userId ON user_profiles (userId);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_userCategory ON user_profiles (userCategory);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_onboardingCompleted ON user_profiles (onboardingCompleted);
 CREATE INDEX IF NOT EXISTS idx_lifecycle_alerts_userId_isRead ON lifecycle_alerts (userId, isRead);
 CREATE INDEX IF NOT EXISTS idx_lifecycle_alerts_userId_createdAt ON lifecycle_alerts (userId, createdAt);
 CREATE INDEX IF NOT EXISTS idx_lifecycle_alerts_opportunityId ON lifecycle_alerts (opportunityId);

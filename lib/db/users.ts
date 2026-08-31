@@ -121,3 +121,6 @@ export async function updateUserProfile(
     data: updatePayload,
   });
 }
+
+export * from "./onboarding";
+

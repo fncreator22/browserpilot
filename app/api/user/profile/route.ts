@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/authOptions";
 import { getUserById, getUserByEmail, updateUserProfile, createUser } from "@/lib/db/users";
+import { getUserProfile } from "@/lib/db/onboarding";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -53,14 +54,17 @@ export async function GET() {
     const maskedKey = hasKey && rawKey.length > 8
       ? `${rawKey.slice(0, 6)}••••••••${rawKey.slice(-4)}`
       : hasKey ? "••••••••" : null;
+    const personalization = await getUserProfile(user.id);
 
     return NextResponse.json({
       id: user.id,
       name: user.name || sessionUser?.name || null,
       email: user.email || userEmail || "",
+      role: (user as any).role || "USER",
       hasGeminiKey: hasKey,
       maskedKey,
       createdAt: user.createdAt,
+      personalization,
     });
   } catch (err: unknown) {
     return NextResponse.json(

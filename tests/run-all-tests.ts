@@ -47,6 +47,7 @@ import { runDiscoveryFreshnessIntegrityTests } from "./integration/discoveryFres
 import { runWorkspaceIATests } from "./integration/workspaceInformationArchitecture.test";
 import { runDiscoveryExperienceHardeningTests } from "./integration/discoveryExperienceHardening.test";
 import { runUIFoundationDesignSystemTests } from "./integration/uiFoundationDesignSystem.test";
+import { runAccountOnboardingProfileTests } from "./integration/accountOnboardingProfile.test";
 import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalLanguageWorkflowAcceptance.test";
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -98,6 +99,7 @@ async function runMasterTestSuite() {
     { name: "Integration: Workspace Information Architecture & Discovery UX (TASK-028)", fn: runWorkspaceIATests },
     { name: "Integration: Discovery Experience Hardening & Intent Transparency (TASK-029)", fn: runDiscoveryExperienceHardeningTests },
     { name: "Integration: UI Foundation, Responsive Design System & Consistency (TASK-030)", fn: runUIFoundationDesignSystemTests },
+    { name: "Integration: Account Onboarding, User Profile & Personalization (TASK-031)", fn: runAccountOnboardingProfileTests },
     { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
     { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },
