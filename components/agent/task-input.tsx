@@ -251,22 +251,27 @@ export function TaskInput({
   };
 
   return (
-    <div className="w-full rounded-2xl border border-border/80 bg-card/60 p-4 sm:p-6 shadow-xl backdrop-blur-xl transition-all">
-      <form id="task-input-form" onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
+    <div className="w-full space-y-4">
+      {/* Primary Goal Input Form */}
+      <form
+        id="task-input-form"
+        onSubmit={handleSubmit}
+        className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs space-y-4"
+      >
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded bg-primary/10 text-primary">
-              {isJobDiscovery ? <Briefcase className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
-            </div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-              Agent Goal & Discovery Query
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Bot className="h-3.5 w-3.5" />
+            </span>
+            <label htmlFor="task-goal" className="text-xs font-semibold tracking-tight text-foreground uppercase font-mono">
+              Discovery & Automation Goal
             </label>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {isJobDiscovery ? (
-              <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary font-mono text-[10px] sm:text-xs flex items-center gap-1.5 shadow-sm">
-                <Sparkles className="h-3 w-3" /> Job Discovery Mode
+              <Badge variant="outline" className="text-[10px] font-mono text-primary border-primary/30 bg-primary/5">
+                Multi-Source Job Discovery Mode
               </Badge>
             ) : (
               <span className="text-[11px] font-mono text-muted-foreground">
@@ -284,7 +289,7 @@ export function TaskInput({
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Describe your request in natural language (e.g. 'I’m looking for software engineering internships in Hyderabad with React and Python. Prioritize recent postings.')"
             rows={isCompact ? 3 : 4}
-            className="w-full resize-none rounded-xl border-border/70 bg-background/80 p-4 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-primary shadow-inner font-sans"
+            className="w-full resize-none rounded-lg border-border bg-background p-3.5 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-primary shadow-xs font-sans"
           />
 
           <PromptEnhancer
@@ -295,17 +300,17 @@ export function TaskInput({
         </div>
 
         {submitError && (
-          <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-400 font-mono">
+          <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-400 font-mono">
             Error: {submitError}
           </div>
         )}
 
         {/* Interpreted Search Intent Transparency & Refinement Controls */}
         {isJobDiscovery && parsedIntent && (
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+          <div className="rounded-lg border border-border/80 bg-muted/30 p-3.5 space-y-2.5">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
-                <Target className="h-4 w-4 text-primary" />
+                <Target className="h-3.5 w-3.5 text-primary" />
                 <span className="text-xs font-mono font-semibold text-foreground">
                   Interpreted Search Intent
                 </span>
@@ -319,7 +324,7 @@ export function TaskInput({
               <button
                 type="button"
                 onClick={() => setShowRefine(!showRefine)}
-                className="inline-flex items-center gap-1.5 text-xs font-mono text-primary hover:underline cursor-pointer"
+                className="inline-flex items-center gap-1 text-xs font-mono text-primary hover:underline cursor-pointer"
               >
                 <SlidersHorizontal className="h-3 w-3" />
                 {showRefine ? "Hide Criteria Refinements" : "Refine Search Criteria"}
@@ -329,14 +334,14 @@ export function TaskInput({
 
             {/* Readout of interpreted dimensions */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-              <div className="bg-background/80 p-2 rounded border border-border/50">
+              <div className="bg-card p-2 rounded-md border border-border/60">
                 <span className="text-[10px] text-muted-foreground block uppercase">Role</span>
                 <span className="text-foreground font-medium truncate block">
                   {parsedIntent.role || "Any role"}
                 </span>
               </div>
 
-              <div className="bg-background/80 p-2 rounded border border-border/50">
+              <div className="bg-card p-2 rounded-md border border-border/60">
                 <span className="text-[10px] text-muted-foreground block uppercase">Company</span>
                 <span className="text-foreground font-medium truncate block">
                   {parsedIntent.companies && parsedIntent.companies.length > 0
@@ -345,16 +350,16 @@ export function TaskInput({
                 </span>
               </div>
 
-              <div className="bg-background/80 p-2 rounded border border-border/50">
+              <div className="bg-card p-2 rounded-md border border-border/60">
                 <span className="text-[10px] text-muted-foreground block uppercase">Location</span>
                 <span className="text-foreground font-medium truncate block">
                   {parsedIntent.location || "Any"}
                 </span>
               </div>
 
-              <div className="bg-background/80 p-2 rounded border border-border/50">
+              <div className="bg-card p-2 rounded-md border border-border/60">
                 <span className="text-[10px] text-muted-foreground block uppercase">Freshness</span>
-                <span className={`font-medium truncate block ${effectiveFreshnessHours ? "text-emerald-500" : "text-muted-foreground"}`}>
+                <span className={`font-medium truncate block ${effectiveFreshnessHours ? "text-emerald-500 font-semibold" : "text-muted-foreground"}`}>
                   {effectiveFreshnessHours ? `Last ${effectiveFreshnessHours}h` : "Any time"}
                 </span>
               </div>
