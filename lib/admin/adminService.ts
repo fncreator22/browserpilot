@@ -67,6 +67,17 @@ export interface LifecycleAlertTelemetrySummary {
   };
 }
 
+export interface MonetizationTelemetrySummary {
+  activePaidSubscribers: number;
+  totalRevenueUsd: number;
+  subscriptionsByPlan: Record<string, number>;
+  subscriptionsByStatus: Record<string, number>;
+  totalTransactions: number;
+  successfulTransactions: number;
+  totalCoupons: number;
+  totalCouponRedemptions: number;
+}
+
 export interface AdminOverviewMetrics {
   system: SystemHealthMetrics;
   users: {
@@ -79,6 +90,7 @@ export interface AdminOverviewMetrics {
   alerts: LifecycleAlertTelemetrySummary;
   onboarding: OnboardingTelemetry;
   providers: ProviderTelemetryMetrics;
+  billing: MonetizationTelemetrySummary;
 }
 
 export class AdminControlPlaneService {
@@ -224,6 +236,45 @@ export class AdminControlPlaneService {
       },
       onboarding: await getOnboardingTelemetry(),
       providers: await getAdminProviderTelemetry(),
+      billing: await (async () => {
+        const [allSubs, allTxs, totalCoupons, totalRedemptions] = await Promise.all([
+          prisma.subscription.findMany({ include: { plan: true } }),
+          prisma.paymentTransaction.findMany({ select: { amount: true, status: true } }),
+          prisma.coupon.count(),
+          prisma.couponRedemption.count(),
+        ]);
+
+        const subscriptionsByPlan: Record<string, number> = {};
+        const subscriptionsByStatus: Record<string, number> = {};
+        let activePaidSubscribers = 0;
+
+        for (const sub of allSubs) {
+          const planCode = sub.plan?.code || "UNKNOWN";
+          subscriptionsByPlan[planCode] = (subscriptionsByPlan[planCode] || 0) + 1;
+          subscriptionsByStatus[sub.status] = (subscriptionsByStatus[sub.status] || 0) + 1;
+          if (sub.status === "ACTIVE" && planCode !== "FREE") activePaidSubscribers++;
+        }
+
+        let totalRevenueUsd = 0;
+        let successfulTransactions = 0;
+        for (const tx of allTxs) {
+          if (tx.status === "SUCCESS") {
+            successfulTransactions++;
+            totalRevenueUsd += tx.amount;
+          }
+        }
+
+        return {
+          activePaidSubscribers,
+          totalRevenueUsd,
+          subscriptionsByPlan,
+          subscriptionsByStatus,
+          totalTransactions: allTxs.length,
+          successfulTransactions,
+          totalCoupons,
+          totalCouponRedemptions: totalRedemptions,
+        };
+      })(),
     };
   }
 

@@ -33,7 +33,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { data: session, update: updateSession } = useSession();
   const { isLoaded: isPuterLoaded, isSignedIn: isPuterSignedIn, user: puterUser, isAuthenticating: isPuterAuthenticating, signIn: puterSignIn, signOut: puterSignOut } = usePuter();
 
-  const [activeTab, setActiveTab] = useState<"ACCOUNT" | "PERSONALIZATION" | "PROVIDERS">("ACCOUNT");
+  const [activeTab, setActiveTab] = useState<"ACCOUNT" | "PERSONALIZATION" | "PROVIDERS" | "BILLING">("ACCOUNT");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [geminiApiKey, setGeminiApiKey] = useState("");
@@ -50,6 +50,12 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   // Providers & Usage state
   const [connectedProviders, setConnectedProviders] = useState<any[]>([]);
   const [usageSummary, setUsageSummary] = useState<any | null>(null);
+
+  // Billing & Coupon state
+  const [billingData, setBillingData] = useState<any | null>(null);
+  const [couponCodeInput, setCouponCodeInput] = useState("");
+  const [isRedeemingCoupon, setIsRedeemingCoupon] = useState(false);
+  const [isUpgrading, setIsUpgrading] = useState(false);
 
   // Personalization state
   const [userCategory, setUserCategory] = useState("");
@@ -78,6 +84,15 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       .catch(() => {});
   };
 
+  const loadBilling = () => {
+    fetch("/api/account/billing")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && !data.error) setBillingData(data);
+      })
+      .catch(() => {});
+  };
+
   // Load profile data when modal opens
   useEffect(() => {
     if (isOpen && session?.user) {
@@ -90,6 +105,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       setGeminiApiKey("");
 
       loadProvidersAndUsage();
+      loadBilling();
 
       fetch("/api/account/profile")
         .then((res) => res.json())
@@ -211,6 +227,77 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     }
   };
 
+  const handleRedeemCoupon = async () => {
+    if (!couponCodeInput.trim()) {
+      toast.error("Please enter a coupon code.");
+      return;
+    }
+
+    setIsRedeemingCoupon(true);
+    try {
+      const res = await fetch("/api/account/coupons/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: couponCodeInput.trim() }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.message || "Failed to redeem coupon.");
+        return;
+      }
+
+      toast.success(data.message || "Coupon applied successfully!");
+      setCouponCodeInput("");
+      loadBilling();
+    } catch (err) {
+      toast.error((err as Error).message || "Failed to redeem coupon.");
+    } finally {
+      setIsRedeemingCoupon(false);
+    }
+  };
+
+  const handleUpgradePlan = async (planCode: string) => {
+    setIsUpgrading(true);
+    try {
+      const checkoutRes = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planCode, billingInterval: "MONTHLY" }),
+      });
+
+      const checkoutData = await checkoutRes.json().catch(() => ({}));
+      if (!checkoutRes.ok) {
+        toast.error(checkoutData.message || "Failed to initialize checkout.");
+        return;
+      }
+
+      // Verification / Provisioning
+      const verifyRes = await fetch("/api/billing/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: checkoutData.order?.orderId || `order_${Date.now()}`,
+          paymentId: `pay_${Date.now()}`,
+          planCode,
+        }),
+      });
+
+      const verifyData = await verifyRes.json().catch(() => ({}));
+      if (!verifyRes.ok) {
+        toast.error(verifyData.message || "Payment verification failed.");
+        return;
+      }
+
+      toast.success(verifyData.message || `Upgraded to ${planCode} plan!`);
+      loadBilling();
+    } catch (err) {
+      toast.error((err as Error).message || "Upgrade error.");
+    } finally {
+      setIsUpgrading(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -290,12 +377,113 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               >
                 AI Providers & Usage
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("BILLING")}
+                className={`px-3 py-1 rounded-md transition-colors cursor-pointer ${
+                  activeTab === "BILLING"
+                    ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Billing & Plans
+              </button>
             </div>
 
             {isLoading ? (
               <div className="py-10 flex flex-col items-center justify-center space-y-3">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                 <p className="text-xs font-mono text-muted-foreground">Loading profile...</p>
+              </div>
+            ) : activeTab === "BILLING" ? (
+              <div className="space-y-4 pt-3 text-xs font-mono">
+                {/* Current Plan Overview */}
+                <div className="rounded-xl border border-border/80 bg-muted/20 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground uppercase block">Current Plan</span>
+                      <span className="text-sm font-bold text-foreground">
+                        {billingData?.plan?.name || "Community Starter (FREE)"}
+                      </span>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                      billingData?.plan?.code === "PREMIUM" 
+                        ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" 
+                        : "bg-muted text-muted-foreground border border-border/60"
+                    }`}>
+                      {billingData?.plan?.code || "FREE"}
+                    </span>
+                  </div>
+
+                  {/* Quota & Limit Progress */}
+                  <div className="space-y-2 pt-2 border-t border-border/40">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground">Daily Discoveries:</span>
+                      <span className="font-semibold text-foreground">
+                        {billingData?.quota?.dailyDiscoveries?.used || 0} / {billingData?.quota?.dailyDiscoveries?.limit || 10}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground">Monthly AI Operations:</span>
+                      <span className="font-semibold text-foreground">
+                        {billingData?.quota?.monthlyAIOperations?.used || 0} / {billingData?.quota?.monthlyAIOperations?.limit || 100}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground">Active Watches:</span>
+                      <span className="font-semibold text-foreground">
+                        {billingData?.quota?.activeWatches?.used || 0} / {billingData?.quota?.activeWatches?.limit || 1}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Upgrade Option for Free users */}
+                {billingData?.plan?.code !== "PREMIUM" && (
+                  <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-semibold text-foreground">Upgrade to Pro Hunter</h4>
+                        <p className="text-[10px] text-muted-foreground">
+                          High-frequency 2h scans, company targeting & 2,500 AI operations.
+                        </p>
+                      </div>
+                      <span className="text-sm font-bold text-primary font-mono">$19<span className="text-[10px] text-muted-foreground">/mo</span></span>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isUpgrading}
+                      onClick={() => handleUpgradePlan("PREMIUM")}
+                      className="w-full text-xs font-mono"
+                    >
+                      {isUpgrading ? "Processing..." : "Upgrade to Premium"}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Coupon Code Redemption */}
+                <div className="rounded-xl border border-border/80 bg-muted/20 p-4 space-y-2">
+                  <span className="text-[11px] font-semibold text-foreground block">Have a promotional coupon?</span>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="text"
+                      value={couponCodeInput}
+                      onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                      placeholder="e.g. LAUNCH2026"
+                      className="h-8 text-xs font-mono uppercase"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isRedeemingCoupon || !couponCodeInput.trim()}
+                      onClick={handleRedeemCoupon}
+                      className="h-8 text-xs font-mono shrink-0"
+                    >
+                      {isRedeemingCoupon ? "Applying..." : "Apply"}
+                    </Button>
+                  </div>
+                </div>
               </div>
             ) : activeTab === "PERSONALIZATION" ? (
               <div className="space-y-4 pt-3 text-xs font-mono">

@@ -26,6 +26,9 @@ model User {
   profile             UserProfile?
   providerConnections ProviderConnection[]
   aiUsageEvents       AIUsageEvent[]
+  subscriptions       Subscription[]
+  couponRedemptions   CouponRedemption[]
+  paymentTransactions PaymentTransaction[]
 
   @@map("users")
 }
@@ -383,6 +386,123 @@ model AIUsageEvent {
   @@index([userId, timestamp])
   @@index([provider, timestamp])
   @@map("ai_usage_events")
+}
+
+model Plan {
+  id                       String   @id @default(cuid())
+  code                     String   @unique // FREE, PREMIUM, ENTERPRISE
+  name                     String
+  description              String
+  active                   Boolean  @default(true)
+  priceMonthly             Float    @default(0.0)
+  priceYearly              Float    @default(0.0)
+  currency                 String   @default("USD")
+  maxWatches               Int      @default(1)
+  maxDailyDiscoveries      Int      @default(10)
+  maxMonthlyAIOperations   Int      @default(100)
+  allowedIntervals         String   @default("[\"TWENTY_FOUR_HOURS\"]")
+  supportsCompanyTargeting Boolean  @default(false)
+  supportsAdvancedFilters  Boolean  @default(false)
+  supportsPuterPremium     Boolean  @default(false)
+  supportsPriorityExecution Boolean @default(false)
+  metadata                 String   @default("{}")
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @default(now()) @updatedAt
+
+  subscriptions Subscription[]
+  coupons       Coupon[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                     String    @id @default(cuid())
+  userId                 String
+  planId                 String
+  status                 String    @default("ACTIVE") // ACTIVE, TRIALING, PAST_DUE, CANCELLED, EXPIRED, PAUSED
+  billingInterval        String    @default("MONTHLY") // MONTHLY, YEARLY, LIFETIME, CUSTOM
+  currentPeriodStart     DateTime  @default(now())
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean   @default(false)
+  cancelledAt            DateTime?
+  paymentProvider        String?   // RAZORPAY, STRIPE, MANUAL_PROMO, COUPON
+  providerSubscriptionId String?
+  providerCustomerId     String?
+  metadata               String    @default("{}")
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @default(now()) @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Coupon {
+  id              String    @id @default(cuid())
+  code            String    @unique // UPPERCASE code e.g. LAUNCH2026, STUDENT50, PREMIUMFREE
+  description     String?
+  discountType    String    @default("PERCENTAGE") // PERCENTAGE, FIXED_AMOUNT, PLAN_ACCESS
+  discountValue   Float     @default(0.0)
+  targetPlanId    String?
+  maxRedemptions  Int       @default(100)
+  redemptionCount Int       @default(0)
+  validFrom       DateTime  @default(now())
+  validUntil      DateTime?
+  active          Boolean   @default(true)
+  createdById     String?
+  metadata        String    @default("{}")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  targetPlan  Plan?              @relation(fields: [targetPlanId], references: [id], onDelete: SetNull)
+  redemptions CouponRedemption[]
+
+  @@index([code, active])
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id              String   @id @default(cuid())
+  couponId        String
+  userId          String
+  redeemedAt      DateTime @default(now())
+  discountGranted Float    @default(0.0)
+  metadata        String   @default("{}")
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, userId])
+  @@index([userId])
+  @@map("coupon_redemptions")
+}
+
+model PaymentTransaction {
+  id                  String   @id @default(cuid())
+  userId              String
+  subscriptionId      String?
+  planId              String?
+  amount              Float
+  currency            String   @default("USD")
+  provider            String   @default("RAZORPAY") // RAZORPAY, STRIPE, MANUAL, MOCK
+  providerOrderId     String?
+  providerPaymentId   String?
+  providerSignature   String?
+  status              String   @default("PENDING") // PENDING, SUCCESS, FAILED, REFUNDED
+  failureReason       String?
+  metadata            String   @default("{}")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([providerOrderId])
+  @@index([providerPaymentId])
+  @@map("payment_transactions")
 }
 
 
