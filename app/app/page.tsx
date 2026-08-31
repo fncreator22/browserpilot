@@ -48,6 +48,20 @@ function DiscoverContent() {
     });
   };
 
+  const handleResetDiscovery = () => {
+    setOpportunityData(null);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", "/app");
+    }
+  };
+
+  const handleSearchResult = (result: OpportunitySearchResultPayload | null) => {
+    setOpportunityData(result);
+    if (result?.query && typeof window !== "undefined") {
+      window.history.replaceState(null, "", `/app?q=${encodeURIComponent(result.query)}`);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
       <Navbar />
@@ -78,6 +92,17 @@ function DiscoverContent() {
           </div>
 
           <div className="flex items-center gap-2">
+            {opportunityData && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetDiscovery}
+                className="h-8 px-3 font-mono text-xs gap-1.5 border-border/70 hover:bg-muted/40 cursor-pointer"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                + New Discovery
+              </Button>
+            )}
             <Link href="/app/watch">
               <Button variant="outline" size="sm" className="h-8 px-3 font-mono text-xs gap-1.5 border-border/70 hover:bg-muted/40 cursor-pointer">
                 <Eye className="h-3.5 w-3.5 text-primary" />
@@ -95,8 +120,9 @@ function DiscoverContent() {
           className="max-w-4xl mx-auto space-y-4"
         >
           <TaskInput
+            key={opportunityData ? "with-data" : "clean"}
             initialPrompt={initialQuery}
-            onOpportunitySearchResult={(result) => setOpportunityData(result)}
+            onOpportunitySearchResult={handleSearchResult}
             onSearchingChange={(searching) => setIsSearching(searching)}
           />
         </motion.div>
@@ -123,6 +149,12 @@ function DiscoverContent() {
                       <Badge variant="secondary" className="font-mono text-xs">
                         {opportunityData.results?.length || 0} Ranked Roles
                       </Badge>
+                      {opportunityData.intent?.freshnessWindowHours && (
+                        <Badge variant="outline" className="font-mono text-xs text-emerald-500 border-emerald-500/30 bg-emerald-500/10 flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          Last {opportunityData.intent.freshnessWindowHours}h Gated
+                        </Badge>
+                      )}
                     </h2>
                     <p className="text-xs text-muted-foreground font-mono">
                       Query: &ldquo;{opportunityData.query}&rdquo;
@@ -134,7 +166,7 @@ function DiscoverContent() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setOpportunityData(null)}
+                    onClick={handleResetDiscovery}
                     className="h-8 px-3 font-mono text-xs text-muted-foreground hover:text-foreground gap-1.5 cursor-pointer"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -142,6 +174,16 @@ function DiscoverContent() {
                   </Button>
                 </div>
               </div>
+
+              {/* Active Freshness Boundary Announcement */}
+              {opportunityData.intent?.freshnessWindowHours && (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 flex items-center gap-3 font-mono text-xs text-emerald-400">
+                  <Clock className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <span>
+                    Showing opportunities strictly posted within the last <strong>{opportunityData.intent.freshnessWindowHours} hours</strong>. Stale listings were filtered prior to ranking.
+                  </span>
+                </div>
+              )}
 
               {/* 1-Click Autonomous Watch Conversion Banner */}
               <AutonomousWatchCard

@@ -13,7 +13,14 @@ import {
   Search,
   Bot,
   Briefcase,
-  Radio
+  Radio,
+  Clock,
+  Building,
+  MapPin,
+  Target,
+  ChevronDown,
+  ChevronUp,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { parseAllowedDomains } from "@/schemas/jobs";
 import { PromptEnhancer } from "@/components/prompt/prompt-enhancer";
-import { isOpportunityDiscoveryIntent } from "@/lib/scraper/intentParser";
+import { isOpportunityDiscoveryIntent, parseSearchIntent } from "@/lib/scraper/intentParser";
 import { toast } from "sonner";
 
 export interface OpportunitySearchResultPayload {
@@ -85,8 +92,28 @@ export function TaskInput({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Real-time deterministic intent detection
+  // Real-time deterministic intent detection and parsing
   const isJobDiscovery = useMemo(() => isOpportunityDiscoveryIntent(prompt), [prompt]);
+  const parsedIntent = useMemo(() => {
+    if (!isJobDiscovery || !prompt.trim()) return null;
+    try {
+      return parseSearchIntent(prompt);
+    } catch {
+      return null;
+    }
+  }, [isJobDiscovery, prompt]);
+
+  // Refinement overrides state (progressive disclosure)
+  const [showRefine, setShowRefine] = useState(false);
+  const [customFreshness, setCustomFreshness] = useState<number | null>(null);
+  const [customWorkMode, setCustomWorkMode] = useState<string | null>(null);
+  const [customOppType, setCustomOppType] = useState<string | null>(null);
+  const [customMinScore, setCustomMinScore] = useState<number | null>(null);
+
+  const effectiveFreshnessHours = customFreshness !== null ? customFreshness : parsedIntent?.freshnessWindowHours;
+  const effectiveWorkMode = customWorkMode || parsedIntent?.workMode || "ANY";
+  const effectiveOppType = customOppType || parsedIntent?.opportunityType || "ANY";
+  const effectiveMinScore = customMinScore !== null ? customMinScore : (parsedIntent?.minimumMatchScore || 70);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,10 +129,33 @@ export function TaskInput({
     // -------------------------------------------------------------------------
     if (isOpportunityDiscoveryIntent(text)) {
       try {
+        const filters: Record<string, any> = {};
+        if (customFreshness !== null) {
+          if (customFreshness > 0) {
+            filters.freshnessWindowHours = customFreshness;
+            filters.isExplicitFreshness = true;
+          } else {
+            filters.freshnessWindowHours = undefined;
+            filters.isExplicitFreshness = false;
+          }
+        }
+        if (customWorkMode && customWorkMode !== "ANY") {
+          filters.workMode = customWorkMode;
+        }
+        if (customOppType && customOppType !== "ANY") {
+          filters.opportunityType = customOppType;
+        }
+        if (customMinScore !== null) {
+          filters.minimumMatchScore = customMinScore;
+        }
+
         const res = await fetch("/api/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: text }),
+          body: JSON.stringify({ 
+            query: text,
+            filters: Object.keys(filters).length > 0 ? filters : undefined
+          }),
         });
 
         const data = await res.json();
@@ -247,6 +297,173 @@ export function TaskInput({
         {submitError && (
           <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-400 font-mono">
             Error: {submitError}
+          </div>
+        )}
+
+        {/* Interpreted Search Intent Transparency & Refinement Controls */}
+        {isJobDiscovery && parsedIntent && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-primary" />
+                <span className="text-xs font-mono font-semibold text-foreground">
+                  Interpreted Search Intent
+                </span>
+                {(customFreshness !== null || customWorkMode || customOppType || customMinScore !== null) && (
+                  <Badge variant="outline" className="text-[10px] font-mono text-amber-500 border-amber-500/30 bg-amber-500/10">
+                    Modified by User
+                  </Badge>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowRefine(!showRefine)}
+                className="inline-flex items-center gap-1.5 text-xs font-mono text-primary hover:underline cursor-pointer"
+              >
+                <SlidersHorizontal className="h-3 w-3" />
+                {showRefine ? "Hide Criteria Refinements" : "Refine Search Criteria"}
+                {showRefine ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              </button>
+            </div>
+
+            {/* Readout of interpreted dimensions */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+              <div className="bg-background/80 p-2 rounded border border-border/50">
+                <span className="text-[10px] text-muted-foreground block uppercase">Role</span>
+                <span className="text-foreground font-medium truncate block">
+                  {parsedIntent.role || "Any role"}
+                </span>
+              </div>
+
+              <div className="bg-background/80 p-2 rounded border border-border/50">
+                <span className="text-[10px] text-muted-foreground block uppercase">Company</span>
+                <span className="text-foreground font-medium truncate block">
+                  {parsedIntent.companies && parsedIntent.companies.length > 0
+                    ? parsedIntent.companies.join(", ")
+                    : "All matching"}
+                </span>
+              </div>
+
+              <div className="bg-background/80 p-2 rounded border border-border/50">
+                <span className="text-[10px] text-muted-foreground block uppercase">Location</span>
+                <span className="text-foreground font-medium truncate block">
+                  {parsedIntent.location || "Any"}
+                </span>
+              </div>
+
+              <div className="bg-background/80 p-2 rounded border border-border/50">
+                <span className="text-[10px] text-muted-foreground block uppercase">Freshness</span>
+                <span className={`font-medium truncate block ${effectiveFreshnessHours ? "text-emerald-500" : "text-muted-foreground"}`}>
+                  {effectiveFreshnessHours ? `Last ${effectiveFreshnessHours}h` : "Any time"}
+                </span>
+              </div>
+            </div>
+
+            {/* Progressive Disclosure Refinement Controls */}
+            {showRefine && (
+              <div className="pt-2 border-t border-border/40 space-y-3 font-mono text-xs">
+                {/* Freshness Selector */}
+                <div className="space-y-1.5">
+                  <span className="text-[11px] text-muted-foreground uppercase tracking-wider block">
+                    Freshness Boundary Gating (Hard Constraint):
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: "Today (24h)", value: 24 },
+                      { label: "Last 48h", value: 48 },
+                      { label: "Last 72h (3d)", value: 72 },
+                      { label: "Last 7 days", value: 168 },
+                      { label: "Any time (No limit)", value: 0 },
+                    ].map((f) => {
+                      const isSelected = effectiveFreshnessHours === f.value || (f.value === 0 && !effectiveFreshnessHours);
+                      return (
+                        <button
+                          type="button"
+                          key={f.label}
+                          onClick={() => setCustomFreshness(f.value)}
+                          className={`px-2.5 py-1 rounded text-xs transition-colors cursor-pointer border ${
+                            isSelected
+                              ? "bg-primary text-primary-foreground border-primary font-semibold"
+                              : "bg-background text-muted-foreground border-border hover:text-foreground"
+                          }`}
+                        >
+                          {f.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Work Mode & Min Match Score Selector */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] text-muted-foreground uppercase tracking-wider block">
+                      Work Mode:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {["ANY", "REMOTE", "HYBRID", "ON_SITE"].map((m) => (
+                        <button
+                          type="button"
+                          key={m}
+                          onClick={() => setCustomWorkMode(m)}
+                          className={`px-2 py-0.5 rounded text-xs transition-colors cursor-pointer border ${
+                            effectiveWorkMode === m
+                              ? "bg-primary text-primary-foreground border-primary font-semibold"
+                              : "bg-background text-muted-foreground border-border hover:text-foreground"
+                          }`}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] text-muted-foreground uppercase tracking-wider block">
+                      Minimum Match Score Gate:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[60, 70, 75, 80, 90].map((s) => (
+                        <button
+                          type="button"
+                          key={s}
+                          onClick={() => setCustomMinScore(s)}
+                          className={`px-2 py-0.5 rounded text-xs transition-colors cursor-pointer border ${
+                            effectiveMinScore === s
+                              ? "bg-primary text-primary-foreground border-primary font-semibold"
+                              : "bg-background text-muted-foreground border-border hover:text-foreground"
+                          }`}
+                        >
+                          {s} pts
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Reset Button */}
+                {(customFreshness !== null || customWorkMode || customOppType || customMinScore !== null) && (
+                  <div className="pt-1 flex justify-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setCustomFreshness(null);
+                        setCustomWorkMode(null);
+                        setCustomOppType(null);
+                        setCustomMinScore(null);
+                      }}
+                      className="h-6 text-[11px] text-muted-foreground hover:text-foreground gap-1"
+                    >
+                      <X className="h-3 w-3" />
+                      Reset to Parsed Intent
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
