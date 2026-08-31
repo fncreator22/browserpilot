@@ -8,6 +8,8 @@
 import { prisma, isPostgresDatabase } from "@/lib/db/prisma";
 import { getOnboardingTelemetry, type OnboardingTelemetry } from "@/lib/db/onboarding";
 import { ProviderTelemetryMetrics, getAdminProviderTelemetry } from "@/lib/ai/governance/providerGovernance";
+import { getEnvironmentAuditSummary } from "@/lib/config/envContract";
+import { getMultiInstanceReadinessReport } from "@/lib/infra/multiInstanceReadiness";
 
 export interface SystemHealthMetrics {
   status: "HEALTHY" | "DEGRADED" | "CRITICAL";
@@ -78,6 +80,13 @@ export interface MonetizationTelemetrySummary {
   totalCouponRedemptions: number;
 }
 
+export interface InfrastructureTelemetrySummary {
+  environment: string;
+  configuredVariablesCount: number;
+  overallReadiness: string;
+  databaseEngine: string;
+}
+
 export interface AdminOverviewMetrics {
   system: SystemHealthMetrics;
   users: {
@@ -91,6 +100,7 @@ export interface AdminOverviewMetrics {
   onboarding: OnboardingTelemetry;
   providers: ProviderTelemetryMetrics;
   billing: MonetizationTelemetrySummary;
+  infrastructure: InfrastructureTelemetrySummary;
 }
 
 export class AdminControlPlaneService {
@@ -273,6 +283,16 @@ export class AdminControlPlaneService {
           successfulTransactions,
           totalCoupons,
           totalCouponRedemptions: totalRedemptions,
+        };
+      })(),
+      infrastructure: (() => {
+        const envAudit = getEnvironmentAuditSummary();
+        const readiness = getMultiInstanceReadinessReport();
+        return {
+          environment: envAudit.environment,
+          configuredVariablesCount: envAudit.configuredCount,
+          overallReadiness: readiness.overallReadiness,
+          databaseEngine: dbEngine,
         };
       })(),
     };
