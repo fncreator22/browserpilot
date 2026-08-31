@@ -23,6 +23,7 @@ model User {
   discoveryWatch  DiscoveryWatch?
   discoveryRuns   DiscoveryRun[]
   discoveryEvents OpportunityDiscoveryEvent[]
+  profile         UserProfile?
 
   @@map("users")
 }
@@ -314,6 +315,29 @@ model OpportunityDiscoveryEvent {
   @@index([userId, discoveredAt])
   @@index([opportunityId])
   @@map("opportunity_discovery_events")
+}
+
+model UserProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  onboardingCompleted Boolean  @default(false)
+  onboardingVersion   Int      @default(1)
+  acquisitionSource   String?
+  userCategory        String?
+  usageContext        String?
+  experienceLevel     String?
+  preferredRoles      String   @default("[]")
+  preferredLocations  String   @default("[]")
+  preferredWorkModes  String   @default("[]")
+  targetSkills        String   @default("[]")
+  organizationName    String?
+  organizationSize    String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
 }
 
 

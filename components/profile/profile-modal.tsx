@@ -28,6 +28,7 @@ interface ProfileModalProps {
 export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { data: session, update: updateSession } = useSession();
 
+  const [activeTab, setActiveTab] = useState<"ACCOUNT" | "PERSONALIZATION">("ACCOUNT");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [geminiApiKey, setGeminiApiKey] = useState("");
@@ -41,6 +42,17 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Personalization state
+  const [userCategory, setUserCategory] = useState("");
+  const [usageContext, setUsageContext] = useState("");
+  const [experienceLevel, setExperienceLevel] = useState("");
+  const [organizationName, setOrganizationName] = useState("");
+  const [organizationSize, setOrganizationSize] = useState("");
+  const [preferredRoles, setPreferredRoles] = useState<string[]>([]);
+  const [preferredWorkModes, setPreferredWorkModes] = useState<string[]>([]);
+  const [targetSkills, setTargetSkills] = useState<string[]>([]);
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
+
   // Load profile data when modal opens
   useEffect(() => {
     if (isOpen && session?.user) {
@@ -52,7 +64,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       setNewPassword("");
       setGeminiApiKey("");
 
-      fetch("/api/user/profile")
+      fetch("/api/account/profile")
         .then((res) => res.json())
         .then((data) => {
           if (data && !data.error) {
@@ -60,6 +72,18 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
             if (data.email) setEmail(data.email);
             setHasKey(data.hasGeminiKey || false);
             setMaskedKey(data.maskedKey || null);
+
+            if (data.personalization) {
+              setOnboardingCompleted(data.personalization.onboardingCompleted || false);
+              setUserCategory(data.personalization.userCategory || "");
+              setUsageContext(data.personalization.usageContext || "");
+              setExperienceLevel(data.personalization.experienceLevel || "");
+              setOrganizationName(data.personalization.organizationName || "");
+              setOrganizationSize(data.personalization.organizationSize || "");
+              setPreferredRoles(data.personalization.preferredRoles || []);
+              setPreferredWorkModes(data.personalization.preferredWorkModes || []);
+              setTargetSkills(data.personalization.targetSkills || []);
+            }
           }
         })
         .catch(() => {})
@@ -171,15 +195,113 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                   User Profile & Settings
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Manage your credentials and BYOK Gemini API key
+                  Manage your credentials and personalization preferences
                 </p>
               </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex items-center gap-2 border-b border-border/50 pb-2 pt-1 font-mono text-xs">
+              <button
+                type="button"
+                onClick={() => setActiveTab("ACCOUNT")}
+                className={`px-3 py-1 rounded-md transition-colors cursor-pointer ${
+                  activeTab === "ACCOUNT"
+                    ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Account & Security
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("PERSONALIZATION")}
+                className={`px-3 py-1 rounded-md transition-colors cursor-pointer ${
+                  activeTab === "PERSONALIZATION"
+                    ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Personalization & Context
+              </button>
             </div>
 
             {isLoading ? (
               <div className="py-10 flex flex-col items-center justify-center space-y-3">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                 <p className="text-xs font-mono text-muted-foreground">Loading profile...</p>
+              </div>
+            ) : activeTab === "PERSONALIZATION" ? (
+              <div className="space-y-4 pt-3 text-xs font-mono">
+                <div className="rounded-xl border border-border/70 bg-muted/20 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground uppercase text-[10px]">Onboarding Status</span>
+                    <span className={`font-semibold ${onboardingCompleted ? "text-emerald-500" : "text-amber-500"}`}>
+                      {onboardingCompleted ? "● Completed (v1)" : "○ Pending Setup"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">Category:</span>
+                      <span className="font-semibold text-foreground">{userCategory || "Not specified"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">Usage Purpose:</span>
+                      <span className="font-semibold text-foreground">{usageContext || "Not specified"}</span>
+                    </div>
+                    {organizationName && (
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block">Organization:</span>
+                        <span className="font-semibold text-foreground">{organizationName} ({organizationSize})</span>
+                      </div>
+                    )}
+                    {experienceLevel && !organizationName && (
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block">Experience Level:</span>
+                        <span className="font-semibold text-foreground">{experienceLevel}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {preferredWorkModes.length > 0 && (
+                    <div className="pt-2 border-t border-border/40">
+                      <span className="text-[10px] text-muted-foreground block mb-1">Work Modes:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {preferredWorkModes.map((m) => (
+                          <span key={m} className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-semibold">
+                            {m}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {targetSkills.length > 0 && (
+                    <div className="pt-2 border-t border-border/40">
+                      <span className="text-[10px] text-muted-foreground block mb-1">Key Skills:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {targetSkills.map((s) => (
+                          <span key={s} className="px-2 py-0.5 rounded bg-muted text-foreground text-[10px]">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                  <p className="text-[11px] text-muted-foreground">
+                    Tailor your discovery queries and ranking thresholds.
+                  </p>
+                  <a
+                    href="/app/onboarding"
+                    onClick={onClose}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold transition-colors"
+                  >
+                    Adjust Onboarding →
+                  </a>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSaveProfile} className="space-y-4 pt-3">
