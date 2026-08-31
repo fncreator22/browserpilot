@@ -65,6 +65,13 @@ export interface DossierJobItem {
   screenshotUrl?: string;
   matchScore?: number;
   matchReason?: string;
+  scoreBreakdown?: {
+    role: number;
+    skills: number;
+    workMode: number;
+    freshness: number;
+    verification: number;
+  };
   classification?: "NEW_OPPORTUNITY" | "NEW_SOURCE" | "REPOSTED" | "ALREADY_KNOWN" | string;
   rankPosition?: number;
   saved?: boolean;
@@ -175,6 +182,7 @@ export function JobDossierDeck({ jobs = [], jobId = "search", className = "", sw
       screenshotUrl: (item as NormalizedJobItem).screenshotUrl || (item as DossierJobItem).sourceListings?.find((l) => l.screenshotPath)?.screenshotPath || undefined,
       matchScore: (item as DossierJobItem).matchScore,
       matchReason: (item as DossierJobItem).matchReason || (item as any).matchReason,
+      scoreBreakdown: (item as DossierJobItem).scoreBreakdown || (item as any).scoreBreakdown || null,
       classification: (item as DossierJobItem).classification || (item as any).classification,
       rankPosition: (item as DossierJobItem).rankPosition || idx + 1,
       postedAt: (item as DossierJobItem).postedAt || (item as any).postedAt || null,
@@ -405,6 +413,43 @@ export function JobDossierDeck({ jobs = [], jobId = "search", className = "", sw
                       <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
                       <span className="text-muted-foreground font-semibold">Match Fit:</span>
                       <span className="text-foreground">{job.matchReason}</span>
+                    </div>
+                  )}
+
+                  {/* 100-Point Relevance Score Transparency Breakdown */}
+                  {job.scoreBreakdown && (
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2 font-mono text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          100-Point Relevance Breakdown
+                        </span>
+                        <span className="font-bold text-foreground">
+                          {job.matchScore ?? (job.scoreBreakdown.role + job.scoreBreakdown.skills + job.scoreBreakdown.workMode + job.scoreBreakdown.freshness + job.scoreBreakdown.verification)} / 100 pts
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[11px]">
+                        <div className="bg-background/80 p-1.5 rounded border border-border/40">
+                          <span className="text-muted-foreground block text-[10px]">Role</span>
+                          <span className="font-semibold text-foreground">{job.scoreBreakdown.role} / 35</span>
+                        </div>
+                        <div className="bg-background/80 p-1.5 rounded border border-border/40">
+                          <span className="text-muted-foreground block text-[10px]">Skills</span>
+                          <span className="font-semibold text-foreground">{job.scoreBreakdown.skills} / 25</span>
+                        </div>
+                        <div className="bg-background/80 p-1.5 rounded border border-border/40">
+                          <span className="text-muted-foreground block text-[10px]">Work Mode</span>
+                          <span className="font-semibold text-foreground">{job.scoreBreakdown.workMode} / 15</span>
+                        </div>
+                        <div className="bg-background/80 p-1.5 rounded border border-border/40">
+                          <span className="text-muted-foreground block text-[10px]">Freshness</span>
+                          <span className="font-semibold text-foreground">{job.scoreBreakdown.freshness} / 15</span>
+                        </div>
+                        <div className="bg-background/80 p-1.5 rounded border border-border/40">
+                          <span className="text-muted-foreground block text-[10px]">Verified</span>
+                          <span className="font-semibold text-foreground">{job.scoreBreakdown.verification} / 10</span>
+                        </div>
+                      </div>
                     </div>
                   )}
 

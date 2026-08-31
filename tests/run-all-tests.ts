@@ -45,6 +45,7 @@ import { runAdminControlPlaneUITests } from "./integration/adminControlPlaneUI.t
 import { runDiscoveryExecutionIntegrityTests } from "./integration/discoveryExecutionIntegrity.test";
 import { runDiscoveryFreshnessIntegrityTests } from "./integration/discoveryFreshnessIntegrity.test";
 import { runWorkspaceIATests } from "./integration/workspaceInformationArchitecture.test";
+import { runDiscoveryExperienceHardeningTests } from "./integration/discoveryExperienceHardening.test";
 import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalLanguageWorkflowAcceptance.test";
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -94,6 +95,7 @@ async function runMasterTestSuite() {
     { name: "Integration: Discovery Execution Integrity & Score Transparency (TASK-026)", fn: runDiscoveryExecutionIntegrityTests },
     { name: "Integration: Discovery Freshness & Time-Bound Search Integrity (TASK-027)", fn: runDiscoveryFreshnessIntegrityTests },
     { name: "Integration: Workspace Information Architecture & Discovery UX (TASK-028)", fn: runWorkspaceIATests },
+    { name: "Integration: Discovery Experience Hardening & Intent Transparency (TASK-029)", fn: runDiscoveryExperienceHardeningTests },
     { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
     { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },

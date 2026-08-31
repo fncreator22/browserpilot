@@ -128,7 +128,7 @@ export function calculateSkillsScore(opp: DeduplicatedOpportunity, intent: Searc
   const targetSkills = intent.skills.map(normalizeSkill).filter(Boolean);
   if (targetSkills.length === 0) return 20;
 
-  const rawSearchable = `${opp.title} ${opp.description} ${opp.skills.join(" ")} ${opp.requirements.join(" ")}`.toLowerCase();
+  const rawSearchable = `${opp.title || ""} ${opp.description || ""} ${(opp.skills || []).join(" ")} ${(opp.requirements || []).join(" ")}`.toLowerCase();
   const strippedSearchable = rawSearchable.replace(/[^\w]/g, "");
 
   let matchedCount = 0;
@@ -207,6 +207,7 @@ export function calculateVerificationScore(opp: DeduplicatedOpportunity): number
 
 export interface RankerOptions {
   sortMode?: "RELEVANCE" | "LATEST" | "RELEVANCE_THEN_FRESHNESS";
+  minimumScore?: number;
 }
 
 /**
@@ -280,8 +281,13 @@ export function rankOpportunities(
     return a.opportunity.canonicalHash.localeCompare(b.opportunity.canonicalHash);
   });
 
+  const minScore = options.minimumScore;
+  const filteredList = typeof minScore === "number" && minScore > 0
+    ? scoredList.filter((item) => item.totalScore >= minScore)
+    : scoredList;
+
   // Assign 1-indexed rank positions
-  return scoredList.map((item, idx) => ({
+  return filteredList.map((item, idx) => ({
     ...item,
     rankPosition: idx + 1,
   }));

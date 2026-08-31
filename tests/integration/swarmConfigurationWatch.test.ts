@@ -178,6 +178,7 @@ export async function runSwarmConfigurationWatchTests() {
           workMode: "HYBRID",
           experienceLevel: "ENTRY_LEVEL",
           opportunityType: "FULL_TIME",
+          postedAt: new Date(),
           discoveredAt: new Date(),
         },
         {
@@ -190,6 +191,7 @@ export async function runSwarmConfigurationWatchTests() {
           workMode: "REMOTE",
           experienceLevel: "ENTRY_LEVEL",
           opportunityType: "FULL_TIME",
+          postedAt: new Date(),
           discoveredAt: new Date(),
         },
         {
@@ -246,6 +248,7 @@ export async function runSwarmConfigurationWatchTests() {
     skills: ["TypeScript"],
     locations: ["Hyderabad"],
     companies: ["Microsoft"],
+    minimumMatchScore: 70,
     scanIntervalHours: 2,
     nextScanAt: new Date(Date.now() - 10000), // Due
   });
