@@ -7,6 +7,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
 import { redeemCoupon } from "@/lib/billing/couponService";
+import { rateLimiter } from "@/lib/security/rateLimiter";
+import { recordSecurityEvent } from "@/lib/security/auditLog";
 import { z } from "zod";
 
 const RedeemCouponSchema = z.object({
@@ -23,6 +25,20 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "UNAUTHORIZED", message: "Authentication required." },
         { status: 401 }
+      );
+    }
+
+    const rl = await rateLimiter.check(`coupon_redeem_${userId}`, 10, 60);
+    if (!rl.success) {
+      recordSecurityEvent({
+        type: "COUPON_ABUSE_DETECTED",
+        userId,
+        path: "/api/account/coupons/redeem",
+        details: { action: "burst_coupon_attempt" },
+      });
+      return NextResponse.json(
+        { error: "TOO_MANY_REQUESTS", message: "Too many coupon attempts. Please try again later." },
+        { status: 429 }
       );
     }
 

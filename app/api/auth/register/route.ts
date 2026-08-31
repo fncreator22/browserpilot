@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { createUser, getUserByEmail } from "@/lib/db/users";
+import { rateLimiter } from "@/lib/security/rateLimiter";
+import { recordSecurityEvent } from "@/lib/security/auditLog";
 
 const RegisterSchema = z.object({
   name: z.string().trim().optional(),
@@ -25,6 +27,21 @@ const RegisterSchema = z.object({
  */
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get("x-forwarded-for") || "local_client";
+    const rl = await rateLimiter.check(`register_${ip}`, 15, 60);
+    if (!rl.success) {
+      recordSecurityEvent({
+        type: "RATE_LIMIT_EXCEEDED",
+        ip,
+        path: "/api/auth/register",
+        details: { action: "register_burst_protection" },
+      });
+      return NextResponse.json(
+        { error: "TOO_MANY_REQUESTS", message: "Too many registration attempts. Please wait a minute." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json().catch(() => null);
     if (!body) {
       return NextResponse.json(
