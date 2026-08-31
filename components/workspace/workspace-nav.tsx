@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
   Compass, 
+  Layers,
   Eye, 
   Bookmark, 
   History, 
@@ -34,6 +35,13 @@ export function WorkspaceNav({
       icon: Compass,
       description: "Search & explore opportunities",
       isActive: pathname === "/app" || pathname === "/app/discover",
+    },
+    {
+      href: "/app/swarm",
+      label: "Swarm",
+      icon: Layers,
+      description: "Multi-source parallel discovery",
+      isActive: pathname === "/app/swarm",
     },
     {
       href: "/app/watch",

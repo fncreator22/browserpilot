@@ -53,6 +53,7 @@ import { runMonetizationEntitlementTests } from "./integration/monetizationEntit
 import { runProductionSecurityHardeningTests } from "./integration/productionSecurityHardening.test";
 import { runProductionInfrastructureReadinessTests } from "./integration/productionInfrastructureReadiness.test";
 import { runDistributedRuntimeReliabilityTests } from "./integration/distributedRuntimeReliability.test";
+import { runPersonalizedDiscoveryConfigurationTests } from "./integration/personalizedDiscoveryConfiguration.test";
 import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalLanguageWorkflowAcceptance.test";
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -110,6 +111,7 @@ async function runMasterTestSuite() {
     { name: "Integration: Production Security, Privacy & Tenant Isolation (TASK-034)", fn: runProductionSecurityHardeningTests },
     { name: "Integration: Production Infrastructure & AWS Readiness (TASK-035)", fn: runProductionInfrastructureReadinessTests },
     { name: "Integration: Distributed Runtime & Scheduler Reliability (TASK-036)", fn: runDistributedRuntimeReliabilityTests },
+    { name: "Integration: Personalized Discovery & Swarm Configuration (TASK-037)", fn: runPersonalizedDiscoveryConfigurationTests },
     { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
     { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },
