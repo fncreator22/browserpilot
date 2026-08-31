@@ -91,18 +91,23 @@ export function buildDiscoveryPlan(
   // 1. Parse baseline intent from natural language
   const parsedIntent = parseSearchIntent(rawQuery, filters);
 
-  // 2. Resolve Roles (Strict explicit precedence: filters.roles -> filters.role -> parsedIntent.roles -> profile.targetRoles)
+  // 2. Resolve Roles (Strict explicit precedence: filters -> explicit query intent -> profile.targetRoles -> generic fallback)
   const rolesSet = new Set<string>();
+  const hasExplicitQuery = (rawQuery || "").trim().length > 0;
   if (filters.roles && filters.roles.length > 0) {
     filters.roles.forEach((r) => rolesSet.add(r));
   } else if (filters.role) {
     rolesSet.add(filters.role);
+  } else if (hasExplicitQuery && parsedIntent.roles && parsedIntent.roles.length > 0) {
+    parsedIntent.roles.forEach((r) => rolesSet.add(r));
+  } else if (hasExplicitQuery && parsedIntent.role) {
+    rolesSet.add(parsedIntent.role);
+  } else if (profile?.targetRoles && profile.targetRoles.length > 0) {
+    profile.targetRoles.forEach((r) => rolesSet.add(r));
   } else if (parsedIntent.roles && parsedIntent.roles.length > 0) {
     parsedIntent.roles.forEach((r) => rolesSet.add(r));
   } else if (parsedIntent.role) {
     rolesSet.add(parsedIntent.role);
-  } else if (profile?.targetRoles && profile.targetRoles.length > 0) {
-    profile.targetRoles.forEach((r) => rolesSet.add(r));
   }
 
   if (rolesSet.size === 0) {
