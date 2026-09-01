@@ -175,15 +175,33 @@ function DiscoverContent() {
                 </div>
               </div>
 
-              {/* Active Freshness Boundary Announcement */}
-              {opportunityData.intent?.freshnessWindowHours && (
+              {/* Search Explanation & Freshness Boundary Announcement (TASK-044) */}
+              {opportunityData.explanation ? (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 flex items-center justify-between gap-3 font-mono text-xs text-emerald-400">
+                  <div className="flex items-center gap-2.5">
+                    <Clock className="h-4 w-4 text-emerald-400 shrink-0" />
+                    <span>{opportunityData.explanation}</span>
+                  </div>
+                  {opportunityData.diagnostics?.duplicateCount > 0 && (
+                    <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-400">
+                      {opportunityData.diagnostics.duplicateCount} merged duplicates
+                    </Badge>
+                  )}
+                </div>
+              ) : opportunityData.intent?.freshnessWindowHours ? (
                 <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 flex items-center gap-3 font-mono text-xs text-emerald-400">
                   <Clock className="h-4 w-4 text-emerald-400 shrink-0" />
                   <span>
-                    Showing opportunities strictly posted within the last <strong>{opportunityData.intent.freshnessWindowHours} hours</strong>. Stale listings were filtered prior to ranking.
+                    Showing opportunities strictly posted within the last{" "}
+                    <strong>
+                      {opportunityData.intent.postedWithinDays
+                        ? `${opportunityData.intent.postedWithinDays} days (${opportunityData.intent.freshnessWindowHours}h)`
+                        : `${opportunityData.intent.freshnessWindowHours} hours`}
+                    </strong>
+                    . Stale listings were filtered prior to ranking.
                   </span>
                 </div>
-              )}
+              ) : null}
 
               {/* 1-Click Autonomous Watch Conversion Banner */}
               <AutonomousWatchCard

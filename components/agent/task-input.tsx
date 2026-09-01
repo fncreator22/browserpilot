@@ -37,6 +37,8 @@ export interface OpportunitySearchResultPayload {
   query: string;
   intent: any;
   results: any[];
+  explanation?: string;
+  diagnostics?: any;
   metadata: any;
 }
 

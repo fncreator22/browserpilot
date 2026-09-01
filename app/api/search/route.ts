@@ -87,6 +87,9 @@ export async function POST(request: NextRequest) {
           status: item.opportunity.status,
           firstSeenAt: item.opportunity.firstSeenAt,
           lastVerifiedAt: item.opportunity.lastVerifiedAt,
+          postedAt: item.opportunity.postedAt || null,
+          postedAgoText: item.opportunity.postedAgoText || (item.opportunity.postedAt ? `Posted ${Math.max(0, Math.floor((Date.now() - new Date(item.opportunity.postedAt).getTime()) / (24 * 3600 * 1000)))}d ago` : null),
+          metadataConfidence: (item.opportunity as any).metadataConfidence || "VERIFIED",
           sourceListings: item.opportunity.sourceListings.map((l) => ({
             sourcePlatform: l.sourcePlatform,
             sourceUrl: l.sourceUrl,
@@ -96,6 +99,8 @@ export async function POST(request: NextRequest) {
             rawSnippet: l.rawSnippet,
             screenshotPath: l.screenshotPath,
             seenAt: l.seenAt,
+            postedAt: l.postedAt,
+            postedAgoText: l.postedAgoText,
           })),
           matchScore: item.totalScore,
           rankPosition: item.rankPosition,
@@ -111,6 +116,8 @@ export async function POST(request: NextRequest) {
       query: rawQuery || intent.queryHint,
       intent,
       results: structuredResults,
+      explanation: pipelineResult.searchExplanation,
+      diagnostics: pipelineResult.searchDiagnostics,
       metadata: {
         providersAttempted: pipelineResult.discovery.telemetry.length,
         providersSucceeded: pipelineResult.discovery.telemetry.filter((t) => t.status === "SUCCESS").length,
@@ -120,6 +127,8 @@ export async function POST(request: NextRequest) {
         durationMs: pipelineResult.durationMs,
         telemetry: pipelineResult.discovery.telemetry,
         verification: pipelineResult.verificationTelemetry,
+        explanation: pipelineResult.searchExplanation,
+        diagnostics: pipelineResult.searchDiagnostics,
       },
     });
   } catch (err: unknown) {

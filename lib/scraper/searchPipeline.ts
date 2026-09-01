@@ -8,13 +8,15 @@
 
 import { type SearchIntent } from "./providers/baseProvider";
 import { type DiscoveryResult } from "./searchOrchestrator";
-import { swarmDiscoveryEngine, type SwarmTelemetry } from "./swarmDiscovery";
+import { SwarmDiscoveryEngine, swarmDiscoveryEngine, type SwarmTelemetry } from "./swarmDiscovery";
 import { buildDiscoveryPlan, type DiscoveryPlan, type UserProfilePreferences } from "./discoveryPlanner";
+import { parseSearchIntent } from "./intentParser";
 import { validateAndNormalizeExtractionBatch } from "./extractionContract";
 import { deduplicateCandidates, type DeduplicatedOpportunity } from "./deduplicator";
 import { rankOpportunities, type RankedOpportunity } from "./ranker";
 import { isWithinFreshnessWindow, parsePostingDate } from "./freshnessExtractor";
 import { verifyEvidenceForOpportunities, type VerificationTelemetry } from "./evidenceVerifier";
+import { evaluateCandidateQualityGate, type QualityGateEvaluation } from "./searchQualityGate";
 import {
   createSearch,
   upsertOpportunity,
@@ -23,6 +25,19 @@ import {
   hasUserSeenOpportunity,
   getOpportunityByCanonicalHash,
 } from "@/lib/db/opportunities";
+
+export interface SearchDiagnostics {
+  requestedCount: number;
+  validResultCount: number;
+  rejectedResultCount: number;
+  staleResultCount: number;
+  unknownDateCount: number;
+  invalidUrlCount: number;
+  duplicateCount: number;
+  sourceCount: number;
+  sourceFailures: number;
+  searchDurationMs: number;
+}
 
 export interface PipelineExecutionOptions {
   userId?: string | null;
@@ -51,27 +66,43 @@ export interface PipelineResult {
   verificationTelemetry?: VerificationTelemetry;
   swarmTelemetry?: SwarmTelemetry;
   plan?: DiscoveryPlan;
+  searchExplanation?: string;
+  searchDiagnostics?: SearchDiagnostics;
 }
 
+/**
+ * §AUTONOMOUS SEARCH PIPELINE EXECUTOR
+ * Executes the complete discovery, validation, deduplication, ranking, evidence verification, and persistence pipeline.
+ */
 export async function executeSearchPipeline(
-  intentOrQuery: SearchIntent | string,
+  queryOrIntent: string | SearchIntent,
   options: PipelineExecutionOptions = {}
 ): Promise<PipelineResult> {
   const startTime = Date.now();
 
-  // 1. Build Deterministic Discovery Plan
-  const rawQuery = typeof intentOrQuery === "string"
-    ? intentOrQuery
-    : (options.rawQuery || intentOrQuery.queryHint || intentOrQuery.role || "");
+  // 1. Resolve DiscoveryPlan from Query or Intent
+  let plan: DiscoveryPlan;
+  let intent: SearchIntent;
 
-  const intentFilters: Partial<SearchIntent> = typeof intentOrQuery === "object" ? intentOrQuery : {};
-  const plan = options.plan || buildDiscoveryPlan(rawQuery, intentFilters, options.profile);
-  const intent = swarmDiscoveryEngine.planToIntent(plan);
+  if (typeof queryOrIntent === "string") {
+    intent = parseSearchIntent(queryOrIntent);
+    plan = options.plan || buildDiscoveryPlan(queryOrIntent, {}, options.profile);
+  } else {
+    intent = queryOrIntent;
+    const effectiveRaw = options.rawQuery || queryOrIntent.queryHint || queryOrIntent.role || "Job Search";
+    plan =
+      options.plan ||
+      buildDiscoveryPlan(effectiveRaw, queryOrIntent, options.profile);
+  }
 
-  // 2. Execute Parallel Source Swarm (LinkedIn, YC, Indeed)
-  const swarmResult = await swarmDiscoveryEngine.executeSwarm(plan, {
-    customProviders: options.customProviders,
+  // 2. Swarm Discovery Harvesting across Pluggable Providers (TASK-003 & TASK-013)
+  const engine = options.customProviders
+    ? new SwarmDiscoveryEngine(options.customProviders)
+    : swarmDiscoveryEngine;
+
+  const swarmResult = await engine.executeSwarm(plan, {
     customFetch: options.customFetch,
+    customProviders: options.customProviders,
     concurrencyLimit: options.concurrencyLimit,
     perProviderTimeoutMs: options.perProviderTimeoutMs,
     totalTimeoutMs: options.totalTimeoutMs,
@@ -84,9 +115,13 @@ export async function executeSearchPipeline(
   // Map validated extractions back to RawJobCandidate format with preserved posting timestamps
   const cleanCandidates = validExtractions.map((ext) => {
     let postedAt = (ext as any).postedAt ? new Date((ext as any).postedAt) : null;
+    let postedAgoText = (ext as any).postedAgoText || null;
     if (!postedAt && (ext.rawSnippet || ext.description)) {
       const freshness = parsePostingDate(ext.rawSnippet || ext.description);
-      if (freshness.postedAt) postedAt = freshness.postedAt;
+      if (freshness.postedAt) {
+        postedAt = freshness.postedAt;
+        postedAgoText = freshness.postedAgoText || null;
+      }
     }
 
     return {
@@ -105,18 +140,43 @@ export async function executeSearchPipeline(
       rawSnippet: ext.rawSnippet || undefined,
       discoveredAt: new Date(ext.extractedAt || Date.now()),
       postedAt,
+      postedAgoText,
     };
   });
 
-  // Enforce explicit freshness filtering before deduplication (Hard Date Eligibility Gate)
-  const filteredCandidates = plan.isExplicitFreshness
-    ? cleanCandidates.filter((c) =>
-        isWithinFreshnessWindow(c.postedAt, plan.freshnessWindowHours, true, new Date(startTime))
-      )
-    : cleanCandidates;
+  // Authoritative Search Result Quality Gate Evaluation (TASK-044)
+  let staleCount = 0;
+  let unknownDateCount = 0;
+  let invalidUrlCount = 0;
+  let rejectedRoleCount = 0;
+  const eligibleCandidates: typeof cleanCandidates = [];
+
+  for (const candidate of cleanCandidates) {
+    const gateEval = evaluateCandidateQualityGate(candidate as any, plan, new Date(startTime));
+    if (gateEval.isEligible) {
+      eligibleCandidates.push({
+        ...candidate,
+        postedAt: gateEval.parsedPostingDate,
+        postedAgoText: gateEval.postedAgoText || candidate.postedAgoText,
+      });
+    } else {
+      if (gateEval.rejectionReasons.some((r) => r.includes("older than") || r.includes("exceeds"))) {
+        staleCount++;
+      }
+      if (gateEval.rejectionReasons.some((r) => r.includes("Posting date could not be verified"))) {
+        unknownDateCount++;
+      }
+      if (gateEval.rejectionReasons.some((r) => r.includes("generic portal"))) {
+        invalidUrlCount++;
+      }
+      if (!gateEval.roleMatch) {
+        rejectedRoleCount++;
+      }
+    }
+  }
 
   // 4. 3-Tier Multi-Source Deduplication (TASK-004)
-  const deduplicatedOpps = deduplicateCandidates(filteredCandidates as any);
+  const deduplicatedOpps = deduplicateCandidates(eligibleCandidates as any);
 
   // 5. Freshness-Aware 100-Point Relevance Ranking (TASK-004 & TASK-013)
   let allRanked = rankOpportunities(deduplicatedOpps, intent, {
@@ -148,10 +208,10 @@ export async function executeSearchPipeline(
   }
 
   // Respect target requestedCount / maxResults limit
-  const targetCount = plan.requestedCount || options.maxResults;
-  let ranked = typeof targetCount === "number" && targetCount > 0
-    ? candidatePool.slice(0, targetCount)
-    : candidatePool;
+  const requestedCount = plan.requestedCount || options.maxResults || 10;
+  let ranked = typeof requestedCount === "number" && requestedCount > 0
+    ? candidatePool.slice(0, requestedCount)
+    : candidatePool;;
 
   let searchId: string | undefined;
 
@@ -159,7 +219,7 @@ export async function executeSearchPipeline(
   if (options.persistToDb) {
     const searchRecord = await createSearch({
       userId: options.userId || null,
-      rawQuery: plan.rawQuery || intent.queryHint || intent.role || "Job Search",
+      rawQuery: options.rawQuery || plan.rawQuery || intent.queryHint || intent.role || "Job Search",
       intentType: plan.opportunityTypes.includes("INTERNSHIP") ? "JOB_SEARCH_INTERNSHIP" : "JOB_SEARCH_GENERAL",
       parsedRole: plan.roles[0] || intent.role || null,
       parsedSkills: plan.skills.length > 0 ? plan.skills : (intent.skills || []),
@@ -231,6 +291,33 @@ export async function executeSearchPipeline(
 
   const durationMs = Date.now() - startTime;
 
+  // Construct Search Explanation and Diagnostics (TASK-044)
+  const daysWindow = plan.postedWithinDays || Math.round(plan.freshnessWindowHours / 24);
+  const successfulSources = swarmResult.providerTelemetry.filter((t) => t.status === "SUCCESS").length;
+  let searchExplanation: string;
+
+  if (ranked.length >= requestedCount) {
+    searchExplanation = `Found ${ranked.length} verified ${plan.roles[0] || "job"} opportunities posted within the last ${daysWindow} days across ${successfulSources} sources.`;
+  } else if (ranked.length > 0) {
+    const shortfall = requestedCount - ranked.length;
+    searchExplanation = `Found ${ranked.length} verified ${plan.roles[0] || "job"} opportunities matching your criteria. ${shortfall} additional opportunities could not be verified within the requested ${daysWindow}-day window.`;
+  } else {
+    searchExplanation = `No verified ${plan.roles[0] || "job"} opportunities found posted within the last ${daysWindow} days across searched sources.`;
+  }
+
+  const searchDiagnostics: SearchDiagnostics = {
+    requestedCount,
+    validResultCount: ranked.length,
+    rejectedResultCount: (cleanCandidates.length - eligibleCandidates.length) + (swarmResult.swarmTelemetry?.rejectedByFreshness || 0),
+    staleResultCount: staleCount + (swarmResult.swarmTelemetry?.rejectedByFreshness || 0),
+    unknownDateCount,
+    invalidUrlCount,
+    duplicateCount: eligibleCandidates.length - deduplicatedOpps.length,
+    sourceCount: swarmResult.providerTelemetry.length,
+    sourceFailures: swarmResult.providerTelemetry.filter((t) => t.status === "FAILED").length,
+    searchDurationMs: durationMs,
+  };
+
   const discoveryResult: DiscoveryResult = {
     candidates: cleanCandidates as any,
     telemetry: swarmResult.providerTelemetry,
@@ -257,5 +344,7 @@ export async function executeSearchPipeline(
     verificationTelemetry,
     swarmTelemetry: finalTelemetry,
     plan,
+    searchExplanation,
+    searchDiagnostics,
   };
 }
