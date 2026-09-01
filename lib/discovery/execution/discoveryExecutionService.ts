@@ -31,6 +31,7 @@ import { browserSessionManager } from "@/lib/discovery/browser/browserSessionMan
 import { deduplicateCandidates } from "@/lib/scraper/deduplicator";
 import { rankOpportunities } from "@/lib/scraper/ranker";
 import { isWithinFreshnessWindow, parsePostingDate } from "@/lib/scraper/freshnessExtractor";
+import { evaluateCandidateQualityGate } from "@/lib/scraper/searchQualityGate";
 import { upsertOpportunity, upsertSourceListing } from "@/lib/db/opportunities";
 import { checkFeatureEntitlement, recordAIUsageEvent } from "@/lib/ai/governance/providerGovernance";
 import { evaluateUsageLimit } from "@/lib/billing/usagePolicyService";
@@ -266,26 +267,18 @@ export class DiscoveryExecutionService {
       );
     }
 
-    // 8. Extraction Validation & 48h Freshness Gate
+    // 8. Extraction Validation & Authoritative Quality Gate (TASK-044/TASK-045)
     const validCandidates: RawJobCandidate[] = [];
     const startTimeDate = new Date(startTime);
 
     for (const c of harvestedCandidates) {
-      if (!c.discoveredAt) c.discoveredAt = new Date();
-      if (!(c as any).postedAt) {
-        const freshness = parsePostingDate(c.rawSnippet || "", c.discoveredAt);
-        if (freshness.postedAt) (c as any).postedAt = freshness.postedAt;
-      }
-
-      const satisfiesFreshness = isWithinFreshnessWindow(
-        (c as any).postedAt,
-        plan.freshnessWindowHours || 48,
-        plan.isExplicitFreshness,
-        startTimeDate
-      );
-
-      if (satisfiesFreshness) {
-        validCandidates.push(c);
+      const gateEval = evaluateCandidateQualityGate(c, plan, startTimeDate);
+      if (gateEval.isEligible) {
+        validCandidates.push({
+          ...c,
+          postedAt: gateEval.parsedPostingDate,
+          postedAgoText: gateEval.postedAgoText,
+        });
       }
     }
 

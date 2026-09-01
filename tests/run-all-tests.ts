@@ -61,6 +61,7 @@ import { runProductionDiscoveryExecutionTests } from "./integration/productionDi
 import { runOpportunityLifecycleIntelligenceTests } from "./integration/opportunityLifecycleIntelligence.test";
 import { runNaturalLanguageDateAccuracyTests } from "./integration/naturalLanguageDateAccuracy.test";
 import { runSearchAccuracyAndMetadataTests } from "./integration/searchAccuracyAndMetadata.test";
+import { runRealWorldSearchExecutionValidationTests } from "./integration/realWorldSearchExecutionValidation.test";
 import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalLanguageWorkflowAcceptance.test";
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -126,6 +127,7 @@ async function runMasterTestSuite() {
     { name: "Integration: Opportunity Lifecycle & Search Memory (TASK-042)", fn: runOpportunityLifecycleIntelligenceTests },
     { name: "Integration: Natural-Language Intent & Date Accuracy (TASK-043)", fn: runNaturalLanguageDateAccuracyTests },
     { name: "Integration: Search Result Accuracy & Verified Metadata (TASK-044)", fn: runSearchAccuracyAndMetadataTests },
+    { name: "Integration: Real-World Search Execution & Quality Hardening (TASK-045)", fn: runRealWorldSearchExecutionValidationTests },
     { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
     { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },
