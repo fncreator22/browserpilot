@@ -153,6 +153,40 @@ export function canonicalizeUrl(rawUrl?: string | null): string {
 }
 
 /**
+ * Detects whether a URL points merely to a generic company career homepage/portal root
+ * rather than a specific individual job posting detail page.
+ */
+export function isGenericCareerHomepage(rawUrl?: string | null): boolean {
+  if (!rawUrl || typeof rawUrl !== "string") return false;
+  try {
+    const parsed = new URL(rawUrl.trim());
+    const path = parsed.pathname.toLowerCase().replace(/\/+$/, "");
+    const segments = path.split("/").filter(Boolean);
+
+    // Root domain without path
+    if (segments.length === 0) return true;
+
+    // Generic paths like /careers, /jobs, /join-us, /work-with-us, /openings
+    if (segments.length === 1 && /^(careers?|jobs?|join-us|work-with-us|openings?)$/i.test(segments[0])) {
+      return true;
+    }
+
+    // ATS portal root boards without job ID/slug:
+    // boards.greenhouse.io/<company> (1 segment)
+    // jobs.lever.co/<company> (1 segment)
+    // jobs.ashbyhq.com/<company> (1 segment)
+    const host = parsed.hostname.toLowerCase();
+    if ((host.includes("greenhouse.io") || host.includes("lever.co") || host.includes("ashbyhq.com") || host.includes("workable.com")) && segments.length <= 1) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Generates a deterministic cryptographic canonical hash for an Opportunity:
  * canonicalHash = md5(normalizeCompany(company) + "_" + normalizeJobTitle(title))
  */

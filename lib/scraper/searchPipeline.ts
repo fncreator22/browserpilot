@@ -13,7 +13,7 @@ import { buildDiscoveryPlan, type DiscoveryPlan, type UserProfilePreferences } f
 import { validateAndNormalizeExtractionBatch } from "./extractionContract";
 import { deduplicateCandidates, type DeduplicatedOpportunity } from "./deduplicator";
 import { rankOpportunities, type RankedOpportunity } from "./ranker";
-import { isWithinFreshnessWindow } from "./freshnessExtractor";
+import { isWithinFreshnessWindow, parsePostingDate } from "./freshnessExtractor";
 import { verifyEvidenceForOpportunities, type VerificationTelemetry } from "./evidenceVerifier";
 import {
   createSearch,
@@ -82,25 +82,33 @@ export async function executeSearchPipeline(
   const validExtractions = [...batchVal.valid, ...batchVal.partial];
 
   // Map validated extractions back to RawJobCandidate format with preserved posting timestamps
-  const cleanCandidates = validExtractions.map((ext) => ({
-    sourcePlatform: ext.sourcePlatform || "Web",
-    sourceUrl: ext.sourceUrl,
-    applyUrl: ext.applyUrl || ext.sourceUrl,
-    externalJobId: ext.externalJobId || undefined,
-    title: ext.title,
-    companyName: ext.companyName || ext.company,
-    location: ext.location,
-    workMode: ext.workMode,
-    experienceLevel: ext.experienceLevel,
-    opportunityType: ext.opportunityType,
-    salaryText: ext.salaryMin && ext.salaryMax ? `$${ext.salaryMin} - $${ext.salaryMax}` : undefined,
-    description: ext.description,
-    rawSnippet: ext.rawSnippet || undefined,
-    discoveredAt: new Date(ext.extractedAt || Date.now()),
-    postedAt: (ext as any).postedAt || null,
-  }));
+  const cleanCandidates = validExtractions.map((ext) => {
+    let postedAt = (ext as any).postedAt ? new Date((ext as any).postedAt) : null;
+    if (!postedAt && (ext.rawSnippet || ext.description)) {
+      const freshness = parsePostingDate(ext.rawSnippet || ext.description);
+      if (freshness.postedAt) postedAt = freshness.postedAt;
+    }
 
-  // Enforce explicit freshness filtering before deduplication
+    return {
+      sourcePlatform: ext.sourcePlatform || "Web",
+      sourceUrl: ext.sourceUrl,
+      applyUrl: ext.applyUrl || ext.sourceUrl,
+      externalJobId: ext.externalJobId || undefined,
+      title: ext.title,
+      companyName: ext.companyName || ext.company,
+      location: ext.location,
+      workMode: ext.workMode,
+      experienceLevel: ext.experienceLevel,
+      opportunityType: ext.opportunityType,
+      salaryText: ext.salaryMin && ext.salaryMax ? `$${ext.salaryMin} - $${ext.salaryMax}` : undefined,
+      description: ext.description,
+      rawSnippet: ext.rawSnippet || undefined,
+      discoveredAt: new Date(ext.extractedAt || Date.now()),
+      postedAt,
+    };
+  });
+
+  // Enforce explicit freshness filtering before deduplication (Hard Date Eligibility Gate)
   const filteredCandidates = plan.isExplicitFreshness
     ? cleanCandidates.filter((c) =>
         isWithinFreshnessWindow(c.postedAt, plan.freshnessWindowHours, true, new Date(startTime))
@@ -139,9 +147,10 @@ export async function executeSearchPipeline(
     candidatePool = novelRanked;
   }
 
-  // Respect maxResults limit
-  let ranked = typeof options.maxResults === "number" && options.maxResults > 0
-    ? candidatePool.slice(0, options.maxResults)
+  // Respect target requestedCount / maxResults limit
+  const targetCount = plan.requestedCount || options.maxResults;
+  let ranked = typeof targetCount === "number" && targetCount > 0
+    ? candidatePool.slice(0, targetCount)
     : candidatePool;
 
   let searchId: string | undefined;

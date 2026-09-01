@@ -65,10 +65,12 @@ export class SwarmDiscoveryEngine {
     hackerNewsProvider,
     githubJobsProvider,
   ];
+  private isCustomEngine = false;
 
   constructor(customProviders?: SearchProvider[]) {
     if (customProviders && customProviders.length > 0) {
       this.providers = customProviders;
+      this.isCustomEngine = true;
     }
   }
 
@@ -111,11 +113,13 @@ export class SwarmDiscoveryEngine {
     const startTime = Date.now();
     const intent = this.planToIntent(plan);
 
-    const defaultSourceSet = new Set(["LinkedIn", "Y Combinator", "Indeed"]);
+    const defaultSourceSet = new Set(["LinkedIn", "Y Combinator", "Indeed", "ATS Direct", "Company Careers", "Greenhouse", "Ashby", "Lever"]);
     const isDefaultSources =
+      this.isCustomEngine ||
+      (options.customProviders !== undefined && options.customProviders.length > 0) ||
       !plan.sources ||
       plan.sources.length === 0 ||
-      (plan.sources.length === 3 && plan.sources.every((s) => defaultSourceSet.has(s)));
+      plan.sources.every((s) => defaultSourceSet.has(s));
 
     const providersToUse =
       options.customProviders && options.customProviders.length > 0

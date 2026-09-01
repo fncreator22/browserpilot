@@ -397,29 +397,134 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
 
   const primaryCompany = matchedCompanies[0] || undefined;
 
-  // 8. Freshness & Latest Intent Detection (TASK-027 Enhanced)
+  // 8. Natural Language Date Range & Freshness Detection (TASK-043 Enhanced)
   let isExplicitFreshness = false;
   let freshnessWindowHours = 168; // Default 7 days
+  let postedWithinDays: number | undefined;
+  let dateConstraint: any = undefined;
   let sortMode: "LATEST" | "RELEVANCE_THEN_FRESHNESS" = "RELEVANCE_THEN_FRESHNESS";
 
-  if (/\b(today|posted today|just now|just posted|past 24 hours?|last 24 hours?|24 hours?|24h|past 24h|last 24h)\b/i.test(lower)) {
+  // Check arbitrary relative date patterns
+  // Pattern 1: X days / d (e.g., "last 15 days", "past 10 days", "within 21 days", "last 30 days", "15 days", "15d")
+  const explicitDaysMatch = lower.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+)?(?:last|past|within|in)\s+(\d{1,3})\s*(?:days?|d)\b/i) ||
+    lower.match(/\b(\d{1,3})\s*(?:days?|d)\s*ago\b/i) ||
+    lower.match(/\bposted\s+(?:within|in|last|past)\s+(\d{1,3})\s*(?:days?|d)\b/i);
+
+  // Pattern 2: X weeks / w (e.g., "last 2 weeks", "past 6 weeks", "last 3 weeks")
+  const explicitWeeksMatch = lower.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+)?(?:last|past|within|in)\s+(\d{1,2})\s*(?:weeks?|w)\b/i) ||
+    lower.match(/\b(\d{1,2})\s*(?:weeks?|w)\s*ago\b/i);
+
+  // Pattern 3: X months / mo (e.g., "last 2 months", "past 3 months")
+  const explicitMonthsMatch = lower.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+)?(?:last|past|within|in)\s+(\d{1,2})\s*(?:months?|mo)\b/i) ||
+    lower.match(/\b(\d{1,2})\s*(?:months?|mo)\s*ago\b/i);
+
+  // Pattern 4: X hours / h (e.g., "last 24 hours", "past 48 hours")
+  const explicitHoursMatch = lower.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+)?(?:last|past|within|in)\s+(\d{1,3})\s*(?:hours?|hrs?|h)\b/i);
+
+  if (explicitDaysMatch && explicitDaysMatch[1]) {
+    const days = parseInt(explicitDaysMatch[1], 10);
+    if (days > 0) {
+      postedWithinDays = days;
+      freshnessWindowHours = days * 24;
+      isExplicitFreshness = true;
+      sortMode = "LATEST";
+      dateConstraint = {
+        type: "RELATIVE",
+        amount: days,
+        unit: "DAY",
+        cutoffDate: new Date(Date.now() - days * 24 * 3600 * 1000),
+        rawText: explicitDaysMatch[0],
+      };
+    }
+  } else if (explicitWeeksMatch && explicitWeeksMatch[1]) {
+    const weeks = parseInt(explicitWeeksMatch[1], 10);
+    if (weeks > 0) {
+      postedWithinDays = weeks * 7;
+      freshnessWindowHours = weeks * 7 * 24;
+      isExplicitFreshness = true;
+      sortMode = "LATEST";
+      dateConstraint = {
+        type: "RELATIVE",
+        amount: weeks,
+        unit: "WEEK",
+        cutoffDate: new Date(Date.now() - weeks * 7 * 24 * 3600 * 1000),
+        rawText: explicitWeeksMatch[0],
+      };
+    }
+  } else if (explicitMonthsMatch && explicitMonthsMatch[1]) {
+    const months = parseInt(explicitMonthsMatch[1], 10);
+    if (months > 0) {
+      postedWithinDays = months * 30;
+      freshnessWindowHours = months * 30 * 24;
+      isExplicitFreshness = true;
+      sortMode = "LATEST";
+      dateConstraint = {
+        type: "RELATIVE",
+        amount: months,
+        unit: "MONTH",
+        cutoffDate: new Date(Date.now() - months * 30 * 24 * 3600 * 1000),
+        rawText: explicitMonthsMatch[0],
+      };
+    }
+  } else if (explicitHoursMatch && explicitHoursMatch[1]) {
+    const hours = parseInt(explicitHoursMatch[1], 10);
+    if (hours > 0) {
+      postedWithinDays = Math.max(1, Math.round(hours / 24));
+      freshnessWindowHours = hours;
+      isExplicitFreshness = true;
+      sortMode = "LATEST";
+      dateConstraint = {
+        type: "RELATIVE",
+        amount: hours,
+        unit: "HOUR",
+        cutoffDate: new Date(Date.now() - hours * 3600 * 1000),
+        rawText: explicitHoursMatch[0],
+      };
+    }
+  } else if (/\b(two weeks|past two weeks|last two weeks)\b/i.test(lower)) {
+    postedWithinDays = 14;
+    freshnessWindowHours = 14 * 24;
+    isExplicitFreshness = true;
+    sortMode = "LATEST";
+    dateConstraint = { type: "RELATIVE", amount: 14, unit: "DAY", cutoffDate: new Date(Date.now() - 14 * 24 * 3600 * 1000), rawText: "two weeks" };
+  } else if (/\b(six weeks|past six weeks|last six weeks)\b/i.test(lower)) {
+    postedWithinDays = 42;
+    freshnessWindowHours = 42 * 24;
+    isExplicitFreshness = true;
+    sortMode = "LATEST";
+    dateConstraint = { type: "RELATIVE", amount: 42, unit: "DAY", cutoffDate: new Date(Date.now() - 42 * 24 * 3600 * 1000), rawText: "six weeks" };
+  } else if (/\b(two months|past two months|last two months)\b/i.test(lower)) {
+    postedWithinDays = 60;
+    freshnessWindowHours = 60 * 24;
+    isExplicitFreshness = true;
+    sortMode = "LATEST";
+    dateConstraint = { type: "RELATIVE", amount: 60, unit: "DAY", cutoffDate: new Date(Date.now() - 60 * 24 * 3600 * 1000), rawText: "two months" };
+  } else if (/\b(today|posted today|just now|just posted|past 24 hours?|last 24 hours?|24 hours?|24h)\b/i.test(lower)) {
+    postedWithinDays = 1;
     freshnessWindowHours = 24;
     isExplicitFreshness = true;
     sortMode = "LATEST";
-  } else if (/\b(yesterday|last 48 hours?|past 48 hours?|48 hours?|48h|past 48h|last 48h|past 2 days|last 2 days|2 days|2d)\b/i.test(lower)) {
+    dateConstraint = { type: "RELATIVE", amount: 1, unit: "DAY", cutoffDate: new Date(Date.now() - 24 * 3600 * 1000), rawText: "today" };
+  } else if (/\b(yesterday|last 48 hours?|past 48 hours?|48 hours?|48h|past 2 days|last 2 days|2 days|2d)\b/i.test(lower)) {
+    postedWithinDays = 2;
     freshnessWindowHours = 48;
     isExplicitFreshness = true;
     sortMode = "LATEST";
-  } else if (/\b(last 72 hours?|past 72 hours?|72 hours?|72h|past 72h|last 72h|last 3 days|past 3 days|3 days|3d|few days)\b/i.test(lower)) {
+    dateConstraint = { type: "RELATIVE", amount: 2, unit: "DAY", cutoffDate: new Date(Date.now() - 48 * 3600 * 1000), rawText: "48h" };
+  } else if (/\b(last 72 hours?|past 72 hours?|72 hours?|72h|last 3 days|past 3 days|3 days|3d|few days)\b/i.test(lower)) {
+    postedWithinDays = 3;
     freshnessWindowHours = 72;
     isExplicitFreshness = true;
     sortMode = "LATEST";
+    dateConstraint = { type: "RELATIVE", amount: 3, unit: "DAY", cutoffDate: new Date(Date.now() - 72 * 3600 * 1000), rawText: "3 days" };
   } else if (/\b(last 7 days|past 7 days|7 days|7d|past week|last week|this week|1 week|week)\b/i.test(lower)) {
+    postedWithinDays = 7;
     freshnessWindowHours = 168;
     isExplicitFreshness = true;
     sortMode = "LATEST";
-  } else if (/\b(latest|newest|recent|recently posted|new|fresh|newest jobs|latest jobs|latest internships|newest internships)\b/i.test(lower)) {
-    freshnessWindowHours = 48; // Default 48h for generic latest/newest
+    dateConstraint = { type: "RELATIVE", amount: 7, unit: "DAY", cutoffDate: new Date(Date.now() - 7 * 24 * 3600 * 1000), rawText: "7 days" };
+  } else if (/\b(latest|newest|recent|recently posted|new|fresh)\b/i.test(lower)) {
+    freshnessWindowHours = 48;
     isExplicitFreshness = true;
     sortMode = "LATEST";
   }
@@ -432,12 +537,36 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   if (filterOverrides?.isExplicitFreshness !== undefined) {
     isExplicitFreshness = filterOverrides.isExplicitFreshness;
   }
+  if (filterOverrides?.postedWithinDays !== undefined) {
+    postedWithinDays = filterOverrides.postedWithinDays;
+  }
+  if (filterOverrides?.dateConstraint !== undefined) {
+    dateConstraint = filterOverrides.dateConstraint;
+  }
+
+  // 8.5. Requested Result Count Extraction (TASK-043)
+  // E.g. "Give me 10 backend developer jobs", "Find 15 react roles", "10 jobs", "5 internships"
+  let requestedCount: number | undefined;
+  const countMatch = lower.match(/\b(?:give\s+me|find|show\s+me|get|search\s+for|list|locate|fetch)\s+(\d{1,3})\s+/i) ||
+    lower.match(/\b(?:top|first)\s+(\d{1,3})\s+(?:jobs?|openings?|roles?|positions?|internships?|opportunities)\b/i) ||
+    lower.match(/\b(\d{1,3})\s+(?:backend|frontend|fullstack|software|swe|sde|developer|engineer|devops|data|ai|ml|internship|intern|remote|hybrid|openings?|positions?|roles?|jobs?)\b/i);
+
+  if (countMatch && countMatch[1]) {
+    const parsed = parseInt(countMatch[1], 10);
+    if (parsed >= 1 && parsed <= 100) {
+      requestedCount = parsed;
+    }
+  }
+
+  if (filterOverrides?.requestedCount !== undefined) {
+    requestedCount = filterOverrides.requestedCount;
+  }
 
   // 9. Minimum Relevance Expectations
   let minimumMatchScore = 65;
   if (/\b(high fit|strict match|high relevance|top fit)\b/i.test(lower)) {
     minimumMatchScore = 80;
-  } else if (/\b(strict|top tier fit|at least 90|90%|90 pts)\b/i.test(lower)) {
+  } else if (/\b(strict|top tier fit|at least 90|90 pts)\b/i.test(lower) || /\b90%\s*(?:match|fit|relevance|score)\b/i.test(lower)) {
     minimumMatchScore = 90;
   } else if (/\b(broad match|broad search|any fit|loose match)\b/i.test(lower)) {
     minimumMatchScore = 60;
@@ -445,7 +574,7 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   const scoreMatch = lower.match(/\b(?:min|at least|minimum)\s+(\d{2})\s*(?:%|pts|points|score)?\b/);
   if (scoreMatch && scoreMatch[1]) {
     const parsedScore = parseInt(scoreMatch[1], 10);
-    if (parsedScore >= 50 && parsedScore <= 95) {
+    if (parsedScore >= 50 && parsedScore <= 95 && !/\b(?:budget|token|step|usage)\b/i.test(lower)) {
       minimumMatchScore = parsedScore;
     }
   }
@@ -461,12 +590,21 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   if (/\b(indeed)\b/i.test(lower)) {
     matchedSources.push("Indeed");
   }
-  const finalSources = matchedSources.length > 0 ? matchedSources : ["LinkedIn", "Y Combinator", "Indeed"];
+  if (/\b(greenhouse)\b/i.test(lower)) {
+    matchedSources.push("Greenhouse");
+  }
+  if (/\b(ashby)\b/i.test(lower)) {
+    matchedSources.push("Ashby");
+  }
+  if (/\b(lever)\b/i.test(lower)) {
+    matchedSources.push("Lever");
+  }
+  const finalSources = matchedSources.length > 0 ? matchedSources : ["LinkedIn", "Y Combinator", "Indeed", "ATS Direct", "Company Careers"];
 
-  // 11. Exclusion Intent ("avoid showing me jobs I already know about", "jobs I haven't seen before", "only tell me when you find something genuinely new")
+  // 11. Exclusion Intent
   const excludeKnown = /\b(avoid showing|already know|exclude known|hide seen|only new|genuinely new|brand new|skip seen|skip saved|only tell me when|haven't seen|havent seen|not seen before|never seen|unseen)\b/i.test(lower);
 
-  // 12. Watch Intent Detection ("set up a watch", "keep watching", "monitor every 4 hours", "every 12 hours", "daily")
+  // 12. Watch Intent Detection
   let watchIntent: { enabled: boolean; scanIntervalHours?: number } | undefined;
   if (/\b(watch|watching|watches|monitor|monitoring|track|tracking|alert me|notify me|keep watching|keep an eye|continuous watch|scheduled search|every\s+\d+\s*(?:hours?|h)|daily|every day)\b/i.test(lower)) {
     let scanIntervalHours = 4;
@@ -502,6 +640,9 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     queryHint: cleanQuery || filterOverrides?.queryHint || primaryRole,
     sortMode: filterOverrides?.sortMode || sortMode,
     freshnessWindowHours: filterOverrides?.freshnessWindowHours !== undefined ? filterOverrides.freshnessWindowHours : freshnessWindowHours,
+    postedWithinDays: filterOverrides?.postedWithinDays !== undefined ? filterOverrides.postedWithinDays : postedWithinDays,
+    dateConstraint: filterOverrides?.dateConstraint !== undefined ? filterOverrides.dateConstraint : dateConstraint,
+    requestedCount: filterOverrides?.requestedCount !== undefined ? filterOverrides.requestedCount : requestedCount,
     isExplicitFreshness: filterOverrides?.isExplicitFreshness !== undefined ? filterOverrides.isExplicitFreshness : isExplicitFreshness,
     minimumMatchScore: filterOverrides?.minimumMatchScore || minimumMatchScore,
     sources: filterOverrides?.sources || finalSources,

@@ -47,12 +47,13 @@ export class AtsBrowserConnector extends BrowserSourceConnector {
     for (let i = 0; i < Math.min(companies.length, maxCandidates); i++) {
       const comp = companies[i];
       const slug = comp.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const jobId = `job_${i + 5001}`;
 
       candidates.push({
         sourcePlatform: this.name,
-        sourceUrl: `https://boards.${this.name.toLowerCase()}.io/${slug}`,
-        applyUrl: `https://boards.${this.name.toLowerCase()}.io/${slug}/apply`,
-        externalJobId: `ats_${this.name.toLowerCase()}_${slug}_${i}`,
+        sourceUrl: `https://boards.${this.name.toLowerCase()}.io/${slug}/jobs/${jobId}`,
+        applyUrl: `https://boards.${this.name.toLowerCase()}.io/${slug}/jobs/${jobId}/apply`,
+        externalJobId: `ats_${this.name.toLowerCase()}_${slug}_${jobId}`,
         title: `${role} - ${comp}`,
         companyName: comp,
         location: loc,

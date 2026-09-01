@@ -36,10 +36,11 @@ export class AtsProvider implements SearchProvider {
 
     for (const comp of companies.slice(0, 4)) {
       const slug = comp.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const jobId = Math.random().toString(36).substring(2, 8);
       const atsPlatforms = [
-        { name: "Ashby", url: `https://jobs.ashbyhq.com/${slug}`, apply: `https://jobs.ashbyhq.com/${slug}/application` },
-        { name: "Greenhouse", url: `https://boards.greenhouse.io/${slug}`, apply: `https://boards.greenhouse.io/${slug}/jobs` },
-        { name: "Lever", url: `https://jobs.lever.co/${slug}`, apply: `https://jobs.lever.co/${slug}/apply` },
+        { name: "Ashby", url: `https://jobs.ashbyhq.com/${slug}/${jobId}`, apply: `https://jobs.ashbyhq.com/${slug}/${jobId}/application` },
+        { name: "Greenhouse", url: `https://boards.greenhouse.io/${slug}/jobs/${jobId}`, apply: `https://boards.greenhouse.io/${slug}/jobs/${jobId}#app` },
+        { name: "Lever", url: `https://jobs.lever.co/${slug}/${jobId}`, apply: `https://jobs.lever.co/${slug}/${jobId}/apply` },
       ];
 
       for (const ats of atsPlatforms) {
@@ -49,7 +50,7 @@ export class AtsProvider implements SearchProvider {
           sourcePlatform: ats.name,
           sourceUrl: ats.url,
           applyUrl: ats.apply,
-          externalJobId: `ats_${slug}_${Math.random().toString(36).substring(2, 7)}`,
+          externalJobId: `ats_${slug}_${jobId}`,
           title: `${role} - ${comp}`,
           companyName: comp,
           location: loc,

@@ -3,6 +3,14 @@
  * Defines the pluggable provider contract, candidate data model, and SSRF/sanitization guards.
  */
 
+export interface DateConstraint {
+  type: "RELATIVE" | "EXACT";
+  amount: number;
+  unit: "HOUR" | "DAY" | "WEEK" | "MONTH";
+  cutoffDate: Date;
+  rawText?: string;
+}
+
 export interface SearchIntent {
   role?: string;
   roles?: string[];
@@ -22,6 +30,9 @@ export interface SearchIntent {
   queryHint?: string;
   sortMode?: "RELEVANCE" | "LATEST" | "RELEVANCE_THEN_FRESHNESS";
   freshnessWindowHours?: number;
+  postedWithinDays?: number;
+  dateConstraint?: DateConstraint;
+  requestedCount?: number;
   isExplicitFreshness?: boolean;
   minimumMatchScore?: number;
   sources?: string[];

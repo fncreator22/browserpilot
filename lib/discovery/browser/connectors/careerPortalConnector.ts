@@ -41,12 +41,14 @@ export class CareerPortalBrowserConnector extends BrowserSourceConnector {
     for (let i = 0; i < Math.min(companies.length, maxCandidates); i++) {
       const comp = companies[i];
       const slug = comp.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const jobSlug = role.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const jobId = `${jobSlug}-${i + 101}`;
 
       candidates.push({
         sourcePlatform: "Company Careers",
-        sourceUrl: `https://${slug}.com/careers`,
-        applyUrl: `https://${slug}.com/careers/apply`,
-        externalJobId: `direct_${slug}_${Date.now()}_${i}`,
+        sourceUrl: `https://${slug}.com/careers/${jobId}`,
+        applyUrl: `https://${slug}.com/careers/${jobId}/apply`,
+        externalJobId: `direct_${slug}_${jobId}`,
         title: `${role} - ${comp}`,
         companyName: comp,
         location: loc,
