@@ -74,6 +74,9 @@ export interface ProviderTelemetry {
   candidatesFound: number;
   durationMs: number;
   error?: string;
+  failureCategory?: string;
+  retryCount?: number;
+  userFacingMessage?: string;
 }
 
 export interface ProviderContext {

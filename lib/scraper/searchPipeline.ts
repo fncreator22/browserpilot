@@ -291,9 +291,11 @@ export async function executeSearchPipeline(
 
   const durationMs = Date.now() - startTime;
 
-  // Construct Search Explanation and Diagnostics (TASK-044)
+  // Construct Search Explanation and Diagnostics (TASK-044/TASK-046)
   const daysWindow = plan.postedWithinDays || Math.round(plan.freshnessWindowHours / 24);
-  const successfulSources = swarmResult.providerTelemetry.filter((t) => t.status === "SUCCESS").length;
+  const successfulSources = swarmResult.providerTelemetry.filter((t) => t.status === "SUCCESS" || t.status === "PARTIAL").length;
+  const failedSources = swarmResult.providerTelemetry.filter((t) => t.status === "FAILED" || t.status === "TIMEOUT").length;
+  const totalSources = swarmResult.providerTelemetry.length;
   let searchExplanation: string;
 
   if (ranked.length >= requestedCount) {
@@ -301,6 +303,10 @@ export async function executeSearchPipeline(
   } else if (ranked.length > 0) {
     const shortfall = requestedCount - ranked.length;
     searchExplanation = `Found ${ranked.length} verified ${plan.roles[0] || "job"} opportunities matching your criteria. ${shortfall} additional opportunities could not be verified within the requested ${daysWindow}-day window.`;
+  } else if (totalSources > 0 && failedSources === totalSources) {
+    searchExplanation = `All discovery sources were temporarily unreachable. Please retry your search shortly.`;
+  } else if (failedSources > 0) {
+    searchExplanation = `No verified ${plan.roles[0] || "job"} opportunities found posted within the last ${daysWindow} days (${failedSources} source${failedSources > 1 ? "s" : ""} were unavailable).`;
   } else {
     searchExplanation = `No verified ${plan.roles[0] || "job"} opportunities found posted within the last ${daysWindow} days across searched sources.`;
   }
@@ -313,8 +319,8 @@ export async function executeSearchPipeline(
     unknownDateCount,
     invalidUrlCount,
     duplicateCount: eligibleCandidates.length - deduplicatedOpps.length,
-    sourceCount: swarmResult.providerTelemetry.length,
-    sourceFailures: swarmResult.providerTelemetry.filter((t) => t.status === "FAILED").length,
+    sourceCount: totalSources,
+    sourceFailures: failedSources,
     searchDurationMs: durationMs,
   };
 

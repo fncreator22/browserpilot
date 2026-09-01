@@ -23,6 +23,10 @@ import { githubJobsProvider } from "./providers/githubJobsProvider";
 import { type DiscoveryPlan } from "./discoveryPlanner";
 import { parsePostingDate, isWithinFreshnessWindow } from "./freshnessExtractor";
 import { normalizeCompany } from "./normalizer";
+import {
+  classifySourceError,
+  sourceReliabilityManager,
+} from "../discovery/execution/sourceReliabilityManager";
 
 export interface SwarmTelemetry {
   sourcesRequested: number;
@@ -185,21 +189,74 @@ export class SwarmDiscoveryEngine {
 
         const chunkPromises = chunk.map(async (provider) => {
           const pStart = Date.now();
-          const pAbort = new AbortController();
 
+          // 1. Circuit Breaker / Health Cooldown Check
+          const skipCheck = sourceReliabilityManager.shouldSkipSource(provider.name, startTimeDate);
+          if (skipCheck.skip) {
+            providerTelemetryList.push({
+              provider: provider.name,
+              status: "SKIPPED",
+              candidatesFound: 0,
+              durationMs: 0,
+              error: skipCheck.reason || "Source skipped due to circuit breaker cooldown.",
+              userFacingMessage: skipCheck.reason,
+            });
+            return;
+          }
+
+          const pAbort = new AbortController();
           const handleGlobal = () => pAbort.abort();
           globalAbort.signal.addEventListener("abort", handleGlobal);
-
           const pTimer = setTimeout(() => pAbort.abort(), perProviderTimeoutMs);
 
+          let candidates: RawJobCandidate[] = [];
+          let retryCount = 0;
+          let lastErr: unknown = null;
+          const maxTransientRetries = 1;
+
           try {
-            const candidates = await provider.harvestCandidates(intent, limits, {
-              customFetch: options.customFetch,
-              signal: pAbort.signal,
-            });
+            for (let attempt = 0; attempt <= maxTransientRetries; attempt++) {
+              try {
+                candidates = await provider.harvestCandidates(intent, limits, {
+                  customFetch: options.customFetch,
+                  signal: pAbort.signal,
+                });
+                lastErr = null;
+                break;
+              } catch (err: unknown) {
+                lastErr = err;
+                const errClass = classifySourceError(err);
+                if (attempt < maxTransientRetries && errClass.isTransient && !pAbort.signal.aborted) {
+                  retryCount++;
+                  continue; // retry transient error once
+                }
+                break;
+              }
+            }
 
             clearTimeout(pTimer);
             globalAbort.signal.removeEventListener("abort", handleGlobal);
+
+            if (lastErr) {
+              const isTimeout = (lastErr as Error).name === "AbortError" || pAbort.signal.aborted;
+              const errClass = classifySourceError(lastErr);
+              sourceReliabilityManager.recordOutcome(provider.name, "FAILURE", errClass.category, startTimeDate);
+
+              providerTelemetryList.push({
+                provider: provider.name,
+                status: isTimeout ? "TIMEOUT" : "FAILED",
+                candidatesFound: 0,
+                durationMs: Date.now() - pStart,
+                error: (lastErr as Error).message || "Provider execution failed",
+                failureCategory: isTimeout ? "TEMPORARY_FAILURE" : errClass.category,
+                retryCount,
+                userFacingMessage: errClass.userFacingMessage,
+              });
+              return;
+            }
+
+            // Record successful harvest in reliability manager
+            sourceReliabilityManager.recordOutcome(provider.name, "SUCCESS", undefined, startTimeDate);
 
             // Filter candidates by target company if specified in discovery plan
             let filteredCandidates = candidates;
@@ -253,18 +310,25 @@ export class SwarmDiscoveryEngine {
               status: candidates.length > 0 ? "SUCCESS" : "PARTIAL",
               candidatesFound: candidates.length,
               durationMs: Date.now() - pStart,
+              retryCount,
             });
           } catch (err: unknown) {
             clearTimeout(pTimer);
             globalAbort.signal.removeEventListener("abort", handleGlobal);
 
             const isTimeout = (err as Error).name === "AbortError" || pAbort.signal.aborted;
+            const errClass = classifySourceError(err);
+            sourceReliabilityManager.recordOutcome(provider.name, "FAILURE", errClass.category, startTimeDate);
+
             providerTelemetryList.push({
               provider: provider.name,
               status: isTimeout ? "TIMEOUT" : "FAILED",
               candidatesFound: 0,
               durationMs: Date.now() - pStart,
               error: (err as Error).message || "Provider execution failed",
+              failureCategory: isTimeout ? "TEMPORARY_FAILURE" : errClass.category,
+              retryCount,
+              userFacingMessage: errClass.userFacingMessage,
             });
           }
         });
