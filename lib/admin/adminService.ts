@@ -126,6 +126,16 @@ export interface DiscoveryExecutionTelemetrySummary {
   freshnessHitRate: number;
 }
 
+export interface OpportunityLifecycleTelemetrySummary {
+  totalOpportunities: number;
+  activeCount: number;
+  updatedCount: number;
+  staleCount: number;
+  expiredCount: number;
+  multiSourceCount: number;
+  averageSourcesPerOpportunity: number;
+}
+
 export interface AdminOverviewMetrics {
   system: SystemHealthMetrics;
   users: {
@@ -144,6 +154,7 @@ export interface AdminOverviewMetrics {
   browserSessions: BrowserSessionTelemetrySummary;
   learning: DiscoveryLearningTelemetrySummary;
   execution: DiscoveryExecutionTelemetrySummary;
+  lifecycle: OpportunityLifecycleTelemetrySummary;
 }
 
 export class AdminControlPlaneService {
@@ -412,6 +423,26 @@ export class AdminControlPlaneService {
         partialSuccessRate: 0.04,
         freshnessHitRate: 0.96,
       },
+      lifecycle: await (async () => {
+        const [total, active, updated, stale, expired, totalListings] = await Promise.all([
+          prisma.opportunity.count().catch(() => 0),
+          prisma.opportunity.count({ where: { status: "ACTIVE" } }).catch(() => 0),
+          prisma.opportunity.count({ where: { status: "UPDATED" } }).catch(() => 0),
+          prisma.opportunity.count({ where: { status: "STALE" } }).catch(() => 0),
+          prisma.opportunity.count({ where: { status: "EXPIRED" } }).catch(() => 0),
+          prisma.sourceListing.count().catch(() => 0),
+        ]);
+
+        return {
+          totalOpportunities: total,
+          activeCount: active,
+          updatedCount: updated,
+          staleCount: stale,
+          expiredCount: expired,
+          multiSourceCount: Math.max(0, totalListings - total),
+          averageSourcesPerOpportunity: total > 0 ? Math.round((totalListings / total) * 10) / 10 : 1.0,
+        };
+      })(),
     };
   }
 
