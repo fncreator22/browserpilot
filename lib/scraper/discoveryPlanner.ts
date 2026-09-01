@@ -38,6 +38,9 @@ export interface DiscoveryPlan {
   experienceLevels: string[];
   targetCompanies: string[];
   freshnessWindowHours: number;
+  postedWithinDays?: number;
+  dateConstraint?: any;
+  requestedCount?: number;
   isExplicitFreshness: boolean;
   maxResultsPerSource: number;
   sources: string[];
@@ -222,7 +225,7 @@ export function buildDiscoveryPlan(
     sources = profile.preferredSources;
   }
 
-  // 9. Freshness, Sorting, and Relevance Thresholds (TASK-027 Enhanced)
+  // 9. Freshness, Sorting, and Relevance Thresholds (TASK-027 & TASK-043 Enhanced)
   const isLatestIntent = parsedIntent.sortMode === "LATEST" || filters.sortMode === "LATEST" || profile?.sortMode === "LATEST";
   const finalSortMode: SortMode = isLatestIntent ? "LATEST" : (filters.sortMode || profile?.sortMode || "RELEVANCE_THEN_FRESHNESS");
   const isExplicitFreshness = filters.isExplicitFreshness !== undefined
@@ -231,11 +234,18 @@ export function buildDiscoveryPlan(
   const freshnessWindowHours = filters.freshnessWindowHours !== undefined
     ? filters.freshnessWindowHours
     : (parsedIntent.freshnessWindowHours !== undefined ? parsedIntent.freshnessWindowHours : (profile?.freshnessWindowHours || (isLatestIntent ? 48 : 168)));
+  const postedWithinDays = filters.postedWithinDays !== undefined
+    ? filters.postedWithinDays
+    : (parsedIntent.postedWithinDays !== undefined ? parsedIntent.postedWithinDays : Math.round(freshnessWindowHours / 24));
+  const dateConstraint = filters.dateConstraint || parsedIntent.dateConstraint || undefined;
+  const requestedCount = filters.requestedCount || parsedIntent.requestedCount || undefined;
   const minimumMatchScore = filters.minimumMatchScore || parsedIntent.minimumMatchScore || profile?.minimumMatchScore || 65;
 
   // 10. Exclusion & Watch Intent
   const excludeKnown = filters.excludeKnown !== undefined ? filters.excludeKnown : (parsedIntent.excludeKnown || false);
   const watchIntent = filters.watchIntent || parsedIntent.watchIntent || undefined;
+
+  const targetResults = requestedCount ? Math.max(8, requestedCount) : (isLatestIntent ? 12 : 8);
 
   return {
     rawQuery: (rawQuery || "").trim(),
@@ -247,8 +257,11 @@ export function buildDiscoveryPlan(
     experienceLevels: Array.from(expLevelsSet),
     targetCompanies,
     freshnessWindowHours,
+    postedWithinDays,
+    dateConstraint,
+    requestedCount,
     isExplicitFreshness,
-    maxResultsPerSource: isLatestIntent ? 12 : 8,
+    maxResultsPerSource: targetResults,
     sources,
     sortMode: finalSortMode,
     isLatestIntent,

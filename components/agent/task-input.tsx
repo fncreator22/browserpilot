@@ -335,7 +335,7 @@ export function TaskInput({
             {/* Readout of interpreted dimensions */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
               <div className="bg-card p-2 rounded-md border border-border/60">
-                <span className="text-[10px] text-muted-foreground block uppercase">Role</span>
+                <span className="text-[10px] text-muted-foreground block uppercase">Role {parsedIntent.requestedCount ? `(Target: ${parsedIntent.requestedCount})` : ""}</span>
                 <span className="text-foreground font-medium truncate block">
                   {parsedIntent.role || "Any role"}
                 </span>
@@ -358,9 +358,13 @@ export function TaskInput({
               </div>
 
               <div className="bg-card p-2 rounded-md border border-border/60">
-                <span className="text-[10px] text-muted-foreground block uppercase">Freshness</span>
+                <span className="text-[10px] text-muted-foreground block uppercase">Date Window</span>
                 <span className={`font-medium truncate block ${effectiveFreshnessHours ? "text-emerald-500 font-semibold" : "text-muted-foreground"}`}>
-                  {effectiveFreshnessHours ? `Last ${effectiveFreshnessHours}h` : "Any time"}
+                  {effectiveFreshnessHours
+                    ? (effectiveFreshnessHours >= 24 && effectiveFreshnessHours % 24 === 0
+                        ? `Last ${effectiveFreshnessHours / 24}d (${effectiveFreshnessHours}h)`
+                        : `Last ${effectiveFreshnessHours}h`)
+                    : "Any time"}
                 </span>
               </div>
             </div>
