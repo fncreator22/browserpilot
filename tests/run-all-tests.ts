@@ -57,6 +57,7 @@ import { runPersonalizedDiscoveryConfigurationTests } from "./integration/person
 import { runMultiSourceDiscoveryIntelligenceTests } from "./integration/multiSourceDiscoveryIntelligence.test";
 import { runAuthenticatedBrowserDiscoveryTests } from "./integration/authenticatedBrowserDiscovery.test";
 import { runDiscoveryIntelligenceLearningTests } from "./integration/discoveryIntelligenceLearning.test";
+import { runProductionDiscoveryExecutionTests } from "./integration/productionDiscoveryExecution.test";
 import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalLanguageWorkflowAcceptance.test";
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -118,6 +119,7 @@ async function runMasterTestSuite() {
     { name: "Integration: Multi-Source Discovery Intelligence (TASK-038)", fn: runMultiSourceDiscoveryIntelligenceTests },
     { name: "Integration: Authenticated Browser Discovery & Sessions (TASK-039)", fn: runAuthenticatedBrowserDiscoveryTests },
     { name: "Integration: Discovery Intelligence & Source Learning (TASK-040)", fn: runDiscoveryIntelligenceLearningTests },
+    { name: "Integration: Production Discovery Execution & Browser Reliability (TASK-041)", fn: runProductionDiscoveryExecutionTests },
     { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
     { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },

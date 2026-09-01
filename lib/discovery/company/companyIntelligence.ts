@@ -59,14 +59,28 @@ export async function getCompanyIntelligence(companyName: string): Promise<Compa
   if (!record) return null;
 
   let sourceFreshness: Record<string, string> = {};
+  let knownSourcesList: string[] = [];
   try {
-    const sourcesList = JSON.parse(record.knownSources || "[]");
-    if (typeof sourcesList === "object" && !Array.isArray(sourcesList)) {
-      sourceFreshness = sourcesList;
-    } else if (Array.isArray(sourcesList)) {
-      for (const s of sourcesList) {
+    const parsed = JSON.parse(record.knownSources || "[]");
+    if (Array.isArray(parsed)) {
+      knownSourcesList = parsed;
+      for (const s of parsed) {
         sourceFreshness[s.toLowerCase()] = record.lastCrawlAt ? record.lastCrawlAt.toISOString() : new Date().toISOString();
       }
+    } else if (typeof parsed === "object" && parsed !== null) {
+      sourceFreshness = parsed as Record<string, string>;
+      knownSourcesList = Object.keys(parsed).map((k) => {
+        if (k.toLowerCase() === "greenhouse") return "Greenhouse";
+        if (k.toLowerCase() === "ashby") return "Ashby";
+        if (k.toLowerCase() === "lever") return "Lever";
+        if (k.toLowerCase() === "workable") return "Workable";
+        if (k.toLowerCase() === "linkedin") return "LinkedIn";
+        if (k.toLowerCase() === "indeed") return "Indeed";
+        if (k.toLowerCase() === "y combinator") return "Y Combinator";
+        if (k.toLowerCase() === "hacker news") return "Hacker News";
+        if (k.toLowerCase() === "github curated") return "GitHub Curated";
+        return k;
+      });
     }
   } catch {}
 
@@ -77,7 +91,7 @@ export async function getCompanyIntelligence(companyName: string): Promise<Compa
     officialCareerUrl: record.officialCareerUrl,
     atsProvider: record.atsProvider as KnownAtsProvider,
     atsUrl: record.atsUrl,
-    knownSources: JSON.parse(record.knownSources || "[]"),
+    knownSources: knownSourcesList,
     sourceFreshness,
     lastDiscoveredAt: record.lastDiscoveredAt,
     lastCrawlAt: record.lastCrawlAt,
@@ -124,7 +138,7 @@ export async function upsertCompanyIntelligence(
       officialCareerUrl: data.officialCareerUrl || existing?.officialCareerUrl || null,
       atsProvider,
       atsUrl: data.atsUrl || existing?.atsUrl || null,
-      knownSources: JSON.stringify(Array.from(sourcesSet)),
+      knownSources: JSON.stringify(freshnessMap),
       lastDiscoveredAt: now,
       lastCrawlAt: now,
       freshnessScore: 1.0,
@@ -134,7 +148,7 @@ export async function upsertCompanyIntelligence(
       officialCareerUrl: data.officialCareerUrl || undefined,
       atsProvider: atsProvider || undefined,
       atsUrl: data.atsUrl || undefined,
-      knownSources: JSON.stringify(Array.from(sourcesSet)),
+      knownSources: JSON.stringify(freshnessMap),
       lastDiscoveredAt: now,
       lastCrawlAt: now,
       updatedAt: now,

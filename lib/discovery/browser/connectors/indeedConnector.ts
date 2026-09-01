@@ -55,7 +55,8 @@ export class IndeedBrowserConnector extends BrowserSourceConnector {
       ? intent.companies
       : intent.company ? [intent.company] : ["Oracle", "Cisco", "IBM", "Adobe"];
 
-    for (let i = 0; i < Math.min(companies.length, limits.maxCandidates); i++) {
+    const maxCandidates = limits?.maxCandidates ?? 10;
+    for (let i = 0; i < Math.min(companies.length, maxCandidates); i++) {
       const comp = companies[i];
       const jobId = `ind_${comp.toLowerCase()}_${Date.now()}_${i}`;
 

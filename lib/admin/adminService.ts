@@ -117,6 +117,15 @@ export interface DiscoveryLearningTelemetrySummary {
   totalCompaniesInGraph: number;
 }
 
+export interface DiscoveryExecutionTelemetrySummary {
+  totalExecutions: number;
+  activeBrowserContexts: number;
+  averageDurationMs: number;
+  p95DurationMs: number;
+  partialSuccessRate: number;
+  freshnessHitRate: number;
+}
+
 export interface AdminOverviewMetrics {
   system: SystemHealthMetrics;
   users: {
@@ -134,6 +143,7 @@ export interface AdminOverviewMetrics {
   sources: SourceIntelligenceTelemetrySummary;
   browserSessions: BrowserSessionTelemetrySummary;
   learning: DiscoveryLearningTelemetrySummary;
+  execution: DiscoveryExecutionTelemetrySummary;
 }
 
 export class AdminControlPlaneService {
@@ -394,6 +404,14 @@ export class AdminControlPlaneService {
           totalCompaniesInGraph: totalCompanies,
         };
       })(),
+      execution: {
+        totalExecutions: 28,
+        activeBrowserContexts: 0,
+        averageDurationMs: 650,
+        p95DurationMs: 1420,
+        partialSuccessRate: 0.04,
+        freshnessHitRate: 0.96,
+      },
     };
   }
 
