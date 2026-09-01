@@ -32,6 +32,7 @@ import { deduplicateCandidates } from "@/lib/scraper/deduplicator";
 import { rankOpportunities } from "@/lib/scraper/ranker";
 import { isWithinFreshnessWindow, parsePostingDate } from "@/lib/scraper/freshnessExtractor";
 import { evaluateCandidateQualityGate } from "@/lib/scraper/searchQualityGate";
+import { classifySourceError, sourceReliabilityManager } from "@/lib/discovery/execution/sourceReliabilityManager";
 import { upsertOpportunity, upsertSourceListing } from "@/lib/db/opportunities";
 import { checkFeatureEntitlement, recordAIUsageEvent } from "@/lib/ai/governance/providerGovernance";
 import { evaluateUsageLimit } from "@/lib/billing/usagePolicyService";
@@ -44,6 +45,7 @@ export class DiscoveryExecutionService {
     request: DiscoveryExecutionRequest
   ): Promise<DiscoveryExecutionResult> {
     const startTime = Date.now();
+    const startTimeDate = new Date(startTime);
     const runId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const userId = request.userId;
 
@@ -229,6 +231,8 @@ export class DiscoveryExecutionService {
 
             harvestedCandidates.push(...candidates);
 
+            sourceReliabilityManager.recordOutcome(srcName, "SUCCESS", undefined, startTimeDate);
+
             sourceTelemetry.push({
               sourceName: srcName,
               status: "SUCCESS",
@@ -237,18 +241,20 @@ export class DiscoveryExecutionService {
               isAuthenticated: target.isAuthenticated || false,
             });
           } catch (err: unknown) {
+            const errClass = classifySourceError(err);
             const msg = (err as Error).message || "Crawl operation failed";
+            sourceReliabilityManager.recordOutcome(srcName, "FAILURE", errClass.category, startTimeDate);
 
             // Record failure learning signal
             await discoveryIntelligenceStore.recordDiscoverySignal({
               sourceName: srcName,
               companyName: targetCompany || null,
-              signalType: msg.includes("CAPTCHA")
+              signalType: errClass.category === "CAPTCHA_DETECTED"
                 ? "CAPTCHA_DETECTED"
-                : msg.includes("Rate")
+                : errClass.category === "RATE_LIMITED"
                 ? "RATE_LIMITED"
                 : "CRAWL_FAILED",
-              metadata: { error: msg },
+              metadata: { error: msg, category: errClass.category },
             }).catch(() => {});
 
             sourceTelemetry.push({
@@ -256,8 +262,8 @@ export class DiscoveryExecutionService {
               status: "FAILED",
               candidatesHarvested: 0,
               durationMs: Date.now() - sStart,
-              errorCategory: "EXTRACTION_FAILURE",
-              userFacingMessage: `${srcName} encountered an error: ${msg}`,
+              errorCategory: errClass.category,
+              userFacingMessage: `${srcName}: ${errClass.userFacingMessage}`,
               isAuthenticated: target.isAuthenticated || false,
             });
           } finally {
@@ -269,7 +275,6 @@ export class DiscoveryExecutionService {
 
     // 8. Extraction Validation & Authoritative Quality Gate (TASK-044/TASK-045)
     const validCandidates: RawJobCandidate[] = [];
-    const startTimeDate = new Date(startTime);
 
     for (const c of harvestedCandidates) {
       const gateEval = evaluateCandidateQualityGate(c, plan, startTimeDate);
