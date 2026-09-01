@@ -275,11 +275,11 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     matchedExpLevels.push("MID", "SENIOR");
   } else {
     matchedOppTypes.push("FULL_TIME", "INTERNSHIP");
-    matchedExpLevels.push("ENTRY_LEVEL", "INTERN");
+    matchedExpLevels.push("ANY");
   }
 
   const primaryOpportunityType = isInternshipMentioned ? "INTERNSHIP" : (matchedOppTypes[0] || "FULL_TIME");
-  const primaryExperienceLevel = isInternshipMentioned ? "INTERN" : (matchedExpLevels[0] || "ENTRY_LEVEL");
+  const primaryExperienceLevel = isInternshipMentioned ? "INTERN" : isEntryLevelMentioned ? "ENTRY_LEVEL" : isSeniorMentioned ? "SENIOR" : "ANY";
 
   // 3. Target Graduation Year (e.g. 2024, 2025, 2026, 2027, 2028)
   let targetGradYear: number | undefined;
