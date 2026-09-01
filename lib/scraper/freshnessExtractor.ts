@@ -5,6 +5,8 @@
  */
 
 export type FreshnessClass = "TODAY" | "RECENT" | "STALE" | "UNKNOWN";
+export type DateSemantic = "POSTED" | "UPDATED" | "REPOSTED" | "UNKNOWN";
+export type MetadataConfidence = "VERIFIED" | "PARTIAL" | "UNVERIFIED";
 
 export interface FreshnessSignal {
   postedAt: Date | null;
@@ -12,11 +14,14 @@ export interface FreshnessSignal {
   lastVerifiedAt?: Date | null;
   freshnessScore: number;
   freshnessClass: FreshnessClass;
+  dateSemantic: DateSemantic;
   postedAgoText?: string;
+  confidence: MetadataConfidence;
 }
 
 /**
  * Deterministically parses a posting date string (relative or absolute) into a Date and FreshnessSignal.
+ * Distinguishes original posting dates from "updated" or "reposted" dates.
  * 
  * @param dateText Raw date or relative age snippet (e.g. "Posted 2 hours ago", "3d ago", "Aug 28, 2026")
  * @param referenceTime The base timestamp to evaluate against (defaults to now)
@@ -33,12 +38,22 @@ export function parsePostingDate(
       discoveredAt,
       freshnessScore: 4,
       freshnessClass: "UNKNOWN",
+      dateSemantic: "UNKNOWN",
       postedAgoText: "Posting date unavailable",
+      confidence: "UNVERIFIED",
     };
   }
 
   const text = dateText.trim().toLowerCase();
   const refMs = referenceTime.getTime();
+
+  // Detect semantic qualifier
+  let dateSemantic: DateSemantic = "POSTED";
+  if (/\b(updated|modified|refreshed)\b/.test(text)) {
+    dateSemantic = "UPDATED";
+  } else if (/\b(reposted|re-posted)\b/.test(text)) {
+    dateSemantic = "REPOSTED";
+  }
 
   // 1. "Just now", "moments ago", "few seconds ago"
   if (/\b(just now|moments? ago|seconds? ago)\b/.test(text)) {
@@ -47,7 +62,9 @@ export function parsePostingDate(
       discoveredAt,
       freshnessScore: 15,
       freshnessClass: "TODAY",
-      postedAgoText: "Just posted",
+      dateSemantic,
+      postedAgoText: dateSemantic === "UPDATED" ? "Updated moments ago" : dateSemantic === "REPOSTED" ? "Reposted moments ago" : "Just posted",
+      confidence: "VERIFIED",
     };
   }
 
@@ -58,7 +75,9 @@ export function parsePostingDate(
       discoveredAt,
       freshnessScore: 15,
       freshnessClass: "TODAY",
-      postedAgoText: "Posted today",
+      dateSemantic,
+      postedAgoText: dateSemantic === "UPDATED" ? "Updated today" : dateSemantic === "REPOSTED" ? "Reposted today" : "Posted today",
+      confidence: "VERIFIED",
     };
   }
 
@@ -71,7 +90,9 @@ export function parsePostingDate(
       discoveredAt,
       freshnessScore: 15,
       freshnessClass: "TODAY",
-      postedAgoText: `${mins}m ago`,
+      dateSemantic,
+      postedAgoText: dateSemantic === "UPDATED" ? `Updated ${mins}m ago` : dateSemantic === "REPOSTED" ? `Reposted ${mins}m ago` : `${mins}m ago`,
+      confidence: "VERIFIED",
     };
   }
 
@@ -86,7 +107,9 @@ export function parsePostingDate(
       discoveredAt,
       freshnessScore: score,
       freshnessClass: fClass,
-      postedAgoText: `${hours}h ago`,
+      dateSemantic,
+      postedAgoText: dateSemantic === "UPDATED" ? `Updated ${hours}h ago` : dateSemantic === "REPOSTED" ? `Reposted ${hours}h ago` : `${hours}h ago`,
+      confidence: "VERIFIED",
     };
   }
 
@@ -97,7 +120,9 @@ export function parsePostingDate(
       discoveredAt,
       freshnessScore: 12,
       freshnessClass: "RECENT",
-      postedAgoText: "Yesterday",
+      dateSemantic,
+      postedAgoText: dateSemantic === "UPDATED" ? "Updated yesterday" : dateSemantic === "REPOSTED" ? "Reposted yesterday" : "Yesterday",
+      confidence: "VERIFIED",
     };
   }
 
@@ -129,7 +154,9 @@ export function parsePostingDate(
       discoveredAt,
       freshnessScore: score,
       freshnessClass: fClass,
-      postedAgoText: `${days}d ago`,
+      dateSemantic,
+      postedAgoText: dateSemantic === "UPDATED" ? `Updated ${days}d ago` : dateSemantic === "REPOSTED" ? `Reposted ${days}d ago` : `${days}d ago`,
+      confidence: "VERIFIED",
     };
   }
 
@@ -144,7 +171,9 @@ export function parsePostingDate(
       discoveredAt,
       freshnessScore: score,
       freshnessClass: fClass,
-      postedAgoText: `${weeks}w ago`,
+      dateSemantic,
+      postedAgoText: dateSemantic === "UPDATED" ? `Updated ${weeks}w ago` : dateSemantic === "REPOSTED" ? `Reposted ${weeks}w ago` : `${weeks}w ago`,
+      confidence: "VERIFIED",
     };
   }
 
@@ -157,7 +186,9 @@ export function parsePostingDate(
       discoveredAt,
       freshnessScore: 0,
       freshnessClass: "STALE",
-      postedAgoText: `${months}mo ago`,
+      dateSemantic,
+      postedAgoText: dateSemantic === "UPDATED" ? `Updated ${months}mo ago` : dateSemantic === "REPOSTED" ? `Reposted ${months}mo ago` : `${months}mo ago`,
+      confidence: "VERIFIED",
     };
   }
 
@@ -192,18 +223,48 @@ export function parsePostingDate(
       discoveredAt,
       freshnessScore: score,
       freshnessClass: fClass,
+      dateSemantic: "POSTED",
       postedAgoText: ageDays === 0 ? "Posted today" : `${ageDays}d ago`,
+      confidence: "VERIFIED",
     };
   }
 
-    return {
-      postedAt: null,
-      discoveredAt,
-      freshnessScore: 4,
-      freshnessClass: "UNKNOWN",
-      postedAgoText: "Posting date unavailable",
-    };
+  return {
+    postedAt: null,
+    discoveredAt,
+    freshnessScore: 4,
+    freshnessClass: "UNKNOWN",
+    dateSemantic: "UNKNOWN",
+    postedAgoText: "Posting date unavailable",
+    confidence: "UNVERIFIED",
+  };
+}
+
+/**
+ * Evaluates whether a candidate's metadata is verified, partial, or unverified.
+ */
+export function evaluateMetadataConfidence(item: {
+  title?: string;
+  companyName?: string;
+  postedAt?: Date | null;
+  sourceUrl?: string;
+  applyUrl?: string;
+}): MetadataConfidence {
+  const hasTitle = Boolean(item.title && item.title.trim().length > 2);
+  const hasCompany = Boolean(item.companyName && !/^(unknown|n\/a|null|undefined)$/i.test(item.companyName.trim()));
+  const hasUrl = Boolean(item.sourceUrl || item.applyUrl);
+  const hasDate = Boolean(item.postedAt instanceof Date && !isNaN(item.postedAt.getTime()));
+
+  if (!hasTitle || !hasCompany || !hasUrl) {
+    return "UNVERIFIED";
   }
+
+  if (hasDate) {
+    return "VERIFIED";
+  }
+
+  return "PARTIAL";
+}
 
 /**
  * §DETERMINISTIC FRESHNESS BOUNDARY EVALUATOR (TASK-027)

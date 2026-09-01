@@ -152,38 +152,101 @@ export function canonicalizeUrl(rawUrl?: string | null): string {
   }
 }
 
+export type JobUrlType =
+  | "JOB_DETAIL"
+  | "COMPANY_CAREER_ROOT"
+  | "ATS_COMPANY_ROOT"
+  | "SEARCH_RESULTS"
+  | "SOURCE_HOME"
+  | "UNKNOWN";
+
+/**
+ * Classifies a URL deterministically to distinguish exact job postings from
+ * generic career roots, search results, and homepages.
+ */
+export function classifyJobUrl(rawUrl?: string | null): JobUrlType {
+  if (!rawUrl || typeof rawUrl !== "string") return "UNKNOWN";
+  try {
+    const parsed = new URL(rawUrl.trim());
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase().replace(/\/+$/, "");
+    const segments = path.split("/").filter(Boolean);
+
+    // Root domain without path
+    if (segments.length === 0) {
+      return "SOURCE_HOME";
+    }
+
+    // Search results pages
+    if (
+      path.includes("/search") ||
+      parsed.searchParams.has("q") ||
+      parsed.searchParams.has("keywords") ||
+      parsed.searchParams.has("query") ||
+      (host.includes("indeed") && path === "/jobs")
+    ) {
+      return "SEARCH_RESULTS";
+    }
+
+    // ATS Platforms (Greenhouse, Lever, Ashby, Workable)
+    if (host.includes("greenhouse.io") || host.includes("lever.co") || host.includes("ashbyhq.com") || host.includes("workable.com")) {
+      if (segments.length <= 1) {
+        return "ATS_COMPANY_ROOT";
+      }
+      return "JOB_DETAIL";
+    }
+
+    // Major job boards with specific job view paths
+    if (host.includes("linkedin.com")) {
+      if (path.includes("/jobs/view") || path.includes("/jobs/collections")) return "JOB_DETAIL";
+      if (segments.length >= 2 && segments[0] === "jobs" && !["search", "search-results"].includes(segments[1])) {
+        return "JOB_DETAIL";
+      }
+      if (path.includes("/jobs")) return "SEARCH_RESULTS";
+      return "SOURCE_HOME";
+    }
+
+    if (host.includes("indeed.com")) {
+      if (path.includes("/viewjob") || parsed.searchParams.has("jk")) return "JOB_DETAIL";
+      if (segments.length >= 2 && segments[0] === "jobs" && !["search"].includes(segments[1])) {
+        return "JOB_DETAIL";
+      }
+      return "SEARCH_RESULTS";
+    }
+
+    if (host.includes("workatastartup.com") || host.includes("ycombinator.com")) {
+      if (path.includes("/jobs/") && segments.length >= 2) return "JOB_DETAIL";
+      if (path.includes("/jobs")) return "COMPANY_CAREER_ROOT";
+    }
+
+    // Generic company portals: single segment like /careers, /jobs, /join-us, /openings
+    if (segments.length === 1 && /^(careers?|jobs?|join-us|work-with-us|openings?|opportunities|positions)$/i.test(segments[0])) {
+      return "COMPANY_CAREER_ROOT";
+    }
+
+    // Direct employer career detail pages (e.g. /careers/software-engineer-123, /jobs/456, /openings/backend, /positions/101)
+    if (segments.length >= 2 && /^(careers?|jobs?|openings?|opportunities?|positions?|role|roles)$/i.test(segments[0])) {
+      return "JOB_DETAIL";
+    }
+
+    // Single-segment specific job slug if it has a hyphenated role name or job ID (e.g., /job-backend-engineer-123)
+    if (segments.length === 1 && segments[0].includes("-") && !/^(careers?|jobs?|join-us)$/i.test(segments[0])) {
+      return "JOB_DETAIL";
+    }
+
+    return segments.length >= 2 ? "JOB_DETAIL" : "COMPANY_CAREER_ROOT";
+  } catch {
+    return "UNKNOWN";
+  }
+}
+
 /**
  * Detects whether a URL points merely to a generic company career homepage/portal root
  * rather than a specific individual job posting detail page.
  */
 export function isGenericCareerHomepage(rawUrl?: string | null): boolean {
-  if (!rawUrl || typeof rawUrl !== "string") return false;
-  try {
-    const parsed = new URL(rawUrl.trim());
-    const path = parsed.pathname.toLowerCase().replace(/\/+$/, "");
-    const segments = path.split("/").filter(Boolean);
-
-    // Root domain without path
-    if (segments.length === 0) return true;
-
-    // Generic paths like /careers, /jobs, /join-us, /work-with-us, /openings
-    if (segments.length === 1 && /^(careers?|jobs?|join-us|work-with-us|openings?)$/i.test(segments[0])) {
-      return true;
-    }
-
-    // ATS portal root boards without job ID/slug:
-    // boards.greenhouse.io/<company> (1 segment)
-    // jobs.lever.co/<company> (1 segment)
-    // jobs.ashbyhq.com/<company> (1 segment)
-    const host = parsed.hostname.toLowerCase();
-    if ((host.includes("greenhouse.io") || host.includes("lever.co") || host.includes("ashbyhq.com") || host.includes("workable.com")) && segments.length <= 1) {
-      return true;
-    }
-
-    return false;
-  } catch {
-    return false;
-  }
+  const classification = classifyJobUrl(rawUrl);
+  return classification === "COMPANY_CAREER_ROOT" || classification === "ATS_COMPANY_ROOT" || classification === "SOURCE_HOME";
 }
 
 /**

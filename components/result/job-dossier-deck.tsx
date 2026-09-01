@@ -348,10 +348,10 @@ export function JobDossierDeck({ jobs = [], jobId = "search", className = "", sw
                           {job.matchScore} pts
                         </Badge>
                       )}
-                      {Boolean(job.postedAgoText) && (
-                        <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 text-muted-foreground border-border/80 flex items-center gap-1">
+                      {(Boolean(job.postedAgoText) || Boolean(job.postedAt)) && (
+                        <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 text-emerald-400 border-emerald-500/30 bg-emerald-500/5 flex items-center gap-1">
                           <Clock className="h-2.5 w-2.5" />
-                          {job.postedAgoText}
+                          {job.postedAgoText || (job.postedAt ? `Posted ${Math.max(0, Math.floor((Date.now() - new Date(job.postedAt).getTime()) / (24 * 3600 * 1000)))}d ago` : "Recent")}
                         </Badge>
                       )}
                     </div>
