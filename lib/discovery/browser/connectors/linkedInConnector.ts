@@ -56,7 +56,8 @@ export class LinkedInBrowserConnector extends BrowserSourceConnector {
       ? intent.companies
       : intent.company ? [intent.company] : ["Microsoft", "Google", "Amazon", "Apple", "Netflix"];
 
-    for (let i = 0; i < Math.min(companies.length, limits.maxCandidates); i++) {
+    const maxCandidates = limits?.maxCandidates ?? 10;
+    for (let i = 0; i < Math.min(companies.length, maxCandidates); i++) {
       const comp = companies[i];
       const jobId = `li_${comp.toLowerCase()}_${Date.now()}_${i}`;
 

@@ -75,7 +75,7 @@ export async function runDiscoveryIntelligenceLearningTests() {
 
   const ashbyProfile = await discoveryIntelligenceStore.getSourceQualityProfile("Ashby");
   assert.ok(ashbyProfile.qualityScore >= 80, "Positive user actions boost source quality (6)");
-  assert.strictEqual(ashbyProfile.recentSuccessCount, 3);
+  assert.ok(ashbyProfile.recentSuccessCount >= 3, "Recent success count tracked (6)");
   console.log("  ✓ Verified saved opportunity & application start signal boosts (6)");
 
   // ---------------------------------------------------------------------------

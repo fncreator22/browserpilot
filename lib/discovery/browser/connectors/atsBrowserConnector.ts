@@ -43,7 +43,8 @@ export class AtsBrowserConnector extends BrowserSourceConnector {
       ? intent.companies
       : intent.company ? [intent.company] : ["Stripe", "Linear", "Supabase", "Retool"];
 
-    for (let i = 0; i < Math.min(companies.length, limits.maxCandidates); i++) {
+    const maxCandidates = limits?.maxCandidates ?? 10;
+    for (let i = 0; i < Math.min(companies.length, maxCandidates); i++) {
       const comp = companies[i];
       const slug = comp.toLowerCase().replace(/[^a-z0-9]/g, "");
 
