@@ -211,8 +211,8 @@ export function buildDiscoveryPlan(
 
   const targetCompanies = Array.from(targetCompaniesSet);
 
-  // 8. Resolve Sources
-  const defaultSources = ["LinkedIn", "Y Combinator", "Indeed"];
+  // 8. Resolve Sources (Multi-Source Swarm: Aggregators, Direct ATS, Tech Communities)
+  const defaultSources = ["LinkedIn", "Y Combinator", "Indeed", "ATS Direct", "Hacker News", "GitHub Curated"];
   let sources = defaultSources;
   if (filters.sources && filters.sources.length > 0) {
     sources = filters.sources;
