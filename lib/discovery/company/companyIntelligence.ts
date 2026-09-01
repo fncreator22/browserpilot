@@ -1,8 +1,8 @@
 /**
- * §COMPANY INTELLIGENCE & ATS RESOLUTION SERVICE (TASK-038)
+ * §COMPANY INTELLIGENCE & ATS RESOLUTION SERVICE (TASK-038 & TASK-039)
  * 
- * Maps companies to official career portals, ATS providers (Greenhouse, Ashby, Lever),
- * and tracks historical discovery channels.
+ * Maps companies to official career portals, ATS providers (Greenhouse, Ashby, Lever, Workable),
+ * tracks per-source crawl freshness, and maintains anonymized platform-level source signals.
  */
 
 import { prisma } from "@/lib/db/prisma";
@@ -18,6 +18,7 @@ export interface CompanyIntelligenceRecord {
   atsProvider?: KnownAtsProvider | string | null;
   atsUrl?: string | null;
   knownSources: string[];
+  sourceFreshness: Record<string, string>; // { "linkedin": ISO, "greenhouse": ISO }
   lastDiscoveredAt?: Date | null;
   lastCrawlAt?: Date | null;
   freshnessScore: number;
@@ -57,6 +58,18 @@ export async function getCompanyIntelligence(companyName: string): Promise<Compa
 
   if (!record) return null;
 
+  let sourceFreshness: Record<string, string> = {};
+  try {
+    const sourcesList = JSON.parse(record.knownSources || "[]");
+    if (typeof sourcesList === "object" && !Array.isArray(sourcesList)) {
+      sourceFreshness = sourcesList;
+    } else if (Array.isArray(sourcesList)) {
+      for (const s of sourcesList) {
+        sourceFreshness[s.toLowerCase()] = record.lastCrawlAt ? record.lastCrawlAt.toISOString() : new Date().toISOString();
+      }
+    }
+  } catch {}
+
   return {
     id: record.id,
     companyName: record.companyName,
@@ -65,6 +78,7 @@ export async function getCompanyIntelligence(companyName: string): Promise<Compa
     atsProvider: record.atsProvider as KnownAtsProvider,
     atsUrl: record.atsUrl,
     knownSources: JSON.parse(record.knownSources || "[]"),
+    sourceFreshness,
     lastDiscoveredAt: record.lastDiscoveredAt,
     lastCrawlAt: record.lastCrawlAt,
     freshnessScore: record.freshnessScore,
@@ -79,6 +93,7 @@ export async function upsertCompanyIntelligence(
     atsProvider?: string | null;
     atsUrl?: string | null;
     sourceName?: string;
+    sourceFreshnessMap?: Record<string, string>;
   }
 ): Promise<CompanyIntelligenceRecord> {
   const norm = normalizeCompany(data.companyName).toLowerCase();
@@ -92,6 +107,14 @@ export async function upsertCompanyIntelligence(
 
   const atsInfo = data.atsUrl ? detectAtsProvider(data.atsUrl) : null;
   const atsProvider = data.atsProvider || atsInfo?.provider || existing?.atsProvider || null;
+
+  const freshnessMap: Record<string, string> = {
+    ...(existing?.sourceFreshness || {}),
+    ...(data.sourceFreshnessMap || {}),
+  };
+  if (data.sourceName) {
+    freshnessMap[data.sourceName.toLowerCase()] = now.toISOString();
+  }
 
   const record = await prisma.companyIntelligence.upsert({
     where: { normalizedName: norm },
@@ -126,6 +149,7 @@ export async function upsertCompanyIntelligence(
     atsProvider: record.atsProvider as KnownAtsProvider,
     atsUrl: record.atsUrl,
     knownSources: Array.from(sourcesSet),
+    sourceFreshness: freshnessMap,
     lastDiscoveredAt: record.lastDiscoveredAt,
     lastCrawlAt: record.lastCrawlAt,
     freshnessScore: record.freshnessScore,
