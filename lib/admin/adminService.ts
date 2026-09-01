@@ -10,6 +10,7 @@ import { getOnboardingTelemetry, type OnboardingTelemetry } from "@/lib/db/onboa
 import { ProviderTelemetryMetrics, getAdminProviderTelemetry } from "@/lib/ai/governance/providerGovernance";
 import { getEnvironmentAuditSummary } from "@/lib/config/envContract";
 import { getMultiInstanceReadinessReport } from "@/lib/infra/multiInstanceReadiness";
+import { sourceRegistry } from "@/lib/discovery/sources/sourceRegistry";
 
 export interface SystemHealthMetrics {
   status: "HEALTHY" | "DEGRADED" | "CRITICAL";
@@ -87,6 +88,14 @@ export interface InfrastructureTelemetrySummary {
   databaseEngine: string;
 }
 
+export interface SourceIntelligenceTelemetrySummary {
+  totalSources: number;
+  healthySources: number;
+  degradedSources: number;
+  blockedSources: number;
+  totalCompaniesTracked: number;
+}
+
 export interface AdminOverviewMetrics {
   system: SystemHealthMetrics;
   users: {
@@ -101,6 +110,7 @@ export interface AdminOverviewMetrics {
   providers: ProviderTelemetryMetrics;
   billing: MonetizationTelemetrySummary;
   infrastructure: InfrastructureTelemetrySummary;
+  sources: SourceIntelligenceTelemetrySummary;
 }
 
 export class AdminControlPlaneService {
@@ -293,6 +303,17 @@ export class AdminControlPlaneService {
           configuredVariablesCount: envAudit.configuredCount,
           overallReadiness: readiness.overallReadiness,
           databaseEngine: dbEngine,
+        };
+      })(),
+      sources: await (async () => {
+        const allSources = sourceRegistry.getAllSources();
+        const totalCompanies = await prisma.companyIntelligence.count().catch(() => 0);
+        return {
+          totalSources: allSources.length,
+          healthySources: allSources.filter((s) => s.status === "HEALTHY").length,
+          degradedSources: allSources.filter((s) => s.status === "DEGRADED").length,
+          blockedSources: allSources.filter((s) => s.status === "BLOCKED").length,
+          totalCompaniesTracked: totalCompanies,
         };
       })(),
     };

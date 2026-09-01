@@ -17,6 +17,9 @@ import {
 import { linkedInProvider } from "./providers/linkedInProvider";
 import { ycProvider } from "./providers/ycProvider";
 import { indeedProvider } from "./providers/indeedProvider";
+import { atsProvider } from "./providers/atsProvider";
+import { hackerNewsProvider } from "./providers/hackerNewsProvider";
+import { githubJobsProvider } from "./providers/githubJobsProvider";
 import { type DiscoveryPlan } from "./discoveryPlanner";
 import { parsePostingDate, isWithinFreshnessWindow } from "./freshnessExtractor";
 import { normalizeCompany } from "./normalizer";
@@ -58,6 +61,9 @@ export class SwarmDiscoveryEngine {
     linkedInProvider,
     ycProvider,
     indeedProvider,
+    atsProvider,
+    hackerNewsProvider,
+    githubJobsProvider,
   ];
 
   constructor(customProviders?: SearchProvider[]) {
@@ -120,7 +126,8 @@ export class SwarmDiscoveryEngine {
             plan.sources.some(
               (s) =>
                 p.name.toLowerCase().includes(s.toLowerCase()) ||
-                s.toLowerCase().includes(p.name.toLowerCase())
+                s.toLowerCase().includes(p.name.toLowerCase()) ||
+                (p.name.toLowerCase().includes("ats") && ["ashby", "greenhouse", "lever", "workable", "ats direct"].includes(s.toLowerCase()))
             )
           );
 

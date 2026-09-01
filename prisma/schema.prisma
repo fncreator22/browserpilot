@@ -505,4 +505,47 @@ model PaymentTransaction {
   @@map("payment_transactions")
 }
 
+model DiscoverySource {
+  id                   String    @id @default(cuid())
+  name                 String    @unique
+  type                 String    // AGGREGATOR, ATS_PORTAL, COMPANY_CAREERS, TECH_COMMUNITY, PUBLIC_BOARD, USER_CONNECTED
+  baseUrl              String
+  supportedCategories  String    @default("[]") // JSON array
+  supportedLocations   String    @default("[]") // JSON array
+  reliabilityScore     Float     @default(1.0)
+  lastSuccessfulCrawlAt DateTime?
+  lastFailedCrawlAt    DateTime?
+  totalCrawls          Int       @default(0)
+  successfulCrawls     Int       @default(0)
+  failedCrawls         Int       @default(0)
+  status               String    @default("HEALTHY") // HEALTHY, DEGRADED, BLOCKED, MAINTENANCE
+  isPublic             Boolean   @default(true)
+  requiresAuth         Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @default(now()) @updatedAt
 
+  @@index([type])
+  @@index([status])
+  @@map("discovery_sources")
+}
+
+model CompanyIntelligence {
+  id                 String    @id @default(cuid())
+  companyName         String    @unique
+  normalizedName     String    @unique
+  officialCareerUrl  String?
+  atsProvider        String?   // GREENHOUSE, ASHBY, LEVER, WORKABLE, CUSTOM
+  atsUrl             String?
+  knownSources       String    @default("[]") // JSON array
+  lastDiscoveredAt   DateTime?
+  lastCrawlAt        DateTime?
+  freshnessScore     Float     @default(1.0)
+  reliabilityScore   Float     @default(1.0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @default(now()) @updatedAt
+
+  @@index([normalizedName])
+  @@index([atsProvider])
+  @@index([lastCrawlAt])
+  @@map("company_intelligence")
+}

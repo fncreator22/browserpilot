@@ -426,6 +426,47 @@ CREATE INDEX IF NOT EXISTS idx_discovery_runs_userId_startedAt ON discovery_runs
 CREATE INDEX IF NOT EXISTS idx_discovery_runs_triggerType ON discovery_runs (triggerType);
 CREATE INDEX IF NOT EXISTS idx_opportunity_discovery_events_userId_discoveredAt ON opportunity_discovery_events (userId, discoveredAt);
 CREATE INDEX IF NOT EXISTS idx_opportunity_discovery_events_opportunityId ON opportunity_discovery_events (opportunityId);
+CREATE TABLE IF NOT EXISTS discovery_sources (
+  id TEXT PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  type TEXT NOT NULL,
+  baseUrl TEXT NOT NULL,
+  supportedCategories TEXT NOT NULL DEFAULT '[]',
+  supportedLocations TEXT NOT NULL DEFAULT '[]',
+  reliabilityScore REAL NOT NULL DEFAULT 1.0,
+  lastSuccessfulCrawlAt DATETIME,
+  lastFailedCrawlAt DATETIME,
+  totalCrawls INTEGER NOT NULL DEFAULT 0,
+  successfulCrawls INTEGER NOT NULL DEFAULT 0,
+  failedCrawls INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'HEALTHY',
+  isPublic INTEGER NOT NULL DEFAULT 1,
+  requiresAuth INTEGER NOT NULL DEFAULT 0,
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS company_intelligence (
+  id TEXT PRIMARY KEY,
+  companyName TEXT UNIQUE NOT NULL,
+  normalizedName TEXT UNIQUE NOT NULL,
+  officialCareerUrl TEXT,
+  atsProvider TEXT,
+  atsUrl TEXT,
+  knownSources TEXT NOT NULL DEFAULT '[]',
+  lastDiscoveredAt DATETIME,
+  lastCrawlAt DATETIME,
+  freshnessScore REAL NOT NULL DEFAULT 1.0,
+  reliabilityScore REAL NOT NULL DEFAULT 1.0,
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_discovery_sources_type ON discovery_sources (type);
+CREATE INDEX IF NOT EXISTS idx_discovery_sources_status ON discovery_sources (status);
+CREATE INDEX IF NOT EXISTS idx_company_intelligence_normalizedName ON company_intelligence (normalizedName);
+CREATE INDEX IF NOT EXISTS idx_company_intelligence_atsProvider ON company_intelligence (atsProvider);
+CREATE INDEX IF NOT EXISTS idx_company_intelligence_lastCrawlAt ON company_intelligence (lastCrawlAt);
 `;
 
 /**

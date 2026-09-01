@@ -166,6 +166,7 @@ export async function runProductionSchedulerIntegrationTests() {
   };
 
   // Re-arm watches for test execution
+  await prisma.lifecycleAlert.deleteMany({ where: { userId: { in: [userProdA.id, userProdB.id] } } });
   await upsertDiscoveryWatch(userProdA.id, { nextScanAt: pastTwoHours });
   await upsertDiscoveryWatch(userProdB.id, { nextScanAt: pastTwoHours });
 
