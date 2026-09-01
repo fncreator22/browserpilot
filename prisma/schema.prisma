@@ -574,3 +574,19 @@ model BrowserSession {
   @@index([expiresAt])
   @@map("browser_sessions")
 }
+
+model DiscoveryLearningSignal {
+  id          String   @id @default(cuid())
+  sourceName  String
+  companyName String?
+  signalType  String   // DISCOVERY_SUCCESS, CRAWL_FAILED, STALE_RESULT, OPPORTUNITY_SAVED, APPLICATION_STARTED, RATE_LIMITED, CAPTCHA_DETECTED
+  scoreDelta  Float    @default(0.0)
+  metadata    String   @default("{}")
+  createdAt   DateTime @default(now())
+
+  @@index([sourceName])
+  @@index([companyName])
+  @@index([signalType])
+  @@index([createdAt])
+  @@map("discovery_learning_signals")
+}

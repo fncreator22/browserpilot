@@ -489,6 +489,21 @@ CREATE TABLE IF NOT EXISTS browser_sessions (
 CREATE INDEX IF NOT EXISTS idx_browser_sessions_userId_status ON browser_sessions (userId, status);
 CREATE INDEX IF NOT EXISTS idx_browser_sessions_source_status ON browser_sessions (source, status);
 CREATE INDEX IF NOT EXISTS idx_browser_sessions_expiresAt ON browser_sessions (expiresAt);
+
+CREATE TABLE IF NOT EXISTS discovery_learning_signals (
+  id TEXT PRIMARY KEY,
+  sourceName TEXT NOT NULL,
+  companyName TEXT,
+  signalType TEXT NOT NULL,
+  scoreDelta REAL NOT NULL DEFAULT 0.0,
+  metadata TEXT NOT NULL DEFAULT '{}',
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_discovery_learning_signals_sourceName ON discovery_learning_signals (sourceName);
+CREATE INDEX IF NOT EXISTS idx_discovery_learning_signals_companyName ON discovery_learning_signals (companyName);
+CREATE INDEX IF NOT EXISTS idx_discovery_learning_signals_signalType ON discovery_learning_signals (signalType);
+CREATE INDEX IF NOT EXISTS idx_discovery_learning_signals_createdAt ON discovery_learning_signals (createdAt);
 `;
 
 /**

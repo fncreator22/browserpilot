@@ -69,11 +69,13 @@ export function prioritizeSources(
     freshnessWindowHours?: number;
     maxSources?: number;
     userAuthenticatedSources?: string[];
+    learnedSourceQualityBoosts?: Record<string, number>;
   } = {}
 ): PrioritizedSource[] {
   const freshnessHours = options.freshnessWindowHours ?? intent.freshnessWindowHours ?? 48;
   const maxSources = options.maxSources ?? 6;
   const authSet = new Set((options.userAuthenticatedSources || []).map((s) => s.toLowerCase()));
+  const learnedBoosts = options.learnedSourceQualityBoosts || {};
 
   const roleText = (intent.role || intent.roles?.join(" ") || "").toLowerCase();
   const isInternship = /\b(intern|internship|student|grad|graduate|new grad|co-op)\b/i.test(roleText);
@@ -109,13 +111,25 @@ export function prioritizeSources(
       score += 20;
     }
 
-    // 3. Freshness calculation
+    // 3. Learned Source Quality Boost (TASK-040: -15 to +15 bounded)
+    const learnedDelta = learnedBoosts[src.name.toLowerCase()] ?? learnedBoosts[src.name];
+    if (typeof learnedDelta === "number" && !isNaN(learnedDelta)) {
+      const boundedDelta = Math.max(-15, Math.min(15, Math.round(learnedDelta)));
+      score += boundedDelta;
+      if (boundedDelta > 0) {
+        reason += ` (+${boundedDelta} learned source quality boost)`;
+      } else if (boundedDelta < 0) {
+        reason += ` (${boundedDelta} learned source quality penalty)`;
+      }
+    }
+
+    // 4. Freshness calculation
     const isStale = shouldRefreshSource(src, src.lastSuccessfulCrawlAt, freshnessHours);
     if (isStale) {
       score += 10; // Prioritize stale sources that need refreshing
     }
 
-    // 4. Degraded health penalty
+    // 5. Degraded health penalty
     if (src.status === "DEGRADED") {
       score -= 25;
       reason += " (Degraded health - demoted)";
