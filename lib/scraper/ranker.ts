@@ -193,21 +193,39 @@ export function calculateFreshnessScore(opp: DeduplicatedOpportunity): number {
 /**
  * 5. Verification Score Calculation (0 - 10 points)
  */
-export function calculateVerificationScore(opp: DeduplicatedOpportunity): number {
+export function calculateVerificationScore(
+  opp: DeduplicatedOpportunity,
+  sourceQualityBoosts?: Record<string, number>
+): number {
   if (!opp.sourceListings || opp.sourceListings.length === 0) return 4;
 
   const hasVerified = opp.sourceListings.some((l) => l.verificationStatus === "VERIFIED");
   const multiSource = opp.sourceListings.length >= 2;
 
-  if (hasVerified && multiSource) return 10;
-  if (hasVerified) return 8;
-  if (opp.sourceListings.some((l) => l.verificationStatus === "RECENTLY_SEEN")) return 6;
-  return 4;
+  let base = 4;
+  if (hasVerified && multiSource) base = 10;
+  else if (hasVerified) base = 8;
+  else if (opp.sourceListings.some((l) => l.verificationStatus === "RECENTLY_SEEN")) base = 6;
+
+  // Apply bounded source quality boost (+1 to +2) if from high-quality sources
+  if (sourceQualityBoosts && Object.keys(sourceQualityBoosts).length > 0) {
+    for (const listing of opp.sourceListings) {
+      const srcName = listing.sourcePlatform || "";
+      const boost = sourceQualityBoosts[srcName.toLowerCase()] ?? sourceQualityBoosts[srcName];
+      if (typeof boost === "number" && boost > 0) {
+        base = Math.min(10, base + Math.min(2, Math.round(boost)));
+        break;
+      }
+    }
+  }
+
+  return Math.min(10, Math.max(0, base));
 }
 
 export interface RankerOptions {
   sortMode?: "RELEVANCE" | "LATEST" | "RELEVANCE_THEN_FRESHNESS";
   minimumScore?: number;
+  sourceQualityBoosts?: Record<string, number>;
 }
 
 /**
@@ -227,7 +245,7 @@ export function rankOpportunities(
     const skills = calculateSkillsScore(opp, intent);
     const workMode = calculateWorkModeScore(opp, intent);
     const freshness = calculateFreshnessScore(opp);
-    const verification = calculateVerificationScore(opp);
+    const verification = calculateVerificationScore(opp, options.sourceQualityBoosts);
 
     const totalScore = Math.min(100, Math.max(0, role + skills + workMode + freshness + verification));
 
