@@ -55,6 +55,7 @@ import { runProductionInfrastructureReadinessTests } from "./integration/product
 import { runDistributedRuntimeReliabilityTests } from "./integration/distributedRuntimeReliability.test";
 import { runPersonalizedDiscoveryConfigurationTests } from "./integration/personalizedDiscoveryConfiguration.test";
 import { runMultiSourceDiscoveryIntelligenceTests } from "./integration/multiSourceDiscoveryIntelligence.test";
+import { runAuthenticatedBrowserDiscoveryTests } from "./integration/authenticatedBrowserDiscovery.test";
 import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalLanguageWorkflowAcceptance.test";
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -114,6 +115,7 @@ async function runMasterTestSuite() {
     { name: "Integration: Distributed Runtime & Scheduler Reliability (TASK-036)", fn: runDistributedRuntimeReliabilityTests },
     { name: "Integration: Personalized Discovery & Swarm Configuration (TASK-037)", fn: runPersonalizedDiscoveryConfigurationTests },
     { name: "Integration: Multi-Source Discovery Intelligence (TASK-038)", fn: runMultiSourceDiscoveryIntelligenceTests },
+    { name: "Integration: Authenticated Browser Discovery & Sessions (TASK-039)", fn: runAuthenticatedBrowserDiscoveryTests },
     { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
     { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },

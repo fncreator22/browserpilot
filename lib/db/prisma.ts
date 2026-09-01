@@ -467,6 +467,28 @@ CREATE INDEX IF NOT EXISTS idx_discovery_sources_status ON discovery_sources (st
 CREATE INDEX IF NOT EXISTS idx_company_intelligence_normalizedName ON company_intelligence (normalizedName);
 CREATE INDEX IF NOT EXISTS idx_company_intelligence_atsProvider ON company_intelligence (atsProvider);
 CREATE INDEX IF NOT EXISTS idx_company_intelligence_lastCrawlAt ON company_intelligence (lastCrawlAt);
+
+CREATE TABLE IF NOT EXISTS browser_sessions (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL,
+  source TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'CONNECTED',
+  encryptedState TEXT NOT NULL,
+  authMethod TEXT NOT NULL DEFAULT 'STORAGE_STATE',
+  username TEXT,
+  expiresAt DATETIME,
+  lastVerifiedAt DATETIME,
+  lastUsedAt DATETIME,
+  metadata TEXT NOT NULL DEFAULT '{}',
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE(userId, source)
+);
+
+CREATE INDEX IF NOT EXISTS idx_browser_sessions_userId_status ON browser_sessions (userId, status);
+CREATE INDEX IF NOT EXISTS idx_browser_sessions_source_status ON browser_sessions (source, status);
+CREATE INDEX IF NOT EXISTS idx_browser_sessions_expiresAt ON browser_sessions (expiresAt);
 `;
 
 /**
