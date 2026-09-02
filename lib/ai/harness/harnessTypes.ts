@@ -12,6 +12,7 @@ import { type CapabilityGuardResult } from "@/lib/capabilities/guard";
 import { type UserMemoryItem, type PlatformMemoryItem } from "@/lib/ai/memory/memoryTypes";
 import { type RankedOpportunity } from "@/lib/scraper/ranker";
 import { type QualityGateEvaluation } from "@/lib/scraper/searchQualityGate";
+import { type BrainContext } from "@/lib/ai/brain/brainTypes";
 
 export type HarnessLifecycleStage =
   | "QUERY"
@@ -116,6 +117,7 @@ export interface HarnessContext {
   userMemories: UserMemoryItem[];
   platformKnowledge: PlatformMemoryItem[];
   searchIntelligence?: Record<string, unknown>;
+  brainContext?: BrainContext;
   
   // Capabilities & Guard
   availableCapabilities: string[];
