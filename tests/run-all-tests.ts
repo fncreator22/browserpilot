@@ -64,6 +64,7 @@ import { runSearchAccuracyAndMetadataTests } from "./integration/searchAccuracyA
 import { runRealWorldSearchExecutionValidationTests } from "./integration/realWorldSearchExecutionValidation.test";
 import { runSearchReliabilityAndRecoveryTests } from "./integration/searchReliabilityAndRecovery.test";
 import { runMemoryVaultFoundationTests } from "./integration/memoryVaultFoundation.test";
+import { runIntelligenceHarnessCoreTests } from "./integration/intelligenceHarnessCore.test";
 import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalLanguageWorkflowAcceptance.test";
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -132,6 +133,7 @@ async function runMasterTestSuite() {
     { name: "Integration: Real-World Search Execution & Quality Hardening (TASK-045)", fn: runRealWorldSearchExecutionValidationTests },
     { name: "Integration: Production Search Reliability & Source Recovery (TASK-046)", fn: runSearchReliabilityAndRecoveryTests },
     { name: "Integration: Memory Vault Foundation & Isolation (TASK-047)", fn: runMemoryVaultFoundationTests },
+    { name: "Integration: Canonical Intelligence Harness Core (TASK-048)", fn: runIntelligenceHarnessCoreTests },
     { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
     { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },
