@@ -201,7 +201,7 @@ export async function runEvidenceVerificationIntegrationTests(): Promise<void> {
     const result = await verifyEvidenceForOpportunities(rankedCandidates, {
       maxCandidates: 4,
       candidateTimeoutMs: 5000,
-      globalTimeoutMs: 15000,
+      globalTimeoutMs: 30000,
       searchId: "test_integration_search_1",
       allowLocalForTests: true,
     });

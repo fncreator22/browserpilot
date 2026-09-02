@@ -13,6 +13,7 @@ import { type UserMemoryItem, type PlatformMemoryItem } from "@/lib/ai/memory/me
 import { type RankedOpportunity } from "@/lib/scraper/ranker";
 import { type QualityGateEvaluation } from "@/lib/scraper/searchQualityGate";
 import { type BrainContext } from "@/lib/ai/brain/brainTypes";
+import { type SearchActionPlan } from "@/lib/ai/searchPlanner/searchActionPlan";
 
 export type HarnessLifecycleStage =
   | "QUERY"
@@ -126,6 +127,7 @@ export interface HarnessContext {
   // Plan & Validation
   plan?: ActionPlan;
   planValidation?: PlanValidationResult;
+  searchActionPlan?: SearchActionPlan;
   
   // Execution & Observations
   toolExecutions: HarnessToolExecutionResult[];
