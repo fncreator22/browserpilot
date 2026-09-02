@@ -15,6 +15,7 @@ import { type QualityGateEvaluation } from "@/lib/scraper/searchQualityGate";
 import { type BrainContext } from "@/lib/ai/brain/brainTypes";
 import { type SearchActionPlan } from "@/lib/ai/searchPlanner/searchActionPlan";
 import { type CompositeVerificationResult } from "@/lib/ai/evidence/evidenceTypes";
+import { type CorrectionLoopResult } from "./correction/correctionTypes";
 
 export type HarnessLifecycleStage =
   | "QUERY"
@@ -137,6 +138,7 @@ export interface HarnessContext {
   // Verification & Decision
   verification?: HarnessVerificationResult;
   compositeVerificationResults?: CompositeVerificationResult[];
+  correctionLoopResult?: CorrectionLoopResult;
   decision?: HarnessDecision;
   
   // Telemetry

@@ -32,6 +32,7 @@ import { evaluateCandidateQualityGate } from "@/lib/scraper/searchQualityGate";
 import { deduplicateCandidates } from "@/lib/scraper/deduplicator";
 import { rankOpportunities } from "@/lib/scraper/ranker";
 import { evidenceVerificationEngine } from "@/lib/ai/evidence";
+import { correctionLoopController } from "./correction";
 
 export class IntelligenceHarness {
   /**
@@ -349,17 +350,41 @@ export class IntelligenceHarness {
     recordStage("VERIFY", Date.now() - tVerifyStart);
 
     // -------------------------------------------------------------------------
-    // STAGE 6: DECIDE
+    // STAGE 6: DECIDE & AUTONOMOUS CORRECTION LOOP (TASK-052)
     // -------------------------------------------------------------------------
     const tDecideStart = Date.now();
     context.currentStage = "DECIDE";
 
+    const requestedCount = explicitConstraints.requestedCount;
+    let finalRanked = ranked;
+    let finalEligibleCandidates = eligibleCandidates;
+
+    // Enter autonomous correction loop if initial search produced a shortfall
+    if (finalEligibleCandidates.length < requestedCount && !options.dryRunPlanOnly) {
+      const loopRes = await correctionLoopController.runLoop(
+        harvestedCandidates,
+        batchVerification.verificationResults,
+        rawQuery,
+        contextualIntent,
+        discoveryPlan,
+        {
+          userId,
+          customProviders: options.customProviders,
+          referenceTime: startTimeDate,
+        }
+      );
+
+      context.correctionLoopResult = loopRes.loopResult;
+      finalEligibleCandidates = loopRes.eligibleCandidates;
+      finalRanked = loopRes.rankedOpportunities;
+      context.compositeVerificationResults = loopRes.loopResult.allVerificationResults;
+    }
+
+    const verifiedCount = finalRanked.length;
+
     let outcome: HarnessDecision["outcome"] = "COMPLETE";
     let rationale = "";
     let userExplanation = "";
-
-    const requestedCount = explicitConstraints.requestedCount;
-    const verifiedCount = ranked.length;
 
     if (verifiedCount >= requestedCount) {
       outcome = "COMPLETE";
@@ -397,7 +422,7 @@ export class IntelligenceHarness {
       harnessId,
       success: true,
       decision,
-      rankedOpportunities: ranked,
+      rankedOpportunities: finalRanked,
       context,
       telemetry: context.telemetry,
     };
