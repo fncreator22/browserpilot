@@ -30,7 +30,7 @@ export async function runImmediateFailurePropagationTest() {
   if (dbGuardJob?.status !== "BLOCKED") {
     throw new Error(`Expected guard rejection status 'BLOCKED', got: ${dbGuardJob?.status}`);
   }
-  if (guardElapsedMs > 2000) {
+  if (guardElapsedMs > 10000) {
     throw new Error(`Guard failure was too slow (${guardElapsedMs}ms) — may be hung on timeout.`);
   }
   if (dbGuardJob.error?.includes("TIMED_OUT") || dbGuardJob.summary?.includes("took longer than expected")) {

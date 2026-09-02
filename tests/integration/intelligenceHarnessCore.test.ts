@@ -158,17 +158,17 @@ export async function runIntelligenceHarnessCoreTests() {
   // TEST 6: REAL CAPABILITY TOOL EXECUTION
   // ===========================================================================
   console.log("▶ [TEST 6] Testing Capability Tool Execution...");
-  assert.strictEqual(result1.context.toolExecutions.length, 1, "Tool execution recorded (Test 6)");
-  assert.strictEqual(result1.context.toolExecutions[0].toolName, "discovery.search_pipeline", "Search pipeline tool executed (Test 6)");
-  assert.ok(result1.context.toolExecutions[0].candidatesHarvested! >= 1, "Candidates harvested (Test 6)");
+  assert.ok(result1.context.toolExecutions.length >= 1, "Tool execution recorded (Test 6)");
+  assert.ok(result1.context.toolExecutions.some((t) => t.toolName === "discovery.search_pipeline"), "Search pipeline tool executed (Test 6)");
+  assert.ok(result1.context.toolExecutions.some((t) => (t.candidatesHarvested || 0) >= 1), "Candidates harvested (Test 6)");
   console.log("  ✓ Test 6 Passed: Real search capability executed cleanly.");
 
   // ===========================================================================
   // TEST 7: STRUCTURED OBSERVATION LAYER
   // ===========================================================================
   console.log("▶ [TEST 7] Testing Structured Observation Layer...");
-  assert.strictEqual(result1.context.observations.length, 1, "Observation recorded (Test 7)");
-  const obs = result1.context.observations[0];
+  assert.ok(result1.context.observations.length >= 1, "Observation recorded (Test 7)");
+  const obs = result1.context.observations.find((o) => o.toolName === "discovery.search_pipeline") || result1.context.observations[0];
   assert.strictEqual(obs.status, "SUCCESS", "Observation status SUCCESS (Test 7)");
   assert.ok(obs.candidateCount >= 1, "Observed harvested candidate count (Test 7)");
   console.log("  ✓ Test 7 Passed: Structured observations accurately captured execution feedback.");

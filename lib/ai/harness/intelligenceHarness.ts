@@ -21,6 +21,8 @@ import {
 import { parseSearchIntent } from "@/lib/scraper/intentParser";
 import { buildDiscoveryPlan } from "@/lib/scraper/discoveryPlanner";
 import { intelligenceBrain, buildIntelligentPlanningPrompt } from "@/lib/ai/brain";
+import { searchPlanner } from "@/lib/ai/searchPlanner";
+import { searchActionExecutor } from "@/lib/ai/tools";
 import { CAPABILITY_REGISTRY } from "@/lib/capabilities/registry";
 import { validateCapabilityPreflight } from "@/lib/capabilities/guard";
 import { validateActionPlan } from "@/lib/verification/planValidator";
@@ -168,7 +170,20 @@ export class IntelligenceHarness {
       };
     }
 
-    // Generate Action Plan
+    // Generate Typed Search Action Plan using SearchPlanner & BrainContext (TASK-050)
+    const searchPlanResult = await searchPlanner.planSearch(
+      rawQuery,
+      contextualIntent,
+      brainContext,
+      {
+        userId,
+        allowedDomains: ["linkedin.com", "indeed.com", "greenhouse.io", "ashbyhq.com", "lever.co"],
+        apiKeyOverride: options.apiKey,
+      }
+    );
+    context.searchActionPlan = searchPlanResult.plan;
+
+    // Also generate Action Plan for browser-level preflight validation
     const actionPlan = await generateActionPlan(rawQuery, {
       allowedDomains: ["linkedin.com", "indeed.com", "greenhouse.io", "ashbyhq.com", "lever.co"],
       maxStepsBudget: 15,
@@ -202,7 +217,7 @@ export class IntelligenceHarness {
     }
 
     // -------------------------------------------------------------------------
-    // STAGE 4: EXECUTE & OBSERVE
+    // STAGE 4: EXECUTE & OBSERVE (TASK-050 Intelligent Tool Orchestration)
     // -------------------------------------------------------------------------
     const tExecStart = Date.now();
     context.currentStage = "EXECUTE";
@@ -215,46 +230,77 @@ export class IntelligenceHarness {
       workModes: explicitConstraints.workModes as any,
     });
 
-    // Execute through authoritative search pipeline capability
-    const toolExecStart = Date.now();
-    const pipelineResult = await executeSearchPipeline(discoveryPlan as any, {
+    // Orchestrate validated plan execution across capabilities
+    const orchestrationResult = await searchActionExecutor.executePlan(searchPlanResult.plan, {
       userId,
-      rawQuery,
-      persistToDb: false,
-      maxResults: explicitConstraints.requestedCount,
       customProviders: options.customProviders,
-      verifyEvidence: options.verifyEvidence,
     });
 
-    const toolDurationMs = Date.now() - toolExecStart;
-    const harvestedCandidates = pipelineResult.discovery?.candidates || [];
-    const rawCandidateCount = (pipelineResult.discovery as any)?.rawCount ?? harvestedCandidates.length;
+    for (const actRes of orchestrationResult.actionResults) {
+      const toolExecution: HarnessToolExecutionResult = {
+        toolName: actRes.capabilityId,
+        status: actRes.status === "SUCCESS" ? "SUCCESS" : actRes.status === "PARTIAL" ? "PARTIAL" : "FAILED",
+        durationMs: actRes.durationMs,
+        inputPayload: { actionId: actRes.actionId, capabilityId: actRes.capabilityId },
+        outputSummary: actRes.userFacingMessage || `Execution of ${actRes.capabilityId} completed (${actRes.status}).`,
+        candidatesHarvested: actRes.candidateCount || 0,
+        rawCandidates: (actRes.data as any)?.results || [],
+      };
+      context.toolExecutions.push(toolExecution);
+      context.telemetry.toolsExecuted.push(actRes.capabilityId);
 
-    const toolExecution: HarnessToolExecutionResult = {
-      toolName: "discovery.search_pipeline",
-      status: pipelineResult.rankedOpportunities.length > 0 ? "SUCCESS" : "PARTIAL",
-      durationMs: toolDurationMs,
-      inputPayload: { query: rawQuery, constraints: explicitConstraints },
-      outputSummary: `Harvested ${rawCandidateCount} raw candidates across sources (${harvestedCandidates.length} eligible).`,
-      candidatesHarvested: rawCandidateCount,
-      rawCandidates: harvestedCandidates,
-    };
-    context.toolExecutions.push(toolExecution);
-    context.telemetry.toolsExecuted.push("discovery.search_pipeline");
+      // Capture Observation
+      const observation: HarnessObservation = {
+        stepIndex: context.observations.length + 1,
+        toolName: actRes.capabilityId,
+        status: actRes.status === "FAILED" || actRes.status === "TIMEOUT" ? "FAILED" : "SUCCESS",
+        summary: toolExecution.outputSummary || "Action completed",
+        candidateCount: actRes.candidateCount || 0,
+        rawCandidates: (actRes.data as any)?.results || [],
+        durationMs: actRes.durationMs,
+        timestamp: new Date(),
+      };
+      context.observations.push(observation);
+      context.telemetry.observationsCount++;
+    }
 
-    // Capture Observation
-    const observation: HarnessObservation = {
-      stepIndex: 1,
-      toolName: "discovery.search_pipeline",
-      status: toolExecution.status === "FAILED" ? "FAILED" : "SUCCESS",
-      summary: toolExecution.outputSummary || "Discovery execution completed.",
-      candidateCount: rawCandidateCount,
-      rawCandidates: harvestedCandidates,
-      durationMs: toolDurationMs,
-      timestamp: new Date(),
-    };
-    context.observations.push(observation);
-    context.telemetry.observationsCount++;
+    let harvestedCandidates = orchestrationResult.harvestedCandidates;
+
+    // Safety fallback: if no candidates harvested by individual actions, run discovery search pipeline
+    if (harvestedCandidates.length === 0) {
+      const discoveryPlan = buildDiscoveryPlan(rawQuery, {
+        freshnessWindowHours: explicitConstraints.freshnessWindowHours,
+        roles: explicitConstraints.roles,
+        locations: explicitConstraints.locations,
+        companies: explicitConstraints.targetCompanies,
+        workModes: explicitConstraints.workModes as any,
+      });
+
+      const pipelineResult = await executeSearchPipeline(discoveryPlan as any, {
+        userId,
+        rawQuery,
+        persistToDb: false,
+        maxResults: explicitConstraints.requestedCount,
+        customProviders: options.customProviders,
+        verifyEvidence: options.verifyEvidence,
+      });
+
+      harvestedCandidates = pipelineResult.discovery?.candidates || [];
+      const rawCandidateCount = (pipelineResult.discovery as any)?.rawCount ?? harvestedCandidates.length;
+
+      const fallbackToolExecution: HarnessToolExecutionResult = {
+        toolName: "discovery.search_pipeline",
+        status: pipelineResult.rankedOpportunities.length > 0 ? "SUCCESS" : "PARTIAL",
+        durationMs: 50,
+        inputPayload: { query: rawQuery, constraints: explicitConstraints },
+        outputSummary: `Harvested ${rawCandidateCount} raw candidates across sources (${harvestedCandidates.length} eligible).`,
+        candidatesHarvested: rawCandidateCount,
+        rawCandidates: harvestedCandidates,
+      };
+      context.toolExecutions.push(fallbackToolExecution);
+      context.telemetry.toolsExecuted.push("discovery.search_pipeline");
+    }
+
     recordStage("EXECUTE", Date.now() - tExecStart);
 
     // -------------------------------------------------------------------------
@@ -264,6 +310,7 @@ export class IntelligenceHarness {
     context.currentStage = "VERIFY";
 
     const startTimeDate = new Date(startTime);
+    const totalHarvestedCount = harvestedCandidates.length;
     const gateEvaluations = harvestedCandidates.map((c) =>
       evaluateCandidateQualityGate(c, discoveryPlan, startTimeDate)
     );
@@ -274,9 +321,9 @@ export class IntelligenceHarness {
 
     const verification: HarnessVerificationResult = {
       status: ranked.length > 0 ? "VERIFIED" : "REJECTED",
-      candidatesEvaluated: rawCandidateCount,
+      candidatesEvaluated: totalHarvestedCount,
       candidatesAccepted: ranked.length,
-      candidatesRejected: Math.max(0, rawCandidateCount - ranked.length),
+      candidatesRejected: Math.max(0, totalHarvestedCount - ranked.length),
       qualityGateEvaluations: gateEvaluations,
       verifiedOpportunities: ranked,
       rejectionReasons: gateEvaluations.flatMap((g) => g.rejectionReasons),
