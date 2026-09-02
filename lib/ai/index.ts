@@ -7,3 +7,4 @@ export * from "./harness";
 export * from "./brain";
 export * from "./tools";
 export * from "./searchPlanner";
+export * from "./evidence";
