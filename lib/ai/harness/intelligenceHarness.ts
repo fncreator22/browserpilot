@@ -20,9 +20,7 @@ import {
 } from "./harnessTypes";
 import { parseSearchIntent } from "@/lib/scraper/intentParser";
 import { buildDiscoveryPlan } from "@/lib/scraper/discoveryPlanner";
-import { retrieveRelevantMemories } from "@/lib/ai/memory/memoryRetriever";
-import { platformMemoryVault } from "@/lib/ai/memory/platformMemoryVault";
-import { discoveryIntelligenceStore } from "@/lib/discovery/intelligence/discoveryIntelligenceStore";
+import { intelligenceBrain, buildIntelligentPlanningPrompt } from "@/lib/ai/brain";
 import { CAPABILITY_REGISTRY } from "@/lib/capabilities/registry";
 import { validateCapabilityPreflight } from "@/lib/capabilities/guard";
 import { validateActionPlan } from "@/lib/verification/planValidator";
@@ -67,28 +65,24 @@ export class IntelligenceHarness {
     recordStage("INTENT", Date.now() - tIntentStart);
 
     // -------------------------------------------------------------------------
-    // STAGE 2: CONTEXT RETRIEVAL (User Memory + Platform Knowledge + Search Intel)
+    // STAGE 2: INTELLIGENCE BRAIN & CONTEXT SYNTHESIS (TASK-049)
     // -------------------------------------------------------------------------
     const tContextStart = Date.now();
-    const userMemoryResult = await retrieveRelevantMemories(rawQuery, userId, { limit: 5 });
-    const platformKnowledge = platformMemoryVault.queryKnowledge({ query: rawQuery, limit: 5 });
-    
-    // Anonymous search intelligence for targeted companies
-    const searchIntelligence: Record<string, unknown> = {};
-    if (explicitConstraints.targetCompanies.length > 0) {
-      for (const comp of explicitConstraints.targetCompanies) {
-        const affinity = await discoveryIntelligenceStore.getCompanySourceAffinity(comp, "Greenhouse").catch(() => 0.5);
-        searchIntelligence[comp] = { primaryAtsAffinity: affinity };
-      }
-    }
+    const brainContext = await intelligenceBrain.synthesizeBrainContext(rawQuery, userId, {
+      maxUserMemories: 5,
+      maxPlatformItems: 5,
+      maxCompanyItems: 3,
+    });
 
+    const userMemories = brainContext.userContext.map((c) => c.item);
+    const platformKnowledge = brainContext.platformContext.map((c) => c.item);
     const availableCapabilities = Object.keys(CAPABILITY_REGISTRY);
 
     // Contextual Precedence: Explicit Query > Explicit Filters > Relevant User Memory
     // Apply user memory to fill unstated preferences without overriding explicit query constraints
     const contextualIntent = { ...parsedIntent };
-    if (userMemoryResult.relevantMemories.length > 0) {
-      for (const mem of userMemoryResult.relevantMemories) {
+    if (userMemories.length > 0) {
+      for (const mem of userMemories) {
         if (mem.category === "LOCATION_PREFERENCE" && (!explicitConstraints.locations || explicitConstraints.locations.length === 0)) {
           contextualIntent.location = mem.value;
         }
@@ -110,9 +104,9 @@ export class IntelligenceHarness {
       currentStage: "CONTEXT",
       searchIntent: contextualIntent,
       explicitConstraints,
-      userMemories: userMemoryResult.relevantMemories,
+      userMemories,
       platformKnowledge,
-      searchIntelligence,
+      brainContext,
       availableCapabilities,
       toolExecutions: [],
       observations: [],
@@ -123,7 +117,7 @@ export class IntelligenceHarness {
         totalDurationMs: 0,
         stageTimings,
         toolsExecuted: [],
-        memoriesRetrievedCount: userMemoryResult.relevantMemories.length,
+        memoriesRetrievedCount: userMemories.length,
         platformKnowledgeCount: platformKnowledge.length,
         observationsCount: 0,
         verifiedCount: 0,
