@@ -31,6 +31,7 @@ import { executeSearchPipeline } from "@/lib/scraper/searchPipeline";
 import { evaluateCandidateQualityGate } from "@/lib/scraper/searchQualityGate";
 import { deduplicateCandidates } from "@/lib/scraper/deduplicator";
 import { rankOpportunities } from "@/lib/scraper/ranker";
+import { evidenceVerificationEngine } from "@/lib/ai/evidence";
 
 export class IntelligenceHarness {
   /**
@@ -304,20 +305,35 @@ export class IntelligenceHarness {
     recordStage("EXECUTE", Date.now() - tExecStart);
 
     // -------------------------------------------------------------------------
-    // STAGE 5: VERIFY & QUALITY GATE EVALUATION
+    // STAGE 5: VERIFY & EVIDENCE QUALITY GATE EVALUATION (TASK-051)
     // -------------------------------------------------------------------------
     const tVerifyStart = Date.now();
     context.currentStage = "VERIFY";
 
     const startTimeDate = new Date(startTime);
     const totalHarvestedCount = harvestedCandidates.length;
+
+    // Run unified evidence verification (Normalization, Deterministic Firewall, Semantic Judge, Quality Gate)
+    const batchVerification = await evidenceVerificationEngine.verifyCandidateBatch(
+      harvestedCandidates,
+      discoveryPlan,
+      {
+        userId,
+        referenceTime: startTimeDate,
+      }
+    );
+
+    context.compositeVerificationResults = batchVerification.verificationResults;
+
     const gateEvaluations = harvestedCandidates.map((c) =>
       evaluateCandidateQualityGate(c, discoveryPlan, startTimeDate)
     );
 
-    const eligibleCandidates = harvestedCandidates.filter((_, idx) => gateEvaluations[idx].isEligible);
+    const eligibleCandidates = batchVerification.eligibleCandidates;
     const deduplicated = deduplicateCandidates(eligibleCandidates);
     const ranked = rankOpportunities(deduplicated, contextualIntent);
+
+    const allRejections = batchVerification.verificationResults.flatMap((r) => r.rejectionReasons);
 
     const verification: HarnessVerificationResult = {
       status: ranked.length > 0 ? "VERIFIED" : "REJECTED",
@@ -326,7 +342,7 @@ export class IntelligenceHarness {
       candidatesRejected: Math.max(0, totalHarvestedCount - ranked.length),
       qualityGateEvaluations: gateEvaluations,
       verifiedOpportunities: ranked,
-      rejectionReasons: gateEvaluations.flatMap((g) => g.rejectionReasons),
+      rejectionReasons: allRejections,
     };
     context.verification = verification;
     context.telemetry.verifiedCount = ranked.length;

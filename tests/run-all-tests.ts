@@ -67,6 +67,7 @@ import { runMemoryVaultFoundationTests } from "./integration/memoryVaultFoundati
 import { runIntelligenceHarnessCoreTests } from "./integration/intelligenceHarnessCore.test";
 import { runIntelligenceBrainCoreTests } from "./integration/intelligenceBrainCore.test";
 import { runIntelligentToolOrchestrationTests } from "./integration/intelligentToolOrchestration.test";
+import { runEvidenceBasedVerificationTests } from "./integration/evidenceBasedVerification.test";
 import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalLanguageWorkflowAcceptance.test";
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -138,6 +139,7 @@ async function runMasterTestSuite() {
     { name: "Integration: Canonical Intelligence Harness Core (TASK-048)", fn: runIntelligenceHarnessCoreTests },
     { name: "Integration: Intelligence Brain & RAG Context (TASK-049)", fn: runIntelligenceBrainCoreTests },
     { name: "Integration: Intelligent Search Planning & Tool Orchestration (TASK-050)", fn: runIntelligentToolOrchestrationTests },
+    { name: "Integration: Evidence-Based Result Verification & Semantic Judge (TASK-051)", fn: runEvidenceBasedVerificationTests },
     { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
     { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },
