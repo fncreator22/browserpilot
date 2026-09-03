@@ -272,7 +272,7 @@ Return JSON adhering to SearchActionPlan schema.`;
       priority: 2,
       input: {
         url: "https://example.com/job/sample-id",
-        expectedTitle: constraints.roles?.[0] || "Software Engineer",
+        expectedTitle: constraints.roles?.[0] || "Target Role",
       },
       purpose: "Verify candidate job URLs against exact posting criteria",
       expectedEvidence: "Validated job URL classification",

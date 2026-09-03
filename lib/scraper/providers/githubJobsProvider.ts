@@ -16,7 +16,10 @@ export class GitHubJobsProvider implements SearchProvider {
   public readonly name = "GitHub Curated";
 
   public supports(intent: SearchIntent): boolean {
-    return true;
+    const r = (intent.role || intent.roles?.[0] || "").toLowerCase();
+    const isTech = !r || /\b(software|developer|swe|sde|coding|frontend|backend|fullstack|web|data|devops|cloud|ai|ml)\b/i.test(r);
+    const isIntern = intent.experienceLevel === "INTERN" || intent.opportunityType === "INTERNSHIP";
+    return isTech && isIntern;
   }
 
   public async harvestCandidates(

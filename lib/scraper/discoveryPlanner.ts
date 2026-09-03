@@ -114,7 +114,9 @@ export function buildDiscoveryPlan(
   }
 
   if (rolesSet.size === 0) {
-    rolesSet.add("Software Engineer");
+    if (/\b(tech|technology|developer|coding)\b/i.test(rawQuery || "")) {
+      rolesSet.add("Software Engineer");
+    }
   }
 
   const rolesList = Array.from(rolesSet);

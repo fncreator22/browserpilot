@@ -84,6 +84,40 @@ const DOMAIN_ROLE_ONTOLOGY: DomainRoleOntology[] = [
     ],
     relatedKeywords: ["Algorithms", "Data Structures", "System Design", "Git", "CI/CD"],
   },
+  {
+    canonicalName: "Mechanical Engineer",
+    matchPattern: /\b(mechanical\s*(?:engineer(?:ing)?)|mech\s*eng|cad\s*designer|solidworks)\b/i,
+    synonyms: [
+      "mechanical design engineer",
+      "mechanical engineer",
+      "CAD engineer",
+      "thermal engineer",
+      "HVAC engineer",
+    ],
+    relatedKeywords: ["SolidWorks", "AutoCAD", "Thermodynamics", "Finite Element Analysis", "Fluid Dynamics", "Manufacturing"],
+  },
+  {
+    canonicalName: "Electrical Engineer",
+    matchPattern: /\b(electrical\s*(?:engineer(?:ing)?)|electronics\s*engineer|hardware\s*engineer|vlsi)\b/i,
+    synonyms: [
+      "electronics engineer",
+      "hardware engineer",
+      "embedded systems engineer",
+      "circuit design engineer",
+    ],
+    relatedKeywords: ["Circuit Design", "PCB", "Embedded C", "Microcontrollers", "VLSI", "Oscilloscope"],
+  },
+  {
+    canonicalName: "Civil Engineer",
+    matchPattern: /\b(civil\s*(?:engineer(?:ing)?)|structural\s*engineer|site\s*engineer)\b/i,
+    synonyms: [
+      "civil engineer",
+      "structural engineer",
+      "site engineer",
+      "construction project engineer",
+    ],
+    relatedKeywords: ["AutoCAD", "Structural Analysis", "Construction Management", "Surveying", "Building Codes"],
+  },
 ];
 
 /**

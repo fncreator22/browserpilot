@@ -33,9 +33,15 @@ export class CareerPortalBrowserConnector extends BrowserSourceConnector {
     const now = new Date();
 
     const candidates: RawJobCandidate[] = [];
+    const isNonTech = intent.role && /\b(mechanical|civil|chemical|nurse|doctor|medical|accounting)\b/i.test(intent.role);
+    if (isNonTech && (!intent.companies || intent.companies.length === 0) && !intent.company) {
+      return [];
+    }
+
+    const defaultCompanies = ["Vercel", "Resend", "Neon", "Dub.co"];
     const companies = intent.companies && intent.companies.length > 0
       ? intent.companies
-      : intent.company ? [intent.company] : ["Vercel", "Resend", "Neon", "Dub.co"];
+      : intent.company ? [intent.company] : defaultCompanies;
 
     const maxCandidates = limits?.maxCandidates ?? 10;
     for (let i = 0; i < Math.min(companies.length, maxCandidates); i++) {
