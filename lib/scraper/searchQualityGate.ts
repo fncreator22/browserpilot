@@ -94,6 +94,42 @@ function isDisjointRole(candidateTitle: string, targetRoles: string[]): boolean 
     }
   }
 
+  // If target is Mechanical Engineer
+  const isTargetMechanical = targetRoles.some((r) => /mechanical/i.test(r));
+  if (isTargetMechanical) {
+    const isDisjointFromMechanical = /\b(marketing|sales|recruiter|hr|human resources|accountant|accounting|finance|nurse|nursing|doctor)\b/i.test(lowerTitle);
+    if (isDisjointFromMechanical && !/\bmechanical\b/i.test(lowerTitle)) {
+      return true;
+    }
+  }
+
+  // If target is Civil Engineer
+  const isTargetCivil = targetRoles.some((r) => /civil\b/i.test(r));
+  if (isTargetCivil) {
+    const isDisjointFromCivil = /\b(marketing|sales|recruiter|hr|accountant|finance|nurse|software|frontend|backend)\b/i.test(lowerTitle);
+    if (isDisjointFromCivil && !/\bcivil\b/i.test(lowerTitle)) {
+      return true;
+    }
+  }
+
+  // If target is Healthcare / Nurse
+  const isTargetHealthcare = targetRoles.some((r) => /nurse|doctor|healthcare/i.test(r));
+  if (isTargetHealthcare) {
+    const isDisjointFromHealthcare = /\b(software|developer|marketing|sales|mechanical|civil|electrical)\b/i.test(lowerTitle);
+    if (isDisjointFromHealthcare && !/\b(nurse|nursing|doctor|clinical|medical)\b/i.test(lowerTitle)) {
+      return true;
+    }
+  }
+
+  // If target is Finance / Accountant
+  const isTargetFinance = targetRoles.some((r) => /accountant|accounting|financial/i.test(r));
+  if (isTargetFinance) {
+    const isDisjointFromFinance = /\b(software|developer|nurse|doctor|mechanical|civil|electrical)\b/i.test(lowerTitle);
+    if (isDisjointFromFinance && !/\b(accountant|accounting|finance|financial|cpa|auditor)\b/i.test(lowerTitle)) {
+      return true;
+    }
+  }
+
   return false;
 }
 
