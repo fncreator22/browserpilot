@@ -311,6 +311,20 @@ export async function POST(request: NextRequest) {
         memoriesRetrieved: harnessResult.telemetry.memoriesRetrievedCount,
         durationMs: harnessResult.telemetry.totalDurationMs,
       },
+      personalization: (harnessResult.context.userMemories?.length || 0) > 0
+        ? {
+            applied: true,
+            memoriesUsed: (harnessResult.context.userMemories || []).map((m) => ({
+              category: m.category,
+              key: m.key,
+              value: m.value,
+            })),
+            summary: `Personalized using your saved preferences: ${(harnessResult.context.userMemories || []).map((m) => m.value).join(" · ")}`,
+          }
+        : {
+            applied: false,
+            memoriesUsed: [],
+          },
       metadata: {
         totalUniqueOpportunities: structuredResults.length,
         returnedCount: structuredResults.length,

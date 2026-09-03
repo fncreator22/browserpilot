@@ -10,7 +10,8 @@ import {
   History, 
   Bell, 
   Sparkles,
-  Plus
+  Plus,
+  Brain
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,13 @@ export function WorkspaceNav({
       badge: unreadAlertsCount > 0 ? unreadAlertsCount : undefined,
       badgeVariant: "amber" as const,
       isActive: pathname === "/app/notifications",
+    },
+    {
+      href: "/app/settings/memory",
+      label: "Memory",
+      icon: Brain,
+      description: "Durable career preferences",
+      isActive: pathname === "/app/settings/memory",
     },
   ];
 

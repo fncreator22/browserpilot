@@ -57,6 +57,12 @@ export interface OpportunitySearchResultPayload {
     memoriesRetrieved?: number;
     durationMs?: number;
   };
+  personalization?: {
+    applied: boolean;
+    memoriesUsed?: Array<{ category: string; key: string; value: string }>;
+    summary?: string;
+    overrideNotice?: string;
+  };
   metadata: {
     totalUniqueOpportunities?: number;
     returnedCount?: number;

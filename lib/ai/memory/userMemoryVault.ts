@@ -210,6 +210,84 @@ export class UserMemoryVault {
   }
 
   /**
+   * Permanently deactivates/deletes a memory for an authenticated user.
+   * Ensures retrieval no longer includes it.
+   */
+  public async deleteMemory(userId: string, memoryIdOrKey: string): Promise<boolean> {
+    const cleanUserId = userId.trim();
+    const userStore = this.getStoreForUser(cleanUserId);
+    let found = false;
+
+    for (const [key, mem] of userStore.entries()) {
+      if (mem.id === memoryIdOrKey || mem.key === memoryIdOrKey || key === memoryIdOrKey) {
+        mem.lifecycleStatus = "ARCHIVED";
+        mem.updatedAt = new Date();
+        userStore.delete(key);
+        found = true;
+        break;
+      }
+    }
+
+    try {
+      if ((prisma as any)?.userMemoryItem) {
+        await (prisma as any).userMemoryItem.updateMany({
+          where: {
+            userId: cleanUserId,
+            OR: [
+              { id: memoryIdOrKey },
+              { key: memoryIdOrKey },
+            ],
+          },
+          data: {
+            lifecycleStatus: "ARCHIVED",
+            updatedAt: new Date(),
+          },
+        });
+        found = true;
+      }
+    } catch {
+      // Non-fatal
+    }
+
+    return found;
+  }
+
+  /**
+   * Updates an existing memory value after passing admission.
+   */
+  public async updateMemory(
+    userId: string,
+    memoryId: string,
+    newValue: string
+  ): Promise<{ success: boolean; memoryItem?: UserMemoryItem; rejectionReason?: string }> {
+    const cleanUserId = userId.trim();
+    const userStore = this.getStoreForUser(cleanUserId);
+    let targetMem: UserMemoryItem | undefined;
+
+    for (const mem of userStore.values()) {
+      if (mem.id === memoryId || mem.key === memoryId) {
+        targetMem = mem;
+        break;
+      }
+    }
+
+    if (!targetMem) {
+      return { success: false, rejectionReason: "MEMORY_NOT_FOUND" };
+    }
+
+    return await this.storeMemory({
+      userId: cleanUserId,
+      category: targetMem.category,
+      key: targetMem.key,
+      value: newValue,
+      confidence: "EXPLICIT",
+      importance: targetMem.importance,
+      isExplicit: true,
+      sourceContext: "User manual update",
+    });
+  }
+
+  /**
    * Resets or clears memories for a user (GDPR / Privacy support).
    */
   public clearUserMemories(userId: string): void {
