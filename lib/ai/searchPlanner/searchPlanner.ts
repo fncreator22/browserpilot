@@ -21,6 +21,7 @@ export interface SearchPlannerOptions {
   allowedDomains?: string[];
   apiKeyOverride?: string;
   maxActionsBudget?: number;
+  requireAiPlanning?: boolean;
 }
 
 export interface SearchPlannerResult {
@@ -32,6 +33,8 @@ export interface SearchPlannerResult {
     durationMs: number;
     tokensUsed?: number;
   };
+  aiConfigurationStatus?: "CONFIGURED" | "MODEL_CONFIGURATION_REQUIRED" | "DETERMINISTIC_ONLY";
+  aiConfigurationMessage?: string;
 }
 
 export class SearchPlanner {
@@ -47,6 +50,17 @@ export class SearchPlanner {
     const startTime = Date.now();
     const effectiveKey = getEffectiveGeminiApiKey(options.apiKeyOverride);
     const planId = `plan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+    let aiConfigurationStatus: SearchPlannerResult["aiConfigurationStatus"] = effectiveKey ? "CONFIGURED" : "MODEL_CONFIGURATION_REQUIRED";
+    let aiConfigurationMessage = effectiveKey
+      ? "AI model configuration active."
+      : "AI search planning is unavailable because the required model configuration is missing. Search will proceed using the deterministic engine.";
+
+    if (options.requireAiPlanning && !effectiveKey) {
+      const err = new Error("MODEL_CONFIGURATION_REQUIRED: AI search planning is unavailable because the required model configuration is missing.");
+      (err as any).category = "MODEL_CONFIGURATION_REQUIRED";
+      throw err;
+    }
 
     // Build Constraints from Canonical Intent
     const constraints: PlanConstraints = {
@@ -142,6 +156,8 @@ Return JSON adhering to SearchActionPlan schema.`;
       plan: validation.normalizedPlan,
       validation,
       modelTelemetry,
+      aiConfigurationStatus,
+      aiConfigurationMessage,
     };
   }
 

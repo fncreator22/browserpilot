@@ -69,22 +69,45 @@ export function buildDeterministicCorrectionPlan(
   switch (diagnosis.reason) {
     case "COMPANY_DISCOVERY_REQUIRED":
     case "ATS_DISCOVERY_REQUIRED": {
-      strategy = "EXPAND_COMPANY_ATS";
-      const targetComps = intent.companies && intent.companies.length > 0 ? intent.companies : ["Stripe", "Anthropic"];
-      for (const comp of targetComps.slice(0, 2)) {
+      const targetComps = intent.companies && intent.companies.length > 0 ? intent.companies : [];
+      if (targetComps.length > 0) {
+        strategy = "EXPAND_COMPANY_ATS";
+        for (const comp of targetComps.slice(0, 2)) {
+          actions.push({
+            actionId: `act_ats_${comp.toLowerCase()}_${timestamp}`,
+            capabilityId: "company.ats",
+            priority: 1,
+            input: {
+              companyName: comp,
+              targetRole: baseRole,
+              postedWithinDays: intent.postedWithinDays,
+            },
+            purpose: `Query verified ATS endpoints for ${comp}`,
+            expectedEvidence: "ATS job listing",
+            maxResults: shortfall,
+            timeoutMs: 12000,
+            dependencyIds: [],
+          });
+        }
+      } else {
+        strategy = "REFORMULATE_QUERY";
         actions.push({
-          actionId: `act_ats_${comp.toLowerCase()}_${timestamp}`,
-          capabilityId: "company.ats",
+          actionId: `act_reformulate_${timestamp}`,
+          capabilityId: "discovery.search_pipeline",
           priority: 1,
           input: {
-            companyName: comp,
-            targetRole: baseRole,
+            query: refinedQuery,
+            targetRoles: [refinedQuery],
+            targetLocations: intent.locations || [],
+            workModes: intent.workModes || [],
             postedWithinDays: intent.postedWithinDays,
+            freshnessWindowHours: intent.freshnessWindowHours,
+            requestedCount: shortfall,
           },
-          purpose: `Query verified ATS endpoints for ${comp}`,
-          expectedEvidence: "ATS job listing",
+          purpose: `Search using bounded role reformulation "${refinedQuery}"`,
+          expectedEvidence: "Candidate job cards",
           maxResults: shortfall,
-          timeoutMs: 12000,
+          timeoutMs: 15000,
           dependencyIds: [],
         });
       }
@@ -138,11 +161,19 @@ export function buildDeterministicCorrectionPlan(
     case "STALE_RESULTS":
     default: {
       strategy = "EXPAND_SOURCES";
-      // Expand to unattempted sources: Ashby, Greenhouse, Lever, or Indeed
-      const unattemptedSources = ["Ashby", "Greenhouse", "Lever", "Indeed"].filter(
+      const isNonTech = /\b(mechanical|civil|chemical|process|nurse|doctor|healthcare|accounting|sales|hr|human resources)\b/i.test(baseRole);
+      
+      // Expand strictly within eligible sources; never force tech ATS platforms
+      const candidateSources = intent.sources && intent.sources.length > 0
+        ? intent.sources
+        : isNonTech
+        ? ["Indeed", "LinkedIn"]
+        : ["Indeed", "LinkedIn", "Y Combinator"];
+
+      const unattemptedSources = candidateSources.filter(
         (s) => !state.attemptedSources.includes(s)
       );
-      const targetSource = unattemptedSources[0] || "Greenhouse";
+      const targetSource = unattemptedSources[0] || candidateSources[0] || "LinkedIn";
 
       actions.push({
         actionId: `act_source_${targetSource.toLowerCase()}_${timestamp}`,
@@ -162,22 +193,24 @@ export function buildDeterministicCorrectionPlan(
         dependencyIds: [],
       });
 
-      // Also add targeted ATS query
-      actions.push({
-        actionId: `act_ats_expand_${timestamp}`,
-        capabilityId: "company.ats",
-        priority: 2,
-        input: {
-          companyName: intent.companies?.[0] || "Stripe",
-          targetRole: baseRole,
-          postedWithinDays: intent.postedWithinDays,
-        },
-        purpose: "Discover direct ATS postings",
-        expectedEvidence: "Verified ATS listing",
-        maxResults: shortfall,
-        timeoutMs: 12000,
-        dependencyIds: [],
-      });
+      // Add targeted ATS query ONLY if user explicitly specified an employer target
+      if (intent.companies && intent.companies.length > 0) {
+        actions.push({
+          actionId: `act_ats_expand_${timestamp}`,
+          capabilityId: "company.ats",
+          priority: 2,
+          input: {
+            companyName: intent.companies[0],
+            targetRole: baseRole,
+            postedWithinDays: intent.postedWithinDays,
+          },
+          purpose: `Discover direct ATS postings for ${intent.companies[0]}`,
+          expectedEvidence: "Verified ATS listing",
+          maxResults: shortfall,
+          timeoutMs: 12000,
+          dependencyIds: [],
+        });
+      }
       break;
     }
   }

@@ -144,7 +144,7 @@ export interface KnownLocationDefinition {
 }
 
 export const KNOWN_LOCATION_DEFINITIONS: KnownLocationDefinition[] = [
-  // Major Indian Tech Hubs
+  // Major Indian Cities & Tech Hubs
   { canonicalName: "Hyderabad", isCity: true, regex: /\b(hyderabad|hyd)\b/i },
   { canonicalName: "Bengaluru", isCity: true, regex: /\b(bengaluru|bangalore|blr)\b/i },
   { canonicalName: "Pune", isCity: true, regex: /\b(pune)\b/i },
@@ -152,6 +152,66 @@ export const KNOWN_LOCATION_DEFINITIONS: KnownLocationDefinition[] = [
   { canonicalName: "Delhi", isCity: true, regex: /\b(delhi|new delhi|ncr|noida|gurgaon|gurugram)\b/i },
   { canonicalName: "Chennai", isCity: true, regex: /\b(chennai|madras)\b/i },
   { canonicalName: "Kolkata", isCity: true, regex: /\b(kolkata|calcutta)\b/i },
+  { canonicalName: "Agartala", isCity: true, regex: /\b(agartala)\b/i },
+  { canonicalName: "Guwahati", isCity: true, regex: /\b(guwahati)\b/i },
+  { canonicalName: "Shillong", isCity: true, regex: /\b(shillong)\b/i },
+  { canonicalName: "Imphal", isCity: true, regex: /\b(imphal)\b/i },
+  { canonicalName: "Aizawl", isCity: true, regex: /\b(aizawl)\b/i },
+  { canonicalName: "Kohima", isCity: true, regex: /\b(kohima)\b/i },
+  { canonicalName: "Itanagar", isCity: true, regex: /\b(itanagar)\b/i },
+  { canonicalName: "Gangtok", isCity: true, regex: /\b(gangtok)\b/i },
+  { canonicalName: "Bhubaneswar", isCity: true, regex: /\b(bhubaneswar)\b/i },
+  { canonicalName: "Patna", isCity: true, regex: /\b(patna)\b/i },
+  { canonicalName: "Ranchi", isCity: true, regex: /\b(ranchi)\b/i },
+  { canonicalName: "Lucknow", isCity: true, regex: /\b(lucknow)\b/i },
+  { canonicalName: "Kanpur", isCity: true, regex: /\b(kanpur)\b/i },
+  { canonicalName: "Dehradun", isCity: true, regex: /\b(dehradun)\b/i },
+  { canonicalName: "Shimla", isCity: true, regex: /\b(shimla)\b/i },
+  { canonicalName: "Chandigarh", isCity: true, regex: /\b(chandigarh)\b/i },
+  { canonicalName: "Jaipur", isCity: true, regex: /\b(jaipur)\b/i },
+  { canonicalName: "Ahmedabad", isCity: true, regex: /\b(ahmedabad)\b/i },
+  { canonicalName: "Surat", isCity: true, regex: /\b(surat)\b/i },
+  { canonicalName: "Vadodara", isCity: true, regex: /\b(vadodara|baroda)\b/i },
+  { canonicalName: "Bhopal", isCity: true, regex: /\b(bhopal)\b/i },
+  { canonicalName: "Indore", isCity: true, regex: /\b(indore)\b/i },
+  { canonicalName: "Raipur", isCity: true, regex: /\b(raipur)\b/i },
+  { canonicalName: "Nagpur", isCity: true, regex: /\b(nagpur)\b/i },
+  { canonicalName: "Kochi", isCity: true, regex: /\b(kochi|cochin)\b/i },
+  { canonicalName: "Thiruvananthapuram", isCity: true, regex: /\b(thiruvananthapuram|trivandrum)\b/i },
+  { canonicalName: "Coimbatore", isCity: true, regex: /\b(coimbatore)\b/i },
+  { canonicalName: "Visakhapatnam", isCity: true, regex: /\b(visakhapatnam|vizag)\b/i },
+  { canonicalName: "Vijayawada", isCity: true, regex: /\b(vijayawada)\b/i },
+
+  // Indian States & Territories
+  { canonicalName: "Tripura", isCity: false, regex: /\b(tripura)\b/i },
+  { canonicalName: "Northeast India", isCity: false, regex: /\b(northeast\s*india|north\s*east\s*india|northeastern\s*india)\b/i },
+  { canonicalName: "Assam", isCity: false, regex: /\b(assam)\b/i },
+  { canonicalName: "Meghalaya", isCity: false, regex: /\b(meghalaya)\b/i },
+  { canonicalName: "Manipur", isCity: false, regex: /\b(manipur)\b/i },
+  { canonicalName: "Mizoram", isCity: false, regex: /\b(mizoram)\b/i },
+  { canonicalName: "Nagaland", isCity: false, regex: /\b(nagaland)\b/i },
+  { canonicalName: "Arunachal Pradesh", isCity: false, regex: /\b(arunachal\s*pradesh)\b/i },
+  { canonicalName: "Sikkim", isCity: false, regex: /\b(sikkim)\b/i },
+  { canonicalName: "West Bengal", isCity: false, regex: /\b(west\s*bengal)\b/i },
+  { canonicalName: "Odisha", isCity: false, regex: /\b(odisha|orissa)\b/i },
+  { canonicalName: "Bihar", isCity: false, regex: /\b(bihar)\b/i },
+  { canonicalName: "Jharkhand", isCity: false, regex: /\b(jharkhand)\b/i },
+  { canonicalName: "Uttar Pradesh", isCity: false, regex: /\b(uttar\s*pradesh|up)\b/i },
+  { canonicalName: "Uttarakhand", isCity: false, regex: /\b(uttarakhand)\b/i },
+  { canonicalName: "Himachal Pradesh", isCity: false, regex: /\b(himachal\s*pradesh|hp)\b/i },
+  { canonicalName: "Punjab", isCity: false, regex: /\b(punjab)\b/i },
+  { canonicalName: "Haryana", isCity: false, regex: /\b(haryana)\b/i },
+  { canonicalName: "Rajasthan", isCity: false, regex: /\b(rajasthan)\b/i },
+  { canonicalName: "Gujarat", isCity: false, regex: /\b(gujarat)\b/i },
+  { canonicalName: "Madhya Pradesh", isCity: false, regex: /\b(madhya\s*pradesh|mp)\b/i },
+  { canonicalName: "Chhattisgarh", isCity: false, regex: /\b(chhattisgarh)\b/i },
+  { canonicalName: "Maharashtra", isCity: false, regex: /\b(maharashtra)\b/i },
+  { canonicalName: "Goa", isCity: false, regex: /\b(goa)\b/i },
+  { canonicalName: "Karnataka", isCity: false, regex: /\b(karnataka)\b/i },
+  { canonicalName: "Kerala", isCity: false, regex: /\b(kerala)\b/i },
+  { canonicalName: "Tamil Nadu", isCity: false, regex: /\b(tamil\s*nadu|tn)\b/i },
+  { canonicalName: "Andhra Pradesh", isCity: false, regex: /\b(andhra\s*pradesh|ap)\b/i },
+  { canonicalName: "Telangana", isCity: false, regex: /\b(telangana)\b/i },
 
   // Major International Tech Hubs
   { canonicalName: "San Francisco", isCity: true, regex: /\b(san francisco|sf|bay area|silicon valley)\b/i },
@@ -181,7 +241,7 @@ export const KNOWN_ROLE_DEFINITIONS: KnownRoleDefinition[] = [
   {
     canonicalName: "AI Engineer",
     regex: /\b(ai|artificial intelligence|machine learning|ml|deep learning|llm|nlp|genai)\b/i,
-    related: ["ML Researcher", "Data Scientist", "Applied AI Engineer", "AI/ML Intern"],
+    related: ["Machine Learning Engineer", "ML Researcher", "Data Scientist", "Applied AI Engineer", "AI/ML Intern"],
   },
   {
     canonicalName: "Frontend Engineer",
@@ -276,7 +336,7 @@ export const KNOWN_ROLE_DEFINITIONS: KnownRoleDefinition[] = [
   {
     canonicalName: "Healthcare Professional",
     regex: /\b(nurse|nursing|doctor|physician|pharmacist|medical\s*officer|clinical\s*researcher)\b/i,
-    related: ["Registered Nurse", "Clinical Pharmacist", "Medical Doctor"],
+    related: ["Nurse", "Registered Nurse", "Clinical Pharmacist", "Medical Doctor"],
   },
 ];
 
@@ -286,8 +346,219 @@ export const KNOWN_ROLE_DEFINITIONS: KnownRoleDefinition[] = [
 export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Partial<SearchIntent>): SearchIntent {
   const cleanQuery = (rawQuery || "").trim();
   const lower = cleanQuery.toLowerCase();
+  let workingQuery = cleanQuery;
 
-  // 1. Work Mode Detection (supports compound modes)
+  // 1. Evidence Verification & Requested Evidence Requirements
+  const requiresEvidenceVerification = /\b(verified|visual\s*(?:page\s*)?snapshots?|snapshots?|direct\s*application\s*links?)\b/i.test(lower);
+  const requestedEvidence: string[] = [];
+  if (/\btitles?\b/i.test(lower)) requestedEvidence.push("job title");
+  if (/\bcompan(?:y|ies)\b/i.test(lower)) requestedEvidence.push("company");
+  if (/\blocations?\b/i.test(lower)) requestedEvidence.push("location");
+  if (/\b(?:salary|compensation)\b/i.test(lower)) requestedEvidence.push("compensation");
+  if (/\bqualifications?\b/i.test(lower)) requestedEvidence.push("qualifications");
+  if (/\b(?:direct\s*application\s*links?|apply\s*links?)\b/i.test(lower)) requestedEvidence.push("direct application URL");
+  if (/\bvisual\s*(?:page\s*)?snapshots?\b/i.test(lower)) requestedEvidence.push("visual snapshot");
+
+  // 2. Sources Extraction & Platform Clause Shielding
+  const matchedSources: string[] = [];
+  if (/\b(linkedin|linked in)\b/i.test(lower)) matchedSources.push("LinkedIn");
+  if (/\b(y combinator|yc|workatastartup|work at a startup)\b/i.test(lower)) matchedSources.push("Y Combinator");
+  if (/\b(indeed)\b/i.test(lower)) matchedSources.push("Indeed");
+  if (/\b(naukri)\b/i.test(lower)) matchedSources.push("Naukri");
+  if (/\b(glassdoor)\b/i.test(lower)) matchedSources.push("Glassdoor");
+  if (/\b(wellfound|angellist)\b/i.test(lower)) matchedSources.push("Wellfound");
+  if (/\b(hacker\s*news)\b/i.test(lower)) matchedSources.push("Hacker News");
+  if (/\b(github)\b/i.test(lower)) matchedSources.push("GitHub Curated");
+  if (/\b(greenhouse)\b/i.test(lower)) matchedSources.push("Greenhouse");
+  if (/\b(ashby)\b/i.test(lower)) matchedSources.push("Ashby");
+  if (/\b(lever)\b/i.test(lower)) matchedSources.push("Lever");
+
+  // Mask source clause in working query (e.g. "search across linkedin, y combinator, indeed")
+  workingQuery = workingQuery.replace(/\b(?:search\s+)?(?:across|on|in|via)\s+(?:linkedin|y\s*combinator|yc|indeed|naukri|glassdoor|wellfound|github|hacker\s*news|greenhouse|ashby|lever)(?:\s*,\s*(?:linkedin|y\s*combinator|yc|indeed|naukri|glassdoor|wellfound|github|hacker\s*news|greenhouse|ashby|lever))*(?:\s+(?:and|or)\s+(?:linkedin|y\s*combinator|yc|indeed|naukri|glassdoor|wellfound|github|hacker\s*news|greenhouse|ashby|lever))?/gi, " ");
+
+  // 3. Temporal Expressions & Date Constraint Parsing (Shielded early to prevent count/role collision)
+  let isExplicitFreshness = false;
+  let freshnessWindowHours = 168; // Default 7 days
+  let postedWithinDays: number | undefined;
+  let dateConstraint: any = undefined;
+  let sortMode: "LATEST" | "RELEVANCE_THEN_FRESHNESS" = "RELEVANCE_THEN_FRESHNESS";
+
+  // Check months (e.g. "last 2 months", "past 3 months", "2 months ago", "within 2 months")
+  const explicitMonthsMatch = workingQuery.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+|in\s+|within\s+|past\s+|last\s+)?(\d{1,2})\s*(?:months?|mo)\b/i) ||
+    workingQuery.match(/\b(\d{1,2})\s*(?:months?|mo)\s*ago\b/i) ||
+    workingQuery.match(/\b(?:two|past\s+two|last\s+two)\s+months\b/i);
+
+  if (explicitMonthsMatch) {
+    const num = explicitMonthsMatch[1] ? parseInt(explicitMonthsMatch[1], 10) : 2;
+    postedWithinDays = num * 30;
+    freshnessWindowHours = num * 30 * 24;
+    isExplicitFreshness = true;
+    sortMode = "LATEST";
+    dateConstraint = {
+      type: "RELATIVE",
+      amount: num,
+      unit: "MONTH",
+      cutoffDate: new Date(Date.now() - num * 30 * 24 * 3600 * 1000),
+      rawText: explicitMonthsMatch[0],
+    };
+    workingQuery = workingQuery.replace(explicitMonthsMatch[0], " ");
+  }
+
+  // Check days (e.g. "last 15 days", "within 30 days", "past 10 days")
+  const explicitDaysMatch = workingQuery.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+|in\s+|within\s+|past\s+|last\s+)?(\d{1,3})\s*(?:days?|d)\b/i) ||
+    workingQuery.match(/\b(\d{1,3})\s*(?:days?|d)\s*ago\b/i) ||
+    workingQuery.match(/\bposted\s+(?:within|in|last|past)\s+(\d{1,3})\s*(?:days?|d)\b/i);
+
+  if (!explicitMonthsMatch && explicitDaysMatch && explicitDaysMatch[1]) {
+    const days = parseInt(explicitDaysMatch[1], 10);
+    if (days > 0) {
+      postedWithinDays = days;
+      freshnessWindowHours = days * 24;
+      isExplicitFreshness = true;
+      sortMode = "LATEST";
+      dateConstraint = {
+        type: "RELATIVE",
+        amount: days,
+        unit: "DAY",
+        cutoffDate: new Date(Date.now() - days * 24 * 3600 * 1000),
+        rawText: explicitDaysMatch[0],
+      };
+      workingQuery = workingQuery.replace(explicitDaysMatch[0], " ");
+    }
+  }
+
+  // Check weeks (e.g. "last 2 weeks", "past 3 weeks")
+  const explicitWeeksMatch = workingQuery.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+|in\s+|within\s+|past\s+|last\s+)?(\d{1,2})\s*(?:weeks?|w)\b/i) ||
+    workingQuery.match(/\b(\d{1,2})\s*(?:weeks?|w)\s*ago\b/i);
+
+  if (!explicitMonthsMatch && !explicitDaysMatch && explicitWeeksMatch && explicitWeeksMatch[1]) {
+    const weeks = parseInt(explicitWeeksMatch[1], 10);
+    if (weeks > 0) {
+      postedWithinDays = weeks * 7;
+      freshnessWindowHours = weeks * 7 * 24;
+      isExplicitFreshness = true;
+      sortMode = "LATEST";
+      dateConstraint = {
+        type: "RELATIVE",
+        amount: weeks,
+        unit: "WEEK",
+        cutoffDate: new Date(Date.now() - weeks * 7 * 24 * 3600 * 1000),
+        rawText: explicitWeeksMatch[0],
+      };
+      workingQuery = workingQuery.replace(explicitWeeksMatch[0], " ");
+    }
+  }
+
+  // Check hours
+  const explicitHoursMatch = workingQuery.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+|in\s+|within\s+|past\s+|last\s+)?(\d{1,3})\s*(?:hours?|hrs?|h)\b/i);
+  if (!explicitMonthsMatch && !explicitDaysMatch && !explicitWeeksMatch && explicitHoursMatch && explicitHoursMatch[1]) {
+    const hours = parseInt(explicitHoursMatch[1], 10);
+    if (hours > 0) {
+      postedWithinDays = Math.max(1, Math.round(hours / 24));
+      freshnessWindowHours = hours;
+      isExplicitFreshness = true;
+      sortMode = "LATEST";
+      dateConstraint = {
+        type: "RELATIVE",
+        amount: hours,
+        unit: "HOUR",
+        cutoffDate: new Date(Date.now() - hours * 3600 * 1000),
+        rawText: explicitHoursMatch[0],
+      };
+      workingQuery = workingQuery.replace(explicitHoursMatch[0], " ");
+    }
+  } else if (!explicitMonthsMatch && /\b(today|posted today|just now|just posted|past 24 hours?|last 24 hours?|24 hours?|24h)\b/i.test(lower)) {
+    postedWithinDays = 1;
+    freshnessWindowHours = 24;
+    isExplicitFreshness = true;
+    sortMode = "LATEST";
+    dateConstraint = { type: "RELATIVE", amount: 1, unit: "DAY", cutoffDate: new Date(Date.now() - 24 * 3600 * 1000), rawText: "today" };
+    workingQuery = workingQuery.replace(/\b(today|posted today|just now|just posted|past 24 hours?|last 24 hours?|24 hours?|24h)\b/gi, " ");
+  } else if (!explicitMonthsMatch && /\b(yesterday|last 48 hours?|past 48 hours?|48 hours?|48h|past 2 days|last 2 days|2 days|2d)\b/i.test(lower)) {
+    postedWithinDays = 2;
+    freshnessWindowHours = 48;
+    isExplicitFreshness = true;
+    sortMode = "LATEST";
+    dateConstraint = { type: "RELATIVE", amount: 2, unit: "DAY", cutoffDate: new Date(Date.now() - 48 * 3600 * 1000), rawText: "48h" };
+    workingQuery = workingQuery.replace(/\b(yesterday|last 48 hours?|past 48 hours?|48 hours?|48h|past 2 days|last 2 days|2 days|2d)\b/gi, " ");
+  } else if (!explicitMonthsMatch && /\b(last 72 hours?|past 72 hours?|72 hours?|72h|last 3 days|past 3 days|3 days|3d|few days)\b/i.test(lower)) {
+    postedWithinDays = 3;
+    freshnessWindowHours = 72;
+    isExplicitFreshness = true;
+    sortMode = "LATEST";
+    dateConstraint = { type: "RELATIVE", amount: 3, unit: "DAY", cutoffDate: new Date(Date.now() - 72 * 3600 * 1000), rawText: "3 days" };
+    workingQuery = workingQuery.replace(/\b(last 72 hours?|past 72 hours?|72 hours?|72h|last 3 days|past 3 days|3 days|3d|few days)\b/gi, " ");
+  } else if (!explicitMonthsMatch && /\b(last 7 days|past 7 days|7 days|7d|past week|last week|this week|1 week|week)\b/i.test(lower)) {
+    postedWithinDays = 7;
+    freshnessWindowHours = 168;
+    isExplicitFreshness = true;
+    sortMode = "LATEST";
+    dateConstraint = { type: "RELATIVE", amount: 7, unit: "DAY", cutoffDate: new Date(Date.now() - 7 * 24 * 3600 * 1000), rawText: "7 days" };
+    workingQuery = workingQuery.replace(/\b(last 7 days|past 7 days|7 days|7d|past week|last week|this week|1 week|week)\b/gi, " ");
+  } else if (!explicitMonthsMatch && /\b(latest|newest|recent|recently posted|prioritize recently posted|new|fresh)\b/i.test(lower)) {
+    freshnessWindowHours = 48;
+    isExplicitFreshness = true;
+    sortMode = "LATEST";
+    workingQuery = workingQuery.replace(/\b(latest|newest|recent|recently posted|prioritize recently posted|new|fresh)\b/gi, " ");
+  }
+
+  // Filter overrides for date
+  if (filterOverrides?.freshnessWindowHours !== undefined) {
+    freshnessWindowHours = filterOverrides.freshnessWindowHours;
+    isExplicitFreshness = true;
+  }
+  if (filterOverrides?.isExplicitFreshness !== undefined) {
+    isExplicitFreshness = filterOverrides.isExplicitFreshness;
+  }
+  if (filterOverrides?.postedWithinDays !== undefined) {
+    postedWithinDays = filterOverrides.postedWithinDays;
+  }
+  if (filterOverrides?.dateConstraint !== undefined) {
+    dateConstraint = filterOverrides.dateConstraint;
+  }
+
+  // 4. Requested Result Count Extraction (TASK-043 / TASK-060 Hardened)
+  let requestedCount: number | undefined;
+  // Pattern A: "for 10 verified ...", "search for 10 ...", "find 10 ..."
+  const countPatternA = /\b(?:for|search\s+for|find|get|show\s+me|fetch|locate|give\s+me|looking\s+for)\s+(\d{1,3})\s+(?:verified\s+)?/i;
+  const cMatchA = cleanQuery.match(countPatternA);
+  if (cMatchA && cMatchA[1]) {
+    const parsed = parseInt(cMatchA[1], 10);
+    if (parsed >= 1 && parsed <= 100) {
+      requestedCount = parsed;
+    }
+  }
+
+  // Pattern B: Number qualifying opportunity nouns (MUST NOT be followed by temporal unit)
+  if (!requestedCount) {
+    const cMatchB = cleanQuery.match(/\b(\d{1,3})\s+(?:verified\s+)?(?:[a-z/&-]+\s+){0,3}(?:openings?|positions?|roles?|jobs?|internships?|opportunities|listings?)\b/i);
+    if (cMatchB && cMatchB[1]) {
+      const afterNum = cleanQuery.slice(cMatchB.index! + cMatchB[1].length).trim();
+      if (!/^(months?|mo|weeks?|w|days?|d|hours?|hrs?|h|years?|yr|minutes?|min|pts|points|%|percent)\b/i.test(afterNum)) {
+        const parsed = parseInt(cMatchB[1], 10);
+        if (parsed >= 1 && parsed <= 100) {
+          requestedCount = parsed;
+        }
+      }
+    }
+  }
+
+  // Pattern C: "top 10 jobs", "first 5 positions"
+  if (!requestedCount) {
+    const cMatchC = cleanQuery.match(/\b(?:top|first)\s+(\d{1,3})\s+(?:jobs?|openings?|roles?|positions?|internships?|opportunities)\b/i);
+    if (cMatchC && cMatchC[1]) {
+      const parsed = parseInt(cMatchC[1], 10);
+      if (parsed >= 1 && parsed <= 100) {
+        requestedCount = parsed;
+      }
+    }
+  }
+
+  if (requestedCount === undefined && filterOverrides?.requestedCount !== undefined) {
+    requestedCount = filterOverrides.requestedCount;
+  }
+
+  // 5. Work Mode Detection
   const matchedModes: string[] = [];
   if (/\b(remote|work from home|wfh|anywhere|distributed)\b/i.test(lower)) {
     matchedModes.push("REMOTE");
@@ -303,7 +574,7 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   }
   const primaryWorkMode = matchedModes[0] || "ANY";
 
-  // 2. Experience Level & Opportunity Type (Supports dual coexistence like Internships + Entry-Level)
+  // 6. Experience Level & Opportunity Type
   const isInternshipMentioned = /\b(intern|interns|internship|internships|trainee|trainees|co-op|coop|student|summer intern)\b/i.test(lower);
   const isEntryLevelMentioned = /\b(entry-level|entry level|entry|junior|jr|fresh|fresher|graduate|grad|associate|new grad)\b/i.test(lower);
   const isSeniorMentioned = /\b(senior|sr|lead|principal|staff|director|architect|vp|mid-level|experienced)\b/i.test(lower);
@@ -331,22 +602,22 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   const primaryOpportunityType = isInternshipMentioned ? "INTERNSHIP" : (matchedOppTypes[0] || "FULL_TIME");
   const primaryExperienceLevel = isInternshipMentioned ? "INTERN" : isEntryLevelMentioned ? "ENTRY_LEVEL" : isSeniorMentioned ? "SENIOR" : "ANY";
 
-  // 3. Target Graduation Year (e.g. 2024, 2025, 2026, 2027, 2028)
+  // Target Graduation Year
   let targetGradYear: number | undefined;
   const gradMatch = lower.match(/\b(202[4-9]|203[0-5])\b/);
   if (gradMatch) {
     targetGradYear = parseInt(gradMatch[1], 10);
   }
 
-  // 4. Company Type (Startup vs Enterprise)
+  // Company Type (Startup vs Enterprise)
   let companyType: SearchIntent["companyType"] = "ANY";
-  if (/\b(startup|startups|early stage|y combinator|yc|seed|series a|series b)\b/i.test(lower)) {
+  if (/\b(startup|startups|early stage|yc startup|seed|series a|series b)\b/i.test(workingQuery)) {
     companyType = "STARTUP";
-  } else if (/\b(enterprise|enterprises|faang|big tech|fortune 500|corp|mnc)\b/i.test(lower)) {
+  } else if (/\b(enterprise|enterprises|faang|big tech|fortune 500|corp|mnc)\b/i.test(workingQuery)) {
     companyType = "ENTERPRISE";
   }
 
-  // 5. Locations Extraction (Multiple locations supported, prioritizing specific cities first)
+  // 7. Locations Extraction (Comprehensive Indian states, territories, and cities)
   const matchedLocations: string[] = [];
   const matchedCities: string[] = [];
   const matchedCountries: string[] = [];
@@ -362,26 +633,29 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
           matchedCountries.push(locDef.canonicalName);
         }
       }
+      workingQuery = workingQuery.replace(locDef.regex, " ");
     }
   }
 
-  // City targets take precedence, followed by country targets
   matchedLocations.push(...matchedCities, ...matchedCountries);
 
-  // If no predefined location matched, try regex capture "in <Location>"
+  // Dynamic Location Fallback: "in <Location>", "around <Location>", "near <Location>"
   if (matchedLocations.length === 0) {
-    const locMatch = cleanQuery.match(/\b(?:in|at|near|around)\s+([A-Za-z\s,.-]+?)(?:\s+(?:internships?|jobs?|roles?|remote|hybrid|latest)|\s*$)/i);
+    const locMatch = workingQuery.match(/\b(?:in|at|near|around)\s+([A-Za-z\s]+?)(?=\s+(?:jobs?|roles?|positions?|openings?|internships?|remote|hybrid|$))/i);
     if (locMatch && locMatch[1]) {
-      const extractedLoc = locMatch[1].trim();
-      if (extractedLoc.length >= 2 && !/^(the|any|all|remote|hybrid|an?)$/i.test(extractedLoc)) {
-        matchedLocations.push(extractedLoc);
+      const candLoc = locMatch[1].trim();
+      const isBlacklisted = /^(the|any|all|some|good|latest|recent|new|urgent|verified|mechanical|software|civil|electrical|chemical|process|nurse|financial|marketing)$/i.test(candLoc);
+      if (candLoc.length >= 2 && !isBlacklisted) {
+        const canonicalLoc = candLoc.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+        matchedLocations.push(canonicalLoc);
+        workingQuery = workingQuery.replace(locMatch[0], " ");
       }
     }
   }
 
   const primaryLocation = matchedLocations[0] || undefined;
 
-  // 6. Skills Extraction (Strict no-hallucination dictionary matching)
+  // 8. Skills Extraction
   const matchedSkills: string[] = [];
   for (const skillDef of KNOWN_SKILL_DEFINITIONS) {
     if (skillDef.regex.test(lower)) {
@@ -391,7 +665,7 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     }
   }
 
-  // 7. Roles Extraction (Multiple role families supported)
+  // 9. Roles Extraction
   const matchedRoles: string[] = [];
   for (const roleDef of KNOWN_ROLE_DEFINITIONS) {
     if (roleDef.regex.test(lower)) {
@@ -406,41 +680,29 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     }
   }
 
-  // Dynamic pattern extraction for any custom role in natural language
+  // Dynamic Arbitrary Role Extraction from shielded workingQuery
   if (matchedRoles.length === 0) {
-    const rolePattern = /\b(?:search\s+(?:for\s+)?|find\s+|looking\s+for\s+|show\s+(?:me\s+)?|get\s+)?(?:\d+\s+)?([a-zA-Z\s/&-]+?)\s+(?:jobs?|roles?|internships?|positions?|openings?)\b/i;
-    const match = cleanQuery.match(rolePattern);
-    if (match && match[1]) {
-      let extracted = match[1].trim();
-      extracted = extracted.replace(/^(search\s+for|find|looking\s+for|show\s+me|get)\s+/i, "").trim();
-      extracted = extracted.replace(/\b(remote|hybrid|on-site|onsite|latest|recent|new|urgent|full-time|part-time|contract|in|at)\b/gi, "").trim();
-      if (extracted.length >= 3 && !/^(the|any|all|some|good|top|best|entry\s*level|junior|senior|internships?|jobs?)$/i.test(extracted)) {
-        const canonical = extracted.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
-        matchedRoles.push(canonical);
-      }
-    }
-  }
-
-  if (matchedRoles.length === 0 && cleanQuery.length > 0) {
-    // Fallback noun extraction without arbitrary 60-char length cap
-    const stripped = cleanQuery
-      .replace(/\b(find|search|looking for|jobs|internships|positions|openings|in|at|for|remote|hybrid|india|usa|startups|with|and|or|latest|recent|posted|within|last|\d+\s*days?)\b/gi, "")
-      .replace(/\s{2,}/g, " ")
+    // Strip conversational filler, prompt enhancer verbs, evidence phrases, and prepositions
+    const cleanRemainder = workingQuery
+      .replace(/\b(search|find|give\s+me|show\s+me|looking\s+for|look\s+for|i\s*m\s+looking\s+for|some|verified|positions?|jobs?|roles?|openings?|internships?|opportunities|listings?|extract|with|and|or|visual|snapshots?|page|direct|application|links?|core|technical|qualifications?|salary|compensation|locations?|company|names?|titles?|for|\d+)\b/gi, " ")
+      .replace(/\b(in|at|around|near|on|from|to|into|across)\b/gi, " ")
+      .replace(/\s+/g, " ")
       .trim();
-    if (stripped.length > 2 && !/^\d+$/.test(stripped)) {
-      const canonical = stripped.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+
+    if (cleanRemainder.length >= 3 && !/^(the|any|all|some|good|top|best|entry\s*level|junior|senior)$/i.test(cleanRemainder)) {
+      const canonical = cleanRemainder.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
       matchedRoles.push(canonical);
     }
   }
 
-  // Only if the user explicitly typed tech keywords do we default to Software Engineer
+  // Only default to Software Engineer if explicit tech keywords were used
   if (matchedRoles.length === 0 && /\b(tech|technology|developer|coding)\b/i.test(cleanQuery)) {
     matchedRoles.push("Software Engineer");
   }
 
   const primaryRole = matchedRoles[0] || undefined;
 
-  // 7.5. Target Companies Extraction
+  // 10. Target Companies Extraction
   const matchedCompanies: string[] = [];
   for (const compDef of KNOWN_COMPANY_DEFINITIONS) {
     if (compDef.regex.test(lower)) {
@@ -450,12 +712,11 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     }
   }
 
-  // If no predefined company matched, try regex capture "from/at/company/watch <Company>" (e.g. "at Stripe", "from OpenAI", "watch Datadog")
   if (matchedCompanies.length === 0) {
     const compMatch = cleanQuery.match(/\b(?:from|at|by|company|companies|watch|watching|track|tracking|monitor|monitoring)\s+([A-Za-z0-9&.-]+(?:\s+[A-Za-z0-9&.-]+)?)(?:\s+(?:for|in|roles?|jobs?|internships?|with|where|seeking|and|from|posted|last|past|within|today|yesterday|this)|$)/i);
     if (compMatch && compMatch[1]) {
       const candidateComp = compMatch[1].trim();
-      const isGeneric = /^(the|any|all|remote|hybrid|on-site|an?|india|hyderabad|bengaluru|pune|mumbai|delhi|usa|uk|software|developer|engineer|intern|internship|startups?|enterprises?|faang|big\s*tech|companies?|jobs?|internships?|roles?|positions?|openings?|freshers?|graduates?|students?|\d{4})$/i.test(candidateComp);
+      const isGeneric = /^(the|any|all|remote|hybrid|on-site|an?|india|hyderabad|bengaluru|pune|mumbai|delhi|tripura|agartala|usa|uk|software|developer|engineer|intern|internship|startups?|enterprises?|faang|big\s*tech|companies?|jobs?|internships?|roles?|positions?|openings?|freshers?|graduates?|students?|\d{4})$/i.test(candidateComp);
       if (candidateComp.length >= 2 && !isGeneric && !matchedCompanies.includes(candidateComp)) {
         matchedCompanies.push(candidateComp);
       }
@@ -464,173 +725,7 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
 
   const primaryCompany = matchedCompanies[0] || undefined;
 
-  // 8. Natural Language Date Range & Freshness Detection (TASK-043 Enhanced)
-  let isExplicitFreshness = false;
-  let freshnessWindowHours = 168; // Default 7 days
-  let postedWithinDays: number | undefined;
-  let dateConstraint: any = undefined;
-  let sortMode: "LATEST" | "RELEVANCE_THEN_FRESHNESS" = "RELEVANCE_THEN_FRESHNESS";
-
-  // Check arbitrary relative date patterns
-  // Pattern 1: X days / d (e.g., "last 15 days", "past 10 days", "within 21 days", "last 30 days", "15 days", "15d")
-  const explicitDaysMatch = lower.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+)?(?:last|past|within|in)\s+(\d{1,3})\s*(?:days?|d)\b/i) ||
-    lower.match(/\b(\d{1,3})\s*(?:days?|d)\s*ago\b/i) ||
-    lower.match(/\bposted\s+(?:within|in|last|past)\s+(\d{1,3})\s*(?:days?|d)\b/i);
-
-  // Pattern 2: X weeks / w (e.g., "last 2 weeks", "past 6 weeks", "last 3 weeks")
-  const explicitWeeksMatch = lower.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+)?(?:last|past|within|in)\s+(\d{1,2})\s*(?:weeks?|w)\b/i) ||
-    lower.match(/\b(\d{1,2})\s*(?:weeks?|w)\s*ago\b/i);
-
-  // Pattern 3: X months / mo (e.g., "last 2 months", "past 3 months")
-  const explicitMonthsMatch = lower.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+)?(?:last|past|within|in)\s+(\d{1,2})\s*(?:months?|mo)\b/i) ||
-    lower.match(/\b(\d{1,2})\s*(?:months?|mo)\s*ago\b/i);
-
-  // Pattern 4: X hours / h (e.g., "last 24 hours", "past 48 hours")
-  const explicitHoursMatch = lower.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+)?(?:last|past|within|in)\s+(\d{1,3})\s*(?:hours?|hrs?|h)\b/i);
-
-  if (explicitDaysMatch && explicitDaysMatch[1]) {
-    const days = parseInt(explicitDaysMatch[1], 10);
-    if (days > 0) {
-      postedWithinDays = days;
-      freshnessWindowHours = days * 24;
-      isExplicitFreshness = true;
-      sortMode = "LATEST";
-      dateConstraint = {
-        type: "RELATIVE",
-        amount: days,
-        unit: "DAY",
-        cutoffDate: new Date(Date.now() - days * 24 * 3600 * 1000),
-        rawText: explicitDaysMatch[0],
-      };
-    }
-  } else if (explicitWeeksMatch && explicitWeeksMatch[1]) {
-    const weeks = parseInt(explicitWeeksMatch[1], 10);
-    if (weeks > 0) {
-      postedWithinDays = weeks * 7;
-      freshnessWindowHours = weeks * 7 * 24;
-      isExplicitFreshness = true;
-      sortMode = "LATEST";
-      dateConstraint = {
-        type: "RELATIVE",
-        amount: weeks,
-        unit: "WEEK",
-        cutoffDate: new Date(Date.now() - weeks * 7 * 24 * 3600 * 1000),
-        rawText: explicitWeeksMatch[0],
-      };
-    }
-  } else if (explicitMonthsMatch && explicitMonthsMatch[1]) {
-    const months = parseInt(explicitMonthsMatch[1], 10);
-    if (months > 0) {
-      postedWithinDays = months * 30;
-      freshnessWindowHours = months * 30 * 24;
-      isExplicitFreshness = true;
-      sortMode = "LATEST";
-      dateConstraint = {
-        type: "RELATIVE",
-        amount: months,
-        unit: "MONTH",
-        cutoffDate: new Date(Date.now() - months * 30 * 24 * 3600 * 1000),
-        rawText: explicitMonthsMatch[0],
-      };
-    }
-  } else if (explicitHoursMatch && explicitHoursMatch[1]) {
-    const hours = parseInt(explicitHoursMatch[1], 10);
-    if (hours > 0) {
-      postedWithinDays = Math.max(1, Math.round(hours / 24));
-      freshnessWindowHours = hours;
-      isExplicitFreshness = true;
-      sortMode = "LATEST";
-      dateConstraint = {
-        type: "RELATIVE",
-        amount: hours,
-        unit: "HOUR",
-        cutoffDate: new Date(Date.now() - hours * 3600 * 1000),
-        rawText: explicitHoursMatch[0],
-      };
-    }
-  } else if (/\b(two weeks|past two weeks|last two weeks)\b/i.test(lower)) {
-    postedWithinDays = 14;
-    freshnessWindowHours = 14 * 24;
-    isExplicitFreshness = true;
-    sortMode = "LATEST";
-    dateConstraint = { type: "RELATIVE", amount: 14, unit: "DAY", cutoffDate: new Date(Date.now() - 14 * 24 * 3600 * 1000), rawText: "two weeks" };
-  } else if (/\b(six weeks|past six weeks|last six weeks)\b/i.test(lower)) {
-    postedWithinDays = 42;
-    freshnessWindowHours = 42 * 24;
-    isExplicitFreshness = true;
-    sortMode = "LATEST";
-    dateConstraint = { type: "RELATIVE", amount: 42, unit: "DAY", cutoffDate: new Date(Date.now() - 42 * 24 * 3600 * 1000), rawText: "six weeks" };
-  } else if (/\b(two months|past two months|last two months)\b/i.test(lower)) {
-    postedWithinDays = 60;
-    freshnessWindowHours = 60 * 24;
-    isExplicitFreshness = true;
-    sortMode = "LATEST";
-    dateConstraint = { type: "RELATIVE", amount: 60, unit: "DAY", cutoffDate: new Date(Date.now() - 60 * 24 * 3600 * 1000), rawText: "two months" };
-  } else if (/\b(today|posted today|just now|just posted|past 24 hours?|last 24 hours?|24 hours?|24h)\b/i.test(lower)) {
-    postedWithinDays = 1;
-    freshnessWindowHours = 24;
-    isExplicitFreshness = true;
-    sortMode = "LATEST";
-    dateConstraint = { type: "RELATIVE", amount: 1, unit: "DAY", cutoffDate: new Date(Date.now() - 24 * 3600 * 1000), rawText: "today" };
-  } else if (/\b(yesterday|last 48 hours?|past 48 hours?|48 hours?|48h|past 2 days|last 2 days|2 days|2d)\b/i.test(lower)) {
-    postedWithinDays = 2;
-    freshnessWindowHours = 48;
-    isExplicitFreshness = true;
-    sortMode = "LATEST";
-    dateConstraint = { type: "RELATIVE", amount: 2, unit: "DAY", cutoffDate: new Date(Date.now() - 48 * 3600 * 1000), rawText: "48h" };
-  } else if (/\b(last 72 hours?|past 72 hours?|72 hours?|72h|last 3 days|past 3 days|3 days|3d|few days)\b/i.test(lower)) {
-    postedWithinDays = 3;
-    freshnessWindowHours = 72;
-    isExplicitFreshness = true;
-    sortMode = "LATEST";
-    dateConstraint = { type: "RELATIVE", amount: 3, unit: "DAY", cutoffDate: new Date(Date.now() - 72 * 3600 * 1000), rawText: "3 days" };
-  } else if (/\b(last 7 days|past 7 days|7 days|7d|past week|last week|this week|1 week|week)\b/i.test(lower)) {
-    postedWithinDays = 7;
-    freshnessWindowHours = 168;
-    isExplicitFreshness = true;
-    sortMode = "LATEST";
-    dateConstraint = { type: "RELATIVE", amount: 7, unit: "DAY", cutoffDate: new Date(Date.now() - 7 * 24 * 3600 * 1000), rawText: "7 days" };
-  } else if (/\b(latest|newest|recent|recently posted|new|fresh)\b/i.test(lower)) {
-    freshnessWindowHours = 48;
-    isExplicitFreshness = true;
-    sortMode = "LATEST";
-  }
-
-  // Explicit user filter overrides take top priority
-  if (filterOverrides?.freshnessWindowHours !== undefined) {
-    freshnessWindowHours = filterOverrides.freshnessWindowHours;
-    isExplicitFreshness = true;
-  }
-  if (filterOverrides?.isExplicitFreshness !== undefined) {
-    isExplicitFreshness = filterOverrides.isExplicitFreshness;
-  }
-  if (filterOverrides?.postedWithinDays !== undefined) {
-    postedWithinDays = filterOverrides.postedWithinDays;
-  }
-  if (filterOverrides?.dateConstraint !== undefined) {
-    dateConstraint = filterOverrides.dateConstraint;
-  }
-
-  // 8.5. Requested Result Count Extraction (TASK-043)
-  // E.g. "Give me 10 backend developer jobs", "Find 15 react roles", "10 jobs", "5 internships"
-  let requestedCount: number | undefined;
-  const countMatch = lower.match(/\b(?:give\s+me|find|show\s+me|get|search\s+for|list|locate|fetch|looking\s+for|look\s+for)\s+(\d{1,3})\s+/i) ||
-    lower.match(/\b(?:top|first)\s+(\d{1,3})\s+(?:jobs?|openings?|roles?|positions?|internships?|opportunities)\b/i) ||
-    lower.match(/\b(\d{1,3})\s+(?:[a-z/&-]+\s+){0,3}(?:openings?|positions?|roles?|jobs?|internships?)\b/i);
-
-  if (countMatch && countMatch[1]) {
-    const parsed = parseInt(countMatch[1], 10);
-    if (parsed >= 1 && parsed <= 100) {
-      requestedCount = parsed;
-    }
-  }
-
-  // Natural-language requested count takes precedence over structured filterOverrides
-  if (requestedCount === undefined && filterOverrides?.requestedCount !== undefined) {
-    requestedCount = filterOverrides.requestedCount;
-  }
-
-  // 9. Minimum Relevance Expectations
+  // 11. Minimum Relevance Expectations
   let minimumMatchScore = 65;
   if (/\b(high fit|strict match|high relevance|top fit)\b/i.test(lower)) {
     minimumMatchScore = 80;
@@ -647,32 +742,15 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     }
   }
 
-  // 10. Source Preferences
-  const matchedSources: string[] = [];
-  if (/\b(linkedin|linked in)\b/i.test(lower)) {
-    matchedSources.push("LinkedIn");
-  }
-  if (/\b(y combinator|yc|workatastartup|work at a startup)\b/i.test(lower)) {
-    matchedSources.push("Y Combinator");
-  }
-  if (/\b(indeed)\b/i.test(lower)) {
-    matchedSources.push("Indeed");
-  }
-  if (/\b(greenhouse)\b/i.test(lower)) {
-    matchedSources.push("Greenhouse");
-  }
-  if (/\b(ashby)\b/i.test(lower)) {
-    matchedSources.push("Ashby");
-  }
-  if (/\b(lever)\b/i.test(lower)) {
-    matchedSources.push("Lever");
-  }
-  const finalSources = matchedSources.length > 0 ? matchedSources : ["LinkedIn", "Y Combinator", "Indeed", "ATS Direct", "Company Careers"];
+  // 12. Final Sources Resolution (TASK-060: Strict User Preference Preservation)
+  // If user requested specific sources, use ONLY those. Never silently inject ATS or unrequested defaults.
+  const defaultSources = ["LinkedIn", "Y Combinator", "Indeed"];
+  const finalSources = matchedSources.length > 0 ? matchedSources : defaultSources;
 
-  // 11. Exclusion Intent
+  // 13. Exclusion Intent
   const excludeKnown = /\b(avoid showing|already know|exclude known|hide seen|only new|genuinely new|brand new|skip seen|skip saved|only tell me when|haven't seen|havent seen|not seen before|never seen|unseen)\b/i.test(lower);
 
-  // 12. Watch Intent Detection
+  // 14. Watch Intent Detection
   let watchIntent: { enabled: boolean; scanIntervalHours?: number } | undefined;
   if (/\b(watch|watching|watches|monitor|monitoring|track|tracking|alert me|notify me|keep watching|keep an eye|continuous watch|scheduled search|every\s+\d+\s*(?:hours?|h)|daily|every day)\b/i.test(lower)) {
     let scanIntervalHours = 4;
@@ -688,7 +766,7 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     };
   }
 
-  // Explicit user filter overrides take top priority
+  // Build canonical SearchIntent
   const intent: SearchIntent = {
     role: filterOverrides?.role || primaryRole,
     roles: filterOverrides?.roles || matchedRoles,
@@ -716,6 +794,8 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     sources: filterOverrides?.sources || finalSources,
     excludeKnown: filterOverrides?.excludeKnown !== undefined ? filterOverrides.excludeKnown : excludeKnown,
     watchIntent: filterOverrides?.watchIntent || watchIntent,
+    requiresEvidenceVerification: filterOverrides?.requiresEvidenceVerification !== undefined ? filterOverrides.requiresEvidenceVerification : requiresEvidenceVerification,
+    requestedEvidence: filterOverrides?.requestedEvidence || (requestedEvidence.length > 0 ? requestedEvidence : undefined),
   };
 
   return intent;

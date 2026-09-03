@@ -113,13 +113,18 @@ export function validateJobPageContent(
   const cleanTitle = (title || "").trim().toLowerCase();
   const lowerText = cleanText.toLowerCase();
 
-  // 2. Removed / 404 text detection
+  // 2. Removed / 404 / Not Found text detection
   if (
     cleanTitle.includes("404") ||
     cleanTitle.includes("page not found") ||
+    cleanTitle.includes("job not found") ||
     lowerText.includes("page not found") ||
+    lowerText.includes("job not found") ||
+    lowerText.includes("the job you requested was not found") ||
+    lowerText.includes("the job you are looking for doesn't exist") ||
     lowerText.includes("the page you were looking for doesn't exist") ||
-    lowerText.includes("404 - not found")
+    lowerText.includes("404 - not found") ||
+    lowerText.includes("error=true")
   ) {
     return { isValid: false, status: "REMOVED", reason: "JOB_EXPIRED_OR_NOT_FOUND" };
   }
@@ -128,10 +133,14 @@ export function validateJobPageContent(
   if (
     lowerText.includes("job has expired") ||
     lowerText.includes("this job is no longer available") ||
+    lowerText.includes("the job you are looking for is no longer open") ||
+    lowerText.includes("is no longer open") ||
     lowerText.includes("position has been filled") ||
     lowerText.includes("posting closed") ||
+    lowerText.includes("this position is closed") ||
     lowerText.includes("no longer accepting applications") ||
-    lowerText.includes("this listing has ended")
+    lowerText.includes("this listing has ended") ||
+    lowerText.includes("applications are now closed")
   ) {
     return { isValid: false, status: "EXPIRED", reason: "JOB_EXPIRED_OR_NOT_FOUND" };
   }

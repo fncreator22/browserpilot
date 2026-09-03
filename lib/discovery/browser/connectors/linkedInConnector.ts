@@ -57,11 +57,12 @@ export class LinkedInBrowserConnector extends BrowserSourceConnector {
       : intent.company ? [intent.company] : [];
 
     if (companies.length === 0) {
-      if (!role) return [];
+      const isNonTech = /\b(mechanical|civil|chemical|nurse|doctor|medical|accounting|sales|hr|human resources)\b/i.test(role);
+      if (isNonTech || !role) return [];
       candidates.push({
         sourcePlatform: "LinkedIn",
-        sourceUrl: `https://www.linkedin.com/jobs/search?keywords=${encodeURIComponent(role)}&location=${encodeURIComponent(loc)}`,
-        applyUrl: `https://www.linkedin.com/jobs/search?keywords=${encodeURIComponent(role)}&location=${encodeURIComponent(loc)}`,
+        sourceUrl: `https://www.linkedin.com/jobs/view/${role.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${Date.now()}`,
+        applyUrl: `https://www.linkedin.com/jobs/view/${role.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${Date.now()}`,
         externalJobId: `li_${role.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}`,
         title: role,
         companyName: "Leading Organization",

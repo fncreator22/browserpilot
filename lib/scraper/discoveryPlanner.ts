@@ -216,8 +216,11 @@ export function buildDiscoveryPlan(
 
   const targetCompanies = Array.from(targetCompaniesSet);
 
-  // 8. Resolve Sources (Multi-Source Swarm: Aggregators, Direct ATS, Tech Communities)
-  const defaultSources = ["LinkedIn", "Y Combinator", "Indeed", "ATS Direct", "Hacker News", "GitHub Curated"];
+  // 8. Resolve Sources (TASK-060: Strict User Preference & Domain-Aware Fallback)
+  const isNonTech = rolesList.some((r) =>
+    /\b(mechanical|civil|chemical|process|nurse|doctor|healthcare|accounting|sales|hr|human resources)\b/i.test(r)
+  );
+  const defaultSources = isNonTech ? ["LinkedIn", "Indeed"] : ["LinkedIn", "Y Combinator", "Indeed"];
   let sources = defaultSources;
   if (filters.sources && filters.sources.length > 0) {
     sources = filters.sources;

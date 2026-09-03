@@ -362,6 +362,13 @@ export async function POST(request: NextRequest) {
         toolsExecuted: harnessResult.telemetry.toolsExecuted,
         memoriesRetrieved: harnessResult.telemetry.memoriesRetrievedCount,
         durationMs: harnessResult.telemetry.totalDurationMs,
+        requestedSources: harnessResult.telemetry.requestedSources || canonicalIntent.sources || [],
+        eligibleSources: harnessResult.telemetry.eligibleSources || canonicalIntent.sources || [],
+        attemptedSources: harnessResult.telemetry.attemptedSources || [],
+        successfulSources: harnessResult.telemetry.successfulSources || [],
+        failedSources: harnessResult.telemetry.failedSources || [],
+        skippedSources: harnessResult.telemetry.skippedSources || [],
+        sourcesWithNoMatches: harnessResult.telemetry.sourcesWithNoMatches || [],
       },
       personalization: (harnessResult.context.userMemories?.length || 0) > 0
         ? {

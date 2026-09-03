@@ -62,6 +62,98 @@ export function shouldRefreshCompanySource(
  * Selects and orders the most valuable discovery mediums for the user's intent,
  * boosting authenticated user connections and targeting stale channels.
  */
+export interface SourceEligibilityEvaluation {
+  sourceName: string;
+  requestedByUser: boolean;
+  domainRelevance: boolean;
+  locationRelevance: boolean;
+  roleRelevance: boolean;
+  authenticationAvailable: boolean;
+  apiConfigurationAvailable: boolean;
+  browserSessionAvailable: boolean;
+  sourceHealth: string;
+  recentReliability: number;
+  allowedByPolicy: boolean;
+  eligible: boolean;
+  reason: string;
+}
+
+/**
+ * Evaluates whether a source is eligible for a given search intent (TASK-060).
+ */
+export function evaluateSourceEligibility(
+  source: SourceDefinition,
+  intent: SearchIntent,
+  options: {
+    userAuthenticatedSources?: string[];
+  } = {}
+): SourceEligibilityEvaluation {
+  const roleText = (intent.role || intent.roles?.join(" ") || "").toLowerCase();
+  const isNonTech = /\b(mechanical|civil|chemical|process|nurse|doctor|healthcare|accounting|sales|hr|human resources)\b/i.test(roleText);
+  
+  const userRequestedSources = (intent.sources || []).map((s) => s.toLowerCase());
+  const hasUserRequestedSources = userRequestedSources.length > 0;
+  const requestedByUser = userRequestedSources.some(
+    (s) => s.includes(source.name.toLowerCase()) || source.name.toLowerCase().includes(s)
+  );
+
+  // 1. Strict User Preference Rule: If user specified sources, only requested sources are eligible
+  if (hasUserRequestedSources && !requestedByUser) {
+    return {
+      sourceName: source.name,
+      requestedByUser: false,
+      domainRelevance: false,
+      locationRelevance: true,
+      roleRelevance: true,
+      authenticationAvailable: false,
+      apiConfigurationAvailable: true,
+      browserSessionAvailable: true,
+      sourceHealth: source.status,
+      recentReliability: source.reliabilityScore,
+      allowedByPolicy: false,
+      eligible: false,
+      reason: `Excluded because user explicitly requested other sources: [${intent.sources?.join(", ")}]`,
+    };
+  }
+
+  // 2. Domain & Role Relevance Rule: ATS and startup channels are not eligible for generic non-tech queries
+  let roleRelevance = true;
+  let domainRelevance = true;
+  if (isNonTech && (source.type === "ATS_PORTAL" || source.name === "Ashby" || source.name === "Greenhouse" || source.name === "Lever" || source.name === "GitHub Curated" || source.name === "Hacker News")) {
+    if (!intent.company && (!intent.companies || intent.companies.length === 0)) {
+      roleRelevance = false;
+      domainRelevance = false;
+    }
+  }
+
+  const allowedByPolicy = source.status !== "BLOCKED";
+  const eligible = allowedByPolicy && roleRelevance && domainRelevance;
+  const reason = eligible
+    ? (requestedByUser ? "Explicitly requested by user" : "Relevant general discovery channel")
+    : (!roleRelevance ? `Source [${source.name}] is specialized for tech employers; not relevant for non-tech role "${intent.role}"` : `Source status is ${source.status}`);
+
+  return {
+    sourceName: source.name,
+    requestedByUser,
+    domainRelevance,
+    locationRelevance: true,
+    roleRelevance,
+    authenticationAvailable: (options.userAuthenticatedSources || []).some((s) => s.toLowerCase() === source.name.toLowerCase()),
+    apiConfigurationAvailable: true,
+    browserSessionAvailable: true,
+    sourceHealth: source.status,
+    recentReliability: source.reliabilityScore,
+    allowedByPolicy,
+    eligible,
+    reason,
+  };
+}
+
+/**
+ * Adaptive Source Prioritization:
+ * Selects and orders the most valuable discovery mediums for the user's intent,
+ * boosting authenticated user connections and targeting stale channels.
+ */
 export function prioritizeSources(
   sources: SourceDefinition[],
   intent: SearchIntent,
@@ -85,10 +177,12 @@ export function prioritizeSources(
   const scored: PrioritizedSource[] = [];
 
   for (const src of sources) {
-    if (src.status === "BLOCKED") continue;
+    // Check eligibility model first (TASK-060)
+    const eligibility = evaluateSourceEligibility(src, intent, options);
+    if (!eligibility.eligible) continue;
 
     let score = src.reliabilityScore * 50; // Base score (max 50)
-    let reason = "Standard source coverage";
+    let reason = eligibility.reason;
     const isAuthenticated = authSet.has(src.name.toLowerCase());
 
     // 1. Authenticated User Connection Boost (+25)
@@ -97,7 +191,13 @@ export function prioritizeSources(
       reason = "User-authorized active browser session";
     }
 
-    // 2. Relevance boost based on intent
+    // 2. User Explicit Request Boost (+50)
+    if (eligibility.requestedByUser) {
+      score += 50;
+      reason = "User-requested target source";
+    }
+
+    // 3. Relevance boost based on intent
     if (isTargetingCompanies && (src.type === "ATS_PORTAL" || src.name === "LinkedIn")) {
       score += 40;
       reason = isAuthenticated ? "Authenticated employer ATS & company targeting" : "Direct employer ATS & company targeting";
@@ -111,7 +211,7 @@ export function prioritizeSources(
       score += 20;
     }
 
-    // 3. Learned Source Quality Boost (TASK-040: -15 to +15 bounded)
+    // 4. Learned Source Quality Boost (TASK-040: -15 to +15 bounded)
     const learnedDelta = learnedBoosts[src.name.toLowerCase()] ?? learnedBoosts[src.name];
     if (typeof learnedDelta === "number" && !isNaN(learnedDelta)) {
       const boundedDelta = Math.max(-15, Math.min(15, Math.round(learnedDelta)));
@@ -123,13 +223,13 @@ export function prioritizeSources(
       }
     }
 
-    // 4. Freshness calculation
+    // 5. Freshness calculation
     const isStale = shouldRefreshSource(src, src.lastSuccessfulCrawlAt, freshnessHours);
     if (isStale) {
-      score += 10; // Prioritize stale sources that need refreshing
+      score += 10;
     }
 
-    // 5. Degraded health penalty
+    // 6. Degraded health penalty
     if (src.status === "DEGRADED") {
       score -= 25;
       reason += " (Degraded health - demoted)";

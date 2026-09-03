@@ -103,9 +103,9 @@ export function PromptEnhancer({
         <div className="rounded-xl border border-primary/50 bg-card p-4 space-y-3.5 shadow-sm transition-all animate-in fade-in duration-300">
           <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-primary" />
+              <Sparkles className="h-4 w-4 text-primary" />
               <h4 className="text-xs font-semibold uppercase tracking-wider text-foreground font-mono">
-                Verified Autonomous Blueprint
+                Suggested Search Goal (Prompt Optimization)
               </h4>
             </div>
 

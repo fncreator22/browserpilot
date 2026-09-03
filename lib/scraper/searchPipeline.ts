@@ -8,7 +8,7 @@
 
 import { type SearchIntent } from "./providers/baseProvider";
 import { type DiscoveryResult } from "./searchOrchestrator";
-import { SwarmDiscoveryEngine, swarmDiscoveryEngine, type SwarmTelemetry } from "./swarmDiscovery";
+import { SwarmDiscoveryEngine, swarmDiscoveryEngine, type SwarmTelemetry, type SourceStatusSummary } from "./swarmDiscovery";
 import { buildDiscoveryPlan, type DiscoveryPlan, type UserProfilePreferences } from "./discoveryPlanner";
 import { parseSearchIntent } from "./intentParser";
 import { validateAndNormalizeExtractionBatch } from "./extractionContract";
@@ -65,6 +65,7 @@ export interface PipelineResult {
   durationMs: number;
   verificationTelemetry?: VerificationTelemetry;
   swarmTelemetry?: SwarmTelemetry;
+  sourceStatusSummary?: SourceStatusSummary;
   plan?: DiscoveryPlan;
   searchExplanation?: string;
   searchDiagnostics?: SearchDiagnostics;
@@ -349,6 +350,7 @@ export async function executeSearchPipeline(
     durationMs,
     verificationTelemetry,
     swarmTelemetry: finalTelemetry,
+    sourceStatusSummary: swarmResult.sourceStatusSummary,
     plan,
     searchExplanation,
     searchDiagnostics,
