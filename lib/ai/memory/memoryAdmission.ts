@@ -24,14 +24,27 @@ const TRANSIENT_QUERY_PATTERNS = [
   /^give me \d+ (backend|frontend|software|engineer)/i,
 ];
 
+const SENSITIVE_KEY_PATTERNS = [
+  /^(user_)?pass(word)?$/i,
+  /^pwd$/i,
+  /^api[_-]?key$/i,
+  /^secret[_-]?key$/i,
+  /^(auth_)?token$/i,
+  /^cookie$/i,
+  /^session[_-]?(id|token)$/i,
+];
+
 const SENSITIVE_CREDENTIAL_PATTERNS = [
   /pass(word)?\s*[:=]/i,
-  /api[_-]?key\s*[:=]/i,
+  /\bpwd\s*[:=]/i,
+  /api[_-]?key\s*[:=]?/i,
   /bearer\s+[a-zA-Z0-9_\-\.]{15,}/i,
   /jwt\.[a-zA-Z0-9_\-]+\.[a-zA-Z0-9_\-]+/i,
   /session[_-]?id\s*[:=]/i,
   /cookie\s*[:=]/i,
   /secret[_-]?key\s*[:=]/i,
+  /\bprivate[_-]?key\b/i,
+  /\bauth[_-]?token\s*[:=]/i,
   /\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b/, // Credit card regex
   /BEGIN\s+(RSA|EC|PRIVATE)\s+KEY/i,
 ];
@@ -74,6 +87,13 @@ export function evaluateMemoryAdmission(candidate: MemoryAdmissionCandidate): Me
   const rawContextStr = candidate.sourceContext || "";
 
   // 1. Security & Credential Check (Zero-Tolerance)
+  if (SENSITIVE_KEY_PATTERNS.some((p) => p.test(rawKeyStr))) {
+    return {
+      admitted: false,
+      rejectionReason: "SECURITY_CREDENTIAL_DETECTED: Candidate memory key is a reserved sensitive credential name.",
+    };
+  }
+
   const fullPayload = `${rawKeyStr} ${rawValueStr} ${rawContextStr}`;
   for (const pattern of SENSITIVE_CREDENTIAL_PATTERNS) {
     if (pattern.test(fullPayload)) {

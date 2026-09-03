@@ -74,6 +74,7 @@ import { runProductionUIFoundationTests } from "./integration/productionUIFounda
 import { runSearchResultsExperienceTests } from "./integration/searchResultsExperience.test";
 import { runUserMemoryAndPersonalizationTests } from "./integration/userMemoryAndPersonalization.test";
 import { runProductionReliabilityAndObservabilityTests } from "./integration/productionReliabilityAndObservability.test";
+import { runFinalSecurityAndAbuseGateTests } from "./integration/finalSecurityAndAbuseGate.test";
 import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalLanguageWorkflowAcceptance.test";
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -152,6 +153,7 @@ async function runMasterTestSuite() {
     { name: "Integration: BrowserPilot Search Results Experience (TASK-055)", fn: runSearchResultsExperienceTests },
     { name: "Integration: BrowserPilot User Memory & Personalization (TASK-056)", fn: runUserMemoryAndPersonalizationTests },
     { name: "Integration: Production Reliability, Observability & Failure Recovery (TASK-057)", fn: runProductionReliabilityAndObservabilityTests },
+    { name: "Integration: Final Security, Abuse & Data-Isolation Gate (TASK-058)", fn: runFinalSecurityAndAbuseGateTests },
     { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
     { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },

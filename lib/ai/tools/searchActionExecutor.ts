@@ -163,6 +163,19 @@ export class SearchActionExecutor {
       };
     }
 
+    // Security Gate: Validate capability is registered and available (TASK-058)
+    const registeredCap = searchCapabilityRegistry.getCapability(action.capabilityId as any);
+    if (!registeredCap || registeredCap.availabilityStatus !== "AVAILABLE") {
+      return {
+        actionId: action.actionId,
+        capabilityId: action.capabilityId,
+        status: "FAILED",
+        durationMs: 0,
+        error: `Capability [${action.capabilityId}] is unauthorized, unsupported, or unavailable.`,
+        failureCategory: "INVALID_SOURCE",
+      };
+    }
+
     try {
       switch (action.capabilityId) {
         case "discovery.search_pipeline": {
@@ -308,10 +321,10 @@ export class SearchActionExecutor {
           return {
             actionId: action.actionId,
             capabilityId: action.capabilityId,
-            status: "SUCCESS",
+            status: "FAILED",
             durationMs: Date.now() - t0,
-            data: { executed: true },
-            evidenceCount: 1,
+            error: `Capability [${action.capabilityId}] handler is not implemented or blocked by security policy.`,
+            failureCategory: "INVALID_SOURCE",
           };
         }
       }
