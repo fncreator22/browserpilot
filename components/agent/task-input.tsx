@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Sparkles, 
@@ -33,13 +33,41 @@ import { toast } from "sonner";
 
 export interface OpportunitySearchResultPayload {
   searchId: string;
-  status: string;
+  status: "COMPLETE" | "PARTIAL" | "NO_RESULTS" | "UNAUTHORIZED" | "FAILED" | string;
   query: string;
-  intent: any;
+  intent?: any;
+  canonicalIntent?: any;
+  requestedCount?: number;
+  verifiedCount?: number;
   results: any[];
+  partial?: boolean;
   explanation?: string;
-  diagnostics?: any;
-  metadata: any;
+  diagnostics?: {
+    requestedCount?: number;
+    validResultCount?: number;
+    rejectedResultCount?: number;
+    stoppingReason?: string;
+    totalRounds?: number;
+    rejectionReasons?: string[];
+    duplicateCount?: number;
+  };
+  correctionState?: any;
+  sourceSummary?: {
+    toolsExecuted?: string[];
+    memoriesRetrieved?: number;
+    durationMs?: number;
+  };
+  metadata: {
+    totalUniqueOpportunities?: number;
+    returnedCount?: number;
+    durationMs?: number;
+    providersAttempted?: number;
+    providersSucceeded?: number;
+    telemetry?: any;
+    explanation?: string;
+  };
+  errorCode?: string;
+  error?: string;
 }
 
 interface TaskInputProps {
@@ -88,6 +116,12 @@ export function TaskInput({
 }: TaskInputProps) {
   const router = useRouter();
   const [prompt, setPrompt] = useState(initialPrompt);
+
+  useEffect(() => {
+    if (initialPrompt !== undefined) {
+      setPrompt(initialPrompt);
+    }
+  }, [initialPrompt]);
   const [allowedDomains, setAllowedDomains] = useState("");
   const [maxSteps, setMaxSteps] = useState(15);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -163,6 +197,20 @@ export function TaskInput({
         const data = await res.json();
 
         if (!res.ok) {
+          if (res.status === 401) {
+            if (onOpportunitySearchResult) {
+              onOpportunitySearchResult({
+                searchId: "",
+                status: "UNAUTHORIZED",
+                query: text,
+                errorCode: "UNAUTHORIZED",
+                explanation: data.message || "Authentication required. Please sign in to search.",
+                results: [],
+                metadata: { totalUniqueOpportunities: 0, returnedCount: 0, durationMs: 0, providersAttempted: 0, providersSucceeded: 0, explanation: "" },
+              });
+            }
+            throw new Error(data.message || "Authentication required to search opportunities. Please sign in.");
+          }
           throw new Error(data.message || "Failed to execute opportunity discovery search.");
         }
 
