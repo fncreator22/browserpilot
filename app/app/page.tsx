@@ -10,13 +10,10 @@ import {
   X, 
   Eye, 
   Layers, 
-  ShieldCheck, 
-  History,
-  Clock,
-  MapPin,
-  Building2,
-  Filter,
-  CheckCircle2
+  Clock, 
+  CheckCircle2,
+  AlertTriangle,
+  RotateCw
 } from "lucide-react";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
@@ -27,6 +24,10 @@ import { Badge } from "@/components/ui/badge";
 import { TaskInput, type OpportunitySearchResultPayload } from "@/components/agent/task-input";
 import { JobDossierDeck } from "@/components/result/job-dossier-deck";
 import { AutonomousWatchCard } from "@/components/discovery/autonomous-watch-card";
+import { SearchProgress } from "@/components/discovery/search-progress";
+import { InterpretedIntentCard } from "@/components/discovery/interpreted-intent-card";
+import { SearchStatusBanner } from "@/components/discovery/search-status-banner";
+import { SearchRefinements } from "@/components/discovery/search-refinements";
 
 function DiscoverContent() {
   const searchParams = useSearchParams();
@@ -34,6 +35,7 @@ function DiscoverContent() {
 
   const [opportunityData, setOpportunityData] = useState<OpportunitySearchResultPayload | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [activeQuery, setActiveQuery] = useState(initialQuery);
 
   const handleBookmarkChange = (opportunityId: string, isSaved: boolean) => {
     if (!opportunityData) return;
@@ -50,6 +52,7 @@ function DiscoverContent() {
 
   const handleResetDiscovery = () => {
     setOpportunityData(null);
+    setActiveQuery("");
     if (typeof window !== "undefined") {
       window.history.replaceState(null, "", "/app");
     }
@@ -57,9 +60,16 @@ function DiscoverContent() {
 
   const handleSearchResult = (result: OpportunitySearchResultPayload | null) => {
     setOpportunityData(result);
-    if (result?.query && typeof window !== "undefined") {
-      window.history.replaceState(null, "", `/app?q=${encodeURIComponent(result.query)}`);
+    if (result?.query) {
+      setActiveQuery(result.query);
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", `/app?q=${encodeURIComponent(result.query)}`);
+      }
     }
+  };
+
+  const handleRefineSearch = (refinementText: string) => {
+    setActiveQuery(refinementText);
   };
 
   return (
@@ -87,7 +97,7 @@ function DiscoverContent() {
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              Search multi-source job platforms (LinkedIn, Indeed, Y Combinator) using natural language with deterministic ranking and freshness gating.
+              Autonomous opportunity search powered by the Intelligence Harness. Enter any natural-language role, location, or freshness request.
             </p>
           </div>
 
@@ -120,24 +130,37 @@ function DiscoverContent() {
           className="max-w-4xl mx-auto space-y-4"
         >
           <TaskInput
-            key={opportunityData ? "with-data" : "clean"}
-            initialPrompt={initialQuery}
+            key={activeQuery ? `q-${activeQuery}` : "clean"}
+            initialPrompt={activeQuery}
             onOpportunitySearchResult={handleSearchResult}
             onSearchingChange={(searching) => setIsSearching(searching)}
           />
         </motion.div>
 
-        {/* Opportunity Discovery Results Deck */}
+        {/* SEARCHING State: Dynamic Execution Stage & Skeletons */}
+        {isSearching && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+          >
+            <SearchProgress query={activeQuery || initialQuery || "Searching opportunities..."} />
+          </motion.div>
+        )}
+
+        {/* RESULTS Deck (COMPLETE, PARTIAL, NO_RESULTS, FAILED) */}
         <AnimatePresence mode="wait">
-          {opportunityData && (
+          {!isSearching && opportunityData && (
             <motion.div
-              key={opportunityData.searchId || "results"}
+              key={opportunityData.searchId || "results-view"}
               initial={{ opacity: 0, y: 25 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.4 }}
-              className="max-w-5xl mx-auto space-y-6 pt-4"
+              className="max-w-5xl mx-auto space-y-6 pt-2"
             >
+              {/* Top Header Summary */}
               <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-border/60">
                 <div className="flex items-center gap-2.5">
                   <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary shadow-inner">
@@ -147,12 +170,18 @@ function DiscoverContent() {
                     <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
                       Opportunity Results
                       <Badge variant="secondary" className="font-mono text-xs">
-                        {opportunityData.results?.length || 0} Ranked Roles
+                        {opportunityData.verifiedCount ?? opportunityData.results?.length ?? 0} Verified
                       </Badge>
-                      {opportunityData.intent?.freshnessWindowHours && (
+                      {opportunityData.status === "COMPLETE" && (
                         <Badge variant="outline" className="font-mono text-xs text-emerald-500 border-emerald-500/30 bg-emerald-500/10 flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          Last {opportunityData.intent.freshnessWindowHours}h Gated
+                          <CheckCircle2 className="h-3 w-3" />
+                          Complete
+                        </Badge>
+                      )}
+                      {opportunityData.status === "PARTIAL" && (
+                        <Badge variant="outline" className="font-mono text-xs text-amber-500 border-amber-500/30 bg-amber-500/10 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Partial
                         </Badge>
                       )}
                     </h2>
@@ -175,52 +204,53 @@ function DiscoverContent() {
                 </div>
               </div>
 
-              {/* Search Explanation & Freshness Boundary Announcement (TASK-044) */}
-              {opportunityData.explanation ? (
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 flex items-center justify-between gap-3 font-mono text-xs text-emerald-400">
-                  <div className="flex items-center gap-2.5">
-                    <Clock className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>{opportunityData.explanation}</span>
-                  </div>
-                  {opportunityData.diagnostics?.duplicateCount > 0 && (
-                    <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-400">
-                      {opportunityData.diagnostics.duplicateCount} merged duplicates
-                    </Badge>
-                  )}
-                </div>
-              ) : opportunityData.intent?.freshnessWindowHours ? (
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 flex items-center gap-3 font-mono text-xs text-emerald-400">
-                  <Clock className="h-4 w-4 text-emerald-400 shrink-0" />
-                  <span>
-                    Showing opportunities strictly posted within the last{" "}
-                    <strong>
-                      {opportunityData.intent.postedWithinDays
-                        ? `${opportunityData.intent.postedWithinDays} days (${opportunityData.intent.freshnessWindowHours}h)`
-                        : `${opportunityData.intent.freshnessWindowHours} hours`}
-                    </strong>
-                    . Stale listings were filtered prior to ranking.
-                  </span>
-                </div>
-              ) : null}
-
-              {/* 1-Click Autonomous Watch Conversion Banner */}
-              <AutonomousWatchCard
-                intent={opportunityData.intent || { role: "Software Engineer" }}
-                query={opportunityData.query}
+              {/* Status Banner: Explains COMPLETE, PARTIAL, NO_RESULTS, or UNAUTHORIZED */}
+              <SearchStatusBanner
+                status={opportunityData.status}
+                requestedCount={opportunityData.requestedCount || opportunityData.canonicalIntent?.requestedCount || 10}
+                verifiedCount={opportunityData.verifiedCount ?? opportunityData.results?.length ?? 0}
+                explanation={opportunityData.explanation}
+                stoppingReason={opportunityData.diagnostics?.stoppingReason}
+                errorCode={opportunityData.errorCode}
               />
+
+              {/* Section 8: Interpreted Search Transparency Card */}
+              {(opportunityData.canonicalIntent || opportunityData.intent) && (
+                <InterpretedIntentCard
+                  intent={opportunityData.intent}
+                  canonicalIntent={opportunityData.canonicalIntent}
+                  requestedCount={opportunityData.requestedCount}
+                />
+              )}
+
+              {/* Section 13: Search Refinement Chips */}
+              <SearchRefinements
+                currentQuery={opportunityData.query || activeQuery}
+                onSelectRefinement={handleRefineSearch}
+              />
+
+              {/* 1-Click Autonomous Watch Conversion Banner (if results found) */}
+              {opportunityData.results?.length > 0 && (
+                <AutonomousWatchCard
+                  intent={opportunityData.canonicalIntent || opportunityData.intent || { role: "Software Engineer" }}
+                  query={opportunityData.query}
+                />
+              )}
 
               {/* Ranked Dossier Deck */}
-              <JobDossierDeck
-                jobs={opportunityData.results || []}
-                jobId={opportunityData.searchId}
-                onBookmarkChange={handleBookmarkChange}
-              />
+              {opportunityData.results?.length > 0 && (
+                <JobDossierDeck
+                  jobs={opportunityData.results}
+                  jobId={opportunityData.searchId}
+                  onBookmarkChange={handleBookmarkChange}
+                />
+              )}
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Feature Overview Grid (When no search results are active) */}
-        {!opportunityData && (
+        {/* IDLE State: Feature Overview Grid (When no search is active) */}
+        {!isSearching && !opportunityData && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -230,20 +260,20 @@ function DiscoverContent() {
             <div className="rounded-2xl border border-border/80 bg-card p-5 space-y-2 shadow-xs">
               <div className="flex items-center gap-2 text-primary font-mono text-xs font-semibold">
                 <Briefcase className="h-4 w-4" />
-                Multi-Source Search
+                Natural-Language Search
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Harvests listings across LinkedIn, Y Combinator, and Indeed in parallel with 3-tier deduplication and 100-point relevance scoring.
+                Describe the role, location, target companies, and date boundaries. The Intelligence Harness interprets constraints and targets exact counts.
               </p>
             </div>
 
             <div className="rounded-2xl border border-border/80 bg-card p-5 space-y-2 shadow-xs">
               <div className="flex items-center gap-2 text-primary font-mono text-xs font-semibold">
-                <Eye className="h-4 w-4" />
-                Autonomous Monitoring
+                <Layers className="h-4 w-4" />
+                Evidence Verification
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Convert any discovery query into a background watch that runs on your schedule and sends proactive alerts for new listings.
+                Every opportunity is verified against live ATS pages and Quality Gates. Stale, expired, or closed listings are rejected before ranking.
               </p>
             </div>
 
@@ -253,7 +283,7 @@ function DiscoverContent() {
                 Deterministic Freshness
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Strict time-bound search filters (24h, 48h, 72h, 7d) guarantee stale listings are rejected upstream before ranking.
+                Strict time-bound search filters guarantee that opportunities are actively posted within your requested timeframe (e.g. last 15 days).
               </p>
             </div>
           </motion.div>
