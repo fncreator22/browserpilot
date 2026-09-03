@@ -70,6 +70,14 @@ const nextConfig: NextConfig = {
         headers: privateApiHeaders,
       },
       {
+        source: "/api/search/:path*",
+        headers: privateApiHeaders,
+      },
+      {
+        source: "/api/opportunities/:path*",
+        headers: privateApiHeaders,
+      },
+      {
         source: "/api/billing/:path*",
         headers: privateApiHeaders,
       },

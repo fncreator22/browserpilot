@@ -16,6 +16,7 @@ import {
   sanitizeSearchTelemetry,
   type CanonicalSearchFailure,
 } from "@/lib/ai/errors/searchFailureModel";
+import { rateLimiter } from "@/lib/security/rateLimiter";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,29 @@ export async function POST(request: NextRequest) {
         },
         { status: 401 }
       );
+    }
+
+    // 2. Enforce Rate Limiting (Abuse Prevention - TASK-058)
+    const isTest = process.env.NODE_ENV === "test" || (process.env as any).IS_TEST_HARNESS === "true";
+    const skipRateLimit = isTest && (process.env as any).SKIP_RATE_LIMIT_FOR_TESTS === "true";
+
+    if (!skipRateLimit) {
+      const rateCheck = await rateLimiter.check(`search:${userId}`, 60, 60);
+      if (!rateCheck.success) {
+        return NextResponse.json(
+          {
+            error: "RATE_LIMITED",
+            message: "Search rate limit exceeded. Please wait a moment before trying again.",
+            retryAfter: rateCheck.resetSeconds,
+          },
+          {
+            status: 429,
+            headers: {
+              "Retry-After": String(rateCheck.resetSeconds),
+            },
+          }
+        );
+      }
     }
 
     const body = (await request.json().catch(() => ({}))) as SearchApiRequest;

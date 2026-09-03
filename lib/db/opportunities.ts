@@ -556,9 +556,11 @@ export async function getSearchSession(searchId: string, userId?: string | null)
 
   if (!search) return null;
 
-  // Enforce user isolation if search is user-owned
-  if (search.userId && userId && search.userId !== userId) {
-    return null;
+  // Enforce strict user isolation: if search is user-owned, only that user can access it
+  if (search.userId) {
+    if (!userId || search.userId !== userId) {
+      return null;
+    }
   }
 
   return search;

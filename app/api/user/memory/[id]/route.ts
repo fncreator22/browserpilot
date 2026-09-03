@@ -54,12 +54,13 @@ export async function PATCH(
     const updateRes = await userMemoryVault.updateMemory(userId, id, body.value.trim());
 
     if (!updateRes.success || !updateRes.memoryItem) {
+      const isNotFound = updateRes.rejectionReason === "MEMORY_NOT_FOUND";
       return NextResponse.json(
         {
-          error: "UPDATE_FAILED",
+          error: isNotFound ? "NOT_FOUND" : "UPDATE_FAILED",
           message: updateRes.rejectionReason || "Failed to update memory.",
         },
-        { status: 400 }
+        { status: isNotFound ? 404 : 400 }
       );
     }
 
@@ -115,9 +116,16 @@ export async function DELETE(
 
     const deleted = await userMemoryVault.deleteMemory(userId, id);
 
+    if (!deleted) {
+      return NextResponse.json(
+        { error: "NOT_FOUND", message: "Memory item not found or unauthorized." },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
-      deleted,
+      deleted: true,
       id,
     });
   } catch (err: unknown) {
