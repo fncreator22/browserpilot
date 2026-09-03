@@ -41,6 +41,8 @@ export interface SearchIntent {
     enabled: boolean;
     scanIntervalHours?: number;
   };
+  requiresEvidenceVerification?: boolean;
+  requestedEvidence?: string[];
 }
 
 export interface RawJobCandidate {

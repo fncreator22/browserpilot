@@ -39,6 +39,7 @@ export interface SearchActionOrchestratorResult {
   totalDurationMs: number;
   successfulActionsCount: number;
   failedActionsCount: number;
+  sourceStatusSummary?: any;
 }
 
 export class SearchActionExecutor {
@@ -55,6 +56,7 @@ export class SearchActionExecutor {
     const actionResults = new Map<string, CapabilityExecutionResult>();
     const allCandidates: any[] = [];
     let verifiedEvidence = 0;
+    let lastSourceStatusSummary: any = undefined;
 
     // Build Dependency Map
     const executedActionIds = new Set<string>();
@@ -107,6 +109,9 @@ export class SearchActionExecutor {
           if (res.value.data && Array.isArray((res.value.data as any).results)) {
             allCandidates.push(...(res.value.data as any).results);
           }
+          if ((res.value.data as any)?.sourceStatusSummary) {
+            lastSourceStatusSummary = (res.value.data as any).sourceStatusSummary;
+          }
           if (res.value.evidenceCount) {
             verifiedEvidence += res.value.evidenceCount;
           }
@@ -140,6 +145,7 @@ export class SearchActionExecutor {
       totalDurationMs: Date.now() - startTime,
       successfulActionsCount: successful,
       failedActionsCount: failed,
+      sourceStatusSummary: lastSourceStatusSummary,
     };
   }
 
@@ -203,7 +209,7 @@ export class SearchActionExecutor {
             capabilityId: action.capabilityId,
             status: "SUCCESS",
             durationMs: Date.now() - t0,
-            data: { results: candidates },
+            data: { results: candidates, sourceStatusSummary: pipelineRes.sourceStatusSummary },
             candidateCount: candidates.length,
             evidenceCount: candidates.length,
           };
@@ -211,6 +217,7 @@ export class SearchActionExecutor {
 
         case "company.lookup": {
           const compName = (action.input.companyName as string) || "Target";
+          const careerUrl = `https://${compName.toLowerCase().replace(/[^a-z0-9]/g, "")}.com/careers`;
           return {
             actionId: action.actionId,
             capabilityId: action.capabilityId,
@@ -218,10 +225,8 @@ export class SearchActionExecutor {
             durationMs: Date.now() - t0,
             data: {
               companyName: compName,
-              officialCareerUrl: `https://${compName.toLowerCase()}.com/careers`,
-              atsProvider: "GREENHOUSE",
-              atsUrl: `https://boards.greenhouse.io/${compName.toLowerCase()}`,
-              reliabilityScore: 0.98,
+              officialCareerUrl: careerUrl,
+              reliabilityScore: 0.9,
             },
             evidenceCount: 1,
           };
@@ -229,8 +234,6 @@ export class SearchActionExecutor {
 
         case "company.ats": {
           const compName = (action.input.companyName as string) || "Target";
-          const atsProvider = (action.input.atsProvider as string) || "GREENHOUSE";
-          const roleTitle = (action.input.targetRole as string) || (action.input.role as string) || "Engineer";
           return {
             actionId: action.actionId,
             capabilityId: action.capabilityId,
@@ -238,16 +241,10 @@ export class SearchActionExecutor {
             durationMs: Date.now() - t0,
             data: {
               companyName: compName,
-              atsEndpoint: `https://boards.greenhouse.io/${compName.toLowerCase()}`,
-              jobCount: 5,
-              jobs: [
-                {
-                  title: `${roleTitle} at ${compName}`,
-                  url: `https://boards.greenhouse.io/${compName.toLowerCase()}/jobs/101`,
-                },
-              ],
+              jobCount: 0,
+              jobs: [],
             },
-            evidenceCount: 1,
+            evidenceCount: 0,
           };
         }
 

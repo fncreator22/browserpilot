@@ -111,6 +111,11 @@ export interface HarnessTelemetry {
   evidenceFailures?: number;
   successfulSources?: string[];
   failedSources?: string[];
+  requestedSources?: string[];
+  eligibleSources?: string[];
+  attemptedSources?: string[];
+  skippedSources?: string[];
+  sourcesWithNoMatches?: string[];
   structuredFailures?: any[];
 }
 

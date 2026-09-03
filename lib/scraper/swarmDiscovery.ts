@@ -45,11 +45,22 @@ export interface SwarmTelemetry {
   durationMs: number;
 }
 
+export interface SourceStatusSummary {
+  requestedSources: string[];
+  eligibleSources: string[];
+  attemptedSources: string[];
+  successfulSources: string[];
+  failedSources: string[];
+  skippedSources: string[];
+  sourcesWithNoMatches: string[];
+}
+
 export interface SwarmDiscoveryResult {
   candidates: RawJobCandidate[];
   providerTelemetry: ProviderTelemetry[];
   swarmTelemetry: SwarmTelemetry;
   status: "SUCCESS" | "PARTIAL_SUCCESS" | "EMPTY" | "FAILED";
+  sourceStatusSummary?: SourceStatusSummary;
 }
 
 export interface SwarmOptions {
@@ -117,27 +128,22 @@ export class SwarmDiscoveryEngine {
     const startTime = Date.now();
     const intent = this.planToIntent(plan);
 
-    const defaultSourceSet = new Set(["LinkedIn", "Y Combinator", "Indeed", "ATS Direct", "Company Careers", "Greenhouse", "Ashby", "Lever"]);
-    const isDefaultSources =
-      this.isCustomEngine ||
-      (options.customProviders !== undefined && options.customProviders.length > 0) ||
-      !plan.sources ||
-      plan.sources.length === 0 ||
-      plan.sources.every((s) => defaultSourceSet.has(s));
-
+    const hasExplicitSources = Boolean(plan.sources && plan.sources.length > 0);
     const providersToUse =
       options.customProviders && options.customProviders.length > 0
         ? options.customProviders
-        : isDefaultSources
+        : this.isCustomEngine
         ? this.providers
-        : this.providers.filter((p) =>
+        : hasExplicitSources
+        ? this.providers.filter((p) =>
             plan.sources.some(
               (s) =>
                 p.name.toLowerCase().includes(s.toLowerCase()) ||
                 s.toLowerCase().includes(p.name.toLowerCase()) ||
                 (p.name.toLowerCase().includes("ats") && ["ashby", "greenhouse", "lever", "workable", "ats direct"].includes(s.toLowerCase()))
             )
-          );
+          )
+        : this.providers;
 
     const activeProviders = providersToUse.filter((p) => p.supports(intent));
     const concurrencyLimit = Math.min(options.concurrencyLimit || 3, 3);
@@ -382,11 +388,30 @@ export class SwarmDiscoveryEngine {
       durationMs,
     };
 
+    const requestedSources = plan.sources && plan.sources.length > 0 ? plan.sources : ["LinkedIn", "Y Combinator", "Indeed"];
+    const eligibleSources = providersToUse.map((p) => p.name);
+    const attemptedSources = activeProviders.map((p) => p.name);
+    const skippedSources = providersToUse.filter((p) => !p.supports(intent)).map((p) => p.name);
+    const successfulSources = providerTelemetryList.filter((t) => (t.status === "SUCCESS" || t.status === "PARTIAL") && t.candidatesFound > 0).map((t) => t.provider);
+    const failedSources = providerTelemetryList.filter((t) => t.status === "FAILED" || t.status === "TIMEOUT").map((t) => t.provider);
+    const sourcesWithNoMatches = providerTelemetryList.filter((t) => (t.status === "SUCCESS" || t.status === "PARTIAL") && t.candidatesFound === 0).map((t) => t.provider);
+
+    const sourceStatusSummary: SourceStatusSummary = {
+      requestedSources,
+      eligibleSources,
+      attemptedSources,
+      successfulSources,
+      failedSources,
+      skippedSources,
+      sourcesWithNoMatches,
+    };
+
     return {
       candidates: allHarvestedCandidates,
       providerTelemetry: providerTelemetryList,
       swarmTelemetry,
       status: overallStatus,
+      sourceStatusSummary,
     };
   }
 }

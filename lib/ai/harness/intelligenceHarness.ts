@@ -433,6 +433,16 @@ export class IntelligenceHarness {
       context.telemetry.observationsCount++;
     }
 
+    if (orchestrationResult.sourceStatusSummary) {
+      context.telemetry.requestedSources = orchestrationResult.sourceStatusSummary.requestedSources;
+      context.telemetry.eligibleSources = orchestrationResult.sourceStatusSummary.eligibleSources;
+      context.telemetry.attemptedSources = orchestrationResult.sourceStatusSummary.attemptedSources;
+      context.telemetry.successfulSources = orchestrationResult.sourceStatusSummary.successfulSources;
+      context.telemetry.failedSources = orchestrationResult.sourceStatusSummary.failedSources;
+      context.telemetry.skippedSources = orchestrationResult.sourceStatusSummary.skippedSources;
+      context.telemetry.sourcesWithNoMatches = orchestrationResult.sourceStatusSummary.sourcesWithNoMatches;
+    }
+
     let harvestedCandidates = orchestrationResult.harvestedCandidates;
 
     // Safety fallback: if no candidates harvested by individual actions, run discovery search pipeline
@@ -455,6 +465,15 @@ export class IntelligenceHarness {
       });
 
       harvestedCandidates = pipelineResult.discovery?.candidates || [];
+      if (pipelineResult.sourceStatusSummary) {
+        context.telemetry.requestedSources = pipelineResult.sourceStatusSummary.requestedSources;
+        context.telemetry.eligibleSources = pipelineResult.sourceStatusSummary.eligibleSources;
+        context.telemetry.attemptedSources = pipelineResult.sourceStatusSummary.attemptedSources;
+        context.telemetry.successfulSources = pipelineResult.sourceStatusSummary.successfulSources;
+        context.telemetry.failedSources = pipelineResult.sourceStatusSummary.failedSources;
+        context.telemetry.skippedSources = pipelineResult.sourceStatusSummary.skippedSources;
+        context.telemetry.sourcesWithNoMatches = pipelineResult.sourceStatusSummary.sourcesWithNoMatches;
+      }
       const rawCandidateCount = (pipelineResult.discovery as any)?.rawCount ?? harvestedCandidates.length;
 
       const fallbackToolExecution: HarnessToolExecutionResult = {

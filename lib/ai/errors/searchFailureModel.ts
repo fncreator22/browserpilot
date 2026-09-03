@@ -17,12 +17,17 @@ export type CanonicalSearchFailureCategory =
   | "EXTRACTION_FAILURE"
   | "INVALID_SOURCE"
   | "SYSTEM_FAILURE"
+  | "MODEL_CONFIGURATION_REQUIRED"
   | "MODEL_FAILURE"
   | "MODEL_TIMEOUT"
   | "MODEL_MALFORMED_RESPONSE"
   | "PLAN_VALIDATION_FAILURE"
   | "EVIDENCE_FAILURE"
   | "DATABASE_FAILURE"
+  | "JOB_NOT_FOUND"
+  | "JOB_CLOSED"
+  | "NO_MATCHING_OPPORTUNITIES"
+  | "TARGET_SHORTFALL"
   | "TIMEOUT"
   | "CANCELLED";
 
@@ -183,6 +188,48 @@ export function classifySearchFailure(
       retryable: true,
       userMessage: "AI planner returned an invalid response. Falling back to deterministic plan.",
       internalCode: "ERR_MODEL_MALFORMED",
+      source,
+      operation,
+      correlationId,
+      timestamp,
+    };
+  }
+
+  if (/\b(api key not found|missing gemini_api_key|model configuration required|ai_configuration_required|missing api key|unconfigured model)\b/i.test(rawMsg)) {
+    return {
+      category: "MODEL_CONFIGURATION_REQUIRED",
+      severity: "MEDIUM",
+      retryable: false,
+      userMessage: "AI search planning is unavailable because the required model configuration is missing.",
+      internalCode: "ERR_MODEL_CONFIG_REQUIRED",
+      source,
+      operation,
+      correlationId,
+      timestamp,
+    };
+  }
+
+  if (/\b(job closed|posting closed|no longer open|is no longer open|position has been filled|application closed)\b/i.test(rawMsg)) {
+    return {
+      category: "JOB_CLOSED",
+      severity: "LOW",
+      retryable: false,
+      userMessage: "The target job posting has closed and is no longer accepting applications.",
+      internalCode: "ERR_JOB_CLOSED",
+      source,
+      operation,
+      correlationId,
+      timestamp,
+    };
+  }
+
+  if (/\b(job not found|posting not found|the job you requested was not found|the job you are looking for doesn't exist)\b/i.test(rawMsg)) {
+    return {
+      category: "JOB_NOT_FOUND",
+      severity: "LOW",
+      retryable: false,
+      userMessage: "The requested job posting was not found.",
+      internalCode: "ERR_JOB_NOT_FOUND",
       source,
       operation,
       correlationId,

@@ -19,8 +19,8 @@ import {
     const hasCompany = !!((intent.companies && intent.companies.length > 0) || intent.company);
     if (hasCompany) return true;
     const r = (intent.role || intent.roles?.[0] || "").toLowerCase();
-    if (!r) return true;
-    const isNonTech = /\b(mechanical|civil|chemical|nurse|doctor|medical|accounting)\b/i.test(r);
+    if (!r) return false;
+    const isNonTech = /\b(mechanical|civil|chemical|nurse|doctor|medical|accounting|sales|hr|human resources)\b/i.test(r);
     return !isNonTech;
   }
 
@@ -31,7 +31,7 @@ import {
   ): Promise<RawJobCandidate[]> {
     const candidates: RawJobCandidate[] = [];
     const r = (intent.role || intent.roles?.[0] || "").toLowerCase();
-    const isNonTech = /\b(mechanical|civil|chemical|nurse|doctor|medical|accounting)\b/i.test(r);
+    const isNonTech = /\b(mechanical|civil|chemical|nurse|doctor|medical|accounting|sales|hr|human resources)\b/i.test(r);
 
     if (isNonTech && (!intent.companies || intent.companies.length === 0) && !intent.company) {
       return [];

@@ -56,11 +56,12 @@ export class IndeedBrowserConnector extends BrowserSourceConnector {
       : intent.company ? [intent.company] : [];
 
     if (companies.length === 0) {
-      if (!role) return [];
+      const isNonTech = /\b(mechanical|civil|chemical|nurse|doctor|medical|accounting|sales|hr|human resources)\b/i.test(role);
+      if (isNonTech || !role) return [];
       candidates.push({
         sourcePlatform: this.name,
-        sourceUrl: `https://www.indeed.com/jobs?q=${encodeURIComponent(role)}&l=${encodeURIComponent(loc)}`,
-        applyUrl: `https://www.indeed.com/jobs?q=${encodeURIComponent(role)}&l=${encodeURIComponent(loc)}`,
+        sourceUrl: `https://www.indeed.com/viewjob?jk=ind_${role.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}`,
+        applyUrl: `https://www.indeed.com/viewjob?jk=ind_${role.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}`,
         externalJobId: `ind_${role.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}`,
         title: role,
         companyName: "Leading Employer",
