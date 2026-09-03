@@ -198,5 +198,35 @@ export function SearchStatusBanner({
     );
   }
 
+  // Case 6: CANCELLED
+  if (status === "CANCELLED") {
+    return (
+      <div className={`rounded-xl border border-muted-foreground/30 bg-muted/20 p-4 space-y-3 ${className}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <Clock className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h4 className="text-xs font-semibold text-foreground">Search Cancelled</h4>
+              <p className="text-xs text-muted-foreground">
+                {explanation || "Search execution was cancelled. Resources have been safely released."}
+              </p>
+            </div>
+          </div>
+          {onRetry && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRetry}
+              className="h-7 font-mono text-xs gap-1 cursor-pointer"
+            >
+              <RotateCw className="h-3 w-3" />
+              Restart Search
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return null;
 }

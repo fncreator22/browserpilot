@@ -49,7 +49,7 @@ export class SearchActionExecutor {
    */
   public async executePlan(
     plan: SearchActionPlan,
-    context: { userId?: string | null; customProviders?: any[] } = {}
+    context: { userId?: string | null; customProviders?: any[]; signal?: AbortSignal } = {}
   ): Promise<SearchActionOrchestratorResult> {
     const startTime = Date.now();
     const actionResults = new Map<string, CapabilityExecutionResult>();
@@ -61,6 +61,10 @@ export class SearchActionExecutor {
     const pendingActions = [...plan.actions].sort((a, b) => a.priority - b.priority);
 
     while (pendingActions.length > 0) {
+      if (context.signal?.aborted) {
+        break;
+      }
+
       // Find all actions whose dependencies are satisfied
       const readyActions: PlannedSearchAction[] = [];
       const remainingActions: PlannedSearchAction[] = [];
@@ -87,6 +91,7 @@ export class SearchActionExecutor {
           planId: plan.planId,
           actionId: action.actionId,
           timeoutMs: action.timeoutMs,
+          signal: context.signal,
           customProviders: context.customProviders,
         })
       );
@@ -146,6 +151,17 @@ export class SearchActionExecutor {
     execCtx: CapabilityExecutionContext
   ): Promise<CapabilityExecutionResult> {
     const t0 = Date.now();
+
+    if (execCtx.signal?.aborted) {
+      return {
+        actionId: action.actionId,
+        capabilityId: action.capabilityId,
+        status: "FAILED",
+        durationMs: 0,
+        error: "Action execution aborted by cancellation signal.",
+        failureCategory: "TEMPORARY_FAILURE",
+      };
+    }
 
     try {
       switch (action.capabilityId) {

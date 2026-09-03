@@ -286,6 +286,13 @@ export class SourceReliabilityManager {
       }
     );
   }
+
+  /**
+   * Returns all active source health records for admin observability.
+   */
+  public getAllHealthRecords(): SourceHealthRecord[] {
+    return Array.from(this.healthMap.values());
+  }
 }
 
 export const sourceReliabilityManager = new SourceReliabilityManager();

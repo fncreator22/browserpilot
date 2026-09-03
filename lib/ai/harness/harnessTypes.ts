@@ -102,8 +102,16 @@ export interface HarnessTelemetry {
   platformKnowledgeCount: number;
   observationsCount: number;
   verifiedCount: number;
-  status: "SUCCESS" | "FAILED" | "PARTIAL";
+  status: "SUCCESS" | "FAILED" | "PARTIAL" | "CANCELLED";
   errorCategory?: string;
+  correlationId?: string;
+  terminalState?: string;
+  modelUsed?: string;
+  modelFailures?: number;
+  evidenceFailures?: number;
+  successfulSources?: string[];
+  failedSources?: string[];
+  structuredFailures?: any[];
 }
 
 export interface HarnessContext {
@@ -111,6 +119,7 @@ export interface HarnessContext {
   userId: string | null;
   rawQuery: string;
   currentStage: HarnessLifecycleStage;
+  correlationId?: string;
   
   // Intent & Explicit Constraints
   searchIntent?: SearchIntent;
@@ -154,6 +163,9 @@ export interface HarnessExecutionOptions {
   dryRunPlanOnly?: boolean;
   customProviders?: any[];
   apiKey?: string;
+  correlationId?: string;
+  signal?: AbortSignal;
+  timeoutMs?: number;
 }
 
 export interface HarnessResult {
