@@ -50,6 +50,14 @@ export function SearchRefinements({
     });
   }
 
+  if (!queryLower.includes("senior") && !queryLower.includes("intern") && !queryLower.includes("lead")) {
+    refinements.push({
+      label: "+ Senior / Lead",
+      text: `Senior ${currentQuery.trim()}`,
+      icon: Sparkles,
+    });
+  }
+
   if (refinements.length === 0) {
     refinements.push({
       label: "+ Expand to 15 days",

@@ -28,6 +28,7 @@ import { SearchProgress } from "@/components/discovery/search-progress";
 import { InterpretedIntentCard } from "@/components/discovery/interpreted-intent-card";
 import { SearchStatusBanner } from "@/components/discovery/search-status-banner";
 import { SearchRefinements } from "@/components/discovery/search-refinements";
+import { SearchDiagnosticsCard } from "@/components/discovery/search-diagnostics-card";
 
 function DiscoverContent() {
   const searchParams = useSearchParams();
@@ -222,6 +223,14 @@ function DiscoverContent() {
                   requestedCount={opportunityData.requestedCount}
                 />
               )}
+
+              {/* Quality Gate & Search Execution Diagnostics */}
+              <SearchDiagnosticsCard
+                diagnostics={opportunityData.diagnostics}
+                correctionState={opportunityData.correctionState}
+                sourceSummary={opportunityData.sourceSummary}
+                metadata={opportunityData.metadata}
+              />
 
               {/* Section 13: Search Refinement Chips */}
               <SearchRefinements
