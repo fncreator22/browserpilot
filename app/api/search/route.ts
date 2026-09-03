@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const sessionUser = session?.user as { id?: string; email?: string } | undefined;
     let userId: string | null = sessionUser?.id || null;
 
-    // Test harness override for multi-tenant integration testing
+    // Test harness override for multi-tenant integration testing ONLY in test environments
     if (!userId && (process.env.NODE_ENV === "test" || (process.env as any).IS_TEST_HARNESS === "true")) {
       const headerUserId = request.headers.get("x-test-user-id");
       if (headerUserId) {
@@ -40,11 +40,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // CASE A — Unauthenticated production API request
+    if (!userId) {
+      return NextResponse.json(
+        {
+          error: "UNAUTHORIZED",
+          message: "Authentication required to perform an opportunity search. Please sign in.",
+        },
+        { status: 401 }
+      );
+    }
+
     const body = (await request.json().catch(() => ({}))) as SearchApiRequest;
     const customProviders = (request as any)._customProviders || body.customProviders;
     const rawQuery = (body.query || "").trim();
     const filters = body.filters || {};
-    const maxResults = Math.min(Math.max(body.maxResults || 10, 1), 50);
+    const maxResultsCeiling = Math.min(Math.max(body.maxResults || 50, 1), 50);
     const verifyEvidence = body.verifyEvidence ?? true;
     const persistToDb = body.persistToDb !== false;
 
@@ -69,19 +80,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Deterministic Pre-Extraction of Intent
+    // 3. Precedence-Aware Intent Extraction (TASK-053.1 Count Priority)
+    // Priority: Explicit natural-language count > Explicit structured request count > maxResults ceiling > system default (10)
     const initialIntent = parseSearchIntent(rawQuery, filters);
-    const effectiveRequestedCount = initialIntent.requestedCount || maxResults;
+    const requestedCount = initialIntent.requestedCount || filters.requestedCount || (typeof body.maxResults === "number" ? body.maxResults : 10);
 
-    // 4. Execute Intelligence Harness Lifecycle (TASK-048 -> TASK-052)
+    // 4. Execute Intelligence Harness Lifecycle (TASK-048 -> TASK-053)
     // Runs: Intent -> Brain/Memory -> Plan -> Validate -> Execute -> Evidence -> Judge -> Correction Loop -> Dedup -> Rank
     const harnessResult = await intelligenceHarness.runLifecycle(rawQuery || initialIntent.queryHint || "Find software jobs", {
       userId,
       explicitFilters: {
         ...filters,
-        requestedCount: effectiveRequestedCount,
+        requestedCount,
       },
-      maxResultsBudget: effectiveRequestedCount,
+      maxResultsBudget: Math.max(requestedCount, maxResultsCeiling),
       verifyEvidence,
       customProviders,
     });
@@ -217,15 +229,48 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    // 7. Determine Search Status & Shortfall State
+    // 7. Determine Search Status & Shortfall State Invariants (TASK-053.1)
     const verifiedCount = structuredResults.length;
-    const requestedCount = decision.requestedCount || effectiveRequestedCount;
-    const isPartial = verifiedCount > 0 && verifiedCount < requestedCount;
-    const status = decision.outcome === "COMPLETE"
-      ? "COMPLETED"
-      : verifiedCount > 0
-        ? "PARTIAL"
-        : "NO_RESULTS";
+    const effectiveRequestedCount = canonicalIntent.requestedCount || requestedCount;
+    const isComplete = verifiedCount >= effectiveRequestedCount;
+    const isPartial = verifiedCount > 0 && verifiedCount < effectiveRequestedCount;
+    const isNoResults = verifiedCount === 0;
+
+    // Status Invariants:
+    // COMPLETE: verifiedCount >= requestedCount -> partial = false, status = "COMPLETE", stoppingReason = "TARGET_SATISFIED"
+    // PARTIAL: 0 < verifiedCount < requestedCount -> partial = true, status = "PARTIAL", stoppingReason != "TARGET_SATISFIED"
+    // NO_RESULTS: verifiedCount = 0 -> status = "NO_RESULTS", partial = false
+    const status = isComplete ? "COMPLETE" : isPartial ? "PARTIAL" : "NO_RESULTS";
+    const partial = isPartial;
+
+    let stoppingReason = "TARGET_SATISFIED";
+    if (isComplete) {
+      stoppingReason = "TARGET_SATISFIED";
+    } else if (isPartial) {
+      if (correctionResult?.stoppingReason && correctionResult.stoppingReason !== "TARGET_SATISFIED") {
+        stoppingReason = correctionResult.stoppingReason;
+      } else {
+        stoppingReason = "EXHAUSTED";
+      }
+    } else {
+      if (correctionResult?.stoppingReason && correctionResult.stoppingReason !== "TARGET_SATISFIED") {
+        stoppingReason = correctionResult.stoppingReason;
+      } else {
+        stoppingReason = "NO_RESULTS";
+      }
+    }
+
+    // Explanation Invariant: Must accurately reflect verified vs requested counts
+    let explanation = "";
+    const roleName = canonicalIntent.roles?.[0] || canonicalIntent.role || "opportunity";
+    if (isComplete) {
+      explanation = `Found ${verifiedCount} verified ${roleName} opportunities matching your criteria.`;
+    } else if (isPartial) {
+      const shortfall = effectiveRequestedCount - verifiedCount;
+      explanation = `Found ${verifiedCount} verified ${roleName} opportunities matching your criteria. ${shortfall} additional opportunities could not be verified within the requested window.`;
+    } else {
+      explanation = `No verified ${roleName} opportunities found matching your criteria.`;
+    }
 
     // 8. Return Authoritative Response Contract
     return NextResponse.json({
@@ -234,23 +279,23 @@ export async function POST(request: NextRequest) {
       query: rawQuery || canonicalIntent.queryHint,
       intent: canonicalIntent,
       canonicalIntent,
-      requestedCount,
+      requestedCount: effectiveRequestedCount,
       verifiedCount,
       results: structuredResults,
-      partial: isPartial,
-      explanation: decision.userExplanation,
+      partial,
+      explanation,
       diagnostics: {
-        requestedCount,
+        requestedCount: effectiveRequestedCount,
         validResultCount: verifiedCount,
         rejectedResultCount: harnessResult.context.verification?.candidatesRejected || 0,
-        stoppingReason: correctionResult?.stoppingReason || (verifiedCount >= requestedCount ? "TARGET_SATISFIED" : "EXHAUSTED"),
+        stoppingReason,
         totalRounds: correctionResult?.totalRounds || 1,
         rejectionReasons: harnessResult.context.verification?.rejectionReasons || [],
       },
       correctionState: correctionResult
         ? {
             roundsExecuted: correctionResult.totalRounds,
-            stoppingReason: correctionResult.stoppingReason,
+            stoppingReason,
             totalActions: correctionResult.totalActions,
             history: correctionResult.correctionHistory.map((h) => ({
               roundNumber: h.roundNumber,
@@ -273,7 +318,7 @@ export async function POST(request: NextRequest) {
         providersAttempted: harnessResult.telemetry.toolsExecuted.length,
         providersSucceeded: harnessResult.telemetry.toolsExecuted.length,
         telemetry: harnessResult.telemetry,
-        explanation: decision.userExplanation,
+        explanation,
       },
     });
   } catch (err: unknown) {

@@ -391,7 +391,7 @@ export class IntelligenceHarness {
       rationale = `Goal fully satisfied: Found ${verifiedCount} verified opportunities matching all constraints.`;
       userExplanation = `Found ${verifiedCount} verified ${explicitConstraints.roles[0] || "job"} opportunities matching your criteria.`;
     } else if (verifiedCount > 0) {
-      outcome = "COMPLETE";
+      outcome = "PARTIAL";
       const shortfall = requestedCount - verifiedCount;
       rationale = `Partial match: Found ${verifiedCount} verified opportunities (${shortfall} short of requested ${requestedCount}).`;
       userExplanation = `Found ${verifiedCount} verified ${explicitConstraints.roles[0] || "job"} opportunities matching your criteria. ${shortfall} additional opportunities could not be verified within the requested window.`;

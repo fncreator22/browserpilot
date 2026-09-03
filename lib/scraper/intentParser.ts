@@ -558,7 +558,8 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     }
   }
 
-  if (filterOverrides?.requestedCount !== undefined) {
+  // Natural-language requested count takes precedence over structured filterOverrides
+  if (requestedCount === undefined && filterOverrides?.requestedCount !== undefined) {
     requestedCount = filterOverrides.requestedCount;
   }
 
@@ -642,7 +643,7 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     freshnessWindowHours: filterOverrides?.freshnessWindowHours !== undefined ? filterOverrides.freshnessWindowHours : freshnessWindowHours,
     postedWithinDays: filterOverrides?.postedWithinDays !== undefined ? filterOverrides.postedWithinDays : postedWithinDays,
     dateConstraint: filterOverrides?.dateConstraint !== undefined ? filterOverrides.dateConstraint : dateConstraint,
-    requestedCount: filterOverrides?.requestedCount !== undefined ? filterOverrides.requestedCount : requestedCount,
+    requestedCount: requestedCount !== undefined ? requestedCount : filterOverrides?.requestedCount,
     isExplicitFreshness: filterOverrides?.isExplicitFreshness !== undefined ? filterOverrides.isExplicitFreshness : isExplicitFreshness,
     minimumMatchScore: filterOverrides?.minimumMatchScore || minimumMatchScore,
     sources: filterOverrides?.sources || finalSources,
