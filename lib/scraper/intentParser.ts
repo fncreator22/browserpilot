@@ -200,7 +200,7 @@ export const KNOWN_ROLE_DEFINITIONS: KnownRoleDefinition[] = [
   },
   {
     canonicalName: "Software Engineer",
-    regex: /\b(software engineer|swe|software developer|sde|developer roles?|programmer)\b/i,
+    regex: /\b(software\s*(?:engineer(?:ing)?|developer|dev)|swe|sde|developer roles?|programmer)\b/i,
     related: ["Software Developer", "Junior Software Engineer", "Full Stack Developer", "Full Stack Engineer", "SDE Intern"],
   },
   {
@@ -227,6 +227,56 @@ export const KNOWN_ROLE_DEFINITIONS: KnownRoleDefinition[] = [
     canonicalName: "QA Engineer",
     regex: /\b(qa engineer|quality assurance|sdet|test engineer|automation engineer)\b/i,
     related: ["SDET Intern", "Automation Test Engineer", "QA Analyst"],
+  },
+  {
+    canonicalName: "Mechanical Engineer",
+    regex: /\b(mechanical\s*(?:engineering|engineer)?|mech\s*eng|cad\s*designer|solidworks|hvac\s*engineer)\b/i,
+    related: ["Mechanical Design Engineer", "CAD Engineer", "HVAC Engineer", "Thermal Engineer"],
+  },
+  {
+    canonicalName: "Electrical Engineer",
+    regex: /\b(electrical\s*(?:engineering|engineer)?|electronics\s*engineer|hardware\s*engineer|circuit\s*design|vlsi|embedded\s*engineer)\b/i,
+    related: ["Electronics Engineer", "Hardware Engineer", "Embedded Systems Engineer", "VLSI Engineer"],
+  },
+  {
+    canonicalName: "Civil Engineer",
+    regex: /\b(civil\s*(?:engineering|engineer)?|structural\s*engineer|site\s*engineer|construction\s*manager)\b/i,
+    related: ["Structural Engineer", "Site Engineer", "Construction Engineer"],
+  },
+  {
+    canonicalName: "Chemical Engineer",
+    regex: /\b(chemical\s*(?:engineering|engineer)?|process\s*engineer|petroleum\s*engineer)\b/i,
+    related: ["Process Engineer", "Petrochemical Engineer"],
+  },
+  {
+    canonicalName: "Designer",
+    regex: /\b(ui\/ux|ux\s*designer|ui\s*designer|product\s*designer|graphic\s*designer)\b/i,
+    related: ["UI Designer", "UX Designer", "Product Designer", "Graphic Designer"],
+  },
+  {
+    canonicalName: "Marketing Specialist",
+    regex: /\b(marketing|digital\s*marketing|seo\s*specialist|growth\s*marketer|content\s*marketer|brand\s*manager)\b/i,
+    related: ["Digital Marketing Manager", "Growth Marketer", "SEO Specialist", "Content Marketer"],
+  },
+  {
+    canonicalName: "Sales Executive",
+    regex: /\b(sales\s*executive|business\s*development|bdr|sdr|account\s*executive|sales\s*representative)\b/i,
+    related: ["Business Development Representative", "Account Executive", "Sales Manager"],
+  },
+  {
+    canonicalName: "Financial Analyst",
+    regex: /\b(financial\s*analyst|accountant|accounting|auditor|finance\s*manager|investment\s*banking)\b/i,
+    related: ["Accountant", "Finance Manager", "Auditor", "Investment Banking Analyst"],
+  },
+  {
+    canonicalName: "Human Resources",
+    regex: /\b(human\s*resources|hr\s*manager|recruiter|talent\s*acquisition)\b/i,
+    related: ["HR Manager", "Technical Recruiter", "Talent Acquisition Specialist"],
+  },
+  {
+    canonicalName: "Healthcare Professional",
+    regex: /\b(nurse|nursing|doctor|physician|pharmacist|medical\s*officer|clinical\s*researcher)\b/i,
+    related: ["Registered Nurse", "Clinical Pharmacist", "Medical Doctor"],
   },
 ];
 
@@ -356,22 +406,39 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     }
   }
 
-  if (matchedRoles.length === 0 && cleanQuery.length > 0 && cleanQuery.length < 60) {
-    // Fallback noun extraction
-    const stripped = cleanQuery
-      .replace(/\b(find|search|looking for|jobs|internships|positions|openings|in|at|for|remote|hybrid|india|usa|startups|with|and|or|latest|recent)\b/gi, "")
-      .replace(/\s{2,}/g, " ")
-      .trim();
-    if (stripped.length > 2) {
-      matchedRoles.push(stripped);
+  // Dynamic pattern extraction for any custom role in natural language
+  if (matchedRoles.length === 0) {
+    const rolePattern = /\b(?:search\s+(?:for\s+)?|find\s+|looking\s+for\s+|show\s+(?:me\s+)?|get\s+)?(?:\d+\s+)?([a-zA-Z\s/&-]+?)\s+(?:jobs?|roles?|internships?|positions?|openings?)\b/i;
+    const match = cleanQuery.match(rolePattern);
+    if (match && match[1]) {
+      let extracted = match[1].trim();
+      extracted = extracted.replace(/^(search\s+for|find|looking\s+for|show\s+me|get)\s+/i, "").trim();
+      extracted = extracted.replace(/\b(remote|hybrid|on-site|onsite|latest|recent|new|urgent|full-time|part-time|contract|in|at)\b/gi, "").trim();
+      if (extracted.length >= 3 && !/^(the|any|all|some|good|top|best|entry\s*level|junior|senior|internships?|jobs?)$/i.test(extracted)) {
+        const canonical = extracted.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+        matchedRoles.push(canonical);
+      }
     }
   }
 
-  if (matchedRoles.length === 0) {
+  if (matchedRoles.length === 0 && cleanQuery.length > 0) {
+    // Fallback noun extraction without arbitrary 60-char length cap
+    const stripped = cleanQuery
+      .replace(/\b(find|search|looking for|jobs|internships|positions|openings|in|at|for|remote|hybrid|india|usa|startups|with|and|or|latest|recent|posted|within|last|\d+\s*days?)\b/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    if (stripped.length > 2 && !/^\d+$/.test(stripped)) {
+      const canonical = stripped.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+      matchedRoles.push(canonical);
+    }
+  }
+
+  // Only if the user explicitly typed tech keywords do we default to Software Engineer
+  if (matchedRoles.length === 0 && /\b(tech|technology|developer|coding)\b/i.test(cleanQuery)) {
     matchedRoles.push("Software Engineer");
   }
 
-  const primaryRole = matchedRoles[0] || "Software Engineer";
+  const primaryRole = matchedRoles[0] || undefined;
 
   // 7.5. Target Companies Extraction
   const matchedCompanies: string[] = [];
@@ -547,9 +614,9 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   // 8.5. Requested Result Count Extraction (TASK-043)
   // E.g. "Give me 10 backend developer jobs", "Find 15 react roles", "10 jobs", "5 internships"
   let requestedCount: number | undefined;
-  const countMatch = lower.match(/\b(?:give\s+me|find|show\s+me|get|search\s+for|list|locate|fetch)\s+(\d{1,3})\s+/i) ||
+  const countMatch = lower.match(/\b(?:give\s+me|find|show\s+me|get|search\s+for|list|locate|fetch|looking\s+for|look\s+for)\s+(\d{1,3})\s+/i) ||
     lower.match(/\b(?:top|first)\s+(\d{1,3})\s+(?:jobs?|openings?|roles?|positions?|internships?|opportunities)\b/i) ||
-    lower.match(/\b(\d{1,3})\s+(?:backend|frontend|fullstack|software|swe|sde|developer|engineer|devops|data|ai|ml|internship|intern|remote|hybrid|openings?|positions?|roles?|jobs?)\b/i);
+    lower.match(/\b(\d{1,3})\s+(?:[a-z/&-]+\s+){0,3}(?:openings?|positions?|roles?|jobs?|internships?)\b/i);
 
   if (countMatch && countMatch[1]) {
     const parsed = parseInt(countMatch[1], 10);

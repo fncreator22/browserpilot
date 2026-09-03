@@ -63,6 +63,10 @@ export function normalizeJobTitle(title?: string | null): string {
     .replace(/\b(full stack developer|fullstack developer|full stack engineer)\b/g, "full stack engineer")
     .replace(/\b(front end developer|frontend developer|front end engineer)\b/g, "frontend engineer")
     .replace(/\b(back end developer|backend developer|back end engineer)\b/g, "backend engineer")
+    .replace(/\b(mechanical engineering)\b/g, "mechanical engineer")
+    .replace(/\b(electrical engineering)\b/g, "electrical engineer")
+    .replace(/\b(civil engineering)\b/g, "civil engineer")
+    .replace(/\b(chemical engineering)\b/g, "chemical engineer")
     .replace(/\s+/g, " ")
     .trim();
 

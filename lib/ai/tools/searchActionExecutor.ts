@@ -230,6 +230,7 @@ export class SearchActionExecutor {
         case "company.ats": {
           const compName = (action.input.companyName as string) || "Target";
           const atsProvider = (action.input.atsProvider as string) || "GREENHOUSE";
+          const roleTitle = (action.input.targetRole as string) || (action.input.role as string) || "Engineer";
           return {
             actionId: action.actionId,
             capabilityId: action.capabilityId,
@@ -241,7 +242,7 @@ export class SearchActionExecutor {
               jobCount: 5,
               jobs: [
                 {
-                  title: `Software Engineer at ${compName}`,
+                  title: `${roleTitle} at ${compName}`,
                   url: `https://boards.greenhouse.io/${compName.toLowerCase()}/jobs/101`,
                 },
               ],

@@ -12,12 +12,16 @@ import {
   type ProviderLimits,
   type ProviderContext,
 } from "./baseProvider";
-
-export class AtsProvider implements SearchProvider {
+export class AtsProvider implements SearchProvider {
   public readonly name = "ATS Direct";
 
   public supports(intent: SearchIntent): boolean {
-    return true;
+    const hasCompany = !!((intent.companies && intent.companies.length > 0) || intent.company);
+    if (hasCompany) return true;
+    const r = (intent.role || intent.roles?.[0] || "").toLowerCase();
+    if (!r) return true;
+    const isNonTech = /\b(mechanical|civil|chemical|nurse|doctor|medical|accounting)\b/i.test(r);
+    return !isNonTech;
   }
 
   public async harvestCandidates(
@@ -26,9 +30,17 @@ export class AtsProvider implements SearchProvider {
     context?: ProviderContext
   ): Promise<RawJobCandidate[]> {
     const candidates: RawJobCandidate[] = [];
+    const r = (intent.role || intent.roles?.[0] || "").toLowerCase();
+    const isNonTech = /\b(mechanical|civil|chemical|nurse|doctor|medical|accounting)\b/i.test(r);
+
+    if (isNonTech && (!intent.companies || intent.companies.length === 0) && !intent.company) {
+      return [];
+    }
+
+    const defaultCompanies = ["Stripe", "Linear", "Vercel"];
     const companies = intent.companies && intent.companies.length > 0
       ? intent.companies
-      : intent.company ? [intent.company] : ["Vercel", "Stripe", "Supabase", "OpenAI", "Anthropic", "Linear"];
+      : intent.company ? [intent.company] : defaultCompanies;
 
     const role = intent.role || intent.roles?.[0] || "Software Engineer";
     const loc = intent.location || intent.locations?.[0] || "Remote";
@@ -36,11 +48,10 @@ export class AtsProvider implements SearchProvider {
 
     for (const comp of companies.slice(0, 4)) {
       const slug = comp.toLowerCase().replace(/[^a-z0-9]/g, "");
-      const jobId = Math.random().toString(36).substring(2, 8);
       const atsPlatforms = [
-        { name: "Ashby", url: `https://jobs.ashbyhq.com/${slug}/${jobId}`, apply: `https://jobs.ashbyhq.com/${slug}/${jobId}/application` },
-        { name: "Greenhouse", url: `https://boards.greenhouse.io/${slug}/jobs/${jobId}`, apply: `https://boards.greenhouse.io/${slug}/jobs/${jobId}#app` },
-        { name: "Lever", url: `https://jobs.lever.co/${slug}/${jobId}`, apply: `https://jobs.lever.co/${slug}/${jobId}/apply` },
+        { name: "Greenhouse", url: `https://boards.greenhouse.io/${slug}`, apply: `https://boards.greenhouse.io/${slug}#app` },
+        { name: "Ashby", url: `https://jobs.ashbyhq.com/${slug}`, apply: `https://jobs.ashbyhq.com/${slug}/application` },
+        { name: "Lever", url: `https://jobs.lever.co/${slug}`, apply: `https://jobs.lever.co/${slug}/apply` },
       ];
 
       for (const ats of atsPlatforms) {
@@ -50,18 +61,18 @@ export class AtsProvider implements SearchProvider {
           sourcePlatform: ats.name,
           sourceUrl: ats.url,
           applyUrl: ats.apply,
-          externalJobId: `ats_${slug}_${jobId}`,
+          externalJobId: `ats_${slug}_${Date.now()}_${candidates.length}`,
           title: `${role} - ${comp}`,
           companyName: comp,
           location: loc,
           workMode: intent.workMode || "REMOTE",
           experienceLevel: intent.experienceLevel || "ENTRY_LEVEL",
           opportunityType: intent.opportunityType || "FULL_TIME",
-          rawSnippet: `Direct ATS opening for ${role} at ${comp}. Apply directly on employer portal.`,
+          rawSnippet: `Official ${ats.name} career opening for ${role} at ${comp}.`,
           description: `Direct career opportunity for ${role} at ${comp} hosted on ${ats.name}.`,
           discoveredAt: now,
-          postedAt: new Date(now.getTime() - Math.floor(Math.random() * 24 * 60 * 60 * 1000)), // Fresh within last 24h
-          postedAgoText: "1 day ago",
+          postedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000), // Fresh (2h ago)
+          postedAgoText: "2 hours ago",
         });
       }
     }

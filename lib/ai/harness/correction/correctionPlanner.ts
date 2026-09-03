@@ -36,10 +36,16 @@ function getBoundedRoleReformulation(role?: string): string[] {
   if (lower.includes("frontend") || lower.includes("front end")) {
     return ["frontend developer", "UI engineer", "web developer"];
   }
-  if (lower.includes("fullstack") || lower.includes("full stack")) {
-    return ["fullstack developer", "full stack software engineer"];
+  if (lower.includes("mechanical")) {
+    return ["mechanical design engineer", "mechanical engineer", "CAD design engineer"];
   }
-  return [];
+  if (lower.includes("electrical")) {
+    return ["electrical engineer", "electronics engineer", "hardware design engineer"];
+  }
+  if (lower.includes("civil")) {
+    return ["civil engineer", "structural engineer", "site engineer"];
+  }
+  return [`${role} specialist`, `${role} associate`];
 }
 
 /**
