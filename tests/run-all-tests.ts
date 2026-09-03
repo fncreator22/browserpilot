@@ -69,6 +69,7 @@ import { runIntelligenceBrainCoreTests } from "./integration/intelligenceBrainCo
 import { runIntelligentToolOrchestrationTests } from "./integration/intelligentToolOrchestration.test";
 import { runEvidenceBasedVerificationTests } from "./integration/evidenceBasedVerification.test";
 import { runAutonomousSearchCorrectionTests } from "./integration/autonomousSearchCorrection.test";
+import { runProductionSearchIntegrationTests } from "./integration/productionSearchIntegration.test";
 import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalLanguageWorkflowAcceptance.test";
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -142,6 +143,7 @@ async function runMasterTestSuite() {
     { name: "Integration: Intelligent Search Planning & Tool Orchestration (TASK-050)", fn: runIntelligentToolOrchestrationTests },
     { name: "Integration: Evidence-Based Result Verification & Semantic Judge (TASK-051)", fn: runEvidenceBasedVerificationTests },
     { name: "Integration: Autonomous Search Correction Loop (TASK-052)", fn: runAutonomousSearchCorrectionTests },
+    { name: "Integration: BrowserPilot Production Search Integration (TASK-053)", fn: runProductionSearchIntegrationTests },
     { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
     { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },
