@@ -10,7 +10,8 @@ import {
   Lock, 
   ArrowRight,
   Info,
-  RotateCw
+  RotateCw,
+  ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,27 @@ interface SearchStatusBannerProps {
   errorCode?: string;
   onRetry?: () => void;
   className?: string;
+}
+
+function formatStoppingReason(reason?: string): string {
+  if (!reason) return "candidate pool exhausted";
+  const upper = reason.toUpperCase();
+  if (upper.includes("AUTH_REQUIRED")) {
+    return "protected source requires an authenticated browser connection";
+  }
+  if (upper.includes("CAPTCHA")) {
+    return "source required additional security verification";
+  }
+  if (upper.includes("RATE_LIMIT")) {
+    return "source temporarily rate-limited";
+  }
+  if (upper.includes("TARGET_SATISFIED")) {
+    return "target requested count satisfied";
+  }
+  if (upper.includes("NO_PROGRESS") || upper.includes("EXHAUSTED")) {
+    return "available candidates in time window exhausted";
+  }
+  return reason.replace(/_/g, " ").toLowerCase();
 }
 
 export function SearchStatusBanner({
@@ -92,6 +114,8 @@ export function SearchStatusBanner({
   // Case 3: PARTIAL (0 < verifiedCount < requestedCount)
   if (status === "PARTIAL") {
     const shortfall = Math.max(0, (requestedCount || 0) - verifiedCount);
+    const friendlyReason = formatStoppingReason(stoppingReason);
+
     return (
       <div className={`rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-2.5 ${className}`}>
         <div className="flex items-start sm:items-center justify-between gap-3 flex-wrap">
@@ -110,11 +134,13 @@ export function SearchStatusBanner({
 
         <div className="flex items-center justify-between gap-2 pt-1 border-t border-amber-500/20 text-[11px] text-muted-foreground font-mono flex-wrap">
           <span>
-            Search stopped: {stoppingReason ? stoppingReason.replace(/_/g, " ").toLowerCase() : "available candidate pool exhausted"}
+            Search stopped: {friendlyReason}
           </span>
-          {sourceNotice && (
+          {sourceNotice ? (
             <span className="text-amber-400/90">{sourceNotice}</span>
-          )}
+          ) : stoppingReason?.includes("AUTH_REQUIRED") ? (
+            <span className="text-amber-400/90">Protected source session required; public sources searched.</span>
+          ) : null}
         </div>
       </div>
     );
@@ -161,7 +187,7 @@ export function SearchStatusBanner({
               variant="outline"
               size="sm"
               onClick={onRetry}
-              className="h-7 font-mono text-xs gap-1 border-destructive/30 hover:bg-destructive/10"
+              className="h-7 font-mono text-xs gap-1 border-destructive/30 hover:bg-destructive/10 cursor-pointer"
             >
               <RotateCw className="h-3 w-3" />
               Retry
