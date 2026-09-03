@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
-import { parseSearchIntent, executeSearchPipeline, type SearchIntent } from "@/lib/scraper";
-import { isOpportunitySaved, getOpportunityByCanonicalHash } from "@/lib/db/opportunities";
+import { parseSearchIntent, type SearchIntent } from "@/lib/scraper";
+import { intelligenceHarness } from "@/lib/ai/harness";
+import {
+  isOpportunitySaved,
+  getOpportunityByCanonicalHash,
+  createSearch,
+  upsertOpportunity,
+  upsertSourceListing,
+  attachOpportunityToSearch,
+} from "@/lib/db/opportunities";
 
 export const dynamic = "force-dynamic";
 
@@ -12,47 +20,142 @@ export interface SearchApiRequest {
   maxResults?: number;
   verifyEvidence?: boolean;
   maxVerificationCandidates?: number;
+  persistToDb?: boolean;
+  customProviders?: any[];
+  correlationId?: string;
 }
 
 export async function POST(request: NextRequest) {
   try {
+    // 1. Resolve Server-Authoritative User Identity
     const session = await getServerSession(authOptions).catch(() => null);
-    const userId = (session?.user as { id?: string })?.id || null;
+    const sessionUser = session?.user as { id?: string; email?: string } | undefined;
+    let userId: string | null = sessionUser?.id || null;
+
+    // Test harness override for multi-tenant integration testing
+    if (!userId && (process.env.NODE_ENV === "test" || (process.env as any).IS_TEST_HARNESS === "true")) {
+      const headerUserId = request.headers.get("x-test-user-id");
+      if (headerUserId) {
+        userId = headerUserId;
+      }
+    }
 
     const body = (await request.json().catch(() => ({}))) as SearchApiRequest;
+    const customProviders = (request as any)._customProviders || body.customProviders;
     const rawQuery = (body.query || "").trim();
     const filters = body.filters || {};
-    const maxResults = Math.min(Math.max(body.maxResults || 20, 1), 50);
-    const verifyEvidence = body.verifyEvidence ?? false;
-    const maxVerificationCandidates = Math.min(Math.max(body.maxVerificationCandidates || 10, 1), 20);
+    const maxResults = Math.min(Math.max(body.maxResults || 10, 1), 50);
+    const verifyEvidence = body.verifyEvidence ?? true;
+    const persistToDb = body.persistToDb !== false;
 
-    if (!rawQuery && !filters.role && !filters.skills?.length && !filters.location) {
+    // 2. Validate Request Boundaries
+    if (!rawQuery && !filters.role && !filters.skills?.length && !filters.location && !filters.companies?.length && !filters.company) {
       return NextResponse.json(
         {
           error: "INVALID_REQUEST",
-          message: "Please provide a search query or at least one role/skill filter.",
+          message: "Please provide a search query or at least one role/skill/location filter.",
         },
         { status: 400 }
       );
     }
 
-    // 1. Deterministic Intent Extraction
-    const intent = parseSearchIntent(rawQuery, filters);
+    if (rawQuery.length > 500) {
+      return NextResponse.json(
+        {
+          error: "INVALID_REQUEST",
+          message: "Search query exceeds the maximum allowed length of 500 characters.",
+        },
+        { status: 400 }
+      );
+    }
 
-    // 2. Execute Autonomous Search Pipeline
-    const pipelineResult = await executeSearchPipeline(intent, {
+    // 3. Deterministic Pre-Extraction of Intent
+    const initialIntent = parseSearchIntent(rawQuery, filters);
+    const effectiveRequestedCount = initialIntent.requestedCount || maxResults;
+
+    // 4. Execute Intelligence Harness Lifecycle (TASK-048 -> TASK-052)
+    // Runs: Intent -> Brain/Memory -> Plan -> Validate -> Execute -> Evidence -> Judge -> Correction Loop -> Dedup -> Rank
+    const harnessResult = await intelligenceHarness.runLifecycle(rawQuery || initialIntent.queryHint || "Find software jobs", {
       userId,
-      rawQuery: rawQuery || intent.queryHint,
-      persistToDb: true,
-      maxResults,
+      explicitFilters: {
+        ...filters,
+        requestedCount: effectiveRequestedCount,
+      },
+      maxResultsBudget: effectiveRequestedCount,
       verifyEvidence,
-      maxVerificationCandidates,
-      excludeKnown: intent.excludeKnown,
+      customProviders,
     });
 
-    // 3. Format Structured Results with User-Specific Bookmark State
+    const rankedOpportunities = harnessResult.rankedOpportunities;
+    const canonicalIntent = harnessResult.context.searchIntent || initialIntent;
+    const decision = harnessResult.decision;
+    const correctionResult = harnessResult.context.correctionLoopResult;
+
+    // 5. Database Persistence (Prisma Search, Opportunities, Listings)
+    if (persistToDb) {
+      try {
+        const searchRecord = await createSearch({
+          id: harnessResult.harnessId,
+          userId: userId || null,
+          rawQuery: rawQuery || canonicalIntent.queryHint || "",
+          intentType: (canonicalIntent as any).intentType || "JOB_SEARCH_GENERAL",
+          parsedRole: canonicalIntent.roles?.[0] || canonicalIntent.role || null,
+          parsedSkills: canonicalIntent.skills || [],
+          parsedLocation: canonicalIntent.locations?.[0] || canonicalIntent.location || null,
+          parsedWorkMode: canonicalIntent.workModes?.[0] || canonicalIntent.workMode || "ANY",
+          targetGradYear: typeof canonicalIntent.targetGradYear === "number" ? canonicalIntent.targetGradYear : null,
+          status: decision.outcome === "COMPLETE" ? "COMPLETED" : "PARTIAL",
+          totalFound: rankedOpportunities.length,
+        });
+
+        for (const item of rankedOpportunities) {
+          const opp = item.opportunity;
+          const persistedOpp = await upsertOpportunity({
+            canonicalHash: opp.canonicalHash,
+            title: opp.title,
+            companyName: opp.companyName,
+            location: opp.location,
+            workMode: opp.workMode,
+            experienceLevel: opp.experienceLevel,
+            opportunityType: opp.opportunityType,
+            salaryMin: opp.salaryMin,
+            salaryMax: opp.salaryMax,
+            salaryCurrency: opp.salaryCurrency,
+            description: opp.description,
+            requirements: opp.requirements,
+            skills: opp.skills,
+            primaryApplyUrl: opp.primaryApplyUrl,
+            status: opp.status,
+          });
+
+          for (const listing of opp.sourceListings || []) {
+            await upsertSourceListing({
+              opportunityId: persistedOpp.id,
+              sourcePlatform: listing.sourcePlatform,
+              externalJobId: listing.externalJobId,
+              sourceUrl: listing.sourceUrl,
+              applyUrl: listing.applyUrl,
+              rawSnippet: listing.rawSnippet,
+              verificationStatus: listing.verificationStatus,
+              screenshotPath: listing.screenshotPath,
+            });
+          }
+
+          await attachOpportunityToSearch({
+            searchId: searchRecord.id,
+            opportunityId: persistedOpp.id,
+            matchScore: item.totalScore,
+            rankPosition: item.rankPosition,
+          });
+        }
+      } catch (dbErr) {
+        console.warn("[SearchAPI] Persistence non-fatal warning:", dbErr);
+      }
+    }
+
+    // 6. Format Structured Results with User Bookmark State
     const structuredResults = await Promise.all(
-      pipelineResult.rankedOpportunities.map(async (item) => {
+      rankedOpportunities.map(async (item) => {
         let isSaved = false;
         let persistedId = item.opportunity.canonicalHash;
 
@@ -64,9 +167,13 @@ export async function POST(request: NextRequest) {
               isSaved = await isOpportunitySaved(userId, dbOpp.id);
             }
           } catch {
-            // Non-fatal if bookmark check fails
+            // Non-fatal bookmark check
           }
         }
+
+        const daysAgo = item.opportunity.postedAt
+          ? Math.max(0, Math.floor((Date.now() - new Date(item.opportunity.postedAt).getTime()) / (24 * 3600 * 1000)))
+          : null;
 
         return {
           id: persistedId,
@@ -88,7 +195,7 @@ export async function POST(request: NextRequest) {
           firstSeenAt: item.opportunity.firstSeenAt,
           lastVerifiedAt: item.opportunity.lastVerifiedAt,
           postedAt: item.opportunity.postedAt || null,
-          postedAgoText: item.opportunity.postedAgoText || (item.opportunity.postedAt ? `Posted ${Math.max(0, Math.floor((Date.now() - new Date(item.opportunity.postedAt).getTime()) / (24 * 3600 * 1000)))}d ago` : null),
+          postedAgoText: item.opportunity.postedAgoText || (daysAgo !== null ? `Posted ${daysAgo}d ago` : null),
           metadataConfidence: (item.opportunity as any).metadataConfidence || "VERIFIED",
           sourceListings: item.opportunity.sourceListings.map((l) => ({
             sourcePlatform: l.sourcePlatform,
@@ -110,25 +217,63 @@ export async function POST(request: NextRequest) {
       })
     );
 
+    // 7. Determine Search Status & Shortfall State
+    const verifiedCount = structuredResults.length;
+    const requestedCount = decision.requestedCount || effectiveRequestedCount;
+    const isPartial = verifiedCount > 0 && verifiedCount < requestedCount;
+    const status = decision.outcome === "COMPLETE"
+      ? "COMPLETED"
+      : verifiedCount > 0
+        ? "PARTIAL"
+        : "NO_RESULTS";
+
+    // 8. Return Authoritative Response Contract
     return NextResponse.json({
-      searchId: pipelineResult.searchId,
-      status: "COMPLETED",
-      query: rawQuery || intent.queryHint,
-      intent,
+      searchId: harnessResult.harnessId,
+      status,
+      query: rawQuery || canonicalIntent.queryHint,
+      intent: canonicalIntent,
+      canonicalIntent,
+      requestedCount,
+      verifiedCount,
       results: structuredResults,
-      explanation: pipelineResult.searchExplanation,
-      diagnostics: pipelineResult.searchDiagnostics,
+      partial: isPartial,
+      explanation: decision.userExplanation,
+      diagnostics: {
+        requestedCount,
+        validResultCount: verifiedCount,
+        rejectedResultCount: harnessResult.context.verification?.candidatesRejected || 0,
+        stoppingReason: correctionResult?.stoppingReason || (verifiedCount >= requestedCount ? "TARGET_SATISFIED" : "EXHAUSTED"),
+        totalRounds: correctionResult?.totalRounds || 1,
+        rejectionReasons: harnessResult.context.verification?.rejectionReasons || [],
+      },
+      correctionState: correctionResult
+        ? {
+            roundsExecuted: correctionResult.totalRounds,
+            stoppingReason: correctionResult.stoppingReason,
+            totalActions: correctionResult.totalActions,
+            history: correctionResult.correctionHistory.map((h) => ({
+              roundNumber: h.roundNumber,
+              reason: h.reason,
+              strategy: h.strategy,
+              verifiedGained: h.newVerifiedGained,
+              durationMs: h.durationMs,
+            })),
+          }
+        : undefined,
+      sourceSummary: {
+        toolsExecuted: harnessResult.telemetry.toolsExecuted,
+        memoriesRetrieved: harnessResult.telemetry.memoriesRetrievedCount,
+        durationMs: harnessResult.telemetry.totalDurationMs,
+      },
       metadata: {
-        providersAttempted: pipelineResult.discovery.telemetry.length,
-        providersSucceeded: pipelineResult.discovery.telemetry.filter((t) => t.status === "SUCCESS").length,
-        totalDiscovered: pipelineResult.discovery.candidates.length,
-        totalUniqueOpportunities: pipelineResult.totalUniqueOpportunities,
+        totalUniqueOpportunities: structuredResults.length,
         returnedCount: structuredResults.length,
-        durationMs: pipelineResult.durationMs,
-        telemetry: pipelineResult.discovery.telemetry,
-        verification: pipelineResult.verificationTelemetry,
-        explanation: pipelineResult.searchExplanation,
-        diagnostics: pipelineResult.searchDiagnostics,
+        durationMs: harnessResult.telemetry.totalDurationMs,
+        providersAttempted: harnessResult.telemetry.toolsExecuted.length,
+        providersSucceeded: harnessResult.telemetry.toolsExecuted.length,
+        telemetry: harnessResult.telemetry,
+        explanation: decision.userExplanation,
       },
     });
   } catch (err: unknown) {
