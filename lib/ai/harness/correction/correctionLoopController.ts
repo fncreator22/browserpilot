@@ -119,8 +119,8 @@ export class CorrectionLoopController {
       // 1. Deterministic Diagnosis
       const diagnosis = diagnoseSearchState(state, allVerificationResults, candidatePool.length);
       if (!diagnosis.needsCorrection) {
-        stoppingReason = "TARGET_SATISFIED";
-        state.isSatisfied = true;
+        stoppingReason = state.verifiedCount >= requested ? "TARGET_SATISFIED" : "EXHAUSTED";
+        state.isSatisfied = state.verifiedCount >= requested;
         break;
       }
 
@@ -232,8 +232,8 @@ export class CorrectionLoopController {
       }
     }
 
-    if (!stoppingReason || stoppingReason === "INITIAL_EVALUATION") {
-      stoppingReason = state.verifiedCount >= requested ? "TARGET_SATISFIED" : "BUDGET_EXHAUSTED";
+    if (!stoppingReason || stoppingReason === "INITIAL_EVALUATION" || (state.verifiedCount < requested && stoppingReason === "TARGET_SATISFIED")) {
+      stoppingReason = state.verifiedCount >= requested ? "TARGET_SATISFIED" : "EXHAUSTED";
     }
 
     // 7. Final Canonical Deduplication & Ranking

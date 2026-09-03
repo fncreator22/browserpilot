@@ -32,6 +32,7 @@ export type HarnessLifecycleStage =
 
 export type HarnessDecisionOutcome =
   | "COMPLETE"
+  | "PARTIAL"
   | "CONTINUE"
   | "REJECT"
   | "NEEDS_MORE_EVIDENCE";

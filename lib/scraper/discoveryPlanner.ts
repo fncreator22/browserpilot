@@ -238,7 +238,7 @@ export function buildDiscoveryPlan(
     ? filters.postedWithinDays
     : (parsedIntent.postedWithinDays !== undefined ? parsedIntent.postedWithinDays : Math.round(freshnessWindowHours / 24));
   const dateConstraint = filters.dateConstraint || parsedIntent.dateConstraint || undefined;
-  const requestedCount = filters.requestedCount || parsedIntent.requestedCount || undefined;
+  const requestedCount = parsedIntent.requestedCount || filters.requestedCount || undefined;
   const minimumMatchScore = filters.minimumMatchScore || parsedIntent.minimumMatchScore || profile?.minimumMatchScore || 65;
 
   // 10. Exclusion & Watch Intent

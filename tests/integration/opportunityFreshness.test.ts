@@ -14,6 +14,7 @@ import {
   saveOpportunity 
 } from "@/lib/db/opportunities";
 import { prisma } from "@/lib/db/prisma";
+import { browserPool } from "@/worker/browser";
 
 export async function runOpportunityFreshnessIntegrationTests(): Promise<void> {
   console.log("▶ [INTEGRATION] Running Opportunity Freshness & Lifecycle Revalidation Tests (TASK-009)...");
@@ -257,7 +258,9 @@ export async function runOpportunityFreshnessIntegrationTests(): Promise<void> {
     console.log("  ✓ Verified saved opportunity monitoring and priority revalidation");
 
   } finally {
-    server.close();
+    server.closeAllConnections?.();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await browserPool.closeAll().catch(() => {});
   }
 
   console.log("✓ [INTEGRATION] Opportunity Freshness & Lifecycle Revalidation Tests Passed!\n");
