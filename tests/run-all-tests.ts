@@ -72,6 +72,7 @@ import { runAutonomousSearchCorrectionTests } from "./integration/autonomousSear
 import { runProductionSearchIntegrationTests } from "./integration/productionSearchIntegration.test";
 import { runProductionUIFoundationTests } from "./integration/productionUIFoundation.test";
 import { runSearchResultsExperienceTests } from "./integration/searchResultsExperience.test";
+import { runUserMemoryAndPersonalizationTests } from "./integration/userMemoryAndPersonalization.test";
 import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalLanguageWorkflowAcceptance.test";
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
@@ -148,6 +149,7 @@ async function runMasterTestSuite() {
     { name: "Integration: BrowserPilot Production Search Integration (TASK-053)", fn: runProductionSearchIntegrationTests },
     { name: "Integration: BrowserPilot Production UI Foundation (TASK-054)", fn: runProductionUIFoundationTests },
     { name: "Integration: BrowserPilot Search Results Experience (TASK-055)", fn: runSearchResultsExperienceTests },
+    { name: "Integration: BrowserPilot User Memory & Personalization (TASK-056)", fn: runUserMemoryAndPersonalizationTests },
     { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
     { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },

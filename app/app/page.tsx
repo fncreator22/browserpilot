@@ -29,6 +29,7 @@ import { InterpretedIntentCard } from "@/components/discovery/interpreted-intent
 import { SearchStatusBanner } from "@/components/discovery/search-status-banner";
 import { SearchRefinements } from "@/components/discovery/search-refinements";
 import { SearchDiagnosticsCard } from "@/components/discovery/search-diagnostics-card";
+import { PersonalizationIndicator } from "@/components/discovery/personalization-indicator";
 
 function DiscoverContent() {
   const searchParams = useSearchParams();
@@ -214,6 +215,11 @@ function DiscoverContent() {
                 stoppingReason={opportunityData.diagnostics?.stoppingReason}
                 errorCode={opportunityData.errorCode}
               />
+
+              {/* Personalization Indicator (when active user memory applied) */}
+              {opportunityData.personalization?.applied && (
+                <PersonalizationIndicator personalization={opportunityData.personalization} />
+              )}
 
               {/* Section 8: Interpreted Search Transparency Card */}
               {(opportunityData.canonicalIntent || opportunityData.intent) && (
