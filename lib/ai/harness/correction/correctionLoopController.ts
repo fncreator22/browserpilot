@@ -35,6 +35,7 @@ export interface CorrectionLoopOptions {
   budgets?: Partial<CorrectionBudgets>;
   customProviders?: any[];
   referenceTime?: Date;
+  signal?: AbortSignal;
 }
 
 export class CorrectionLoopController {
@@ -106,6 +107,7 @@ export class CorrectionLoopController {
     // ITERATIVE CORRECTION LOOP
     // -------------------------------------------------------------------------
     while (
+      !options.signal?.aborted &&
       state.verifiedCount < requested &&
       state.currentRound < budgets.maxCorrectionRounds &&
       totalActionsCount < budgets.maxTotalActions &&
@@ -115,6 +117,11 @@ export class CorrectionLoopController {
       state.currentRound += 1;
       const roundStart = Date.now();
       const verifiedBefore = state.verifiedCount;
+
+      if (options.signal?.aborted) {
+        stoppingReason = "CANCELLED_BY_USER";
+        break;
+      }
 
       // 1. Deterministic Diagnosis
       const diagnosis = diagnoseSearchState(state, allVerificationResults, candidatePool.length);
@@ -140,6 +147,7 @@ export class CorrectionLoopController {
       const execRes = await searchActionExecutor.executePlan(plan, {
         userId: state.userId,
         customProviders: options.customProviders,
+        signal: options.signal,
       });
 
       totalActionsCount += plan.actions.length;

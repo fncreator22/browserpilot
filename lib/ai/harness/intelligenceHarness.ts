@@ -34,6 +34,12 @@ import { rankOpportunities } from "@/lib/scraper/ranker";
 import { evidenceVerificationEngine } from "@/lib/ai/evidence";
 import { correctionLoopController } from "./correction";
 
+import {
+  classifySearchFailure,
+  evaluateSearchTerminalState,
+  sanitizeSearchTelemetry,
+} from "@/lib/ai/errors/searchFailureModel";
+
 export class IntelligenceHarness {
   /**
    * Executes the full canonical AI intelligence lifecycle.
@@ -44,12 +50,62 @@ export class IntelligenceHarness {
   ): Promise<HarnessResult> {
     const startTime = Date.now();
     const harnessId = `harness_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const correlationId = options.correlationId || `corr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     const userId = options.userId || null;
     const stageTimings: Record<string, number> = {};
 
     const recordStage = (stage: string, duration: number) => {
       stageTimings[stage] = duration;
     };
+
+    // Pre-flight cancellation check
+    if (options.signal?.aborted) {
+      const abortContext: HarnessContext = {
+        harnessId,
+        userId,
+        rawQuery,
+        currentStage: "FAILED",
+        correlationId,
+        explicitConstraints: { requestedCount: 10 },
+        userMemories: [],
+        platformKnowledge: [],
+        availableCapabilities: [],
+        toolExecutions: [],
+        observations: [],
+        telemetry: {
+          harnessId,
+          correlationId,
+          userIdHash: userId ? `usr_${userId.slice(0, 6)}` : undefined,
+          currentStage: "FAILED",
+          totalDurationMs: 0,
+          stageTimings: {},
+          toolsExecuted: [],
+          memoriesRetrievedCount: 0,
+          platformKnowledgeCount: 0,
+          observationsCount: 0,
+          verifiedCount: 0,
+          status: "CANCELLED",
+          terminalState: "CANCELLED",
+          errorCategory: "CANCELLED",
+        },
+      };
+
+      return {
+        harnessId,
+        success: false,
+        rankedOpportunities: [],
+        context: abortContext,
+        telemetry: abortContext.telemetry,
+        decision: {
+          outcome: "PARTIAL",
+          rationale: "Execution aborted by client cancellation signal.",
+          verifiedCount: 0,
+          requestedCount: 10,
+          canContinue: false,
+          userExplanation: "Search execution was cancelled.",
+        },
+      };
+    }
 
     // -------------------------------------------------------------------------
     // STAGE 1: QUERY & INTENT
@@ -67,6 +123,55 @@ export class IntelligenceHarness {
       targetCompanies: parsedIntent.companies || (parsedIntent.company ? [parsedIntent.company] : []),
     };
     recordStage("INTENT", Date.now() - tIntentStart);
+
+    // Cancellation check after intent
+    if (options.signal?.aborted) {
+      const abortContext: HarnessContext = {
+        harnessId,
+        userId,
+        rawQuery,
+        currentStage: "FAILED",
+        correlationId,
+        explicitConstraints,
+        userMemories: [],
+        platformKnowledge: [],
+        availableCapabilities: [],
+        toolExecutions: [],
+        observations: [],
+        telemetry: {
+          harnessId,
+          correlationId,
+          userIdHash: userId ? `usr_${userId.slice(0, 6)}` : undefined,
+          currentStage: "FAILED",
+          totalDurationMs: Date.now() - startTime,
+          stageTimings,
+          toolsExecuted: [],
+          memoriesRetrievedCount: 0,
+          platformKnowledgeCount: 0,
+          observationsCount: 0,
+          verifiedCount: 0,
+          status: "CANCELLED",
+          terminalState: "CANCELLED",
+          errorCategory: "CANCELLED",
+        },
+      };
+
+      return {
+        harnessId,
+        success: false,
+        rankedOpportunities: [],
+        context: abortContext,
+        telemetry: abortContext.telemetry,
+        decision: {
+          outcome: "PARTIAL",
+          rationale: "Execution aborted after intent parsing.",
+          verifiedCount: 0,
+          requestedCount: explicitConstraints.requestedCount,
+          canContinue: false,
+          userExplanation: "Search execution was cancelled.",
+        },
+      };
+    }
 
     // -------------------------------------------------------------------------
     // STAGE 2: INTELLIGENCE BRAIN & CONTEXT SYNTHESIS (TASK-049)
@@ -106,6 +211,7 @@ export class IntelligenceHarness {
       userId,
       rawQuery,
       currentStage: "CONTEXT",
+      correlationId,
       searchIntent: contextualIntent,
       explicitConstraints,
       userMemories,
@@ -116,6 +222,7 @@ export class IntelligenceHarness {
       observations: [],
       telemetry: {
         harnessId,
+        correlationId,
         userIdHash: userId ? `usr_${userId.slice(0, 6)}` : undefined,
         currentStage: "CONTEXT",
         totalDurationMs: 0,
@@ -172,25 +279,84 @@ export class IntelligenceHarness {
       };
     }
 
+    // Check cancellation before planning
+    if (options.signal?.aborted) {
+      context.currentStage = "FAILED";
+      context.telemetry.status = "CANCELLED";
+      context.telemetry.terminalState = "CANCELLED";
+      context.telemetry.errorCategory = "CANCELLED";
+      return {
+        harnessId,
+        success: false,
+        rankedOpportunities: [],
+        context,
+        telemetry: context.telemetry,
+        decision: {
+          outcome: "PARTIAL",
+          rationale: "Execution cancelled before plan generation.",
+          verifiedCount: 0,
+          requestedCount: explicitConstraints.requestedCount,
+          canContinue: false,
+          userExplanation: "Search execution was cancelled.",
+        },
+      };
+    }
+
     // Generate Typed Search Action Plan using SearchPlanner & BrainContext (TASK-050)
-    const searchPlanResult = await searchPlanner.planSearch(
-      rawQuery,
-      contextualIntent,
-      brainContext,
-      {
-        userId,
-        allowedDomains: ["linkedin.com", "indeed.com", "greenhouse.io", "ashbyhq.com", "lever.co"],
-        apiKeyOverride: options.apiKey,
-      }
-    );
+    let searchPlanResult: any;
+    try {
+      searchPlanResult = await searchPlanner.planSearch(
+        rawQuery,
+        contextualIntent,
+        brainContext,
+        {
+          userId,
+          allowedDomains: ["linkedin.com", "indeed.com", "greenhouse.io", "ashbyhq.com", "lever.co"],
+          apiKeyOverride: options.apiKey,
+        }
+      );
+    } catch (modelErr) {
+      const failure = classifySearchFailure(modelErr, {
+        stage: "PLANNING",
+        operation: "searchPlanner",
+        correlationId,
+      });
+      context.telemetry.modelFailures = (context.telemetry.modelFailures || 0) + 1;
+      context.telemetry.errorCategory = failure.category;
+      searchPlanResult = {
+        plan: {
+          planId: `plan_fallback_${Date.now()}`,
+          originalQuery: rawQuery,
+          strategy: "MULTI_SOURCE_HARVEST",
+          actions: [
+            {
+              actionId: "act_fallback_1",
+              capabilityId: "discovery.search_pipeline",
+              priority: 1,
+              dependencyIds: [],
+              timeoutMs: 10000,
+              input: { query: rawQuery, requestedCount: explicitConstraints.requestedCount },
+            },
+          ],
+        },
+      };
+    }
     context.searchActionPlan = searchPlanResult.plan;
 
     // Also generate Action Plan for browser-level preflight validation
-    const actionPlan = await generateActionPlan(rawQuery, {
-      allowedDomains: ["linkedin.com", "indeed.com", "greenhouse.io", "ashbyhq.com", "lever.co"],
-      maxStepsBudget: 15,
-      apiKey: options.apiKey,
-    });
+    let actionPlan: any;
+    try {
+      actionPlan = await generateActionPlan(rawQuery, {
+        allowedDomains: ["linkedin.com", "indeed.com", "greenhouse.io", "ashbyhq.com", "lever.co"],
+        maxStepsBudget: 15,
+        apiKey: options.apiKey,
+      });
+    } catch {
+      actionPlan = {
+        goal: rawQuery,
+        steps: [{ id: "step_1", action: "NAVIGATE", url: "https://www.google.com" }],
+      };
+    }
     context.plan = actionPlan;
 
     // Validate Plan Pre-Execution
@@ -236,6 +402,7 @@ export class IntelligenceHarness {
     const orchestrationResult = await searchActionExecutor.executePlan(searchPlanResult.plan, {
       userId,
       customProviders: options.customProviders,
+      signal: options.signal,
     });
 
     for (const actRes of orchestrationResult.actionResults) {
@@ -371,6 +538,7 @@ export class IntelligenceHarness {
           userId,
           customProviders: options.customProviders,
           referenceTime: startTimeDate,
+          signal: options.signal,
         }
       );
 
@@ -382,32 +550,26 @@ export class IntelligenceHarness {
 
     const verifiedCount = finalRanked.length;
 
-    let outcome: HarnessDecision["outcome"] = "COMPLETE";
-    let rationale = "";
-    let userExplanation = "";
+    // Evaluate canonical terminal state and invariants (TASK-057)
+    const terminalEval = evaluateSearchTerminalState({
+      verifiedCount,
+      requestedCount,
+      isCancelled: options.signal?.aborted || context.telemetry.status === "CANCELLED",
+      isFailed: context.telemetry.status === "FAILED",
+    });
 
-    if (verifiedCount >= requestedCount) {
-      outcome = "COMPLETE";
-      rationale = `Goal fully satisfied: Found ${verifiedCount} verified opportunities matching all constraints.`;
-      userExplanation = `Found ${verifiedCount} verified ${explicitConstraints.roles[0] || "job"} opportunities matching your criteria.`;
-    } else if (verifiedCount > 0) {
-      outcome = "PARTIAL";
-      const shortfall = requestedCount - verifiedCount;
-      rationale = `Partial match: Found ${verifiedCount} verified opportunities (${shortfall} short of requested ${requestedCount}).`;
-      userExplanation = `Found ${verifiedCount} verified ${explicitConstraints.roles[0] || "job"} opportunities matching your criteria. ${shortfall} additional opportunities could not be verified within the requested window.`;
-    } else {
-      outcome = "NEEDS_MORE_EVIDENCE";
-      rationale = "Zero candidate opportunities satisfied the authoritative quality gate.";
-      userExplanation = `No verified ${explicitConstraints.roles[0] || "job"} opportunities found matching your criteria.`;
-    }
+    const isComplete = terminalEval.terminalState === "COMPLETED";
+    const isPartial = terminalEval.terminalState === "PARTIAL";
+
+    let outcome: HarnessDecision["outcome"] = isComplete ? "COMPLETE" : isPartial ? "PARTIAL" : "NEEDS_MORE_EVIDENCE";
 
     const decision: HarnessDecision = {
       outcome,
-      rationale,
+      rationale: terminalEval.explanation,
       verifiedCount,
       requestedCount,
       canContinue: (outcome as HarnessDecisionOutcome) === "CONTINUE",
-      userExplanation,
+      userExplanation: terminalEval.explanation,
     };
     context.decision = decision;
     recordStage("DECIDE", Date.now() - tDecideStart);
@@ -417,14 +579,19 @@ export class IntelligenceHarness {
     context.currentStage = "COMPLETE";
     context.telemetry.totalDurationMs = totalDurationMs;
     context.telemetry.status = verifiedCount > 0 ? "SUCCESS" : "PARTIAL";
+    context.telemetry.terminalState = terminalEval.terminalState;
+
+    // Deep secret-safe sanitization
+    const sanitizedTelemetry = sanitizeSearchTelemetry(context.telemetry);
+    context.telemetry = sanitizedTelemetry;
 
     return {
       harnessId,
-      success: true,
+      success: verifiedCount > 0 || isComplete,
       decision,
       rankedOpportunities: finalRanked,
       context,
-      telemetry: context.telemetry,
+      telemetry: sanitizedTelemetry,
     };
   }
 }

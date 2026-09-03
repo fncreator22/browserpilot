@@ -11,6 +11,11 @@ import {
   upsertSourceListing,
   attachOpportunityToSearch,
 } from "@/lib/db/opportunities";
+import {
+  classifySearchFailure,
+  sanitizeSearchTelemetry,
+  type CanonicalSearchFailure,
+} from "@/lib/ai/errors/searchFailureModel";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +63,10 @@ export async function POST(request: NextRequest) {
     const maxResultsCeiling = Math.min(Math.max(body.maxResults || 50, 1), 50);
     const verifyEvidence = body.verifyEvidence ?? true;
     const persistToDb = body.persistToDb !== false;
+    const correlationId =
+      request.headers.get("x-correlation-id") ||
+      body.correlationId ||
+      `corr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
     // 2. Validate Request Boundaries
     if (!rawQuery && !filters.role && !filters.skills?.length && !filters.location && !filters.companies?.length && !filters.company) {
@@ -96,6 +105,8 @@ export async function POST(request: NextRequest) {
       maxResultsBudget: Math.max(requestedCount, maxResultsCeiling),
       verifyEvidence,
       customProviders,
+      correlationId,
+      signal: request.signal,
     });
 
     const rankedOpportunities = harnessResult.rankedOpportunities;
@@ -104,6 +115,9 @@ export async function POST(request: NextRequest) {
     const correctionResult = harnessResult.context.correctionLoopResult;
 
     // 5. Database Persistence (Prisma Search, Opportunities, Listings)
+    let persistenceFailure: CanonicalSearchFailure | null = null;
+    let persistenceSaved = false;
+
     if (persistToDb) {
       try {
         const searchRecord = await createSearch({
@@ -160,8 +174,13 @@ export async function POST(request: NextRequest) {
             rankPosition: item.rankPosition,
           });
         }
+        persistenceSaved = true;
       } catch (dbErr) {
         console.warn("[SearchAPI] Persistence non-fatal warning:", dbErr);
+        persistenceFailure = classifySearchFailure(dbErr, {
+          operation: "database_persistence",
+          correlationId,
+        });
       }
     }
 
@@ -273,8 +292,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 8. Return Authoritative Response Contract
-    return NextResponse.json({
+    const responsePayload = {
       searchId: harnessResult.harnessId,
+      correlationId,
       status,
       query: rawQuery || canonicalIntent.queryHint,
       intent: canonicalIntent,
@@ -291,6 +311,14 @@ export async function POST(request: NextRequest) {
         stoppingReason,
         totalRounds: correctionResult?.totalRounds || 1,
         rejectionReasons: harnessResult.context.verification?.rejectionReasons || [],
+        persistenceStatus: persistenceSaved ? "SAVED" : persistenceFailure ? "FAILED" : "SKIPPED",
+        persistenceError: persistenceFailure
+          ? {
+              category: persistenceFailure.category,
+              retryable: persistenceFailure.retryable,
+              userMessage: persistenceFailure.userMessage,
+            }
+          : undefined,
       },
       correctionState: correctionResult
         ? {
@@ -334,15 +362,31 @@ export async function POST(request: NextRequest) {
         telemetry: harnessResult.telemetry,
         explanation,
       },
-    });
+    };
+
+    const response = NextResponse.json(responsePayload);
+    response.headers.set("x-correlation-id", correlationId);
+    return response;
   } catch (err: unknown) {
     console.error("[SearchAPI] Execution Error:", err);
+    const failure = classifySearchFailure(err, { operation: "searchRoute" });
+    const statusCode =
+      failure.category === "AUTH_REQUIRED"
+        ? 401
+        : failure.category === "RATE_LIMITED"
+        ? 429
+        : failure.category === "CANCELLED"
+        ? 499
+        : 500;
+
     return NextResponse.json(
       {
-        error: "SEARCH_EXECUTION_ERROR",
-        message: (err as Error).message || "An unexpected error occurred during search execution.",
+        error: failure.category,
+        message: failure.userMessage,
+        category: failure.category,
+        retryable: failure.retryable,
       },
-      { status: 500 }
+      { status: statusCode }
     );
   }
 }
