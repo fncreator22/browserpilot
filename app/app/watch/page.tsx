@@ -101,6 +101,8 @@ export default function WatchPage() {
   const [recentRuns, setRecentRuns] = useState<DiscoveryRunItem[]>([]);
   const [discoveryEvents, setDiscoveryEvents] = useState<DiscoveryEventItem[]>([]);
   const [newCompanyInput, setNewCompanyInput] = useState("");
+  const [newRoleInput, setNewRoleInput] = useState("");
+  const [newSkillInput, setNewSkillInput] = useState("");
 
   const fetchWatchData = async () => {
     try {
@@ -218,6 +220,50 @@ export default function WatchPage() {
     setWatchConfig(prev => ({
       ...prev,
       companies: prev.companies.filter(c => c !== compToRemove),
+    }));
+  };
+
+  const handleAddRole = (e: React.FormEvent) => {
+    e.preventDefault();
+    const role = newRoleInput.trim();
+    if (!role) return;
+    if (watchConfig.roles.map(r => r.toLowerCase()).includes(role.toLowerCase())) {
+      toast.info("Role already in watch list");
+      return;
+    }
+    setWatchConfig(prev => ({
+      ...prev,
+      roles: [...prev.roles, role],
+    }));
+    setNewRoleInput("");
+  };
+
+  const handleRemoveRole = (roleToRemove: string) => {
+    setWatchConfig(prev => ({
+      ...prev,
+      roles: prev.roles.filter(r => r !== roleToRemove),
+    }));
+  };
+
+  const handleAddSkill = (e: React.FormEvent) => {
+    e.preventDefault();
+    const skill = newSkillInput.trim();
+    if (!skill) return;
+    if (watchConfig.skills.map(s => s.toLowerCase()).includes(skill.toLowerCase())) {
+      toast.info("Skill already in watch list");
+      return;
+    }
+    setWatchConfig(prev => ({
+      ...prev,
+      skills: [...prev.skills, skill],
+    }));
+    setNewSkillInput("");
+  };
+
+  const handleRemoveSkill = (skillToRemove: string) => {
+    setWatchConfig(prev => ({
+      ...prev,
+      skills: prev.skills.filter(s => s !== skillToRemove),
     }));
   };
 
@@ -457,30 +503,102 @@ export default function WatchPage() {
               </div>
 
               {/* Roles */}
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1.5 font-mono">
-                  Roles Monitored
-                </label>
-                <div className="flex flex-wrap gap-1.5">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-muted-foreground block font-mono">
+                    Roles Monitored
+                  </label>
+                  <span className="text-xs text-muted-foreground font-mono">
+                    {watchConfig.roles.length} monitored
+                  </span>
+                </div>
+
+                <form onSubmit={handleAddRole} className="flex gap-2">
+                  <Input
+                    placeholder="e.g. Backend Engineer, Mechanical Engineer, Data Analyst..."
+                    value={newRoleInput}
+                    onChange={(e) => setNewRoleInput(e.target.value)}
+                    className="font-mono text-xs bg-muted/20"
+                  />
+                  <Button type="submit" size="sm" variant="secondary" className="font-mono text-xs gap-1 cursor-pointer">
+                    <Plus className="h-3.5 w-3.5" />
+                    Add
+                  </Button>
+                </form>
+
+                <div className="flex flex-wrap gap-1.5 pt-1">
                   {watchConfig.roles.map((r) => (
-                    <Badge key={r} variant="outline" className="font-mono text-xs bg-muted/30">
-                      {r}
+                    <Badge
+                      key={r}
+                      variant="outline"
+                      className="font-mono text-xs bg-muted/30 py-1 px-2.5 gap-1.5 border-border/70"
+                    >
+                      <span>{r}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveRole(r)}
+                        className="hover:text-rose-500 cursor-pointer"
+                        aria-label={`Remove role ${r}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </Badge>
                   ))}
+                  {watchConfig.roles.length === 0 && (
+                    <p className="text-xs text-muted-foreground font-mono italic">
+                      No roles monitored yet. Add roles above to track opportunities.
+                    </p>
+                  )}
                 </div>
               </div>
 
               {/* Skills */}
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1.5 font-mono">
-                  Key Skills
-                </label>
-                <div className="flex flex-wrap gap-1.5">
+              <div className="space-y-2 pt-2 border-t border-border/40">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-muted-foreground block font-mono">
+                    Key Skills
+                  </label>
+                  <span className="text-xs text-muted-foreground font-mono">
+                    {watchConfig.skills.length} skills
+                  </span>
+                </div>
+
+                <form onSubmit={handleAddSkill} className="flex gap-2">
+                  <Input
+                    placeholder="e.g. Python, Java, React, SolidWorks, AWS, SQL..."
+                    value={newSkillInput}
+                    onChange={(e) => setNewSkillInput(e.target.value)}
+                    className="font-mono text-xs bg-muted/20"
+                  />
+                  <Button type="submit" size="sm" variant="secondary" className="font-mono text-xs gap-1 cursor-pointer">
+                    <Plus className="h-3.5 w-3.5" />
+                    Add
+                  </Button>
+                </form>
+
+                <div className="flex flex-wrap gap-1.5 pt-1">
                   {watchConfig.skills.map((s) => (
-                    <Badge key={s} variant="outline" className="font-mono text-xs bg-muted/30">
-                      {s}
+                    <Badge
+                      key={s}
+                      variant="outline"
+                      className="font-mono text-xs bg-muted/30 py-1 px-2.5 gap-1.5 border-border/70"
+                    >
+                      <span>{s}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSkill(s)}
+                        className="hover:text-rose-500 cursor-pointer"
+                        aria-label={`Remove skill ${s}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </Badge>
                   ))}
+                  {watchConfig.skills.length === 0 && (
+                    <p className="text-xs text-muted-foreground font-mono italic">
+                      No specific skills filtered. Add keywords or tools above.
+                    </p>
+                  )}
                 </div>
               </div>
 
