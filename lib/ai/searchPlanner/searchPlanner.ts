@@ -15,6 +15,7 @@ import { validateSearchActionPlan, type PlanValidationResult } from "./searchPla
 import { type BrainContext } from "@/lib/ai/brain/brainTypes";
 import { type SearchIntent } from "@/lib/scraper/providers/baseProvider";
 import { getEffectiveGeminiApiKey, detectOptimalGeminiModel, DEFAULT_GEMINI_MODEL } from "@/lib/ai/modelSelector";
+import { recordAIUsageEvent } from "@/lib/ai/governance/providerGovernance";
 
 export interface SearchPlannerOptions {
   userId?: string | null;
@@ -22,6 +23,7 @@ export interface SearchPlannerOptions {
   apiKeyOverride?: string;
   maxActionsBudget?: number;
   requireAiPlanning?: boolean;
+  signal?: AbortSignal;
 }
 
 export interface SearchPlannerResult {
@@ -77,6 +79,13 @@ export class SearchPlanner {
     let generatedPlan: SearchActionPlan | null = null;
     let modelTelemetry: SearchPlannerResult["modelTelemetry"] = undefined;
 
+    // Check cancellation signal before model planning
+    if (options.signal?.aborted) {
+      const abortErr = new Error("Search planning cancelled by user.");
+      abortErr.name = "AbortError";
+      throw abortErr;
+    }
+
     // 1. Model-Based Planning (if API key available)
     if (effectiveKey && !process.env.IS_TEST_HARNESS) {
       try {
@@ -129,8 +138,27 @@ Return JSON adhering to SearchActionPlan schema.`;
             durationMs: Date.now() - tModelStart,
             tokensUsed: response.usageMetadata?.totalTokenCount,
           };
+
+          // Authoritative AI Usage Event Tracking (TASK-065)
+          if (options.userId) {
+            const usage = response.usageMetadata;
+            await recordAIUsageEvent({
+              userId: options.userId,
+              provider: "Google Gemini",
+              model: modelName || DEFAULT_GEMINI_MODEL,
+              operation: "ACTION_PLANNING",
+              inputTokens: usage?.promptTokenCount || 0,
+              outputTokens: usage?.candidatesTokenCount || 0,
+              totalTokens: usage?.totalTokenCount || 0,
+              durationMs: Date.now() - tModelStart,
+              status: "SUCCESS",
+            }).catch((uErr) => console.warn("[SearchPlanner] Failed to record AI usage:", uErr));
+          }
         }
       } catch (err) {
+        if (options.signal?.aborted) {
+          throw err;
+        }
         console.warn("[SearchPlanner] Gemini model planning failed, falling back to deterministic planning:", err);
       }
     }

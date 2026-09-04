@@ -32,11 +32,14 @@ export interface SearchApiRequest {
 }
 
 export async function POST(request: NextRequest) {
+  let userId: string | null = null;
+  let rawQuery = "";
+
   try {
     // 1. Resolve Server-Authoritative User Identity
     const session = await getServerSession(authOptions).catch(() => null);
     const sessionUser = session?.user as { id?: string; email?: string } | undefined;
-    let userId: string | null = sessionUser?.id || null;
+    userId = sessionUser?.id || null;
 
     // Test harness override for multi-tenant integration testing ONLY in test environments
     if (!userId && (process.env.NODE_ENV === "test" || (process.env as any).IS_TEST_HARNESS === "true")) {
@@ -82,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json().catch(() => ({}))) as SearchApiRequest;
     const customProviders = (request as any)._customProviders || body.customProviders;
-    const rawQuery = (body.query || "").trim();
+    rawQuery = (body.query || "").trim();
     const filters = body.filters || {};
     const maxResultsCeiling = Math.min(Math.max(body.maxResults || 50, 1), 50);
     const verifyEvidence = body.verifyEvidence ?? true;
@@ -154,7 +157,11 @@ export async function POST(request: NextRequest) {
           parsedLocation: canonicalIntent.locations?.[0] || canonicalIntent.location || null,
           parsedWorkMode: canonicalIntent.workModes?.[0] || canonicalIntent.workMode || "ANY",
           targetGradYear: typeof canonicalIntent.targetGradYear === "number" ? canonicalIntent.targetGradYear : null,
-          status: decision.outcome === "COMPLETE" ? "COMPLETED" : "PARTIAL",
+          status: (request.signal.aborted || harnessResult.telemetry.status === "CANCELLED")
+            ? "STOPPED"
+            : decision.outcome === "COMPLETE"
+            ? "COMPLETED"
+            : "PARTIAL",
           totalFound: rankedOpportunities.length,
         });
 
@@ -272,7 +279,8 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    // 7. Determine Search Status & Shortfall State Invariants (TASK-053.1)
+    // 7. Determine Search Status & Shortfall State Invariants (TASK-053.1 & TASK-065)
+    const isCancelled = request.signal.aborted || harnessResult.telemetry.status === "CANCELLED";
     const verifiedCount = structuredResults.length;
     const effectiveRequestedCount = canonicalIntent.requestedCount || requestedCount;
     const isComplete = verifiedCount >= effectiveRequestedCount;
@@ -280,14 +288,17 @@ export async function POST(request: NextRequest) {
     const isNoResults = verifiedCount === 0;
 
     // Status Invariants:
+    // CANCELLED: status = "STOPPED", stoppingReason = "CANCELLED"
     // COMPLETE: verifiedCount >= requestedCount -> partial = false, status = "COMPLETE", stoppingReason = "TARGET_SATISFIED"
     // PARTIAL: 0 < verifiedCount < requestedCount -> partial = true, status = "PARTIAL", stoppingReason != "TARGET_SATISFIED"
     // NO_RESULTS: verifiedCount = 0 -> status = "NO_RESULTS", partial = false
-    const status = isComplete ? "COMPLETE" : isPartial ? "PARTIAL" : "NO_RESULTS";
-    const partial = isPartial;
+    const status = isCancelled ? "STOPPED" : isComplete ? "COMPLETE" : isPartial ? "PARTIAL" : "NO_RESULTS";
+    const partial = isPartial || isCancelled;
 
     let stoppingReason = "TARGET_SATISFIED";
-    if (isComplete) {
+    if (isCancelled) {
+      stoppingReason = "CANCELLED";
+    } else if (isComplete) {
       stoppingReason = "TARGET_SATISFIED";
     } else if (isPartial) {
       if (correctionResult?.stoppingReason && correctionResult.stoppingReason !== "TARGET_SATISFIED") {
@@ -306,7 +317,9 @@ export async function POST(request: NextRequest) {
     // Explanation Invariant: Must accurately reflect verified vs requested counts
     let explanation = "";
     const roleName = canonicalIntent.roles?.[0] || canonicalIntent.role || "opportunity";
-    if (isComplete) {
+    if (isCancelled) {
+      explanation = `Search execution was cancelled by user request.`;
+    } else if (isComplete) {
       explanation = `Found ${verifiedCount} verified ${roleName} opportunities matching your criteria.`;
     } else if (isPartial) {
       const shortfall = effectiveRequestedCount - verifiedCount;
@@ -320,6 +333,8 @@ export async function POST(request: NextRequest) {
       searchId: harnessResult.harnessId,
       correlationId,
       status,
+      error: isCancelled ? "CANCELLED" : undefined,
+      stoppingReason,
       query: rawQuery || canonicalIntent.queryHint,
       intent: canonicalIntent,
       canonicalIntent,
@@ -395,27 +410,42 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    const response = NextResponse.json(responsePayload);
+    const response = NextResponse.json(responsePayload, { status: isCancelled ? 499 : 200 });
     response.headers.set("x-correlation-id", correlationId);
     return response;
   } catch (err: unknown) {
     console.error("[SearchAPI] Execution Error:", err);
     const failure = classifySearchFailure(err, { operation: "searchRoute" });
+    const isCancelled = failure.category === "CANCELLED" || request.signal?.aborted;
+
+    if (isCancelled && userId) {
+      try {
+        await createSearch({
+          userId: userId || null,
+          rawQuery: rawQuery || "Cancelled Search",
+          intentType: "JOB_SEARCH_GENERAL",
+          status: "STOPPED",
+          totalFound: 0,
+        }).catch(() => {});
+      } catch {}
+    }
+
     const statusCode =
       failure.category === "AUTH_REQUIRED"
         ? 401
         : failure.category === "RATE_LIMITED"
         ? 429
-        : failure.category === "CANCELLED"
+        : isCancelled
         ? 499
         : 500;
 
     return NextResponse.json(
       {
-        error: failure.category,
-        message: failure.userMessage,
-        category: failure.category,
-        retryable: failure.retryable,
+        error: isCancelled ? "CANCELLED" : failure.category,
+        message: isCancelled ? "Search was cancelled by user request." : failure.userMessage,
+        category: isCancelled ? "CANCELLED" : failure.category,
+        retryable: isCancelled ? true : failure.retryable,
+        stoppingReason: isCancelled ? "CANCELLED" : undefined,
       },
       { status: statusCode }
     );

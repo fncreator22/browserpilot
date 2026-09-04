@@ -91,11 +91,14 @@ import {
   DEFAULT_GEMINI_MODEL,
   FALLBACK_GEMINI_MODEL 
 } from "./modelSelector";
+import { recordAIUsageEvent } from "@/lib/ai/governance/providerGovernance";
 
 export interface PlanGenerationOptions {
   allowedDomains?: string[];
   maxStepsBudget?: number;
   apiKey?: string;
+  userId?: string | null;
+  signal?: AbortSignal;
 }
 
 /**
@@ -170,7 +173,15 @@ export async function generateActionPlan(
       }
     } catch {}
 
+    if (options.signal?.aborted) {
+      const abortErr = new Error("Action planning cancelled by user.");
+      abortErr.name = "AbortError";
+      throw abortErr;
+    }
+
+    const tModelStart = Date.now();
     let response;
+    let usedModel = modelName || DEFAULT_GEMINI_MODEL;
     try {
       response = await ai.models.generateContent({
         model: modelName || DEFAULT_GEMINI_MODEL,
@@ -183,7 +194,9 @@ export async function generateActionPlan(
         },
       });
     } catch (primaryErr) {
+      if (options.signal?.aborted) throw primaryErr;
       console.warn(`[Planner] Primary model (${modelName}) exception, trying fallback (${FALLBACK_GEMINI_MODEL}):`, primaryErr);
+      usedModel = FALLBACK_GEMINI_MODEL;
       response = await ai.models.generateContent({
         model: FALLBACK_GEMINI_MODEL,
         contents: `User Goal: "${prompt}"${targetContext}\nConstraints: Allowed Domains = ${JSON.stringify(options.allowedDomains || [])}, Max Steps = ${options.maxStepsBudget || 15}`,
@@ -204,8 +217,26 @@ export async function generateActionPlan(
     const parsed = JSON.parse(text);
     const validated = ActionPlanSchema.parse(parsed);
     const tokensUsed = response.usageMetadata?.totalTokenCount;
+
+    // Authoritative AI Usage Event Tracking (TASK-065)
+    if (options.userId) {
+      const usage = response.usageMetadata;
+      await recordAIUsageEvent({
+        userId: options.userId,
+        provider: "Google Gemini",
+        model: usedModel,
+        operation: "ACTION_PLANNING",
+        inputTokens: usage?.promptTokenCount || 0,
+        outputTokens: usage?.candidatesTokenCount || 0,
+        totalTokens: usage?.totalTokenCount || 0,
+        durationMs: Date.now() - tModelStart,
+        status: "SUCCESS",
+      }).catch((uErr) => console.warn("[Planner] Failed to record AI usage:", uErr));
+    }
+
     return Object.assign(validated, { tokensUsed });
   } catch (apiErr) {
+    if (options.signal?.aborted) throw apiErr;
     console.warn(`[Planner] Gemini API rate limit or error, using autonomous resilient plan synthesis:`, apiErr);
     
     // Autonomous Plan Generation via Search Resolver
