@@ -23,7 +23,7 @@ import { toast } from "sonner";
 
 interface LifecycleAlertItem {
   id: string;
-  opportunityId: string;
+  opportunityId?: string | null;
   transitionType: string;
   previousStatus?: string;
   newStatus?: string;
@@ -191,11 +191,13 @@ export default function NotificationsPage() {
                 </div>
 
                 <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                  <Link href={`/app/opportunities/${alert.opportunityId}`}>
-                    <Button variant="outline" size="sm" className="h-7 px-2.5 font-mono text-xs gap-1 cursor-pointer">
-                      <span>View Dossier</span>
-                    </Button>
-                  </Link>
+                  {alert.opportunityId && (
+                    <Link href={`/app/opportunities/${alert.opportunityId}`}>
+                      <Button variant="outline" size="sm" className="h-7 px-2.5 font-mono text-xs gap-1 cursor-pointer">
+                        <span>View Dossier</span>
+                      </Button>
+                    </Link>
+                  )}
 
                   {alert.opportunity?.primaryApplyUrl && (
                     <a

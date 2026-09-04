@@ -67,7 +67,7 @@ export class OutboundEmailDispatcher {
     alert: {
       id: string;
       userId: string;
-      opportunityId: string;
+      opportunityId?: string | null;
       transitionType: string;
       idempotencyKey?: string | null;
       title: string;

@@ -194,16 +194,29 @@ export function classifyJobUrl(rawUrl?: string | null): JobUrlType {
     }
 
     // ATS Platforms (Greenhouse, Lever, Ashby, Workable)
-    if (host.includes("greenhouse.io") || host.includes("lever.co") || host.includes("ashbyhq.com") || host.includes("workable.com")) {
+    if (
+      host.includes("greenhouse.io") ||
+      host.includes("lever.co") ||
+      host.includes("ashbyhq.com") ||
+      host.includes("workable.com")
+    ) {
       if (segments.length <= 1) {
         return "ATS_COMPANY_ROOT";
       }
-      // Section 18: Ashby application URL fix - jobs.ashbyhq.com/{slug}/application is an application portal, not a job detail
-      if (host.includes("ashbyhq.com") && segments.length === 2 && segments[1] === "application") {
+      // Application endpoints are APPLICATION_PORTAL, never JOB_DETAIL (BUG-002)
+      if (
+        segments.includes("application") ||
+        segments.includes("apply") ||
+        segments[segments.length - 1] === "application" ||
+        segments[segments.length - 1] === "apply" ||
+        path.endsWith("/application") ||
+        path.endsWith("/apply")
+      ) {
         return "APPLICATION_PORTAL";
       }
-      if (segments.length <= 2 && (segments[segments.length - 1] === "application" || segments[segments.length - 1] === "apply")) {
-        return "APPLICATION_PORTAL";
+      // Generic listing subpaths under ATS company root
+      if (segments.length === 2 && ["jobs", "departments", "teams", "openings", "search"].includes(segments[1])) {
+        return "ATS_COMPANY_ROOT";
       }
       return "JOB_DETAIL";
     }
@@ -236,8 +249,12 @@ export function classifyJobUrl(rawUrl?: string | null): JobUrlType {
       return "COMPANY_CAREER_ROOT";
     }
 
-    // Generic application portals: e.g. /application, /apply, /apply-now, /company/application
-    if (segments.length <= 2 && /^(application|apply|apply-now)$/i.test(segments[segments.length - 1])) {
+    // Generic application portals: e.g. /application, /apply, /apply-now, /company/application, /company/job/apply
+    if (
+      segments.includes("application") ||
+      segments.includes("apply") ||
+      /^(application|apply|apply-now)$/i.test(segments[segments.length - 1])
+    ) {
       return "APPLICATION_PORTAL";
     }
 
