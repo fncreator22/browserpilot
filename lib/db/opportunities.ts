@@ -42,6 +42,8 @@ export interface CreateSearchInput {
   id?: string;
   userId?: string | null;
   rawQuery: string;
+  canonicalIntentHash?: string | null;
+  canonicalIntent?: string | null;
   intentType?: string;
   parsedRole?: string | null;
   parsedSkills?: string[] | string;
@@ -50,6 +52,12 @@ export interface CreateSearchInput {
   targetGradYear?: number | null;
   status?: string;
   totalFound?: number;
+  startedAt?: Date | null;
+  completedAt?: Date | null;
+  cancellationRequested?: boolean;
+  stoppingReason?: string | null;
+  failureReason?: string | null;
+  isRecoverable?: boolean;
 }
 
 export interface AttachSearchResultInput {
@@ -339,7 +347,7 @@ export async function recordDiscoveredOpportunity(
 }
 
 /**
- * Creates a persistent Search session record.
+ * Creates a persistent Search session record with execution lifecycle support.
  */
 export async function createSearch(data: CreateSearchInput): Promise<Search> {
   return await prisma.search.create({
@@ -347,6 +355,8 @@ export async function createSearch(data: CreateSearchInput): Promise<Search> {
       id: data.id,
       userId: data.userId || null,
       rawQuery: data.rawQuery,
+      canonicalIntentHash: data.canonicalIntentHash || null,
+      canonicalIntent: data.canonicalIntent || null,
       intentType: data.intentType || "JOB_SEARCH_GENERAL",
       parsedRole: data.parsedRole || null,
       parsedSkills: serializeStringArray(data.parsedSkills),
@@ -355,7 +365,75 @@ export async function createSearch(data: CreateSearchInput): Promise<Search> {
       targetGradYear: typeof data.targetGradYear === "number" ? data.targetGradYear : null,
       status: data.status || "COMPLETED",
       totalFound: typeof data.totalFound === "number" ? data.totalFound : 0,
+      startedAt: data.startedAt || (data.status === "RUNNING" ? new Date() : null),
+      completedAt: data.completedAt || null,
+      cancellationRequested: data.cancellationRequested || false,
+      stoppingReason: data.stoppingReason || null,
+      failureReason: data.failureReason || null,
+      isRecoverable: data.isRecoverable || false,
     },
+  });
+}
+
+/**
+ * Updates search status atomically using Compare-and-Swap semantics.
+ * Returns true if the transition succeeded, false if current status was not in fromStatus.
+ */
+export async function updateSearchStatusCas(
+  id: string,
+  fromStatus: string | string[],
+  toStatus: string,
+  updates?: Partial<{
+    stoppingReason: string | null;
+    failureReason: string | null;
+    completedAt: Date | null;
+    totalFound: number;
+    isRecoverable: boolean;
+    cancellationRequested: boolean;
+  }>
+): Promise<boolean> {
+  const allowedFrom = Array.isArray(fromStatus) ? fromStatus : [fromStatus];
+  const result = await prisma.search.updateMany({
+    where: {
+      id,
+      status: { in: allowedFrom },
+    },
+    data: {
+      status: toStatus,
+      updatedAt: new Date(),
+      ...(updates || {}),
+    },
+  });
+  return result.count > 0;
+}
+
+/**
+ * Touches search heartbeat updatedAt timestamp to prevent stale detection.
+ */
+export async function touchSearchHeartbeat(id: string): Promise<void> {
+  await prisma.search.updateMany({
+    where: { id, status: "RUNNING" },
+    data: { updatedAt: new Date() },
+  });
+}
+
+/**
+ * Finds an active running search for a given user and optional canonical intent hash.
+ */
+export async function getActiveUserSearch(
+  userId: string,
+  canonicalIntentHash?: string
+): Promise<Search | null> {
+  const whereClause: any = {
+    userId,
+    status: { in: ["CREATED", "QUEUED", "RUNNING"] },
+  };
+  if (canonicalIntentHash) {
+    whereClause.canonicalIntentHash = canonicalIntentHash;
+  }
+  return await prisma.search.findFirst({
+    where: whereClause,
+    orderBy: { createdAt: "desc" },
   });
 }
 

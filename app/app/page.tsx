@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { 
@@ -38,6 +38,54 @@ function DiscoverContent() {
   const [opportunityData, setOpportunityData] = useState<OpportunitySearchResultPayload | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [activeQuery, setActiveQuery] = useState(initialQuery);
+
+  // Active search recovery across page refreshes (TASK-067)
+  useEffect(() => {
+    let cancelled = false;
+    async function checkActiveSearch() {
+      try {
+        const res = await fetch("/api/search/active");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (data.active && data.query) {
+          setActiveQuery(data.query);
+          setIsSearching(true);
+        } else if (data.recent && data.searchId && !opportunityData) {
+          const histRes = await fetch(`/api/search/history/${data.searchId}`);
+          if (histRes.ok) {
+            const histData = await histRes.json();
+            if (!cancelled && histData.search) {
+              setOpportunityData({
+                searchId: histData.search.id,
+                status: histData.search.status === "COMPLETED" ? "COMPLETE" : histData.search.status,
+                query: histData.search.rawQuery,
+                results: histData.search.results || [],
+                verifiedCount: (histData.search.results || []).length,
+                explanation: `Restored recent search for "${histData.search.rawQuery}".`,
+                metadata: {
+                  totalUniqueOpportunities: (histData.search.results || []).length,
+                  returnedCount: (histData.search.results || []).length,
+                  durationMs: 0,
+                  providersAttempted: 3,
+                  providersSucceeded: 3,
+                  explanation: "Restored recent search.",
+                },
+              });
+              setActiveQuery(histData.search.rawQuery);
+            }
+          }
+        }
+      } catch {
+        // Non-fatal active search check
+      }
+    }
+    checkActiveSearch();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleBookmarkChange = (opportunityId: string, isSaved: boolean) => {
     if (!opportunityData) return;

@@ -95,6 +95,8 @@ CREATE TABLE IF NOT EXISTS searches (
   id TEXT PRIMARY KEY,
   userId TEXT,
   rawQuery TEXT NOT NULL,
+  canonicalIntentHash TEXT,
+  canonicalIntent TEXT,
   intentType TEXT NOT NULL DEFAULT 'JOB_SEARCH_GENERAL',
   parsedRole TEXT,
   parsedSkills TEXT NOT NULL DEFAULT '[]',
@@ -104,8 +106,19 @@ CREATE TABLE IF NOT EXISTS searches (
   status TEXT NOT NULL DEFAULT 'COMPLETED',
   totalFound INTEGER NOT NULL DEFAULT 0,
   createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  startedAt DATETIME,
+  updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completedAt DATETIME,
+  cancellationRequested BOOLEAN NOT NULL DEFAULT 0,
+  stoppingReason TEXT,
+  failureReason TEXT,
+  isRecoverable BOOLEAN NOT NULL DEFAULT 0,
   FOREIGN KEY (userId) REFERENCES users (id) ON DELETE SET NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_searches_user_status ON searches (userId, status);
+CREATE INDEX IF NOT EXISTS idx_searches_user_intent_hash ON searches (userId, canonicalIntentHash);
+CREATE INDEX IF NOT EXISTS idx_searches_updatedAt ON searches (updatedAt);
 
 CREATE TABLE IF NOT EXISTS opportunities (
   id TEXT PRIMARY KEY,
@@ -581,12 +594,25 @@ export async function ensureDatabaseSchema(config?: { url: string; authToken?: s
       "ALTER TABLE discovery_watches ADD COLUMN lockOwner TEXT;",
       "ALTER TABLE discovery_watches ADD COLUMN companies TEXT NOT NULL DEFAULT '[]';",
       "ALTER TABLE discovery_runs ADD COLUMN triggerType TEXT NOT NULL DEFAULT 'MANUAL';",
+      // TASK-067: Execution lifecycle & concurrency columns for searches
+      "ALTER TABLE searches ADD COLUMN canonicalIntentHash TEXT;",
+      "ALTER TABLE searches ADD COLUMN canonicalIntent TEXT;",
+      "ALTER TABLE searches ADD COLUMN startedAt DATETIME;",
+      "ALTER TABLE searches ADD COLUMN updatedAt DATETIME;",
+      "ALTER TABLE searches ADD COLUMN completedAt DATETIME;",
+      "ALTER TABLE searches ADD COLUMN cancellationRequested BOOLEAN NOT NULL DEFAULT 0;",
+      "ALTER TABLE searches ADD COLUMN stoppingReason TEXT;",
+      "ALTER TABLE searches ADD COLUMN failureReason TEXT;",
+      "ALTER TABLE searches ADD COLUMN isRecoverable BOOLEAN NOT NULL DEFAULT 0;",
+      "CREATE INDEX IF NOT EXISTS idx_searches_user_status ON searches (userId, status);",
+      "CREATE INDEX IF NOT EXISTS idx_searches_user_intent_hash ON searches (userId, canonicalIntentHash);",
+      "CREATE INDEX IF NOT EXISTS idx_searches_updatedAt ON searches (updatedAt);",
     ];
     for (const m of migrations) {
       try {
         await client.execute(m);
       } catch {
-        // Column already exists - safe to ignore
+        // Column/index already exists - safe to ignore
       }
     }
 
