@@ -225,7 +225,7 @@ model ArtifactRecord {
 model LifecycleAlert {
   id             String   @id @default(cuid())
   userId         String
-  opportunityId  String
+  opportunityId  String?
   transitionType String   // "EXPIRED" | "REMOVED" | "RECOVERED_ACTIVE"
   previousStatus String
   newStatus      String
@@ -236,8 +236,8 @@ model LifecycleAlert {
   idempotencyKey String   @unique
   createdAt      DateTime @default(now())
 
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([userId, createdAt])

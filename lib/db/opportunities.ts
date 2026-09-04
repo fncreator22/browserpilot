@@ -650,7 +650,7 @@ export async function deleteSearchSession(searchId: string, userId: string): Pro
  */
 export async function recordLifecycleAlert(input: {
   userId: string;
-  opportunityId: string;
+  opportunityId?: string | null;
   transitionType: string;
   previousStatus: string;
   newStatus: string;
@@ -659,9 +659,10 @@ export async function recordLifecycleAlert(input: {
   message: string;
   idempotencyKey?: string;
 }) {
+  const oppKey = input.opportunityId || "global";
   const idempotencyKey =
     input.idempotencyKey ||
-    `${input.userId}_${input.opportunityId}_${input.transitionType}_${input.newStatus}`;
+    `${input.userId}_${oppKey}_${input.transitionType}_${input.newStatus}`;
 
   const existing = await prisma.lifecycleAlert.findUnique({
     where: { idempotencyKey },
@@ -675,7 +676,7 @@ export async function recordLifecycleAlert(input: {
     const created = await prisma.lifecycleAlert.create({
       data: {
         userId: input.userId,
-        opportunityId: input.opportunityId,
+        opportunityId: input.opportunityId || null,
         transitionType: input.transitionType,
         previousStatus: input.previousStatus,
         newStatus: input.newStatus,

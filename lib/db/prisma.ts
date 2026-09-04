@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS saved_opportunities (
 CREATE TABLE IF NOT EXISTS lifecycle_alerts (
   id TEXT PRIMARY KEY,
   userId TEXT NOT NULL,
-  opportunityId TEXT NOT NULL,
+  opportunityId TEXT,
   transitionType TEXT NOT NULL,
   previousStatus TEXT NOT NULL,
   newStatus TEXT NOT NULL,
@@ -588,6 +588,40 @@ export async function ensureDatabaseSchema(config?: { url: string; authToken?: s
       } catch {
         // Column already exists - safe to ignore
       }
+    }
+
+    // TASK-066: Ensure lifecycle_alerts allows NULL for opportunityId (remove NOT NULL constraint)
+    try {
+      const tableInfo = await client.execute("PRAGMA table_info(lifecycle_alerts);");
+      const oppCol = tableInfo.rows.find((r: any) => (r.name || r[1]) === "opportunityId");
+      if (oppCol && (oppCol.notnull === 1 || oppCol[3] === 1)) {
+        await client.executeMultiple(`
+          CREATE TABLE IF NOT EXISTS lifecycle_alerts_v2 (
+            id TEXT PRIMARY KEY,
+            userId TEXT NOT NULL,
+            opportunityId TEXT,
+            transitionType TEXT NOT NULL,
+            previousStatus TEXT NOT NULL,
+            newStatus TEXT NOT NULL,
+            title TEXT NOT NULL,
+            companyName TEXT NOT NULL,
+            message TEXT NOT NULL,
+            isRead BOOLEAN NOT NULL DEFAULT 0,
+            idempotencyKey TEXT UNIQUE NOT NULL,
+            createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY (opportunityId) REFERENCES opportunities (id) ON DELETE CASCADE
+          );
+          INSERT INTO lifecycle_alerts_v2 SELECT id, userId, opportunityId, transitionType, previousStatus, newStatus, title, companyName, message, isRead, idempotencyKey, createdAt FROM lifecycle_alerts;
+          DROP TABLE lifecycle_alerts;
+          ALTER TABLE lifecycle_alerts_v2 RENAME TO lifecycle_alerts;
+          CREATE INDEX IF NOT EXISTS idx_lifecycle_alerts_userId_isRead ON lifecycle_alerts (userId, isRead);
+          CREATE INDEX IF NOT EXISTS idx_lifecycle_alerts_userId_createdAt ON lifecycle_alerts (userId, createdAt);
+          CREATE INDEX IF NOT EXISTS idx_lifecycle_alerts_opportunityId ON lifecycle_alerts (opportunityId);
+        `);
+      }
+    } catch {
+      // Table may not exist yet or already migrated
     }
 
     await client.executeMultiple(SCHEMA_DDL);
