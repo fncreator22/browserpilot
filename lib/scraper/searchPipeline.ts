@@ -17,6 +17,7 @@ import { rankOpportunities, type RankedOpportunity } from "./ranker";
 import { isWithinFreshnessWindow, parsePostingDate } from "./freshnessExtractor";
 import { verifyEvidenceForOpportunities, type VerificationTelemetry } from "./evidenceVerifier";
 import { evaluateCandidateQualityGate, type QualityGateEvaluation } from "./searchQualityGate";
+import { globalVerificationSandbox } from "@/lib/ai/verification";
 import {
   createSearch,
   upsertOpportunity,
@@ -55,6 +56,7 @@ export interface PipelineExecutionOptions {
   concurrencyLimit?: number;
   perProviderTimeoutMs?: number;
   totalTimeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 export interface PipelineResult {
@@ -80,6 +82,22 @@ export async function executeSearchPipeline(
   options: PipelineExecutionOptions = {}
 ): Promise<PipelineResult> {
   const startTime = Date.now();
+
+  if (options.signal?.aborted) {
+    return {
+      rankedOpportunities: [],
+      discovery: {
+        candidates: [],
+        telemetry: [],
+        totalCandidates: 0,
+        durationMs: 0,
+        status: "EMPTY",
+      },
+      totalUniqueOpportunities: 0,
+      durationMs: Date.now() - startTime,
+      searchExplanation: "Search execution was cancelled before start.",
+    };
+  }
 
   // 1. Resolve DiscoveryPlan from Query or Intent
   let plan: DiscoveryPlan;
@@ -145,7 +163,7 @@ export async function executeSearchPipeline(
     };
   });
 
-  // Authoritative Search Result Quality Gate Evaluation (TASK-044)
+  // Authoritative Search Result Quality Gate Evaluation (TASK-044 & TASK-063 Truth Gate)
   let staleCount = 0;
   let unknownDateCount = 0;
   let invalidUrlCount = 0;
@@ -153,6 +171,16 @@ export async function executeSearchPipeline(
   const eligibleCandidates: typeof cleanCandidates = [];
 
   for (const candidate of cleanCandidates) {
+    if (options.signal?.aborted) {
+      break;
+    }
+
+    // TASK-063 Synthetic Data Firewall
+    const synthCheck = globalVerificationSandbox.evaluateSyntheticCandidateFirewall(candidate as any);
+    if (synthCheck.isSynthetic) {
+      continue;
+    }
+
     const gateEval = evaluateCandidateQualityGate(candidate as any, plan, new Date(startTime));
     if (gateEval.isEligible) {
       eligibleCandidates.push({

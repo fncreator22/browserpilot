@@ -33,6 +33,7 @@ import { deduplicateCandidates } from "@/lib/scraper/deduplicator";
 import { rankOpportunities } from "@/lib/scraper/ranker";
 import { evidenceVerificationEngine } from "@/lib/ai/evidence";
 import { correctionLoopController } from "./correction";
+import { globalVerificationSandbox, type VerificationRequest } from "@/lib/ai/verification";
 
 import {
   classifySearchFailure,
@@ -302,7 +303,7 @@ export class IntelligenceHarness {
       };
     }
 
-    // Generate Typed Search Action Plan using SearchPlanner & BrainContext (TASK-050)
+    // Generate Typed Search Action Plan using SearchPlanner & BrainContext (TASK-050 & TASK-063)
     let searchPlanResult: any;
     try {
       searchPlanResult = await searchPlanner.planSearch(
@@ -311,7 +312,7 @@ export class IntelligenceHarness {
         brainContext,
         {
           userId,
-          allowedDomains: ["linkedin.com", "indeed.com", "greenhouse.io", "ashbyhq.com", "lever.co"],
+          allowedDomains: options.allowedDomains,
           apiKeyOverride: options.apiKey,
         }
       );
@@ -343,11 +344,48 @@ export class IntelligenceHarness {
     }
     context.searchActionPlan = searchPlanResult.plan;
 
+    // Global Verification Sandbox Gate (TASK-063 Pre-Execution Validation)
+    const sandboxRequest: VerificationRequest = {
+      requestId: `req_${correlationId}`,
+      userIdHash: globalVerificationSandbox.hashUserId(userId),
+      correlationId,
+      originalQuery: rawQuery,
+      canonicalIntent: contextualIntent,
+      proposedPlan: searchPlanResult.plan,
+      requestedCapabilities: (searchPlanResult.plan.actions || []).map((a: any) => a.capabilityId),
+      requestedSources: contextualIntent.sources || [],
+      constraints: searchPlanResult.plan.constraints,
+      expectedEvidence: (searchPlanResult.plan.actions || []).map((a: any) => a.expectedEvidence).filter(Boolean),
+      securityChecks: ["ssrf_check", "hard_constraints", "synthetic_firewall", "domain_barrier"],
+      createdAt: new Date(),
+    };
+
+    const sandboxDecision = globalVerificationSandbox.verifyExecutionPlan(sandboxRequest);
+    (context as any).sandboxDecision = sandboxDecision;
+
+    if (sandboxDecision.decision === "REJECT") {
+      return {
+        harnessId,
+        success: false,
+        rankedOpportunities: [],
+        context,
+        telemetry: context.telemetry,
+        decision: {
+          outcome: "PARTIAL",
+          rationale: `Execution plan rejected by Global Verification Sandbox: ${sandboxDecision.reason}`,
+          verifiedCount: 0,
+          requestedCount: explicitConstraints.requestedCount,
+          canContinue: false,
+          userExplanation: "Execution plan rejected due to security or integrity constraints.",
+        },
+      };
+    }
+
     // Also generate Action Plan for browser-level preflight validation
     let actionPlan: any;
     try {
       actionPlan = await generateActionPlan(rawQuery, {
-        allowedDomains: ["linkedin.com", "indeed.com", "greenhouse.io", "ashbyhq.com", "lever.co"],
+        allowedDomains: options.allowedDomains,
         maxStepsBudget: 15,
         apiKey: options.apiKey,
       });
@@ -361,7 +399,7 @@ export class IntelligenceHarness {
 
     // Validate Plan Pre-Execution
     const planValidation = validateActionPlan(actionPlan, {
-      allowedDomains: ["linkedin.com", "indeed.com", "greenhouse.io", "ashbyhq.com", "lever.co"],
+      allowedDomains: options.allowedDomains,
     });
     context.planValidation = planValidation;
     recordStage("PLAN", Date.now() - tPlanStart);

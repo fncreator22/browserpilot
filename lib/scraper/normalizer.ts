@@ -161,12 +161,13 @@ export type JobUrlType =
   | "COMPANY_CAREER_ROOT"
   | "ATS_COMPANY_ROOT"
   | "SEARCH_RESULTS"
+  | "APPLICATION_PORTAL"
   | "SOURCE_HOME"
   | "UNKNOWN";
 
 /**
  * Classifies a URL deterministically to distinguish exact job postings from
- * generic career roots, search results, and homepages.
+ * generic career roots, search results, application portals, and homepages.
  */
 export function classifyJobUrl(rawUrl?: string | null): JobUrlType {
   if (!rawUrl || typeof rawUrl !== "string") return "UNKNOWN";
@@ -197,6 +198,13 @@ export function classifyJobUrl(rawUrl?: string | null): JobUrlType {
       if (segments.length <= 1) {
         return "ATS_COMPANY_ROOT";
       }
+      // Section 18: Ashby application URL fix - jobs.ashbyhq.com/{slug}/application is an application portal, not a job detail
+      if (host.includes("ashbyhq.com") && segments.length === 2 && segments[1] === "application") {
+        return "APPLICATION_PORTAL";
+      }
+      if (segments.length <= 2 && (segments[segments.length - 1] === "application" || segments[segments.length - 1] === "apply")) {
+        return "APPLICATION_PORTAL";
+      }
       return "JOB_DETAIL";
     }
 
@@ -226,6 +234,11 @@ export function classifyJobUrl(rawUrl?: string | null): JobUrlType {
     // Generic company portals: single segment like /careers, /jobs, /join-us, /openings
     if (segments.length === 1 && /^(careers?|jobs?|join-us|work-with-us|openings?|opportunities|positions)$/i.test(segments[0])) {
       return "COMPANY_CAREER_ROOT";
+    }
+
+    // Generic application portals: e.g. /application, /apply, /apply-now, /company/application
+    if (segments.length <= 2 && /^(application|apply|apply-now)$/i.test(segments[segments.length - 1])) {
+      return "APPLICATION_PORTAL";
     }
 
     // Direct employer career detail pages (e.g. /careers/software-engineer-123, /jobs/456, /openings/backend, /positions/101)

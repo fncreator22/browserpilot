@@ -50,6 +50,10 @@ const INVALID_TITLE_PATTERNS = [
   /^error\b/i,
   /^position$/i,
   /^role$/i,
+  // TASK-063 Synthetic Firewall Patterns
+  /job_5001/i,
+  /synthetic candidate/i,
+  /test candidate/i,
 ];
 
 const INVALID_COMPANY_PATTERNS = [
@@ -61,6 +65,13 @@ const INVALID_COMPANY_PATTERNS = [
   /^employer$/i,
   /^null$/i,
   /^undefined$/i,
+  // TASK-063 Synthetic Firewall Patterns
+  /leading organization/i,
+  /leading employer/i,
+  /placeholder company/i,
+  /mock company/i,
+  /example company/i,
+  /fake company/i,
 ];
 
 /**
@@ -163,6 +174,10 @@ export function evaluateCandidateQualityGate(
   const applyUrl = candidate.applyUrl || candidate.sourceUrl || "";
   let urlType = classifyJobUrl(primaryUrl);
   let effectiveJobUrl = primaryUrl;
+
+  if (/boards\.ashby\.io/i.test(primaryUrl) || /boards\.ashby\.io/i.test(applyUrl)) {
+    rejectionReasons.push("URL points to mock/synthetic ATS domain: boards.ashby.io");
+  }
 
   // If primaryUrl was classified as generic portal, check if applyUrl is an exact job detail URL
   if (urlType !== "JOB_DETAIL") {

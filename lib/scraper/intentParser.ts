@@ -576,7 +576,7 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
 
   // 6. Experience Level & Opportunity Type
   const isInternshipMentioned = /\b(intern|interns|internship|internships|trainee|trainees|co-op|coop|student|summer intern)\b/i.test(lower);
-  const isEntryLevelMentioned = /\b(entry-level|entry level|entry|junior|jr|fresh|fresher|graduate|grad|associate|new grad)\b/i.test(lower);
+  const isEntryLevelMentioned = /\b(entry-level|entry level|entry|junior|jr|fresh|freshers?|graduates?|grads?|associate|new grad)\b/i.test(lower);
   const isSeniorMentioned = /\b(senior|sr|lead|principal|staff|director|architect|vp|mid-level|experienced)\b/i.test(lower);
 
   const matchedOppTypes: string[] = [];

@@ -171,6 +171,7 @@ export interface HarnessExecutionOptions {
   correlationId?: string;
   signal?: AbortSignal;
   timeoutMs?: number;
+  allowedDomains?: string[];
 }
 
 export interface HarnessResult {

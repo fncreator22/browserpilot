@@ -38,6 +38,10 @@ const INVALID_TITLE_PATTERNS = [
   /^error\b/i,
   /^position$/i,
   /^role$/i,
+  // TASK-063 Synthetic Firewall Patterns
+  /job_5001/i,
+  /synthetic candidate/i,
+  /test candidate/i,
 ];
 
 const INVALID_COMPANY_PATTERNS = [
@@ -49,6 +53,13 @@ const INVALID_COMPANY_PATTERNS = [
   /^employer$/i,
   /^null$/i,
   /^undefined$/i,
+  // TASK-063 Synthetic Firewall Patterns
+  /leading organization/i,
+  /leading employer/i,
+  /placeholder company/i,
+  /mock company/i,
+  /example company/i,
+  /fake company/i,
 ];
 
 /**
