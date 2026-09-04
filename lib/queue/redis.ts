@@ -44,6 +44,7 @@ export async function checkRedisHealth(): Promise<{
     ...getRedisOptions(),
     connectTimeout: 3000,
   });
+  client.on("error", () => {}); // Catch offline ECONNREFUSED in diagnostic health check
 
   try {
     await client.connect();
