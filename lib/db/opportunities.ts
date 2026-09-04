@@ -137,6 +137,50 @@ async function applySafeOpportunityUpdate(
   });
 }
 
+export const SYNTHETIC_OPPORTUNITY_PATTERNS = [
+  /leading organization/i,
+  /leading employer/i,
+  /job_5001/i,
+  /boards\.ashby\.io/i,
+  /placeholder company/i,
+  /mock company/i,
+  /example company/i,
+  /synthetic candidate/i,
+  /test candidate/i,
+  /sample employer/i,
+  /fake company/i,
+];
+
+export function detectSyntheticOpportunity(data: {
+  title?: string | null;
+  companyName?: string | null;
+  primaryApplyUrl?: string | null;
+  description?: string | null;
+  requirements?: string | string[] | null;
+}): { isSynthetic: boolean; reason?: string } {
+  const fields = [
+    { name: "title", val: data.title },
+    { name: "companyName", val: data.companyName },
+    { name: "primaryApplyUrl", val: data.primaryApplyUrl },
+    { name: "description", val: data.description },
+  ];
+
+  for (const { name, val } of fields) {
+    if (!val) continue;
+    const str = String(val).toLowerCase();
+    for (const pattern of SYNTHETIC_OPPORTUNITY_PATTERNS) {
+      if (pattern.test(str)) {
+        return {
+          isSynthetic: true,
+          reason: `Opportunity ${name} matched synthetic pattern "${pattern.source}"`,
+        };
+      }
+    }
+  }
+
+  return { isSynthetic: false };
+}
+
 /**
  * Atomic Upsert for Canonical Opportunity.
  * Employs safe merge semantics and concurrency collision protection:
@@ -149,6 +193,13 @@ export async function upsertOpportunity(
 ): Promise<Opportunity> {
   if (!data.canonicalHash || typeof data.canonicalHash !== "string" || data.canonicalHash.trim().length === 0) {
     throw new Error("Cannot upsert opportunity without valid canonicalHash");
+  }
+
+  // TASK-064: Database Persistence Firewall
+  // Hard block: Reject any opportunity containing synthetic patterns from ever being persisted.
+  const syntheticCheck = detectSyntheticOpportunity(data);
+  if (syntheticCheck.isSynthetic) {
+    throw new Error(`Cannot upsert synthetic opportunity: ${syntheticCheck.reason}`);
   }
 
   const reqString = serializeStringArray(data.requirements);
