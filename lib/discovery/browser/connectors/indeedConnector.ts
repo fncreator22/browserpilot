@@ -46,70 +46,19 @@ export class IndeedBrowserConnector extends BrowserSourceConnector {
     limits: ProviderLimits,
     context?: BrowserConnectorContext
   ): Promise<RawJobCandidate[]> {
-    const role = intent.role || intent.roles?.[0] || "";
-    const loc = intent.location || intent.locations?.[0] || "Remote";
-    const now = new Date();
-
-    const candidates: RawJobCandidate[] = [];
-    const companies = intent.companies && intent.companies.length > 0
-      ? intent.companies
-      : intent.company ? [intent.company] : [];
-
-    if (companies.length === 0) {
-      const isNonTech = /\b(mechanical|civil|chemical|nurse|doctor|medical|accounting|sales|hr|human resources)\b/i.test(role);
-      if (isNonTech || !role) return [];
-      candidates.push({
-        sourcePlatform: this.name,
-        sourceUrl: `https://www.indeed.com/viewjob?jk=ind_${role.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}`,
-        applyUrl: `https://www.indeed.com/viewjob?jk=ind_${role.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}`,
-        externalJobId: `ind_${role.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}`,
-        title: role,
-        companyName: "Leading Employer",
-        location: loc,
-        workMode: intent.workMode || "ON_SITE",
-        experienceLevel: intent.experienceLevel || "ENTRY_LEVEL",
-        opportunityType: intent.opportunityType || "FULL_TIME",
-        rawSnippet: `Verified ${role} opening in ${loc}.`,
-        description: `Active position for ${role} in ${loc}.`,
-        discoveredAt: now,
-        postedAt: now,
-        postedAgoText: "1 day ago",
-      });
-      return candidates;
-    }
-
-    const maxCandidates = limits?.maxCandidates ?? 10;
-    for (let i = 0; i < Math.min(companies.length, maxCandidates); i++) {
-      const comp = companies[i];
-      const jobId = `ind_${comp.toLowerCase()}_${Date.now()}_${i}`;
-
-      candidates.push({
-        sourcePlatform: "Indeed",
-        sourceUrl: `https://www.indeed.com/viewjob?jk=${jobId}`,
-        applyUrl: `https://www.indeed.com/apply/${jobId}`,
-        externalJobId: jobId,
-        title: `${role} - ${comp}`,
-        companyName: comp,
-        location: loc,
-        workMode: intent.workMode || "ONSITE",
-        experienceLevel: intent.experienceLevel || "ENTRY_LEVEL",
-        opportunityType: intent.opportunityType || "FULL_TIME",
-        rawSnippet: `Indeed listed opening for ${role} at ${comp}. Easy apply available.`,
-        description: `Verified Indeed job posting: ${role} at ${comp}.`,
-        discoveredAt: now,
-        postedAt: new Date(now.getTime() - 8 * 60 * 60 * 1000), // 8h ago
-        postedAgoText: "8 hours ago",
-      });
-    }
-
-    return candidates;
+    // TASK-064: Synthetic data purge.
+    // Indeed connector must NEVER fabricate synthetic candidates (e.g. "Leading Employer", mock job IDs).
+    // In the absence of an active browser page automation producing genuine DOM job postings, return an empty array.
+    return [];
   }
 
   public async crawl(
     targetUrl: string,
     context?: BrowserConnectorContext
   ): Promise<RawJobCandidate[]> {
-    return this.search({ role: "Software Engineer", location: "Remote" }, { maxCandidates: 5, timeoutMs: 5000 }, context);
+    // TASK-064: Synthetic data purge.
+    // Return empty array when no live browser page automation is active.
+    return [];
   }
 }
 

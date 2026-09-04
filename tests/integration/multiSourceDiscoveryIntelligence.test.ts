@@ -32,6 +32,7 @@ import { hackerNewsProvider } from "../../lib/scraper/providers/hackerNewsProvid
 import { githubJobsProvider } from "../../lib/scraper/providers/githubJobsProvider";
 import { swarmDiscoveryEngine } from "../../lib/scraper/swarmDiscovery";
 import { deduplicateCandidates } from "../../lib/scraper/deduplicator";
+import { type RawJobCandidate } from "../../lib/scraper/providers/baseProvider";
 import { adminControlPlaneService } from "../../lib/admin/adminService";
 
 export async function runMultiSourceDiscoveryIntelligenceTests() {
@@ -153,20 +154,46 @@ export async function runMultiSourceDiscoveryIntelligenceTests() {
     githubJobsProvider.harvestCandidates({ role: "Software Engineer Intern", location: "Remote" }, { maxCandidates: 5, timeoutMs: 5000 }),
   ]);
 
-  assert.ok(atsJobs.length > 0, "ATS harvester returned direct employer openings (6)");
-  assert.ok(hnJobs.length > 0, "Hacker News harvester returned startup postings (7)");
-  assert.ok(ghJobs.length > 0, "GitHub Curated harvester returned verified internship listings (8)");
-  console.log("  ✓ Verified direct ATS, Hacker News, and GitHub curated harvesters (6, 7, 8)");
+  // TASK-064: Connectors must never synthesize fabricated candidates when no live target is active.
+  assert.strictEqual(atsJobs.length, 0, "ATS harvester returned 0 synthetic openings (6)");
+  assert.strictEqual(hnJobs.length, 0, "Hacker News harvester returned 0 synthetic postings (7)");
+  assert.strictEqual(ghJobs.length, 0, "GitHub Curated harvester returned 0 synthetic listings (8)");
+  console.log("  ✓ Verified direct ATS, Hacker News, and GitHub curated harvesters do not synthesize fake data (6, 7, 8)");
 
   // ---------------------------------------------------------------------------
   // 7. Cross-Source Deduplication (9)
   // ---------------------------------------------------------------------------
   console.log("▶ [SECTION 7] Testing Cross-Source Canonical Deduplication (9)...");
 
-  const candidatesBatch = [...atsJobs, ...hnJobs, ...ghJobs];
-  const deduplicated = deduplicateCandidates(candidatesBatch);
+  // Isolated test fixture candidates for deduplication verification
+  const fixtureCandidates: RawJobCandidate[] = [
+    {
+      sourcePlatform: "LinkedIn",
+      sourceUrl: "https://www.linkedin.com/jobs/view/1001",
+      applyUrl: "https://www.linkedin.com/jobs/view/1001/apply",
+      externalJobId: "1001",
+      title: "Frontend Engineer",
+      companyName: "Acme Corp",
+      location: "Remote",
+      workMode: "REMOTE",
+      discoveredAt: new Date(),
+    },
+    {
+      sourcePlatform: "Greenhouse",
+      sourceUrl: "https://boards.greenhouse.io/acme/jobs/1001",
+      applyUrl: "https://boards.greenhouse.io/acme/jobs/1001#app",
+      externalJobId: "gh_1001",
+      title: "Frontend Engineer",
+      companyName: "Acme Corp",
+      location: "Remote",
+      workMode: "REMOTE",
+      discoveredAt: new Date(),
+    },
+  ];
+
+  const deduplicated = deduplicateCandidates(fixtureCandidates);
   assert.ok(deduplicated.length > 0);
-  assert.ok(deduplicated.length <= candidatesBatch.length, "Cross-source duplicates merged cleanly (9)");
+  assert.ok(deduplicated.length < fixtureCandidates.length, "Cross-source duplicates merged cleanly (9)");
   console.log("  ✓ Verified cross-source 3-tier candidate deduplication (9)");
 
   // ---------------------------------------------------------------------------
@@ -192,7 +219,7 @@ export async function runMultiSourceDiscoveryIntelligenceTests() {
   };
 
   const swarmResult = await swarmDiscoveryEngine.executeSwarm(swarmPlan);
-  assert.ok(swarmResult.candidates.length > 0, "Swarm returned candidates across parallel mediums (10)");
+  assert.ok(Array.isArray(swarmResult.candidates), "Swarm returned candidate array (10)");
   assert.ok(swarmResult.providerTelemetry.length >= 3, "Multiple providers reported telemetry (10)");
   console.log("  ✓ Verified parallel multi-medium swarm discovery (10)");
 

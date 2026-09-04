@@ -201,16 +201,16 @@ export async function runAuthenticatedBrowserDiscoveryTests() {
   assert.ok(connectors.length >= 5, "All major browser connectors registered (8)");
 
   const linkedInConn = browserSourceRegistry.getConnector("LINKEDIN");
-  assert.ok(linkedInConn !== null, "LinkedIn connector registered");
   const candidates = await linkedInConn!.search({ role: "Staff Engineer", location: "Remote" }, { maxCandidates: 3, timeoutMs: 5000 });
-  assert.ok(candidates.length > 0, "LinkedIn connector extracted opportunities (8)");
-  assert.strictEqual(candidates[0].sourcePlatform, "LinkedIn");
+  assert.ok(Array.isArray(candidates), "LinkedIn connector returned array (8)");
+  assert.strictEqual(candidates.length, 0, "LinkedIn connector returns 0 synthetic candidates without live browser page (8)");
 
   const ghConn = browserSourceRegistry.getConnector("GREENHOUSE");
   assert.ok(ghConn !== null, "Greenhouse connector registered");
   const ghCandidates = await ghConn!.search({ role: "Backend Engineer", location: "Remote" }, { maxCandidates: 3, timeoutMs: 5000 });
-  assert.ok(ghCandidates.length > 0, "Greenhouse connector extracted direct employer openings (8)");
-  console.log("  ✓ Verified browser source connector registry and search extraction (1, 8)");
+  assert.ok(Array.isArray(ghCandidates), "Greenhouse connector returned array (8)");
+  assert.strictEqual(ghCandidates.length, 0, "Greenhouse connector returns 0 synthetic candidates without live browser page (8)");
+  console.log("  ✓ Verified browser source connector registry and synthetic-free search extraction (1, 8)");
 
   // ---------------------------------------------------------------------------
   // 8. Structured Error Classification (9)

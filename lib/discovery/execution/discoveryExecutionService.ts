@@ -203,30 +203,18 @@ export class DiscoveryExecutionService {
               };
               candidates = await connector.search(intent, limits, connectorContext);
 
-              // Record success learning signal
-              await discoveryIntelligenceStore.recordDiscoverySignal({
-                sourceName: srcName,
-                companyName: targetCompany || null,
-                signalType: "DISCOVERY_SUCCESS",
-                metadata: { count: candidates.length },
-              });
+              // Record success learning signal only if genuine candidates were discovered
+              if (candidates.length > 0) {
+                await discoveryIntelligenceStore.recordDiscoverySignal({
+                  sourceName: srcName,
+                  companyName: targetCompany || null,
+                  signalType: "DISCOVERY_SUCCESS",
+                  metadata: { count: candidates.length },
+                }).catch(() => {});
+              }
             } else {
-              // Fallback mock/simulated generator for unsupported connectors in test environment
-              candidates = [
-                {
-                  externalJobId: `cand_${srcName.toLowerCase()}_${Date.now()}`,
-                  title: `${intent.role || "Software Engineer"}`,
-                  companyName: targetCompany || "TechCorp",
-                  location: intent.location || "Remote",
-                  workMode: "REMOTE",
-                  experienceLevel: "ENTRY_LEVEL",
-                  opportunityType: "FULL_TIME",
-                  sourcePlatform: srcName,
-                  sourceUrl: `https://${srcName.toLowerCase()}.com/jobs/1`,
-                  applyUrl: `https://${srcName.toLowerCase()}.com/jobs/1/apply`,
-                  discoveredAt: new Date(),
-                },
-              ];
+              // TASK-064: Zero synthetic fallback generator. Unsupported or unconfigured connectors yield 0 candidates.
+              candidates = [];
             }
 
             harvestedCandidates.push(...candidates);
