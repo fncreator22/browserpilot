@@ -155,6 +155,10 @@ export class EvidenceVerificationEngine {
     let authoritativeTotal = 0;
 
     for (const cand of candidates) {
+      if (options.signal?.aborted) {
+        break;
+      }
+
       const verRes = await this.verifyCandidate(cand, plan, options);
       results.push(verRes);
       authoritativeTotal += verRes.diagnostics.authoritativeEvidenceCount;

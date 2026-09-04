@@ -314,6 +314,7 @@ export class IntelligenceHarness {
           userId,
           allowedDomains: options.allowedDomains,
           apiKeyOverride: options.apiKey,
+          signal: options.signal,
         }
       );
     } catch (modelErr) {
@@ -322,6 +323,29 @@ export class IntelligenceHarness {
         operation: "searchPlanner",
         correlationId,
       });
+
+      if (options.signal?.aborted || failure.category === "CANCELLED") {
+        context.currentStage = "FAILED";
+        context.telemetry.status = "CANCELLED";
+        context.telemetry.terminalState = "CANCELLED";
+        context.telemetry.errorCategory = "CANCELLED";
+        return {
+          harnessId,
+          success: false,
+          rankedOpportunities: [],
+          context,
+          telemetry: context.telemetry,
+          decision: {
+            outcome: "PARTIAL",
+            rationale: "Execution cancelled during search planning.",
+            verifiedCount: 0,
+            requestedCount: explicitConstraints.requestedCount,
+            canContinue: false,
+            userExplanation: "Search execution was cancelled.",
+          },
+        };
+      }
+
       context.telemetry.modelFailures = (context.telemetry.modelFailures || 0) + 1;
       context.telemetry.errorCategory = failure.category;
       searchPlanResult = {
@@ -388,6 +412,8 @@ export class IntelligenceHarness {
         allowedDomains: options.allowedDomains,
         maxStepsBudget: 15,
         apiKey: options.apiKey,
+        userId,
+        signal: options.signal,
       });
     } catch {
       actionPlan = {
@@ -418,6 +444,29 @@ export class IntelligenceHarness {
           requestedCount: explicitConstraints.requestedCount,
           canContinue: false,
           userExplanation: "Plan generated and validated successfully.",
+        },
+      };
+    }
+
+    // Check cancellation signal before execution begins
+    if (options.signal?.aborted) {
+      context.currentStage = "FAILED";
+      context.telemetry.status = "CANCELLED";
+      context.telemetry.terminalState = "CANCELLED";
+      context.telemetry.errorCategory = "CANCELLED";
+      return {
+        harnessId,
+        success: false,
+        rankedOpportunities: [],
+        context,
+        telemetry: context.telemetry,
+        decision: {
+          outcome: "PARTIAL",
+          rationale: "Execution cancelled before execution stage.",
+          verifiedCount: 0,
+          requestedCount: explicitConstraints.requestedCount,
+          canContinue: false,
+          userExplanation: "Search execution was cancelled.",
         },
       };
     }
@@ -500,6 +549,7 @@ export class IntelligenceHarness {
         maxResults: explicitConstraints.requestedCount,
         customProviders: options.customProviders,
         verifyEvidence: options.verifyEvidence,
+        signal: options.signal,
       });
 
       harvestedCandidates = pipelineResult.discovery?.candidates || [];
@@ -545,6 +595,7 @@ export class IntelligenceHarness {
       {
         userId,
         referenceTime: startTimeDate,
+        signal: options.signal,
       }
     );
 
@@ -635,8 +686,9 @@ export class IntelligenceHarness {
     const totalDurationMs = Date.now() - startTime;
     context.currentStage = "COMPLETE";
     context.telemetry.totalDurationMs = totalDurationMs;
-    context.telemetry.status = verifiedCount > 0 ? "SUCCESS" : "PARTIAL";
-    context.telemetry.terminalState = terminalEval.terminalState;
+    const isCancelled = options.signal?.aborted || context.telemetry.status === "CANCELLED";
+    context.telemetry.status = isCancelled ? "CANCELLED" : verifiedCount > 0 ? "SUCCESS" : "PARTIAL";
+    context.telemetry.terminalState = isCancelled ? "CANCELLED" : terminalEval.terminalState;
 
     // Deep secret-safe sanitization
     const sanitizedTelemetry = sanitizeSearchTelemetry(context.telemetry);

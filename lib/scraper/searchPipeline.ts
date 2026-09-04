@@ -125,6 +125,7 @@ export async function executeSearchPipeline(
     concurrencyLimit: options.concurrencyLimit,
     perProviderTimeoutMs: options.perProviderTimeoutMs,
     totalTimeoutMs: options.totalTimeoutMs,
+    signal: options.signal,
   });
 
   // 3. Upstream Canonical Extraction Validation (TASK-012)

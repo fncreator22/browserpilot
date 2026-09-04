@@ -132,7 +132,10 @@ export class CorrectionLoopController {
       }
 
       // 2. Correction Planning
-      const { proposal, plan } = await planCorrection(state, diagnosis);
+      const { proposal, plan } = await planCorrection(state, diagnosis, {
+        userId: state.userId,
+        signal: options.signal,
+      });
 
       // 3. Infinite Loop & Plan Fingerprint Check
       const fingerprint = this.computePlanFingerprint(diagnosis.reason, plan.actions);

@@ -13,6 +13,7 @@ import {
 } from "./evidenceTypes";
 import { type DiscoveryPlan } from "@/lib/scraper/discoveryPlanner";
 import { createGeminiClient, getEffectiveGeminiApiKey } from "@/lib/ai/modelSelector";
+import { recordAIUsageEvent } from "@/lib/ai/governance/providerGovernance";
 
 function escapeXml(str: string): string {
   return str
@@ -100,6 +101,8 @@ function evaluateDeterministicSemanticFallback(
 export interface SemanticJudgeOptions {
   timeoutMs?: number;
   forceDeterministic?: boolean;
+  userId?: string | null;
+  signal?: AbortSignal;
 }
 
 /**
@@ -191,6 +194,10 @@ Evaluate semantic role equivalence, location wording, and scope alignment.`;
   // ---------------------------------------------------------------------------
   // 3. MODEL INVOCATION WITH BOUNDED TIMEOUT
   // ---------------------------------------------------------------------------
+  if (options.signal?.aborted) {
+    return evaluateDeterministicSemanticFallback(evidence, plan, deterministicResult, Date.now() - t0);
+  }
+
   try {
     const ai = createGeminiClient(apiKey);
     const timeoutMs = options.timeoutMs || 4000;
@@ -215,6 +222,22 @@ Evaluate semantic role equivalence, location wording, and scope alignment.`;
 
     const parsed = JSON.parse(responseText);
     const validated = SemanticVerificationResultSchema.parse(parsed);
+
+    // Authoritative AI Usage Event Tracking (TASK-065)
+    if (options.userId) {
+      const usage = response.usageMetadata;
+      await recordAIUsageEvent({
+        userId: options.userId,
+        provider: "Google Gemini",
+        model: "gemini-2.5-flash",
+        operation: "DISCOVERY_RANKING",
+        inputTokens: usage?.promptTokenCount || 0,
+        outputTokens: usage?.candidatesTokenCount || 0,
+        totalTokens: usage?.totalTokenCount || 0,
+        durationMs: Date.now() - t0,
+        status: "SUCCESS",
+      }).catch((uErr) => console.warn("[SemanticJudge] Failed to record AI usage:", uErr));
+    }
 
     return {
       decision: validated.decision,

@@ -42,6 +42,7 @@ export interface DiscoveryExecutionOptions {
   perSourceTimeoutMs?: number;
   totalTimeoutMs?: number;
   customFetch?: typeof fetch;
+  signal?: AbortSignal;
 }
 
 export interface DiscoveryExecutionRequest {

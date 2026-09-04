@@ -69,6 +69,7 @@ export interface SwarmOptions {
   perProviderTimeoutMs?: number;
   totalTimeoutMs?: number;
   customFetch?: typeof fetch;
+  signal?: AbortSignal;
 }
 
 export class SwarmDiscoveryEngine {
@@ -184,13 +185,24 @@ export class SwarmDiscoveryEngine {
     const startTimeDate = new Date(startTime);
     let totalRejectedFreshness = 0;
 
-    // Global timeout controller
+    // Global timeout controller & cancellation forwarder (TASK-065)
     const globalAbort = new AbortController();
     const globalTimer = setTimeout(() => globalAbort.abort(), totalTimeoutMs);
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        globalAbort.abort();
+      } else {
+        options.signal.addEventListener("abort", () => globalAbort.abort(), { once: true });
+      }
+    }
 
     try {
       // Execute in bounded chunks according to concurrencyLimit
       for (let i = 0; i < activeProviders.length; i += concurrencyLimit) {
+        if (options.signal?.aborted || globalAbort.signal.aborted) {
+          break;
+        }
         const chunk = activeProviders.slice(i, i + concurrencyLimit);
 
         const chunkPromises = chunk.map(async (provider) => {
@@ -246,6 +258,19 @@ export class SwarmDiscoveryEngine {
             if (lastErr) {
               const isTimeout = (lastErr as Error).name === "AbortError" || pAbort.signal.aborted;
               const errClass = classifySourceError(lastErr);
+
+              if (options.signal?.aborted) {
+                providerTelemetryList.push({
+                  provider: provider.name,
+                  status: "SKIPPED",
+                  candidatesFound: 0,
+                  durationMs: Date.now() - pStart,
+                  error: "Provider execution cancelled by user request.",
+                  userFacingMessage: "Search cancelled by user.",
+                });
+                return;
+              }
+
               sourceReliabilityManager.recordOutcome(provider.name, "FAILURE", errClass.category, startTimeDate);
 
               providerTelemetryList.push({
@@ -261,8 +286,10 @@ export class SwarmDiscoveryEngine {
               return;
             }
 
-            // Record successful harvest in reliability manager
-            sourceReliabilityManager.recordOutcome(provider.name, "SUCCESS", undefined, startTimeDate);
+            // Record successful harvest in reliability manager (only if not cancelled)
+            if (!options.signal?.aborted) {
+              sourceReliabilityManager.recordOutcome(provider.name, "SUCCESS", undefined, startTimeDate);
+            }
 
             // Filter candidates by target company if specified in discovery plan
             let filteredCandidates = candidates;

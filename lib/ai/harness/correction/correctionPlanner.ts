@@ -18,6 +18,7 @@ import {
 } from "@/lib/ai/searchPlanner/searchActionPlan";
 import { validateSearchActionPlan } from "@/lib/ai/searchPlanner/searchPlanValidator";
 import { createGeminiClient, getEffectiveGeminiApiKey } from "@/lib/ai/modelSelector";
+import { recordAIUsageEvent } from "@/lib/ai/governance/providerGovernance";
 import { type SearchIntent } from "@/lib/scraper/providers/baseProvider";
 
 /**
@@ -253,13 +254,26 @@ export function buildDeterministicCorrectionPlan(
   return { proposal, plan };
 }
 
+export interface CorrectionPlannerOptions {
+  userId?: string | null;
+  signal?: AbortSignal;
+}
+
 /**
  * Plans the next correction round using Gemini LLM reasoning with deterministic validation.
  */
 export async function planCorrection(
   state: CorrectionState,
-  diagnosis: DiagnosisOutput
+  diagnosis: DiagnosisOutput,
+  options?: CorrectionPlannerOptions
 ): Promise<{ proposal: CorrectionProposal; plan: SearchActionPlan }> {
+  // Check cancellation signal before correction planning
+  if (options?.signal?.aborted) {
+    const fallback = buildDeterministicCorrectionPlan(state, diagnosis);
+    const val = validateSearchActionPlan(fallback.plan, state.canonicalIntent, { maxActionsBudget: 8 });
+    return { proposal: fallback.proposal, plan: val.normalizedPlan };
+  }
+
   // Check if API key is available
   const apiKey = getEffectiveGeminiApiKey();
   const isTestHarness = process.env.IS_TEST_HARNESS === "true" || process.env.NODE_ENV === "test";
@@ -271,6 +285,7 @@ export async function planCorrection(
   }
 
   // LLM Planning Path with Gemini
+  const t0 = Date.now();
   try {
     const ai = createGeminiClient(apiKey);
     const systemPrompt = `You are the BrowserPilot Autonomous Correction Planner.
@@ -313,6 +328,22 @@ Propose next correction strategy.`;
     const resp = await Promise.race([callPromise, timeoutPromise]);
     const parsed = JSON.parse(resp.text || "{}");
     const validatedProposal = CorrectionProposalSchema.parse(parsed);
+
+    // Authoritative AI Usage Event Tracking (TASK-065)
+    if (options?.userId) {
+      const usage = resp.usageMetadata;
+      await recordAIUsageEvent({
+        userId: options.userId,
+        provider: "Google Gemini",
+        model: "gemini-2.5-flash",
+        operation: "ACTION_PLANNING",
+        inputTokens: usage?.promptTokenCount || 0,
+        outputTokens: usage?.candidatesTokenCount || 0,
+        totalTokens: usage?.totalTokenCount || 0,
+        durationMs: Date.now() - t0,
+        status: "SUCCESS",
+      }).catch((uErr) => console.warn("[CorrectionPlanner] Failed to record AI usage:", uErr));
+    }
 
     // Build plan based on validated proposal, strictly preserving constraints
     const deterministicBase = buildDeterministicCorrectionPlan(state, diagnosis);

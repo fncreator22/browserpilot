@@ -201,6 +201,7 @@ export class SearchActionExecutor {
             persistToDb: false,
             maxResults: (action.input.requestedCount as number) || 10,
             customProviders: execCtx.customProviders,
+            signal: execCtx.signal,
           });
 
           const candidates = pipelineRes.discovery?.candidates || [];

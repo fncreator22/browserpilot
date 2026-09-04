@@ -156,6 +156,9 @@ export class DiscoveryExecutionService {
     });
 
     for (let i = 0; i < activeTargets.length; i += concurrencyLimit) {
+      if (request.options?.signal?.aborted) {
+        break;
+      }
       const chunk = activeTargets.slice(i, i + concurrencyLimit);
 
       await Promise.all(
@@ -219,7 +222,9 @@ export class DiscoveryExecutionService {
 
             harvestedCandidates.push(...candidates);
 
-            sourceReliabilityManager.recordOutcome(srcName, "SUCCESS", undefined, startTimeDate);
+            if (!request.options?.signal?.aborted) {
+              sourceReliabilityManager.recordOutcome(srcName, "SUCCESS", undefined, startTimeDate);
+            }
 
             sourceTelemetry.push({
               sourceName: srcName,
@@ -229,6 +234,18 @@ export class DiscoveryExecutionService {
               isAuthenticated: target.isAuthenticated || false,
             });
           } catch (err: unknown) {
+            if (request.options?.signal?.aborted) {
+              sourceTelemetry.push({
+                sourceName: srcName,
+                status: "SKIPPED_FRESH",
+                candidatesHarvested: 0,
+                durationMs: Date.now() - sStart,
+                userFacingMessage: "Crawl operation cancelled by user.",
+                isAuthenticated: target.isAuthenticated || false,
+              });
+              return;
+            }
+
             const errClass = classifySourceError(err);
             const msg = (err as Error).message || "Crawl operation failed";
             sourceReliabilityManager.recordOutcome(srcName, "FAILURE", errClass.category, startTimeDate);
