@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Sparkles, 
@@ -20,7 +20,8 @@ import {
   Target,
   ChevronDown,
   ChevronUp,
-  X
+  X,
+  Square
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -157,14 +158,43 @@ export function TaskInput({
   const effectiveOppType = customOppType || parsedIntent?.opportunityType || "ANY";
   const effectiveMinScore = customMinScore !== null ? customMinScore : (parsedIntent?.minimumMatchScore || 70);
 
+  // Execution concurrency & cancellation controls (TASK-067)
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const currentExecutionIdRef = useRef<string | null>(null);
+
+  const handleCancelSearch = async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const execId = currentExecutionIdRef.current;
+    if (execId) {
+      try {
+        await fetch("/api/search/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ executionId: execId }),
+        });
+      } catch {}
+    }
+    setIsSubmitting(false);
+    if (onSearchingChange) onSearchingChange(false);
+    toast.info("Search Cancelled", { description: "Search execution was cancelled by user request." });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = prompt.trim();
     if (!text) return;
 
+    // Idempotency: Prevent concurrent submit loops from rapid clicks
+    if (isSubmitting) return;
+
     setIsSubmitting(true);
     if (onSearchingChange) onSearchingChange(true);
     setSubmitError(null);
+
+    const abortCtrl = new AbortController();
+    abortControllerRef.current = abortCtrl;
 
     // -------------------------------------------------------------------------
     // 1. ROUTING: Deterministic Opportunity Discovery vs General Browser Agent
@@ -198,9 +228,20 @@ export function TaskInput({
             query: text,
             filters: Object.keys(filters).length > 0 ? filters : undefined
           }),
+          signal: abortCtrl.signal,
         });
 
+        const execIdHeader = res.headers.get("x-execution-id");
+        if (execIdHeader) {
+          currentExecutionIdRef.current = execIdHeader;
+        }
+
         const data = await res.json();
+
+        // Late response guard: ignore if cancelled
+        if (abortCtrl.signal.aborted) {
+          return;
+        }
 
         if (!res.ok) {
           if (res.status === 401) {
@@ -217,6 +258,10 @@ export function TaskInput({
             }
             throw new Error(data.message || "Authentication required to search opportunities. Please sign in.");
           }
+          if (res.status === 499) {
+            // User cancelled
+            return;
+          }
           throw new Error(data.message || "Failed to execute opportunity discovery search.");
         }
 
@@ -228,6 +273,10 @@ export function TaskInput({
           description: `Found ${data.metadata?.totalUniqueOpportunities || data.results?.length || 0} unique opportunities across ${data.metadata?.providersAttempted || 3} sources.`,
         });
       } catch (err: unknown) {
+        if (abortCtrl.signal.aborted) {
+          // Ignored clean user cancellation
+          return;
+        }
         const msg = (err as Error).message || "An unexpected error occurred during opportunity search.";
         setSubmitError(msg);
         toast.error("Opportunity Search Error", { description: msg });
@@ -609,7 +658,18 @@ export function TaskInput({
         )}
 
         {/* Submit Dispatch Button */}
-        <div className="pt-2 flex items-center justify-end">
+        <div className="pt-2 flex items-center justify-end gap-2">
+          {isSubmitting && isJobDiscovery && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleCancelSearch}
+              className="h-10 px-4 font-mono text-xs font-semibold gap-1.5 shadow-sm transition-all cursor-pointer"
+            >
+              <Square className="h-3.5 w-3.5 fill-current" />
+              Stop Search
+            </Button>
+          )}
           <Button
             type="submit"
             disabled={isSubmitting || !prompt.trim()}

@@ -50,7 +50,7 @@ export class IntelligenceHarness {
     options: HarnessExecutionOptions = {}
   ): Promise<HarnessResult> {
     const startTime = Date.now();
-    const harnessId = `harness_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const harnessId = options.executionId || `harness_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const correlationId = options.correlationId || `corr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     const userId = options.userId || null;
     const stageTimings: Record<string, number> = {};

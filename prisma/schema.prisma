@@ -35,24 +35,36 @@ model User {
 }
 
 model Search {
-  id             String         @id @default(cuid())
-  userId         String?
-  rawQuery       String
-  intentType     String         @default("JOB_SEARCH_GENERAL")
-  parsedRole     String?
-  parsedSkills   String         @default("[]")
-  parsedLocation String?
-  parsedWorkMode String         @default("ANY")
-  targetGradYear Int?
-  status         String         @default("COMPLETED")
-  totalFound     Int            @default(0)
-  createdAt      DateTime       @default(now())
+  id                    String         @id @default(cuid())
+  userId                String?
+  rawQuery              String
+  canonicalIntentHash   String?
+  canonicalIntent       String?
+  intentType            String         @default("JOB_SEARCH_GENERAL")
+  parsedRole            String?
+  parsedSkills          String         @default("[]")
+  parsedLocation        String?
+  parsedWorkMode        String         @default("ANY")
+  targetGradYear        Int?
+  status                String         @default("COMPLETED")
+  totalFound            Int            @default(0)
+  createdAt             DateTime       @default(now())
+  startedAt             DateTime?
+  updatedAt             DateTime       @default(now())
+  completedAt           DateTime?
+  cancellationRequested Boolean        @default(false)
+  stoppingReason        String?
+  failureReason         String?
+  isRecoverable         Boolean        @default(false)
 
   user    User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
   results SearchResult[]
 
   @@index([userId])
   @@index([createdAt])
+  @@index([userId, status])
+  @@index([userId, canonicalIntentHash])
+  @@index([updatedAt])
   @@map("searches")
 }
 

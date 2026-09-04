@@ -161,6 +161,7 @@ export interface HarnessContext {
 }
 
 export interface HarnessExecutionOptions {
+  executionId?: string;
   userId?: string | null;
   explicitFilters?: Partial<SearchIntent>;
   maxResultsBudget?: number;
