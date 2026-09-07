@@ -220,7 +220,8 @@ export function buildDiscoveryPlan(
   const isNonTech = rolesList.some((r) =>
     /\b(mechanical|civil|chemical|process|nurse|doctor|healthcare|accounting|sales|hr|human resources)\b/i.test(r)
   );
-  const defaultSources = isNonTech ? ["LinkedIn", "Indeed"] : ["LinkedIn", "Y Combinator", "Indeed"];
+  // Indeed is deactivated from default active sources (Cloudflare 403 blocks direct server fetches)
+  const defaultSources = isNonTech ? ["LinkedIn"] : ["LinkedIn", "Y Combinator", "ATS Direct"];
   let sources = defaultSources;
   if (filters.sources && filters.sources.length > 0) {
     sources = filters.sources;

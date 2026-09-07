@@ -169,10 +169,12 @@ export interface HarnessExecutionOptions {
   dryRunPlanOnly?: boolean;
   customProviders?: any[];
   apiKey?: string;
+  puterToken?: string;
   correlationId?: string;
   signal?: AbortSignal;
   timeoutMs?: number;
   allowedDomains?: string[];
+  onStageTransition?: (stage: string, payload?: Record<string, any>) => void;
 }
 
 export interface HarnessResult {

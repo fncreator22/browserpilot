@@ -87,13 +87,27 @@ export async function GET(
       })
     );
 
+    function parseStoredSkills(raw: unknown): string[] {
+      if (Array.isArray(raw)) return raw.filter((s): s is string => typeof s === "string");
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed.filter((s): s is string => typeof s === "string");
+          if (typeof parsed === "string" && parsed.trim().length > 0) return [parsed.trim()];
+        } catch {
+          if (raw.trim().length > 0) return [raw.trim()];
+        }
+      }
+      return [];
+    }
+
     return NextResponse.json({
       search: {
         id: search.id,
         rawQuery: search.rawQuery,
         intentType: search.intentType,
         parsedRole: search.parsedRole,
-        parsedSkills: search.parsedSkills,
+        parsedSkills: parseStoredSkills(search.parsedSkills),
         parsedLocation: search.parsedLocation,
         parsedWorkMode: search.parsedWorkMode,
         targetGradYear: search.targetGradYear,

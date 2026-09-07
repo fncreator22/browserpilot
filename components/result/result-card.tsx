@@ -134,13 +134,13 @@ export function ResultCard({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-border/60">
         <div>
           <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
-              <CheckCircle2 className="h-4 w-4" />
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
             </span>
-            <h3 className="text-base font-bold tracking-tight text-foreground">
-              {title} (Level 1 Disclosure)
+            <h3 className="font-serif text-base sm:text-lg font-bold tracking-tight text-foreground">
+              {title}
             </h3>
-            <Badge variant="outline" className="text-[10px] font-mono text-emerald-500 bg-emerald-500/10 border-emerald-500/20">
+            <Badge variant="outline" className="text-[10px] font-mono text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300">
               {Math.round(confidence * 100)}% Confident
             </Badge>
           </div>
@@ -156,17 +156,16 @@ export function ResultCard({
             variant="outline"
             size="sm"
             onClick={handleCopyJson}
-            className="font-mono text-xs gap-1.5 h-8"
+            className="font-mono text-xs gap-1.5 h-9 min-h-[44px] sm:min-h-[36px] border-border/80 text-muted-foreground hover:text-foreground cursor-pointer focus-visible:ring-2 focus-visible:ring-[#1F3D2E]"
           >
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "Copied" : "Copy Payload"}
           </Button>
           {(hasDossier || isArrayData) && (
             <Button
-              variant="default"
               size="sm"
               onClick={handleExportCsv}
-              className="font-mono text-xs gap-1.5 h-8 shadow-sm"
+              className="font-mono text-xs gap-1.5 h-9 min-h-[44px] sm:min-h-[36px] px-3.5 bg-[#1F3D2E] hover:bg-[#162D22] text-white shadow-xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#1F3D2E]"
             >
               <Download className="h-3.5 w-3.5" />
               Export CSV

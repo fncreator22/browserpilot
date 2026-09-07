@@ -27,6 +27,7 @@
  * W. ID enumeration protection
  * X. Unauthorized mutation rejection
  */
+process.env.IS_TEST_HARNESS = "true";
 
 import assert from "node:assert";
 import { prisma, ensureDatabaseSchema } from "../../lib/db/prisma";

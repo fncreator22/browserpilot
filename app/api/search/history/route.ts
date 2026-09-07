@@ -27,13 +27,27 @@ export async function GET(request: NextRequest) {
 
     const searches = await getUserSearches(userId, limit);
 
+    function parseStoredSkills(raw: unknown): string[] {
+      if (Array.isArray(raw)) return raw.filter((s): s is string => typeof s === "string");
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed.filter((s): s is string => typeof s === "string");
+          if (typeof parsed === "string" && parsed.trim().length > 0) return [parsed.trim()];
+        } catch {
+          if (raw.trim().length > 0) return [raw.trim()];
+        }
+      }
+      return [];
+    }
+
     return NextResponse.json({
       history: searches.map((s) => ({
         id: s.id,
         rawQuery: s.rawQuery,
         intentType: s.intentType,
         parsedRole: s.parsedRole,
-        parsedSkills: s.parsedSkills,
+        parsedSkills: parseStoredSkills(s.parsedSkills),
         parsedLocation: s.parsedLocation,
         parsedWorkMode: s.parsedWorkMode,
         targetGradYear: s.targetGradYear,

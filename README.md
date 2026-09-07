@@ -139,6 +139,33 @@ npx prisma generate
 npm run dev
 ```
 
+---
+
+## 🗄️ Dual-Environment Database Switching (Supabase vs AWS Aurora)
+
+BrowserPilot runs **exclusively on PostgreSQL** via Prisma with `@prisma/adapter-pg`. The codebase contains zero SQLite or LibSQL fallbacks.
+
+| Environment | Provider | Config File | Primary Purpose |
+| :--- | :--- | :--- | :--- |
+| **Development** | **Supabase PostgreSQL** | `.env.development` | Daily interactive testing, local dev, zero compute cost |
+| **Load Testing** | **AWS Aurora Serverless v2** | `.env.production.aws` | Large-scale 10,000+ user simulations (`ap-south-2`) |
+
+### Strict Isolation & Safety Guarantees
+1. **Zero Silent Fallbacks:** The app reads exactly one `DATABASE_URL`. If the database is unreachable or misconfigured, it halts immediately with a clear error.
+2. **Never Dual-Writes:** Only one database target is active at any time.
+3. **Clear Startup Banner:** The app logs the active target at boot so you always know which database is receiving queries:
+   ```text
+   [Database] Active Engine: POSTGRESQL | Provider: Supabase | Host: aws-0-ap-south-1.pooler.supabase.com | DB: postgres
+   ```
+4. **AWS Aurora Cost Protection:** Keep the Aurora cluster stopped when not running large load tests:
+   ```powershell
+   # Stop cluster (preserves all data, ceases ACU compute charges)
+   aws rds stop-db-cluster --db-cluster-identifier browserpilot-prod-aurora --region ap-south-2
+
+   # Start cluster (before activating .env.production.aws)
+   aws rds start-db-cluster --db-cluster-identifier browserpilot-prod-aurora --region ap-south-2
+   ```
+
 ### 4. Start Background Worker (Optional - In-process fallback enabled)
 ```bash
 npm run worker:dev # or npx tsx worker/index.ts

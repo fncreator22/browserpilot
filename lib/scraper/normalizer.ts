@@ -249,6 +249,17 @@ export function classifyJobUrl(rawUrl?: string | null): JobUrlType {
       return "COMPANY_CAREER_ROOT";
     }
 
+    // If URL has an explicit specific job ID parameter (e.g. ?job=123, ?jobId=456, ?gh_jid=789)
+    if (
+      parsed.searchParams.has("job") ||
+      parsed.searchParams.has("jobId") ||
+      parsed.searchParams.has("jobid") ||
+      parsed.searchParams.has("job_id") ||
+      parsed.searchParams.has("gh_jid")
+    ) {
+      return "JOB_DETAIL";
+    }
+
     // Generic application portals: e.g. /application, /apply, /apply-now, /company/application, /company/job/apply
     if (
       segments.includes("application") ||

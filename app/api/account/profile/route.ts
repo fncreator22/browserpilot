@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/authOptions";
 import { getUserById, getUserByEmail, updateUserProfile } from "@/lib/db/users";
 import { getUserProfile, upsertUserProfile, USER_CATEGORIES, USAGE_CONTEXTS, ORGANIZATION_SIZES, EXPERIENCE_LEVELS } from "@/lib/db/onboarding";
+import { maskCredential } from "@/lib/security/credentialEncryption";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -62,10 +63,7 @@ export async function GET(request: NextRequest) {
     }
 
     const hasKey = !!user.geminiApiKey;
-    const rawKey = user.geminiApiKey || "";
-    const maskedKey = hasKey && rawKey.length > 8
-      ? `${rawKey.slice(0, 6)}••••••••${rawKey.slice(-4)}`
-      : hasKey ? "••••••••" : null;
+    const maskedKey = maskCredential(user.geminiApiKey);
 
     const personalization = await getUserProfile(user.id);
 
@@ -203,10 +201,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const hasKey = !!updatedUser.geminiApiKey;
-    const rawKey = updatedUser.geminiApiKey || "";
-    const maskedKey = hasKey && rawKey.length > 8
-      ? `${rawKey.slice(0, 6)}••••••••${rawKey.slice(-4)}`
-      : hasKey ? "••••••••" : null;
+    const maskedKey = maskCredential(updatedUser.geminiApiKey);
 
     return NextResponse.json({
       success: true,

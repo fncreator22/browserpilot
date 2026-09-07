@@ -7,6 +7,8 @@
  * Strict Tenant Isolation: User A can NEVER query User B's memories.
  */
 
+import type Redis from "ioredis";
+import { getSharedRedisClient } from "@/lib/redis/redisClient";
 import { prisma } from "@/lib/db/prisma";
 import {
   type UserMemoryItem,
@@ -20,6 +22,28 @@ import { evaluateMemoryAdmission } from "./memoryAdmission";
 export class UserMemoryVault {
   // In-memory tenant store fallback for test harnesses / isolation
   private memoryStore = new Map<string, Map<string, UserMemoryItem>>();
+  private redisClient: Redis | null = null;
+
+  constructor(options?: { redisClient?: Redis | null }) {
+    if (options && options.redisClient !== undefined) {
+      this.redisClient = options.redisClient;
+    }
+  }
+
+  public setRedisClient(redisClient: Redis | null): void {
+    this.redisClient = redisClient;
+  }
+
+  private getRedis(): Redis | null {
+    if (this.redisClient !== undefined && this.redisClient !== null) {
+      return this.redisClient;
+    }
+    try {
+      return getSharedRedisClient();
+    } catch {
+      return null;
+    }
+  }
 
   private getStoreForUser(userId: string): Map<string, UserMemoryItem> {
     if (!this.memoryStore.has(userId)) {
@@ -27,6 +51,7 @@ export class UserMemoryVault {
     }
     return this.memoryStore.get(userId)!;
   }
+
 
   /**
    * Stores a candidate memory item after passing admission checks.
@@ -68,6 +93,18 @@ export class UserMemoryVault {
     };
 
     userStore.set(itemKey, memoryItem);
+
+    // Persist to distributed Redis cache
+    try {
+      const redis = this.getRedis();
+      if (redis) {
+        const redisKey = `user:memories:${userId}`;
+        await redis.hset(redisKey, itemKey, JSON.stringify(memoryItem));
+        await redis.expire(redisKey, 604800); // 7-day TTL cache
+      }
+    } catch {
+      // Non-fatal: in-memory store serves as local resilient layer
+    }
 
     // Persist to database if Prisma is available
     try {
@@ -127,43 +164,86 @@ export class UserMemoryVault {
       };
     }
 
+    const cleanUserId = userId.trim();
     const now = new Date();
-    const userStore = this.getStoreForUser(userId.trim());
-    let activeItems = Array.from(userStore.values());
+    const userStore = this.getStoreForUser(cleanUserId);
+    let activeItems: UserMemoryItem[] = [];
+    let redisHit = false;
 
-    // Fallback sync from DB if in-memory store is empty
-    if (activeItems.length === 0) {
+    // 1. Check distributed Redis cache first
+    try {
+      const redis = this.getRedis();
+      if (redis) {
+        const exists = await redis.exists(`user:memories:${cleanUserId}`);
+        if (exists) {
+          redisHit = true;
+          userStore.clear(); // Synchronize local L1 store with distributed cluster state
+          const rawHash = await redis.hgetall(`user:memories:${cleanUserId}`);
+          activeItems = Object.values(rawHash).map((raw) => {
+            const parsed = JSON.parse(raw);
+            const item: UserMemoryItem = {
+              ...parsed,
+              createdAt: new Date(parsed.createdAt),
+              updatedAt: new Date(parsed.updatedAt),
+              expiresAt: parsed.expiresAt ? new Date(parsed.expiresAt) : null,
+            };
+            userStore.set(`${item.category}::${item.key}`, item);
+            return item;
+          });
+        }
+      }
+    } catch {
+      // Non-fatal fallback
+    }
+
+    // 2. If Redis had no entries, fallback to DB hydration or local store
+    if (!redisHit) {
       try {
         if ((prisma as any)?.userMemoryItem) {
           const dbItems = await (prisma as any).userMemoryItem.findMany({
             where: {
-              userId: userId.trim(),
+              userId: cleanUserId,
               lifecycleStatus: "ACTIVE",
             },
           });
-          for (const item of dbItems) {
-            const mem: UserMemoryItem = {
-              id: item.id,
-              userId: item.userId,
-              category: item.category as MemoryCategory,
-              key: item.key,
-              value: item.value,
-              confidence: item.confidence,
-              importance: item.importance,
-              lifecycleStatus: item.lifecycleStatus,
-              expiresAt: item.expiresAt,
-              sourceContext: item.sourceContext,
-              createdAt: item.createdAt,
-              updatedAt: item.updatedAt,
-            };
-            userStore.set(`${mem.category}::${mem.key}`, mem);
+          if (dbItems && dbItems.length > 0) {
+            userStore.clear();
+            for (const item of dbItems) {
+              const mem: UserMemoryItem = {
+                id: item.id,
+                userId: item.userId,
+                category: item.category as MemoryCategory,
+                key: item.key,
+                value: item.value,
+                confidence: item.confidence,
+                importance: item.importance,
+                lifecycleStatus: item.lifecycleStatus,
+                expiresAt: item.expiresAt,
+                sourceContext: item.sourceContext,
+                createdAt: item.createdAt,
+                updatedAt: item.updatedAt,
+              };
+              userStore.set(`${mem.category}::${mem.key}`, mem);
+              // Hydrate Redis cache
+              const redis = this.getRedis();
+              if (redis) {
+                redis.hset(`user:memories:${cleanUserId}`, `${mem.category}::${mem.key}`, JSON.stringify(mem)).catch(() => {});
+                redis.expire(`user:memories:${cleanUserId}`, 604800).catch(() => {});
+              }
+            }
+            activeItems = Array.from(userStore.values());
           }
-          activeItems = Array.from(userStore.values());
         }
       } catch {
         // Non-fatal
       }
+
+      if (activeItems.length === 0) {
+        activeItems = Array.from(userStore.values());
+      }
     }
+
+
 
     // Filter by lifecycle and expiration
     const validItems = activeItems.filter((item) => {
@@ -197,13 +277,22 @@ export class UserMemoryVault {
    * Explicitly supersedes a user memory when newer preferences replace old ones.
    */
   public async supersedeMemory(userId: string, category: MemoryCategory, key: string): Promise<boolean> {
-    const userStore = this.getStoreForUser(userId.trim());
+    const cleanUserId = userId.trim();
+    const userStore = this.getStoreForUser(cleanUserId);
     const itemKey = `${category}::${key.toLowerCase()}`;
     const existing = userStore.get(itemKey);
 
     if (existing) {
       existing.lifecycleStatus = "SUPERSEDED";
       existing.updatedAt = new Date();
+
+      try {
+        const redis = this.getRedis();
+        if (redis) {
+          redis.hset(`user:memories:${cleanUserId}`, itemKey, JSON.stringify(existing)).catch(() => {});
+        }
+      } catch {}
+
       return true;
     }
     return false;
@@ -211,13 +300,14 @@ export class UserMemoryVault {
 
   /**
    * Permanently deactivates/deletes a memory for an authenticated user.
-   * Ensures retrieval no longer includes it.
+   * Ensures retrieval no longer includes it across any server instance.
    */
   public async deleteMemory(userId: string, memoryIdOrKey: string): Promise<boolean> {
     const cleanUserId = userId.trim();
     const userStore = this.getStoreForUser(cleanUserId);
     let found = false;
 
+    // 1. Remove from local store
     for (const [key, mem] of userStore.entries()) {
       if (mem.id === memoryIdOrKey || mem.key === memoryIdOrKey || key === memoryIdOrKey) {
         mem.lifecycleStatus = "ARCHIVED";
@@ -228,6 +318,26 @@ export class UserMemoryVault {
       }
     }
 
+    // 2. Remove from distributed Redis cache
+    try {
+      const redis = this.getRedis();
+      if (redis) {
+        const all = await redis.hgetall(`user:memories:${cleanUserId}`);
+        for (const [hashField, rawVal] of Object.entries(all)) {
+          try {
+            const parsed = JSON.parse(rawVal);
+            if (parsed.id === memoryIdOrKey || parsed.key === memoryIdOrKey || hashField === memoryIdOrKey) {
+              await redis.hdel(`user:memories:${cleanUserId}`, hashField);
+              found = true;
+            }
+          } catch {}
+        }
+      }
+    } catch {
+      // Non-fatal
+    }
+
+    // 3. Update database if Prisma is available
     try {
       if ((prisma as any)?.userMemoryItem) {
         await (prisma as any).userMemoryItem.updateMany({
@@ -291,7 +401,14 @@ export class UserMemoryVault {
    * Resets or clears memories for a user (GDPR / Privacy support).
    */
   public clearUserMemories(userId: string): void {
-    this.memoryStore.delete(userId.trim());
+    const cleanUserId = userId.trim();
+    this.memoryStore.delete(cleanUserId);
+    try {
+      const redis = this.getRedis();
+      if (redis) {
+        redis.del(`user:memories:${cleanUserId}`).catch(() => {});
+      }
+    } catch {}
   }
 
   /**
@@ -300,6 +417,7 @@ export class UserMemoryVault {
   public resetAll(): void {
     this.memoryStore.clear();
   }
+
 }
 
 export const userMemoryVault = new UserMemoryVault();

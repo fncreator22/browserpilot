@@ -6,7 +6,6 @@ export * from "./providers/baseProvider";
 export * from "./providers/linkedInProvider";
 export * from "./providers/ycProvider";
 export * from "./providers/indeedProvider";
-export * from "./searchOrchestrator";
 export * from "./normalizer";
 export * from "./deduplicator";
 export * from "./ranker";

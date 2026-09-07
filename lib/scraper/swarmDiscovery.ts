@@ -27,6 +27,7 @@ import {
   classifySourceError,
   sourceReliabilityManager,
 } from "../discovery/execution/sourceReliabilityManager";
+import { connectorUsageService } from "@/lib/discovery/connectors/connectorUsageService";
 
 export interface SwarmTelemetry {
   sourcesRequested: number;
@@ -76,7 +77,7 @@ export class SwarmDiscoveryEngine {
   private providers: SearchProvider[] = [
     linkedInProvider,
     ycProvider,
-    indeedProvider,
+    // indeedProvider, // DEACTIVATED: Server-side HTTP fetches are blocked with Cloudflare 403 Forbidden
     atsProvider,
     hackerNewsProvider,
     githubJobsProvider,
@@ -95,19 +96,19 @@ export class SwarmDiscoveryEngine {
    */
   public planToIntent(plan: DiscoveryPlan): SearchIntent {
     return {
-      role: plan.roles[0] || undefined,
-      roles: plan.roles,
-      skills: plan.skills.length > 0 ? plan.skills : undefined,
-      location: plan.locations[0] || undefined,
-      locations: plan.locations,
-      company: plan.targetCompanies[0] || undefined,
-      companies: plan.targetCompanies.length > 0 ? plan.targetCompanies : undefined,
-      workMode: plan.workModes[0] || "ANY",
-      workModes: plan.workModes,
-      opportunityType: plan.opportunityTypes[0] || "FULL_TIME",
-      opportunityTypes: plan.opportunityTypes,
-      experienceLevel: plan.experienceLevels[0] || "ENTRY_LEVEL",
-      experienceLevels: plan.experienceLevels,
+      role: plan.roles?.[0] || undefined,
+      roles: plan.roles || [],
+      skills: plan.skills && plan.skills.length > 0 ? plan.skills : undefined,
+      location: plan.locations?.[0] || undefined,
+      locations: plan.locations || [],
+      company: plan.targetCompanies?.[0] || undefined,
+      companies: plan.targetCompanies && plan.targetCompanies.length > 0 ? plan.targetCompanies : undefined,
+      workMode: plan.workModes?.[0] || "ANY",
+      workModes: plan.workModes || [],
+      opportunityType: plan.opportunityTypes?.[0] || "FULL_TIME",
+      opportunityTypes: plan.opportunityTypes || [],
+      experienceLevel: plan.experienceLevels?.[0] || "ENTRY_LEVEL",
+      experienceLevels: plan.experienceLevels || [],
       targetGradYear: plan.targetGradYear || undefined,
       queryHint: plan.rawQuery,
       sortMode: plan.sortMode,
@@ -146,7 +147,16 @@ export class SwarmDiscoveryEngine {
           )
         : this.providers;
 
-    const activeProviders = providersToUse.filter((p) => p.supports(intent));
+    const candidateProviders = providersToUse.filter((p) => p.supports(intent));
+    const activeProviders: SearchProvider[] = [];
+    for (const p of candidateProviders) {
+      if (await connectorUsageService.isConnectorEnabled(p.name)) {
+        activeProviders.push(p);
+      } else {
+        console.log(`[SwarmDiscovery] Provider "${p.name}" disabled by administrator. Skipping.`);
+      }
+    }
+
     const concurrencyLimit = Math.min(options.concurrencyLimit || 3, 3);
     const perProviderTimeoutMs = options.perProviderTimeoutMs || 7000;
     const totalTimeoutMs = options.totalTimeoutMs || 14000;
@@ -345,6 +355,16 @@ export class SwarmDiscoveryEngine {
               durationMs: Date.now() - pStart,
               retryCount,
             });
+
+            const qualityGatePassCount = candidates.filter((c) => c.title && c.applyUrl).length;
+            await connectorUsageService.recordConnectorHarvest({
+              connectorName: provider.name,
+              targetUrl: candidates[0]?.sourceUrl || undefined,
+              status: candidates.length > 0 ? "SUCCESS" : "EMPTY",
+              jobsFoundCount: candidates.length,
+              qualityGatePassCount,
+              durationMs: Date.now() - pStart,
+            });
           } catch (err: unknown) {
             clearTimeout(pTimer);
             globalAbort.signal.removeEventListener("abort", handleGlobal);
@@ -352,6 +372,15 @@ export class SwarmDiscoveryEngine {
             const isTimeout = (err as Error).name === "AbortError" || pAbort.signal.aborted;
             const errClass = classifySourceError(err);
             sourceReliabilityManager.recordOutcome(provider.name, "FAILURE", errClass.category, startTimeDate);
+
+            await connectorUsageService.recordConnectorHarvest({
+              connectorName: provider.name,
+              status: isTimeout ? "ERROR" : errClass.category === "SOURCE_BLOCKED" ? "BLOCKED" : "ERROR",
+              jobsFoundCount: 0,
+              qualityGatePassCount: 0,
+              durationMs: Date.now() - pStart,
+              errorMessage: (err as Error)?.message,
+            });
 
             providerTelemetryList.push({
               provider: provider.name,

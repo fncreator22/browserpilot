@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS "jobs" (
   "allowedDomains" TEXT NOT NULL DEFAULT '[]',
   "maxStepsBudget" INTEGER NOT NULL DEFAULT 15,
   "goal" TEXT,
-  "confidence DOUBLE PRECISION,
+  "confidence" DOUBLE PRECISION,
   "summary" TEXT,
   "error" TEXT,
   "result" TEXT,

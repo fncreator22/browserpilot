@@ -15,6 +15,7 @@ import { z } from "zod";
 
 const PuterConnectSchema = z.object({
   username: z.string().min(1, "Username is required").max(100, "Username too long"),
+  token: z.string().min(1, "Token cannot be empty").optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 

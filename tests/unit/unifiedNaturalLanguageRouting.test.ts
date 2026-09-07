@@ -14,7 +14,7 @@ import {
   executeSearchPipeline,
   type SearchProvider,
 } from "@/lib/scraper";
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/db/prisma";
 import { upsertDiscoveryWatch, getDiscoveryWatch } from "@/lib/db/opportunities";
 
 function assert(condition: boolean, msg: string) {

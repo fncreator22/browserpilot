@@ -18,7 +18,7 @@ import {
   type HarnessToolExecutionResult,
   type HarnessVerificationResult,
 } from "./harnessTypes";
-import { parseSearchIntent } from "@/lib/scraper/intentParser";
+import { parseSearchIntent, parseSearchIntentAsync } from "@/lib/scraper/intentParser";
 import { buildDiscoveryPlan } from "@/lib/scraper/discoveryPlanner";
 import { intelligenceBrain, buildIntelligentPlanningPrompt } from "@/lib/ai/brain";
 import { searchPlanner } from "@/lib/ai/searchPlanner";
@@ -111,8 +111,15 @@ export class IntelligenceHarness {
     // -------------------------------------------------------------------------
     // STAGE 1: QUERY & INTENT
     // -------------------------------------------------------------------------
+    options.onStageTransition?.("intent", { label: "Parsing Intent" });
     const tIntentStart = Date.now();
-    const parsedIntent = parseSearchIntent(rawQuery, options.explicitFilters);
+    const parsedIntent = await parseSearchIntentAsync(rawQuery, {
+      userId,
+      apiKey: options.apiKey,
+      puterToken: options.puterToken,
+      filterOverrides: options.explicitFilters,
+      signal: options.signal,
+    });
     const explicitConstraints = {
       roles: parsedIntent.roles || (parsedIntent.role ? [parsedIntent.role] : []),
       locations: parsedIntent.locations || (parsedIntent.location ? [parsedIntent.location] : []),
@@ -240,6 +247,7 @@ export class IntelligenceHarness {
     // -------------------------------------------------------------------------
     // STAGE 3: PLAN & VALIDATE PLAN
     // -------------------------------------------------------------------------
+    options.onStageTransition?.("plan", { label: "Planning Search" });
     const tPlanStart = Date.now();
     context.currentStage = "PLAN";
 
@@ -314,6 +322,7 @@ export class IntelligenceHarness {
           userId,
           allowedDomains: options.allowedDomains,
           apiKeyOverride: options.apiKey,
+          puterTokenOverride: options.puterToken,
           signal: options.signal,
         }
       );
@@ -474,6 +483,7 @@ export class IntelligenceHarness {
     // -------------------------------------------------------------------------
     // STAGE 4: EXECUTE & OBSERVE (TASK-050 Intelligent Tool Orchestration)
     // -------------------------------------------------------------------------
+    options.onStageTransition?.("harvest", { label: "Querying ATS Portals" });
     const tExecStart = Date.now();
     context.currentStage = "EXECUTE";
 
@@ -582,6 +592,7 @@ export class IntelligenceHarness {
     // -------------------------------------------------------------------------
     // STAGE 5: VERIFY & EVIDENCE QUALITY GATE EVALUATION (TASK-051)
     // -------------------------------------------------------------------------
+    options.onStageTransition?.("verify", { label: "Verifying URLs" });
     const tVerifyStart = Date.now();
     context.currentStage = "VERIFY";
 
@@ -627,6 +638,7 @@ export class IntelligenceHarness {
     // -------------------------------------------------------------------------
     // STAGE 6: DECIDE & AUTONOMOUS CORRECTION LOOP (TASK-052)
     // -------------------------------------------------------------------------
+    options.onStageTransition?.("rank", { label: "Scoring & Ranking" });
     const tDecideStart = Date.now();
     context.currentStage = "DECIDE";
 
@@ -685,6 +697,7 @@ export class IntelligenceHarness {
     // Finalize Telemetry & Status
     const totalDurationMs = Date.now() - startTime;
     context.currentStage = "COMPLETE";
+    options.onStageTransition?.("complete", { label: "Complete", count: finalRanked.length });
     context.telemetry.totalDurationMs = totalDurationMs;
     const isCancelled = options.signal?.aborted || context.telemetry.status === "CANCELLED";
     context.telemetry.status = isCancelled ? "CANCELLED" : verifiedCount > 0 ? "SUCCESS" : "PARTIAL";

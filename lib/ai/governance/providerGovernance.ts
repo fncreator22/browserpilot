@@ -11,6 +11,11 @@
  */
 
 import { prisma } from "@/lib/db/prisma";
+import {
+  encryptCredential,
+  decryptCredential,
+  maskCredential,
+} from "@/lib/security/credentialEncryption";
 
 export const SUPPORTED_PROVIDERS = [
   "PUTER",
@@ -156,12 +161,15 @@ export async function getUserProviderConnections(userId: string): Promise<SafePr
  */
 export async function upsertPuterConnection(
   userId: string,
-  input: { username: string; metadata?: Record<string, unknown> }
+  input: { username: string; token?: string; metadata?: Record<string, unknown> }
 ): Promise<SafeProviderConnection> {
   const cleanUsername = input.username.trim();
   if (!cleanUsername) {
     throw new Error("INVALID_PUTER_USERNAME: Username is required.");
   }
+
+  const encryptedToken = input.token ? encryptCredential(input.token) : null;
+  const maskedToken = input.token ? maskCredential(input.token) : null;
 
   const record = await prisma.providerConnection.upsert({
     where: {
@@ -176,7 +184,8 @@ export async function upsertPuterConnection(
       connectionMethod: "PUTER_OAUTH",
       status: "CONNECTED",
       providerUsername: cleanUsername,
-      maskedCredential: null,
+      maskedCredential: maskedToken,
+      encryptedCredential: encryptedToken,
       lastVerifiedAt: new Date(),
       lastVerificationStatus: "VALID",
       metadata: JSON.stringify(input.metadata || {}),
@@ -184,6 +193,7 @@ export async function upsertPuterConnection(
     update: {
       status: "CONNECTED",
       providerUsername: cleanUsername,
+      ...(encryptedToken ? { encryptedCredential: encryptedToken, maskedCredential: maskedToken } : {}),
       lastVerifiedAt: new Date(),
       lastVerificationStatus: "VALID",
       metadata: JSON.stringify(input.metadata || {}),
@@ -198,7 +208,7 @@ export async function upsertPuterConnection(
     connectionMethod: record.connectionMethod,
     status: record.status as ProviderStatus,
     providerUsername: record.providerUsername,
-    maskedCredential: null,
+    maskedCredential: record.maskedCredential,
     lastVerifiedAt: record.lastVerifiedAt,
     lastVerificationStatus: record.lastVerificationStatus,
     usageAvailability: "AVAILABLE_VIA_PUTER",
@@ -206,6 +216,35 @@ export async function upsertPuterConnection(
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
+}
+
+/**
+ * Retrieves the decrypted Puter auth token for a given user.
+ */
+export async function getUserPuterToken(userId: string): Promise<string | null> {
+  try {
+    const connection = await prisma.providerConnection.findUnique({
+      where: {
+        userId_provider: {
+          userId,
+          provider: "PUTER",
+        },
+      },
+      select: {
+        status: true,
+        encryptedCredential: true,
+      },
+    });
+
+    if (!connection || connection.status !== "CONNECTED" || !connection.encryptedCredential) {
+      return null;
+    }
+
+    return decryptCredential(connection.encryptedCredential);
+  } catch (err) {
+    console.error(`[ProviderGovernance] Failed to get Puter token for user ${userId}:`, err);
+    return null;
+  }
 }
 
 /**
@@ -223,13 +262,14 @@ export async function upsertApiKeyConnection(
     throw new Error("INVALID_API_KEY: Credential must be at least 8 characters long.");
   }
 
-  const masked = maskSecret(cleanKey);
+  const encryptedKey = encryptCredential(cleanKey);
+  const masked = maskCredential(cleanKey) || maskSecret(cleanKey);
 
-  // If Gemini, also synchronize with legacy user.geminiApiKey for backward compatibility
+  // If Gemini, also synchronize with legacy user.geminiApiKey with encryption
   if (input.provider === "GEMINI_BYOK") {
     await prisma.user.update({
       where: { id: userId },
-      data: { geminiApiKey: cleanKey },
+      data: { geminiApiKey: encryptedKey },
     });
   }
 
@@ -247,7 +287,7 @@ export async function upsertApiKeyConnection(
       status: "CONNECTED",
       providerUsername: null,
       maskedCredential: masked,
-      encryptedCredential: cleanKey, // Future: KMS/AES envelope encryption
+      encryptedCredential: encryptedKey,
       lastVerifiedAt: new Date(),
       lastVerificationStatus: "VALID",
       metadata: JSON.stringify({ keyLength: cleanKey.length }),
@@ -255,7 +295,7 @@ export async function upsertApiKeyConnection(
     update: {
       status: "CONNECTED",
       maskedCredential: masked,
-      encryptedCredential: cleanKey,
+      encryptedCredential: encryptedKey,
       lastVerifiedAt: new Date(),
       lastVerificationStatus: "VALID",
       metadata: JSON.stringify({ keyLength: cleanKey.length }),

@@ -66,21 +66,7 @@ export const ENV_SPECS: EnvVariableSpec[] = [
     name: "DATABASE_URL",
     category: "DATABASE",
     requiredInProduction: true,
-    description: "Prisma connection URL (SQLite, LibSQL, or PostgreSQL)",
-    isSecret: true,
-  },
-  {
-    name: "TURSO_DATABASE_URL",
-    category: "DATABASE",
-    requiredInProduction: false,
-    description: "Turso / LibSQL primary cloud endpoint URL",
-    isSecret: false,
-  },
-  {
-    name: "TURSO_AUTH_TOKEN",
-    category: "DATABASE",
-    requiredInProduction: false,
-    description: "Turso / LibSQL cloud authentication token",
+    description: "Prisma connection URL (PostgreSQL - Supabase or AWS Aurora)",
     isSecret: true,
   },
 

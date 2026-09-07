@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { getAtsSourceInfo, getVerificationCornerBadge } from "@/components/result/job-dossier-deck";
 
 interface SourceListingItem {
   id?: string;
@@ -287,8 +288,8 @@ export default function OpportunityDetailPage({
 
           {opportunity.primaryApplyUrl && (
             <a href={opportunity.primaryApplyUrl} target="_blank" rel="noopener noreferrer">
-              <Button size="sm" className="gap-1.5 font-mono text-xs shadow-xs">
-                <span>Apply Now</span>
+              <Button size="sm" className="h-9 min-h-[44px] sm:min-h-[36px] px-3.5 gap-1.5 font-mono text-xs bg-[#1F3D2E] hover:bg-[#162D22] text-white shadow-xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#1F3D2E]">
+                <span>Apply Directly</span>
                 <ExternalLink className="h-3.5 w-3.5" />
               </Button>
             </a>
@@ -301,13 +302,29 @@ export default function OpportunityDetailPage({
         {/* Title & Metadata Hero */}
         <div className="space-y-4 border-b border-border pb-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-1.5 flex-1">
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* ATS Source Chip */}
+                {(() => {
+                  const ats = getAtsSourceInfo(opportunity.sourceListings?.[0]?.sourcePlatform, opportunity.primaryApplyUrl, opportunity.sourceListings);
+                  return (
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-medium border ${ats.className}`}>
+                      <span className={`h-2 w-2 rounded-full ${ats.dotColor}`} aria-hidden="true" />
+                      {ats.name} Platform
+                    </span>
+                  );
+                })()}
+
+                {/* Verification Corner Badge */}
+                {getVerificationCornerBadge(opportunity.status)}
+              </div>
+
+              <h1 className="font-serif text-2xl md:text-3xl font-bold tracking-tight text-foreground">
                 {opportunity.title}
               </h1>
               <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground font-mono">
                 <span className="flex items-center gap-1.5 text-foreground font-medium">
-                  <Building className="h-4 w-4 text-primary" />
+                  <Building className="h-4 w-4 text-[#1F3D2E] dark:text-emerald-400" />
                   {opportunity.companyName}
                 </span>
                 {opportunity.location && (
@@ -325,20 +342,8 @@ export default function OpportunityDetailPage({
               </div>
             </div>
 
-            {/* Badges */}
+            {/* Workplace Badges */}
             <div className="flex flex-wrap items-center gap-2">
-              {opportunity.status === "EXPIRED" ? (
-                <Badge variant="destructive" className="font-mono text-xs uppercase px-2.5 py-0.5 gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  Expired
-                </Badge>
-              ) : opportunity.status === "ACTIVE" ? (
-                <Badge variant="outline" className="font-mono text-xs uppercase px-2.5 py-0.5 text-emerald-500 border-emerald-500/30 bg-emerald-500/10 gap-1">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Active
-                </Badge>
-              ) : null}
-
               {opportunity.workMode && (
                 <Badge variant="outline" className="font-mono text-xs uppercase px-2.5 py-0.5">
                   {opportunity.workMode}
@@ -372,11 +377,11 @@ export default function OpportunityDetailPage({
             {/* Job Description */}
             {opportunity.description && (
               <section className="space-y-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground font-mono flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-foreground font-sans flex items-center gap-2">
                   <Briefcase className="h-4 w-4 text-primary" />
-                  About the Role
+                  About the role
                 </h3>
-                <div className="bg-card border border-border rounded-xl p-5 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                <div className="bg-card border border-border rounded-xl p-5 text-sm text-muted-foreground leading-relaxed whitespace-pre-line font-sans">
                   {opportunity.description}
                 </div>
               </section>
@@ -385,14 +390,14 @@ export default function OpportunityDetailPage({
             {/* Requirements & Qualifications */}
             {Array.isArray(opportunity.requirements) && opportunity.requirements.length > 0 && (
               <section className="space-y-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground font-mono flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-foreground font-sans flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-primary" />
-                  Qualifications & Responsibilities
+                  Qualifications & responsibilities
                 </h3>
                 <div className="bg-card border border-border rounded-xl p-5">
                   <ul className="space-y-2.5">
                     {opportunity.requirements.map((req, rIdx) => (
-                      <li key={rIdx} className="flex items-start gap-2.5 text-xs md:text-sm text-muted-foreground">
+                      <li key={rIdx} className="flex items-start gap-2.5 text-xs md:text-sm text-muted-foreground font-sans">
                         <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                         <span className="leading-relaxed">{req}</span>
                       </li>
@@ -405,16 +410,16 @@ export default function OpportunityDetailPage({
             {/* Skills & Tech Stack */}
             {Array.isArray(opportunity.skills) && opportunity.skills.length > 0 && (
               <section className="space-y-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground font-mono flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-foreground font-sans flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
-                  Relevant Skills & Technologies
+                  Relevant skills & technologies
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {opportunity.skills.map((skill, sIdx) => (
                     <Badge
                       key={sIdx}
                       variant="secondary"
-                      className="font-mono text-xs px-3 py-1 bg-primary/10 text-primary border-primary/20"
+                      className="font-sans text-xs px-3 py-1 bg-primary/10 text-primary border-primary/20"
                     >
                       {skill}
                     </Badge>
@@ -428,9 +433,9 @@ export default function OpportunityDetailPage({
           <div className="space-y-6">
             {/* Discovered Sources Card */}
             <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-foreground font-mono flex items-center gap-2">
+              <h4 className="text-xs font-semibold text-foreground font-sans flex items-center gap-2">
                 <Layers className="h-4 w-4 text-primary" />
-                Discovery Sources ({opportunity.sourceListings.length})
+                Discovery sources ({opportunity.sourceListings.length})
               </h4>
 
               <div className="space-y-3">
@@ -488,9 +493,9 @@ export default function OpportunityDetailPage({
             {verifiedListingWithScreenshot && verifiedListingWithScreenshot.screenshotPath && (
               <div className="bg-card border border-border rounded-xl p-5 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-foreground font-mono flex items-center gap-2">
+                  <h4 className="text-xs font-semibold text-foreground font-sans flex items-center gap-2">
                     <Camera className="h-4 w-4 text-primary" />
-                    Visual Proof
+                    Visual proof
                   </h4>
                   <Button
                     variant="ghost"

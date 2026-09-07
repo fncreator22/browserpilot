@@ -175,6 +175,7 @@ export class AutonomousDiscoveryEngine {
           minimumMatchScore: watch.minimumMatchScore,
           isExplicitFreshness: Boolean(watch.latestOnly),
           freshnessWindowHours: watch.freshnessWindowHours,
+          sources: watch.preferredSources,
         },
         {
           targetRoles: watch.roles,
@@ -188,6 +189,7 @@ export class AutonomousDiscoveryEngine {
           isExplicitFreshness: Boolean(watch.latestOnly),
           sortMode: watch.latestOnly ? "LATEST" : "RELEVANCE_THEN_FRESHNESS",
           minimumMatchScore: watch.minimumMatchScore,
+          preferredSources: watch.preferredSources,
         }
       );
 

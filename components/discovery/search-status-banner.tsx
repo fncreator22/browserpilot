@@ -161,9 +161,12 @@ export function SearchStatusBanner({
             {explanation || "We could not find any active job listings that passed our verification Quality Gate matching your exact role, location, and date boundaries."}
           </p>
         </div>
-        <p className="text-xs text-muted-foreground font-mono">
-          Try expanding your date filter, broadening the location, or including remote roles.
-        </p>
+        <div className="pt-1 flex flex-wrap items-center justify-center gap-1.5 text-xs font-sans text-muted-foreground">
+          <span>Suggestions:</span>
+          <span className="px-2 py-0.5 rounded-md bg-muted/70 text-foreground font-medium text-[11px]">Expand date boundary</span>
+          <span className="px-2 py-0.5 rounded-md bg-muted/70 text-foreground font-medium text-[11px]">Include remote positions</span>
+          <span className="px-2 py-0.5 rounded-md bg-muted/70 text-foreground font-medium text-[11px]">Lower match threshold</span>
+        </div>
       </div>
     );
   }
@@ -176,8 +179,8 @@ export function SearchStatusBanner({
           <div className="flex items-start gap-2.5">
             <ShieldAlert className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <h4 className="text-xs font-semibold text-foreground">Search Execution Failed</h4>
-              <p className="text-xs text-muted-foreground">
+              <h4 className="text-xs font-semibold text-foreground font-sans">Search Execution Failed</h4>
+              <p className="text-xs text-muted-foreground font-sans">
                 {explanation || "An unexpected error occurred during search execution. Please verify your query and try again."}
               </p>
             </div>
@@ -187,7 +190,7 @@ export function SearchStatusBanner({
               variant="outline"
               size="sm"
               onClick={onRetry}
-              className="h-7 font-mono text-xs gap-1 border-destructive/30 hover:bg-destructive/10 cursor-pointer"
+              className="h-7 font-sans font-medium text-xs gap-1 border-destructive/30 hover:bg-destructive/10 cursor-pointer"
             >
               <RotateCw className="h-3 w-3" />
               Retry
@@ -206,8 +209,8 @@ export function SearchStatusBanner({
           <div className="flex items-start gap-2.5">
             <Clock className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <h4 className="text-xs font-semibold text-foreground">Search Cancelled</h4>
-              <p className="text-xs text-muted-foreground">
+              <h4 className="text-xs font-semibold text-foreground font-sans">Search Cancelled</h4>
+              <p className="text-xs text-muted-foreground font-sans">
                 {explanation || "Search execution was cancelled. Resources have been safely released."}
               </p>
             </div>
@@ -217,7 +220,7 @@ export function SearchStatusBanner({
               variant="outline"
               size="sm"
               onClick={onRetry}
-              className="h-7 font-mono text-xs gap-1 cursor-pointer"
+              className="h-7 font-sans font-medium text-xs gap-1 cursor-pointer"
             >
               <RotateCw className="h-3 w-3" />
               Restart Search

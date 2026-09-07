@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model User {
@@ -521,8 +521,11 @@ model PaymentTransaction {
 model DiscoverySource {
   id                   String    @id @default(cuid())
   name                 String    @unique
-  type                 String    // AGGREGATOR, ATS_PORTAL, COMPANY_CAREERS, TECH_COMMUNITY, PUBLIC_BOARD, USER_CONNECTED
+  displayName          String?
+  iconUrl              String?
+  type                 String    // AGGREGATOR, ATS_PORTAL, COMPANY_CAREERS, TECH_COMMUNITY, PUBLIC_BOARD, USER_CONNECTED, DIRECT_ATS, CAREER_PORTAL
   baseUrl              String
+  baseUrlPattern       String?
   supportedCategories  String    @default("[]") // JSON array
   supportedLocations   String    @default("[]") // JSON array
   reliabilityScore     Float     @default(1.0)
@@ -531,15 +534,46 @@ model DiscoverySource {
   totalCrawls          Int       @default(0)
   successfulCrawls     Int       @default(0)
   failedCrawls         Int       @default(0)
-  status               String    @default("HEALTHY") // HEALTHY, DEGRADED, BLOCKED, MAINTENANCE
+  totalJobsFound       Int       @default(0)
+  recentJobsFound      Int       @default(0)
+  lastQualityGatePassed Int      @default(0)
+  totalQualityGatePassed Int     @default(0)
+  lastCrawledAt        DateTime?
+  lastStatus           String?
+  status               String    @default("HEALTHY") // HEALTHY, ACTIVE, DEGRADED, BLOCKED, DISABLED, MAINTENANCE
+  isEnabled            Boolean   @default(true)
   isPublic             Boolean   @default(true)
   requiresAuth         Boolean   @default(false)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @default(now()) @updatedAt
 
+  harvestLogs          ConnectorHarvestLog[]
+
   @@index([type])
   @@index([status])
+  @@index([isEnabled])
   @@map("discovery_sources")
+}
+
+model ConnectorHarvestLog {
+  id                   String    @id @default(cuid())
+  sourceId             String?
+  connectorName        String    // e.g. "Greenhouse", "Lever", "Ashby", "Apna", "Workday", "LinkedIn", "Indeed"
+  targetUrl            String?
+  status               String    // SUCCESS, BLOCKED, ERROR, EMPTY
+  jobsFoundCount       Int       @default(0)
+  qualityGatePassCount Int       @default(0)
+  durationMs           Int       @default(0)
+  errorMessage         String?
+  metadata             String    @default("{}") // JSON metadata
+  createdAt            DateTime  @default(now())
+
+  source               DiscoverySource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  @@index([connectorName])
+  @@index([sourceId])
+  @@index([createdAt])
+  @@map("connector_harvest_logs")
 }
 
 model CompanyIntelligence {
