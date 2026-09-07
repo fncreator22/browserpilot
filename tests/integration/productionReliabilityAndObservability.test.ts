@@ -31,7 +31,7 @@
 import assert from "node:assert";
 import { NextRequest } from "next/server";
 import { POST as searchRoutePost } from "@/app/api/search/route";
-import { GET as adminTelemetryGet } from "@/app/api/admin/search-telemetry/route";
+import { GET as adminTelemetryGet } from "@/app/api/ops-sec-7f9c2d1b8e4a/search-telemetry/route";
 import { prisma, ensureDatabaseSchema } from "@/lib/db/prisma";
 import {
   classifySearchFailure,

@@ -62,8 +62,8 @@ import { type SearchProvider } from "@/lib/scraper/providers/baseProvider";
 import { MockEmailProvider } from "@/lib/notifications";
 import { NextRequest } from "next/server";
 import { POST as schedulerApiPost } from "@/app/api/discovery/scheduler/route";
-import { GET as adminMetricsApiGet } from "@/app/api/admin/metrics/route";
-import { GET as adminWatchesApiGet } from "@/app/api/admin/watches/route";
+import { GET as adminMetricsApiGet } from "@/app/api/ops-sec-7f9c2d1b8e4a/metrics/route";
+import { GET as adminWatchesApiGet } from "@/app/api/ops-sec-7f9c2d1b8e4a/watches/route";
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {
