@@ -19,21 +19,30 @@ import {
   X,
   Zap,
   ShieldCheck,
-  Activity
+  Activity,
+  Plug,
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePuter } from "@/hooks/usePuter";
+import { ConnectorPreferencesPanel } from "@/components/connectors/connector-preferences-modal";
 
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: "ACCOUNT" | "PERSONALIZATION" | "PROVIDERS" | "CONNECTORS" | "BILLING";
 }
 
-export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
+export function ProfileModal({ isOpen, onClose, initialTab }: ProfileModalProps) {
   const { data: session, update: updateSession } = useSession();
   const { isLoaded: isPuterLoaded, isSignedIn: isPuterSignedIn, user: puterUser, isAuthenticating: isPuterAuthenticating, signIn: puterSignIn, signOut: puterSignOut } = usePuter();
 
-  const [activeTab, setActiveTab] = useState<"ACCOUNT" | "PERSONALIZATION" | "PROVIDERS" | "BILLING">("ACCOUNT");
+  const [activeTab, setActiveTab] = useState<"ACCOUNT" | "PERSONALIZATION" | "PROVIDERS" | "CONNECTORS" | "BILLING">(initialTab || "ACCOUNT");
+
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [geminiApiKey, setGeminiApiKey] = useState("");
@@ -136,16 +145,26 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     }
   }, [isOpen, session]);
 
+  const puterProvider = connectedProviders.find((p) => p.providerName?.toUpperCase() === "PUTER" && p.status === "ACTIVE");
+  const isEffectivePuterConnected = isPuterSignedIn || !!puterProvider;
+  const effectivePuterUsername = puterUser?.username || puterProvider?.accountUsername || "Puter User";
+
   const handlePuterConnect = async () => {
     try {
-      const u = await puterSignIn();
-      if (u) {
+      if (!isPuterLoaded) {
+        toast.info("Initializing Puter client...");
+      }
+      const result = await puterSignIn();
+      if (result?.user) {
         await fetch("/api/account/providers/puter", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: u.username }),
+          body: JSON.stringify({
+            username: result.user.username,
+            token: result.token || undefined,
+          }),
         });
-        toast.success(`Connected Puter account: ${u.username}`);
+        toast.success(`Connected Puter account: ${result.user.username}`);
         loadProvidersAndUsage();
       }
     } catch (err) {
@@ -155,7 +174,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
   const handlePuterDisconnect = async () => {
     try {
-      await puterSignOut();
+      await puterSignOut().catch(() => {});
       await fetch("/api/account/providers/puter", { method: "DELETE" });
       toast.info("Disconnected Puter account.");
       loadProvidersAndUsage();
@@ -379,6 +398,17 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               </button>
               <button
                 type="button"
+                onClick={() => setActiveTab("CONNECTORS")}
+                className={`px-3 py-1 rounded-md transition-colors cursor-pointer ${
+                  activeTab === "CONNECTORS"
+                    ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Data Connectors
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveTab("BILLING")}
                 className={`px-3 py-1 rounded-md transition-colors cursor-pointer ${
                   activeTab === "BILLING"
@@ -566,31 +596,31 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                       <Zap className="h-4 w-4 text-amber-500" />
                       <span className="font-semibold text-foreground">Puter AI Integration</span>
                     </div>
-                    {isPuterSignedIn ? (
-                      <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-semibold text-[10px] flex items-center gap-1">
+                    {isEffectivePuterConnected ? (
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-semibold text-[10px] flex items-center gap-1 border border-emerald-500/20">
                         <ShieldCheck className="h-3 w-3" />
-                        Connected (@{puterUser?.username || "Puter"})
+                        Connected (@{effectivePuterUsername})
                       </span>
                     ) : (
-                      <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground text-[10px]">
+                      <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground text-[10px] border border-border/50">
                         Not Connected
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Connect your Puter account for free client-side AI execution with Claude 3.7 Sonnet, GPT-4o, and DeepSeek R1.
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Connect your Puter account for free client-side AI execution with Claude 3.7 Sonnet, GPT-4o, and DeepSeek R1 without using paid API credits.
                   </p>
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-[10px] text-muted-foreground">
                       Quota & Balances: Managed by Puter.js
                     </span>
-                    {isPuterSignedIn ? (
+                    {isEffectivePuterConnected ? (
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={handlePuterDisconnect}
-                        className="h-7 text-[11px] font-mono"
+                        className="h-7 text-[11px] font-mono hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 cursor-pointer"
                       >
                         Disconnect Puter
                       </Button>
@@ -599,8 +629,8 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                         type="button"
                         size="sm"
                         onClick={handlePuterConnect}
-                        disabled={isPuterAuthenticating || !isPuterLoaded}
-                        className="h-7 text-[11px] font-mono gap-1"
+                        disabled={isPuterAuthenticating}
+                        className="h-7 text-[11px] font-mono gap-1 cursor-pointer"
                       >
                         {isPuterAuthenticating ? "Connecting..." : "Connect Puter Account"}
                       </Button>
@@ -668,6 +698,10 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                     </div>
                   </div>
                 </div>
+              </div>
+            ) : activeTab === "CONNECTORS" ? (
+              <div className="pt-3">
+                <ConnectorPreferencesPanel showActions={true} />
               </div>
             ) : (
               <form onSubmit={handleSaveProfile} className="space-y-4 pt-3">

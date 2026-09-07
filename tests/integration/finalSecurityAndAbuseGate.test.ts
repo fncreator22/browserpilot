@@ -43,8 +43,8 @@ import { GET as userMemoryGet, POST as userMemoryPost } from "@/app/api/user/mem
 import { PATCH as userMemoryIdPatch, DELETE as userMemoryIdDelete } from "@/app/api/user/memory/[id]/route";
 import { POST as saveOppPost, DELETE as unsaveOppDelete, GET as saveOppGet } from "@/app/api/opportunities/[id]/save/route";
 import { GET as savedOppsGet } from "@/app/api/opportunities/saved/route";
-import { GET as adminMetricsGet } from "@/app/api/admin/metrics/route";
-import { GET as adminTelemetryGet } from "@/app/api/admin/search-telemetry/route";
+import { GET as adminMetricsGet } from "@/app/api/ops-sec-7f9c2d1b8e4a/metrics/route";
+import { GET as adminTelemetryGet } from "@/app/api/ops-sec-7f9c2d1b8e4a/search-telemetry/route";
 import { prisma, ensureDatabaseSchema } from "@/lib/db/prisma";
 import { userMemoryVault } from "@/lib/ai/memory/userMemoryVault";
 import { evaluateMemoryAdmission } from "@/lib/ai/memory/memoryAdmission";

@@ -243,7 +243,7 @@ export async function runAdminControlPlaneHardeningTests() {
 
   const metrics = await adminControlPlaneService.getOverviewMetrics();
   assert(metrics.system.status === "HEALTHY", "System status must be HEALTHY");
-  assert(metrics.system.databaseEngine === "SQLITE_LIBSQL" || metrics.system.databaseEngine === "POSTGRESQL", "Must report correct DB engine");
+  assert(metrics.system.databaseEngine === "POSTGRESQL", "Must report POSTGRESQL DB engine");
   assert(metrics.users.totalUsers >= 2, "Must count total registered users");
   assert(metrics.watches.totalWatches >= 1, "Must count total watches");
   assert(typeof metrics.watches.intervalDistribution.twoHours === "number", "Must report interval distribution");

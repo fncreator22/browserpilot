@@ -21,6 +21,7 @@ export interface SearchPlannerOptions {
   userId?: string | null;
   allowedDomains?: string[];
   apiKeyOverride?: string;
+  puterTokenOverride?: string;
   maxActionsBudget?: number;
   requireAiPlanning?: boolean;
   signal?: AbortSignal;
@@ -51,14 +52,17 @@ export class SearchPlanner {
   ): Promise<SearchPlannerResult> {
     const startTime = Date.now();
     const effectiveKey = getEffectiveGeminiApiKey(options.apiKeyOverride);
+    const hasPuterToken = !!options.puterTokenOverride;
     const planId = `plan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-    let aiConfigurationStatus: SearchPlannerResult["aiConfigurationStatus"] = effectiveKey ? "CONFIGURED" : "MODEL_CONFIGURATION_REQUIRED";
-    let aiConfigurationMessage = effectiveKey
-      ? "AI model configuration active."
-      : "AI search planning is unavailable because the required model configuration is missing. Search will proceed using the deterministic engine.";
+    let aiConfigurationStatus: SearchPlannerResult["aiConfigurationStatus"] =
+      effectiveKey || hasPuterToken ? "CONFIGURED" : "MODEL_CONFIGURATION_REQUIRED";
+    let aiConfigurationMessage =
+      effectiveKey || hasPuterToken
+        ? `AI model configuration active (${effectiveKey ? "Google Gemini" : "Puter AI"}).`
+        : "AI search planning is unavailable because the required model configuration is missing. Search will proceed using the deterministic engine.";
 
-    if (options.requireAiPlanning && !effectiveKey) {
+    if (options.requireAiPlanning && !effectiveKey && !hasPuterToken) {
       const err = new Error("MODEL_CONFIGURATION_REQUIRED: AI search planning is unavailable because the required model configuration is missing.");
       (err as any).category = "MODEL_CONFIGURATION_REQUIRED";
       throw err;
@@ -163,7 +167,90 @@ Return JSON adhering to SearchActionPlan schema.`;
       }
     }
 
-    // 2. Deterministic Strategy Synthesis (Autonomous Fallback)
+    // 2. Puter-Based Planning (if user connected Puter and Gemini was not used or failed)
+    if (!generatedPlan && options.puterTokenOverride && !process.env.IS_TEST_HARNESS) {
+      try {
+        const tModelStart = Date.now();
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { init } = require("@heyputer/puter.js/src/init.cjs");
+        const puter = init(options.puterTokenOverride);
+
+        const prompt = `User Query: "${rawQuery}"
+Canonical Constraints: ${JSON.stringify(constraints)}
+Brain Context:
+- Target Companies: ${brainContext.companyContext.map((c) => c.item.companyName).join(", ") || "None"}
+- Role Semantics: ${brainContext.roleSemantics?.normalizedRole || "None"} (Synonyms: ${brainContext.roleSemantics?.semanticSynonyms.slice(0, 3).join(", ") || "None"})
+- User Preferences: ${brainContext.userContext.map((u) => `${u.item.category}: ${u.item.value}`).join("; ") || "None"}
+- Platform Knowledge: ${brainContext.platformContext.map((p) => p.item.memoryId).join(", ") || "None"}
+
+Generate an optimal search plan using available capabilities:
+- discovery.search_pipeline
+- source.search
+- company.lookup
+- company.ats
+- company.careers
+- browser.authenticated_search
+- evidence.verify_url
+- evidence.verify_metadata
+
+Return strictly valid JSON adhering to SearchActionPlan schema.`;
+
+        const response = await puter.ai.chat(
+          [
+            { role: "system", content: "You are BrowserPilot's search planner. Generate strictly valid JSON for a SearchActionPlan matching the user request." },
+            { role: "user", content: prompt },
+          ],
+          {
+            model: "claude-3-5-sonnet",
+            temperature: 0.1,
+          }
+        );
+
+        let rawText = "";
+        if (typeof response === "string") rawText = response;
+        else if (response?.message?.content) rawText = response.message.content;
+        else if (response?.text) rawText = response.text;
+        else rawText = JSON.stringify(response);
+
+        const cleanJson = rawText.replace(/```json|```/gi, "").trim();
+        const parsed = JSON.parse(cleanJson);
+
+        generatedPlan = {
+          ...parsed,
+          planId,
+          query: rawQuery,
+          constraints,
+          createdAt: new Date(),
+        };
+
+        modelTelemetry = {
+          provider: "Puter AI",
+          modelName: "claude-3-5-sonnet",
+          durationMs: Date.now() - tModelStart,
+        };
+
+        if (options.userId) {
+          await recordAIUsageEvent({
+            userId: options.userId,
+            provider: "Puter AI",
+            model: "claude-3-5-sonnet",
+            operation: "ACTION_PLANNING",
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            durationMs: Date.now() - tModelStart,
+            status: "SUCCESS",
+          }).catch((uErr) => console.warn("[SearchPlanner] Failed to record Puter AI usage:", uErr));
+        }
+      } catch (err) {
+        if (options.signal?.aborted) {
+          throw err;
+        }
+        console.warn("[SearchPlanner] Puter AI planning failed or quota exhausted, falling back to deterministic planning:", err);
+      }
+    }
+
+    // 3. Deterministic Strategy Synthesis (Autonomous Fallback)
     if (!generatedPlan) {
       generatedPlan = this.synthesizeDeterministicPlan(planId, rawQuery, constraints, brainContext);
       modelTelemetry = {

@@ -22,6 +22,7 @@
 
 (process.env as any).IS_TEST_HARNESS = "true";
 (process.env as any).NODE_ENV = "test";
+(process.env as any).SKIP_RATE_LIMIT_FOR_TESTS = "true";
 
 import assert from "node:assert";
 import { NextRequest } from "next/server";

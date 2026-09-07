@@ -83,13 +83,13 @@ export function SearchDiagnosticsCard({
       >
         <div className="flex items-center gap-2">
           <span className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-primary">
-            <ShieldCheck className="h-3.5 w-3.5" />
+            <ShieldCheck className="h-3.5 w-3.5 stroke-[1.75]" />
           </span>
           <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-foreground font-mono">
-              Quality Gate & Search Diagnostics
+            <h4 className="text-xs font-serif font-bold text-foreground">
+              Quality gate and search diagnostics
             </h4>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground font-sans">
               {validCount} verified • {rejectedCount} filtered by Quality Gate • {rounds} round{rounds !== 1 ? "s" : ""}
             </p>
           </div>
@@ -104,31 +104,31 @@ export function SearchDiagnosticsCard({
             size="sm"
             className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
           >
-            {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            {isOpen ? <ChevronUp className="h-3.5 w-3.5 stroke-[1.75]" /> : <ChevronDown className="h-3.5 w-3.5 stroke-[1.75]" />}
           </Button>
         </div>
       </button>
 
       {/* Expandable Content */}
       {isOpen && (
-        <div className="pt-4 mt-3 border-t border-border/40 space-y-4 font-mono text-xs">
+        <div className="pt-4 mt-3 border-t border-border/40 space-y-4 text-xs font-sans">
           {/* Key Metrics Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             <div className="p-2.5 rounded-lg bg-background/80 border border-border/40">
-              <span className="text-[10px] text-muted-foreground uppercase block">Verified Active</span>
-              <span className="text-sm font-bold text-emerald-500">{validCount}</span>
+              <span className="text-[10px] text-muted-foreground font-sans block">Verified active</span>
+              <span className="text-sm font-bold font-mono text-emerald-600">{validCount}</span>
             </div>
             <div className="p-2.5 rounded-lg bg-background/80 border border-border/40">
-              <span className="text-[10px] text-muted-foreground uppercase block">Rejected Stale/Mismatch</span>
-              <span className="text-sm font-bold text-amber-500">{rejectedCount}</span>
+              <span className="text-[10px] text-muted-foreground font-sans block">Rejected stale/mismatch</span>
+              <span className="text-sm font-bold font-mono text-amber-600">{rejectedCount}</span>
             </div>
             <div className="p-2.5 rounded-lg bg-background/80 border border-border/40">
-              <span className="text-[10px] text-muted-foreground uppercase block">Correction Rounds</span>
-              <span className="text-sm font-bold text-primary">{rounds}</span>
+              <span className="text-[10px] text-muted-foreground font-sans block">Correction rounds</span>
+              <span className="text-sm font-bold font-mono text-primary">{rounds}</span>
             </div>
             <div className="p-2.5 rounded-lg bg-background/80 border border-border/40">
-              <span className="text-[10px] text-muted-foreground uppercase block">Search Latency</span>
-              <span className="text-sm font-bold text-foreground">{durationMs > 0 ? `${durationMs}ms` : "Fast"}</span>
+              <span className="text-[10px] text-muted-foreground font-sans block">Search latency</span>
+              <span className="text-sm font-bold font-mono text-foreground">{durationMs > 0 ? `${durationMs}ms` : "Fast"}</span>
             </div>
           </div>
 

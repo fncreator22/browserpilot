@@ -7,6 +7,8 @@
  */
 
 import crypto from "crypto";
+import type Redis from "ioredis";
+import { getSharedRedisClient, getSharedRedisSubscriber } from "@/lib/redis/redisClient";
 import { prisma } from "@/lib/db/prisma";
 import { type SearchIntent } from "@/lib/scraper/providers/baseProvider";
 import {
@@ -14,6 +16,9 @@ import {
   touchSearchHeartbeat,
   getActiveUserSearch,
 } from "@/lib/db/opportunities";
+
+export const EXECUTION_CANCEL_CHANNEL = "browserpilot:execution:cancel";
+
 
 export type ExecutionLifecycleState =
   | "CREATED"
@@ -47,6 +52,7 @@ export interface CanonicalIntentNormalization {
   minimumMatchScore: number | null;
   targetCompanies: string[];
   requestedCount: number;
+  queryHint?: string;
 }
 
 export interface ActiveExecutionHandle {
@@ -64,6 +70,88 @@ export class ExecutionLifecycleManager {
   private activeExecutions = new Map<string, ActiveExecutionHandle>();
   private intentExecutionMap = new Map<string, string>(); // `userId:hash` -> executionId
   private staleThresholdMs = 30000; // 30s heartbeat lease before considered stale
+  private redisClient: Redis | null = null;
+  private redisSubscriber: Redis | null = null;
+  private isSubscribed = false;
+  private messageListener: ((channel: string, message: string) => void) | null = null;
+
+  constructor(options?: { redisClient?: Redis | null; redisSubscriber?: Redis | null }) {
+    if (options) {
+      this.redisClient = options.redisClient ?? null;
+      this.redisSubscriber = options.redisSubscriber ?? null;
+    }
+    this.initRedisSubscription();
+  }
+
+  /**
+   * Sets or overrides Redis clients (used for testing or dynamic instance configuration)
+   */
+  public setRedisClients(redisClient: Redis | null, redisSubscriber: Redis | null): void {
+    this.cleanupRedisSubscription();
+    this.redisClient = redisClient;
+    this.redisSubscriber = redisSubscriber;
+    this.initRedisSubscription();
+  }
+
+  /**
+   * Initializes Redis Pub/Sub subscription to listen for cross-instance cancellation broadcasts
+   */
+  private initRedisSubscription(): void {
+    try {
+      const subscriber = this.redisSubscriber || getSharedRedisSubscriber();
+      if (!subscriber || this.isSubscribed) return;
+
+      this.messageListener = (channel: string, message: string) => {
+        if (channel === EXECUTION_CANCEL_CHANNEL) {
+          try {
+            const data = JSON.parse(message);
+            if (data && data.executionId) {
+              this.handleRemoteCancellation(data.executionId, data.reason || "CANCELLED");
+            }
+          } catch {
+            // Ignore malformed JSON
+          }
+        }
+      };
+
+      subscriber.on("message", this.messageListener);
+      subscriber.subscribe(EXECUTION_CANCEL_CHANNEL, (err) => {
+        if (!err) {
+          this.isSubscribed = true;
+        }
+      });
+    } catch {
+      // Non-fatal if Redis is offline
+    }
+  }
+
+  private cleanupRedisSubscription(): void {
+    try {
+      const subscriber = this.redisSubscriber || getSharedRedisSubscriber();
+      if (subscriber && this.messageListener) {
+        subscriber.removeListener("message", this.messageListener);
+        subscriber.unsubscribe(EXECUTION_CANCEL_CHANNEL).catch(() => {});
+      }
+    } catch {}
+    this.isSubscribed = false;
+    this.messageListener = null;
+  }
+
+  /**
+   * Aborts an active execution when a cancellation signal is received from another cluster instance
+   */
+  public handleRemoteCancellation(executionId: string, reason = "CANCELLED"): boolean {
+    const handle = this.activeExecutions.get(executionId);
+    if (handle) {
+      if (!handle.abortController.signal.aborted) {
+        handle.abortController.abort(reason);
+      }
+      this.unregisterExecution(executionId);
+      return true;
+    }
+    return false;
+  }
+
 
   /**
    * Computes a deterministic canonical intent hash and normalized JSON representation.
@@ -96,6 +184,7 @@ export class ExecutionLifecycleManager {
     const freshnessWindowHours = typeof intent.freshnessWindowHours === "number" ? intent.freshnessWindowHours : null;
     const minimumMatchScore = typeof intent.minimumMatchScore === "number" ? intent.minimumMatchScore : null;
     const requestedCount = typeof intent.requestedCount === "number" ? intent.requestedCount : 10;
+    const queryHint = intent.queryHint ? intent.queryHint.trim().toLowerCase() : undefined;
 
     const normalized: CanonicalIntentNormalization = {
       roles,
@@ -108,6 +197,7 @@ export class ExecutionLifecycleManager {
       minimumMatchScore,
       targetCompanies,
       requestedCount,
+      ...(queryHint ? { queryHint } : {}),
     };
 
     const canonicalJson = JSON.stringify(normalized);
@@ -185,6 +275,14 @@ export class ExecutionLifecycleManager {
     this.activeExecutions.set(executionId, handle);
     this.intentExecutionMap.set(`${userId}:${canonicalIntentHash}`, executionId);
 
+    // Sync active intent to distributed Redis cache (30m lease)
+    try {
+      const client = this.redisClient || getSharedRedisClient();
+      if (client) {
+        client.set(`execution:intent:${userId}:${canonicalIntentHash}`, executionId, "EX", 1800).catch(() => {});
+      }
+    } catch {}
+
     return handle;
   }
 
@@ -209,14 +307,30 @@ export class ExecutionLifecycleManager {
       }
       this.intentExecutionMap.delete(`${handle.userId}:${handle.canonicalIntentHash}`);
       this.activeExecutions.delete(executionId);
+
+      // Remove distributed intent key from Redis
+      try {
+        const client = this.redisClient || getSharedRedisClient();
+        if (client) {
+          client.del(`execution:intent:${handle.userId}:${handle.canonicalIntentHash}`).catch(() => {});
+        }
+      } catch {}
     }
   }
+
 
   /**
    * Gets an active execution handle by its executionId.
    */
   public getExecutionHandle(executionId: string): ActiveExecutionHandle | undefined {
     return this.activeExecutions.get(executionId);
+  }
+
+  /**
+   * Returns the count of actively registered in-flight executions with active heartbeat timers.
+   */
+  public getActiveExecutionCount(): number {
+    return this.activeExecutions.size;
   }
 
   /**
@@ -314,12 +428,28 @@ export class ExecutionLifecycleManager {
       return { success: true, status: record.status as ExecutionLifecycleState, alreadyStopped: true };
     }
 
-    // Signal abort on the in-memory handle if active
+    // Signal abort on the in-memory handle if active locally
     const handle = this.activeExecutions.get(executionId);
     if (handle) {
       if (!handle.abortController.signal.aborted) {
         handle.abortController.abort(reason);
       }
+    }
+
+    // Broadcast cancellation across all cluster instances via Redis
+    try {
+      const client = this.redisClient || getSharedRedisClient();
+      if (client) {
+        // Set persistent cancellation key with 1 hour TTL
+        await client.set(`execution:cancelled:${executionId}`, reason, "EX", 3600).catch(() => {});
+        // Broadcast via Pub/Sub to all connected worker / server instances
+        await client.publish(
+          EXECUTION_CANCEL_CHANNEL,
+          JSON.stringify({ executionId, requestingUserId, reason, timestamp: Date.now() })
+        ).catch(() => {});
+      }
+    } catch {
+      // Non-fatal: local fallback handles cancellation even if Redis is unreachable
     }
 
     // Update database status to STOPPED
@@ -339,6 +469,48 @@ export class ExecutionLifecycleManager {
   }
 
   /**
+   * Distributed cancellation check: checks local handle, Redis cancellation flag, and database state.
+   */
+  public async isExecutionCancelled(executionId: string): Promise<boolean> {
+    const handle = this.activeExecutions.get(executionId);
+    if (handle && handle.abortController.signal.aborted) {
+      return true;
+    }
+
+    try {
+      const client = this.redisClient || getSharedRedisClient();
+      if (client) {
+        const cancelledFlag = await client.get(`execution:cancelled:${executionId}`);
+        if (cancelledFlag) return true;
+      }
+    } catch {}
+
+    const isActive = await this.isExecutionActive(executionId);
+    return !isActive;
+  }
+
+  /**
+   * Finds an active execution ID across the entire cluster for this user and intent.
+   */
+  public async findDistributedExecutionId(userId: string, canonicalIntentHash: string): Promise<string | null> {
+    const local = this.getActiveExecutionForIntent(userId, canonicalIntentHash);
+    if (local) return local.executionId;
+
+    try {
+      const client = this.redisClient || getSharedRedisClient();
+      if (client) {
+        const remoteId = await client.get(`execution:intent:${userId}:${canonicalIntentHash}`);
+        if (remoteId) {
+          const isActive = await this.isExecutionActive(remoteId);
+          if (isActive) return remoteId;
+        }
+      }
+    } catch {}
+    return null;
+  }
+
+
+  /**
    * Checks whether an execution is still active (RUNNING / QUEUED / CREATED).
    * Used for late-result protection: prevents late async callbacks from mutating finished executions.
    */
@@ -351,9 +523,55 @@ export class ExecutionLifecycleManager {
     return ["CREATED", "QUEUED", "RUNNING"].includes(record.status);
   }
 
+  private recoveryIntervalTimer: NodeJS.Timeout | null = null;
+
   /**
-   * Scans for stale RUNNING executions (e.g. following process restart / crash)
-   * and transitions them to RECOVERABLE or FAILED with INTERRUPTED_CRASH reason.
+   * Starts an independent recurring scheduled sweep (default: every 2 minutes)
+   * that scans and recovers stale RUNNING and QUEUED executions even if all workers crashed.
+   */
+  public startIndependentRecoveryScheduler(intervalMs = 120000, thresholdMs?: number): NodeJS.Timeout {
+    if (this.recoveryIntervalTimer) {
+      clearInterval(this.recoveryIntervalTimer);
+      this.recoveryIntervalTimer = null;
+    }
+
+    const interval = process.env.STALE_RECOVERY_INTERVAL_MS
+      ? parseInt(process.env.STALE_RECOVERY_INTERVAL_MS, 10)
+      : intervalMs;
+
+    console.log(`[ExecutionLifecycleManager] 🕒 Initialized Independent Stale Execution Recovery Scheduler (interval: ${interval / 1000}s)`);
+
+    // Run initial sweep on startup to catch anything left over from previous process crash
+    this.recoverStaleExecutions(thresholdMs).catch((err) => {
+      console.error("[ExecutionLifecycleManager] Initial stale recovery sweep error:", err);
+    });
+
+    this.recoveryIntervalTimer = setInterval(() => {
+      this.recoverStaleExecutions(thresholdMs).catch((err) => {
+        console.error("[ExecutionLifecycleManager] Scheduled stale recovery sweep error:", err);
+      });
+    }, interval);
+
+    if (this.recoveryIntervalTimer.unref) {
+      this.recoveryIntervalTimer.unref();
+    }
+
+    return this.recoveryIntervalTimer;
+  }
+
+  /**
+   * Stops the independent recovery scheduler timer.
+   */
+  public stopIndependentRecoveryScheduler(): void {
+    if (this.recoveryIntervalTimer) {
+      clearInterval(this.recoveryIntervalTimer);
+      this.recoveryIntervalTimer = null;
+    }
+  }
+
+  /**
+   * Scans for stale RUNNING executions (heartbeat lost) and stale QUEUED executions
+   * (unprocessed beyond queue timeout) and transitions them to RECOVERABLE or FAILED.
    */
   public async recoverStaleExecutions(customThresholdMs?: number): Promise<{
     recoveredCount: number;
@@ -361,8 +579,11 @@ export class ExecutionLifecycleManager {
   }> {
     const threshold = customThresholdMs || this.staleThresholdMs;
     const cutoff = new Date(Date.now() - threshold);
+    const queuedThreshold = Math.max(threshold * 2, 300000); // at least 5 minutes for queued
+    const queuedCutoff = new Date(Date.now() - queuedThreshold);
 
-    const staleExecutions = await prisma.search.findMany({
+    // 1. Stale RUNNING executions (active worker died or lost heartbeat)
+    const staleRunning = await prisma.search.findMany({
       where: {
         status: "RUNNING",
         updatedAt: { lt: cutoff },
@@ -373,15 +594,26 @@ export class ExecutionLifecycleManager {
       },
     });
 
+    // 2. Stale QUEUED executions (worker crashed before picking up job or no worker active)
+    const staleQueued = await prisma.search.findMany({
+      where: {
+        status: "QUEUED",
+        updatedAt: { lt: queuedCutoff },
+      },
+      select: {
+        id: true,
+        totalFound: true,
+      },
+    });
+
     const staleExecutionIds: string[] = [];
 
-    for (const exec of staleExecutions) {
+    // Process stale RUNNING
+    for (const exec of staleRunning) {
       staleExecutionIds.push(exec.id);
-      // Unregister any ghost memory handles
       this.unregisterExecution(exec.id);
 
       if (exec.totalFound > 0) {
-        // Preserves partial results truthfully as RECOVERABLE
         await prisma.search.update({
           where: { id: exec.id },
           data: {
@@ -404,6 +636,29 @@ export class ExecutionLifecycleManager {
           },
         });
       }
+    }
+
+    // Process stale QUEUED
+    for (const exec of staleQueued) {
+      staleExecutionIds.push(exec.id);
+      this.unregisterExecution(exec.id);
+
+      await prisma.search.update({
+        where: { id: exec.id },
+        data: {
+          status: "FAILED",
+          isRecoverable: false,
+          stoppingReason: "QUEUE_TIMEOUT_CRASH",
+          failureReason: "Execution timed out waiting in queue; worker process died or was unavailable.",
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    if (staleExecutionIds.length > 0) {
+      console.warn(
+        `[ExecutionLifecycleManager] ⚠️ Recovered ${staleExecutionIds.length} orphaned/stale execution(s): [${staleExecutionIds.join(", ")}]`
+      );
     }
 
     return {

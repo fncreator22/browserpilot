@@ -7,7 +7,7 @@
 process.env.IS_TEST_HARNESS = "true";
 (process.env as Record<string, string | undefined>).NODE_ENV = "test";
 
-import { prisma, isPostgresDatabase } from "@/lib/db";
+import { prisma, isPostgresDatabase, getDatabaseTarget } from "@/lib/db/prisma";
 import {
   claimDiscoveryWatch,
   releaseDiscoveryWatch,
@@ -39,7 +39,10 @@ export async function runPostgresProductionSchedulerTests() {
   assert(isPostgresDatabase("postgresql://usr:pass@rds.aws.com:5432/bp_prod") === true, "Must recognize postgresql:// URI");
   assert(isPostgresDatabase("postgres://usr:pass@rds.aws.com:5432/bp_prod") === true, "Must recognize postgres:// URI");
   assert(isPostgresDatabase("file:./dev.db") === false, "Must not flag file: URI as postgres");
-  console.log("  ✓ Verified PostgreSQL connection URI detection and schema isolation");
+
+  assert(getDatabaseTarget("postgresql://usr:pass@aws-0-ap-south-1.pooler.supabase.com:6543/postgres").provider === "Supabase", "Must identify Supabase provider");
+  assert(getDatabaseTarget("postgresql://usr:pass@browserpilot-prod.cluster-cxeiuyo66ysk.ap-south-2.rds.amazonaws.com:5432/postgres").provider === "AWS Aurora", "Must identify AWS Aurora provider");
+  console.log("  ✓ Verified PostgreSQL connection URI detection, provider identification, and schema isolation");
 
   // ---------------------------------------------------------------------------
   // 2. Setup Multi-Tenant User Fixtures

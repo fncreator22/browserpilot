@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useUIState } from "@/components/providers/ui-state-provider";
 import type { SearchIntent } from "@/lib/scraper/providers/baseProvider";
 
 interface AutonomousWatchCardProps {
@@ -40,6 +41,11 @@ export function AutonomousWatchCard({ intent, query, onWatchSaved, className = "
   const experienceLevels = intent.experienceLevels || (intent.experienceLevel ? [intent.experienceLevel] : ["ENTRY_LEVEL"]);
   const scanIntervalHours = intent.watchIntent?.scanIntervalHours || 4;
   const minimumMatchScore = intent.minimumMatchScore || 70;
+  const { connectors } = useUIState();
+
+  const connectorSummary = connectors && connectors.length > 0
+    ? `${connectors.slice(0, 3).map(c => c.displayName).join(", ")}, and ${Math.max(1, connectors.length - 3)} other sources`
+    : "LinkedIn, Greenhouse, Lever, Ashby, and 6 other registered sources";
 
   const handleSaveWatch = async () => {
     setIsSaving(true);
@@ -120,7 +126,7 @@ export function AutonomousWatchCard({ intent, query, onWatchSaved, className = "
           <p className="text-xs text-muted-foreground leading-relaxed max-w-2xl">
             {isSaved
               ? `Active watch is monitoring multi-source postings. You'll receive proactive notifications whenever a brand new opportunity or repost is discovered.`
-              : `Convert this search into an autonomous background watch. BrowserPilot will periodically search across LinkedIn, YC, and Indeed and alert you only when something genuinely new appears.`}
+              : `Convert this search into an autonomous background watch. BrowserPilot will periodically search across our active connector registry (${connectorSummary}) and alert you only when something genuinely new appears.`}
           </p>
 
           {/* Config Preview Chips */}

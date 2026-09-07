@@ -24,7 +24,7 @@
  * T. No secret is exposed to client components
  */
 
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/db/prisma";
 import { parseSearchIntent } from "@/lib/scraper/intentParser";
 import { calculateRoleScore, calculateSkillsScore, calculateWorkModeScore, calculateFreshnessScore, calculateVerificationScore, rankOpportunities } from "@/lib/scraper/ranker";
 import { type SearchIntent } from "@/lib/scraper/providers/baseProvider";

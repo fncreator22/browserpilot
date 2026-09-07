@@ -37,7 +37,7 @@ async function authorizeSchedulerRequest(request: NextRequest): Promise<boolean>
   }
 
   // Check Admin API key / session fallback
-  const adminAuth = await verifyAdminAccess(adminHeader);
+  const adminAuth = await verifyAdminAccess(adminHeader, request);
   return adminAuth.isAdmin;
 }
 

@@ -254,7 +254,7 @@ export function DataTableCard({ data, schema, title = "Extracted Dataset", jobId
                 </td>
                 {columns.map((col) => {
                   const val = row[col];
-                  const strVal = val === null || val === undefined ? "—" : typeof val === "object" ? JSON.stringify(val) : String(val);
+                  const strVal = val === null || val === undefined ? "-" : typeof val === "object" ? JSON.stringify(val) : String(val);
                   const isUrl = typeof val === "string" && (val.startsWith("http://") || val.startsWith("https://"));
 
                   return (

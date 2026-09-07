@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
 import { executionLifecycleManager } from "@/lib/discovery/execution/executionLifecycleManager";
+import { getSearchDiscoveryQueue } from "@/lib/queue/searchQueue";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,15 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Try to remove from BullMQ queue if still waiting
+    try {
+      const queue = getSearchDiscoveryQueue();
+      const job = await queue.getJob(executionId);
+      if (job && (await job.isWaiting())) {
+        await job.remove();
+      }
+    } catch {}
 
     const cancelResult = await executionLifecycleManager.cancelExecution(
       executionId,

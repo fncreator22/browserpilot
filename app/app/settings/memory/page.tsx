@@ -25,9 +25,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Navbar } from "@/components/navbar";
-import { WorkspaceNav } from "@/components/workspace/workspace-nav";
-import { Footer } from "@/components/footer";
 import { toast } from "sonner";
 
 interface MemoryItem {
@@ -177,12 +174,8 @@ export default function UserMemoryPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground selection:bg-primary/20 selection:text-primary">
-      <Navbar />
-
-      <main className="flex-1 container mx-auto max-w-5xl px-4 sm:px-6 py-6 space-y-6">
-        <WorkspaceNav />
-
+    <div className="flex-1 flex flex-col antialiased selection:bg-[#1F3D2E]/20 selection:text-[#1F3D2E]">
+      <main className="flex-1 container mx-auto max-w-5xl px-4 sm:px-6 py-6 pb-32 space-y-6">
         {/* Header Title */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
           <div>
@@ -190,17 +183,22 @@ export default function UserMemoryPage() {
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <Brain className="h-4 w-4" />
               </span>
-              <h1 className="text-xl font-bold tracking-tight text-foreground font-mono">
+              <h1 className="text-xl font-bold tracking-tight text-foreground font-serif">
                 User Memory Vault & Personalization
               </h1>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Durable preferences BrowserPilot remembers to personalize your searches. Explicit query constraints always override saved preferences.
+            <p className="text-xs text-muted-foreground mt-1 font-sans">
+              <span className="hidden sm:inline">
+                Durable preferences BrowserPilot remembers to personalize your searches. Explicit query constraints always override saved preferences.
+              </span>
+              <span className="sm:hidden">
+                Durable search preferences.
+              </span>
             </p>
           </div>
 
           <Link href="/app">
-            <Button variant="outline" size="sm" className="font-mono text-xs gap-1.5 cursor-pointer">
+            <Button variant="outline" size="sm" className="font-sans font-medium text-xs gap-1.5 cursor-pointer">
               Back to Discover
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
@@ -210,11 +208,11 @@ export default function UserMemoryPage() {
         {/* Section 1: Add a Preference */}
         <div className="rounded-2xl border border-border/80 bg-card p-5 space-y-3 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-foreground font-mono flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-foreground font-sans flex items-center gap-1.5">
               <Plus className="h-3.5 w-3.5 text-primary" />
               Add a Durable Preference
             </span>
-            <span className="text-[11px] font-mono text-muted-foreground">
+            <span className="text-[11px] font-sans text-muted-foreground">
               Passes through Memory Admission
             </span>
           </div>
@@ -266,7 +264,7 @@ export default function UserMemoryPage() {
         <div className="rounded-2xl border border-border/80 bg-card p-5 sm:p-6 space-y-4 shadow-xs">
           <div className="flex items-center justify-between border-b border-border/60 pb-3">
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground font-mono flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-foreground font-sans flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-emerald-500" />
                 Active Saved Preferences ({preferences.length})
               </h3>
@@ -316,7 +314,7 @@ export default function UserMemoryPage() {
 
                       <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                          <span className="text-[11px] font-sans font-medium text-muted-foreground">
                             {formatCategoryLabel(item.category)}
                           </span>
                           <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 text-emerald-500 border-emerald-500/30 bg-emerald-500/10">
@@ -393,9 +391,9 @@ export default function UserMemoryPage() {
           <div className="rounded-2xl border border-sky-500/30 bg-sky-500/5 p-5 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-sky-400 font-mono flex items-center gap-1.5">
+                <h3 className="text-xs font-semibold text-sky-600 font-sans flex items-center gap-1.5">
                   <Lightbulb className="h-4 w-4" />
-                  Suggested For You (Recommendation Signals)
+                  Suggested for you (Recommendation signals)
                 </h3>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   Observed from search patterns and feedback. Recommendations are not permanent preferences.
@@ -456,8 +454,6 @@ export default function UserMemoryPage() {
           </p>
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 }

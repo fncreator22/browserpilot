@@ -9,6 +9,8 @@ import { executeJobPipeline } from "@/lib/ai/pipelineEngine";
 import { type PipelineResult } from "@/lib/ai/pipeline";
 import { validateGeminiCredentialsOnStartup } from "@/lib/ai/intent";
 import { startAutoPurgeScheduler, stopAutoPurgeScheduler } from "./cleanup";
+import { startSearchWorker } from "./searchWorker";
+import { executionLifecycleManager } from "@/lib/discovery/execution/executionLifecycleManager";
 
 config();
 
@@ -87,8 +89,14 @@ export async function startWorker() {
     }
   );
 
+  // Start BullMQ Search Discovery Worker
+  const searchWorker = startSearchWorker();
+
   // Start Repeatable 24h Auto-Purge Scheduler (§Prompt B2)
   startAutoPurgeScheduler();
+
+  // Start Independent Stale Execution Recovery Scheduler (§Prompt Part A)
+  executionLifecycleManager.startIndependentRecoveryScheduler();
 
   worker.on("ready", () => {
     console.log(`[Worker] Ready and listening for incoming jobs (concurrency: ${concurrency})...\n`);
@@ -102,7 +110,11 @@ export async function startWorker() {
   const cleanup = async () => {
     console.log("\n[Worker] Shutting down worker gracefully...");
     stopAutoPurgeScheduler();
-    await worker.close();
+    executionLifecycleManager.stopIndependentRecoveryScheduler();
+    await Promise.all([
+      worker.close(),
+      searchWorker.close(),
+    ]);
     try {
       const { browserPool } = await import("./browser");
       await browserPool.closeAll().catch(() => {});
@@ -110,11 +122,20 @@ export async function startWorker() {
     process.exit(0);
   };
 
-  process.on("SIGINT", cleanup);
-  process.on("SIGTERM", cleanup);
+  const composite = Object.assign(worker, {
+    browserWorker: worker,
+    searchWorker,
+    close: async () => {
+      stopAutoPurgeScheduler();
+      executionLifecycleManager.stopIndependentRecoveryScheduler();
+      await Promise.all([worker.close(), searchWorker.close()]);
+    },
+  });
 
-  return worker;
+  return composite;
 }
+
+export * from "./searchWorker";
 
 // Auto-start if executed directly via CLI
 if (require.main === module) {

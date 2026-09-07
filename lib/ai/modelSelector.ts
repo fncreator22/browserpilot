@@ -6,6 +6,8 @@ import { GoogleGenAI } from "@google/genai";
  * Defaults to gemini-2.5-flash (current generation Google GenAI API endpoint).
  */
 export const SUPPORTED_GEMINI_MODELS = [
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
   "gemini-2.5-flash",
   "gemini-2.0-flash",
   "gemini-1.5-flash",
@@ -14,9 +16,9 @@ export const SUPPORTED_GEMINI_MODELS = [
 
 export type SupportedGeminiModel = (typeof SUPPORTED_GEMINI_MODELS)[number];
 
-// Default to Gemini 2.5 Flash (active, fastest, production-ready endpoint)
-export const DEFAULT_GEMINI_MODEL: SupportedGeminiModel = "gemini-2.5-flash";
-export const FALLBACK_GEMINI_MODEL: SupportedGeminiModel = "gemini-2.0-flash";
+// Default to Gemini 3.6 Flash, fallback to Gemini 3.5 Flash for quota diversification
+export const DEFAULT_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.6-flash";
+export const FALLBACK_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.5-flash";
 
 /**
  * Get effective Gemini API Key from explicit key or environment
@@ -28,6 +30,41 @@ export function getEffectiveGeminiApiKey(explicitKey?: string | null): string | 
   const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (envKey && envKey.trim() && envKey.trim() !== "your-gemini-api-key") {
     return envKey.trim();
+  }
+  return null;
+}
+
+/**
+ * Asynchronously resolve Gemini API key from explicit key, environment variables,
+ * specific user record, or database fallback.
+ */
+export async function resolveGeminiApiKey(
+  explicitKey?: string | null,
+  userId?: string | null
+): Promise<string | null> {
+  const direct = getEffectiveGeminiApiKey(explicitKey);
+  if (direct) return direct;
+
+  if (typeof window === "undefined") {
+    try {
+      if (userId) {
+        const { getUserGeminiApiKey } = await import("@/lib/db/users");
+        const userKey = await getUserGeminiApiKey(userId);
+        if (userKey) return userKey;
+      }
+      const { prisma } = await import("@/lib/db/prisma");
+      const { decryptCredential } = await import("@/lib/security/credentialEncryption");
+      const u = await prisma.user.findFirst({
+        where: { geminiApiKey: { not: null } },
+        select: { geminiApiKey: true },
+      });
+      if (u?.geminiApiKey) {
+        const decrypted = decryptCredential(u.geminiApiKey);
+        if (decrypted) return decrypted;
+      }
+    } catch {
+      // Ignore database lookup failure in isolated execution
+    }
   }
   return null;
 }

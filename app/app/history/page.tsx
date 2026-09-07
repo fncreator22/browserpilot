@@ -24,9 +24,6 @@ import {
   CheckCircle2, 
   Plus
 } from "lucide-react";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
-import { WorkspaceNav } from "@/components/workspace/workspace-nav";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { JobDossierDeck, type DossierJobItem } from "@/components/result/job-dossier-deck";
@@ -103,7 +100,7 @@ function HistoryContent() {
       const res = await fetch(`/api/search/history/${sessionId}`);
       if (res.ok) {
         const data = await res.json();
-        setViewingSession(data);
+        setViewingSession(data.search || data);
       } else {
         toast.error("Failed to load historical session details");
       }
@@ -125,13 +122,8 @@ function HistoryContent() {
   });
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
-      <Navbar />
-
-      <main className="flex-1 container mx-auto max-w-7xl px-4 py-8 sm:px-6 space-y-8">
-        {/* Workspace Navigation Bar */}
-        <WorkspaceNav showNewSearchButton />
-
+    <div className="flex-1 flex flex-col antialiased selection:bg-[#1F3D2E]/20 selection:text-[#1F3D2E]">
+      <main className="flex-1 container mx-auto max-w-7xl px-4 py-8 pb-32 sm:px-6 space-y-8">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/60">
           <div>
@@ -139,7 +131,7 @@ function HistoryContent() {
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <History className="h-4 w-4" />
               </span>
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+              <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-foreground">
                 Search History
               </h1>
               <Badge variant="secondary" className="font-mono text-xs">
@@ -147,13 +139,18 @@ function HistoryContent() {
               </Badge>
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              Review previous natural-language discovery sessions, replay queries, and inspect past candidate pools.
+              <span className="hidden sm:inline">
+                Review previous natural-language discovery sessions, replay queries, and inspect past candidate pools.
+              </span>
+              <span className="sm:hidden">
+                Past searches and candidate pools.
+              </span>
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <Link href="/app">
-              <Button size="sm" className="h-8 font-mono text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-xs">
+              <Button size="sm" className="h-8 font-sans font-medium text-xs gap-1.5 bg-[#1F3D2E] text-white hover:bg-[#162D22] cursor-pointer shadow-xs">
                 <Plus className="h-3.5 w-3.5" />
                 Start New Discovery
               </Button>
@@ -221,7 +218,7 @@ function HistoryContent() {
                         {item.parsedLocation}
                       </span>
                     )}
-                    {item.parsedSkills && item.parsedSkills.length > 0 && (
+                    {Array.isArray(item.parsedSkills) && item.parsedSkills.length > 0 && (
                       <span>Skills: {item.parsedSkills.slice(0, 3).join(", ")}</span>
                     )}
                   </div>
@@ -280,10 +277,10 @@ function HistoryContent() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="font-mono text-xs">
-                      Session #{viewingSession.id.slice(-6)}
+                      Session #{viewingSession.id ? viewingSession.id.slice(-6) : "ARCHIVE"}
                     </Badge>
                     <span className="text-xs font-mono text-muted-foreground">
-                      {new Date(viewingSession.createdAt).toLocaleString()}
+                      {new Date(viewingSession.createdAt || Date.now()).toLocaleString()}
                     </span>
                   </div>
                   <h2 className="text-lg font-bold text-foreground">
@@ -317,8 +314,6 @@ function HistoryContent() {
           </div>
         )}
       </main>
-
-      <Footer />
     </div>
   );
 }

@@ -86,7 +86,7 @@ export function WorkerMetrics({
           </div>
           <div className="mt-2">
             <span className="text-xl font-bold font-mono tracking-tight text-foreground">
-              {hasRealTokens ? tokensUsed.toLocaleString() : tokensUsed === 0 ? "0" : "—"}
+              {hasRealTokens ? tokensUsed.toLocaleString() : tokensUsed === 0 ? "0" : "-"}
             </span>
           </div>
           <span className="text-[10px] text-muted-foreground mt-1">

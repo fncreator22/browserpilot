@@ -22,6 +22,7 @@
 .DS_Store
 *.pem
 .agents/
+skills-lock.json
 
 # debug
 npm-debug.log*
@@ -56,3 +57,21 @@ storage/
 *.sqlite
 *.sqlite3
 dev.db
+
+# graphify knowledge graph (auto-generated, not source)
+public/graph/
+
+# local scratch / one-off diagnostic scripts
+scratch/
+out.log
+err.log
+
+# auto-generated analysis artifacts
+abandonment_matches.json
+knip_clean.json
+knip_report.json
+
+# terraform state (contains sensitive outputs)
+infra/terraform/.terraform/
+infra/terraform/terraform.tfstate
+infra/terraform/terraform.tfstate.backup

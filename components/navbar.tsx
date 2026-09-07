@@ -17,32 +17,43 @@ import {
   LogIn, 
   ArrowRight,
   Menu,
-  X
+  X,
+  Search
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ProfileModal } from "@/components/profile/profile-modal";
+import { useUIState } from "@/components/providers/ui-state-provider";
 
 export function Navbar() {
   const { data: session } = useSession();
   const pathname = usePathname();
+  const { 
+    unreadNotificationsCount, 
+    openCommandPalette, 
+    isProfileModalOpen, 
+    closeProfileModal, 
+    openProfileModal, 
+    profileModalTab 
+  } = useUIState();
+
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profileTab, setProfileTab] = useState<"ACCOUNT" | "PERSONALIZATION" | "PROVIDERS" | "BILLING">("ACCOUNT");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    if (!session?.user) return;
-    async function checkNotifications() {
-      try {
-        const res = await fetch("/api/notifications?unreadOnly=true");
-        if (res.ok) {
-          const data = await res.json();
-          setUnreadCount(data.unreadCount || 0);
-        }
-      } catch {}
-    }
-    checkNotifications();
-  }, [session?.user]);
+    const handleOpenProfile = (e: Event) => {
+      const customEvent = e as CustomEvent<{ tab?: "ACCOUNT" | "PERSONALIZATION" | "PROVIDERS" | "BILLING" }>;
+      if (customEvent.detail?.tab) {
+        setProfileTab(customEvent.detail.tab);
+      } else {
+        setProfileTab("ACCOUNT");
+      }
+      setIsProfileOpen(true);
+    };
+
+    window.addEventListener("open-profile-modal", handleOpenProfile);
+    return () => window.removeEventListener("open-profile-modal", handleOpenProfile);
+  }, []);
 
   const isAuthWorkspace = pathname?.startsWith("/app") || pathname?.startsWith("/admin");
 
@@ -140,18 +151,32 @@ export function Navbar() {
           {/* Right Action Controls */}
           <div className="flex items-center gap-2">
             {session?.user && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openCommandPalette}
+                className="hidden sm:inline-flex items-center gap-2 h-8 px-2.5 font-mono text-xs text-muted-foreground border-border/80 bg-muted/20 hover:bg-muted/50 cursor-pointer"
+                aria-label="Open Command Palette (Cmd+K)"
+              >
+                <Search className="h-3.5 w-3.5 text-[#1F3D2E] dark:text-emerald-400" />
+                <span className="hidden lg:inline text-xs">Search or jump...</span>
+                <kbd className="text-[10px] bg-background/80 border border-border/80 px-1 py-0.2 rounded font-mono">⌘K</kbd>
+              </Button>
+            )}
+
+            {session?.user && (
               <Link href="/app/notifications">
                 <Button
                   variant={pathname === "/app/notifications" ? "secondary" : "ghost"}
                   size="sm"
                   className="relative font-mono text-xs gap-1.5 text-muted-foreground hover:text-foreground px-2.5 cursor-pointer"
-                  title={unreadCount > 0 ? `${unreadCount} unread lifecycle alerts` : "Lifecycle Alerts"}
+                  title={unreadNotificationsCount > 0 ? `${unreadNotificationsCount} unread lifecycle alerts` : "Lifecycle Alerts"}
                   aria-label="Notifications"
                 >
-                  <Bell className={`h-3.5 w-3.5 ${unreadCount > 0 ? "text-amber-500 animate-pulse" : ""}`} />
-                  {unreadCount > 0 && (
+                  <Bell className={`h-3.5 w-3.5 ${unreadNotificationsCount > 0 ? "text-amber-500 animate-pulse" : ""}`} />
+                  {unreadNotificationsCount > 0 && (
                     <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">
-                      {unreadCount}
+                      {unreadNotificationsCount}
                     </span>
                   )}
                 </Button>
@@ -172,7 +197,7 @@ export function Navbar() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setIsProfileOpen(true)}
+                  onClick={() => openProfileModal("ACCOUNT")}
                   className="font-mono text-xs gap-1.5 border-border/80 hover:border-primary/40 bg-muted/20 cursor-pointer max-w-[130px] truncate"
                 >
                   <User className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -190,6 +215,17 @@ export function Navbar() {
                   title="Sign Out"
                 >
                   <LogOut className="h-3.5 w-3.5" />
+                </Button>
+
+                {/* Mobile Command Palette Trigger Button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={openCommandPalette}
+                  className="sm:hidden p-2 text-muted-foreground hover:text-foreground cursor-pointer"
+                  aria-label="Open Command Palette"
+                >
+                  <Search className="h-4 w-4" />
                 </Button>
 
                 {/* Mobile Menu Trigger */}
@@ -274,9 +310,9 @@ export function Navbar() {
                 >
                   <Bell className="h-3.5 w-3.5" />
                   <span>Alerts & Notifications</span>
-                  {unreadCount > 0 && (
+                  {unreadNotificationsCount > 0 && (
                     <Badge variant="outline" className="ml-auto text-[10px] font-mono bg-amber-500/15 text-amber-600 border-amber-500/30">
-                      {unreadCount} new
+                      {unreadNotificationsCount} new
                     </Badge>
                   )}
                 </Button>
@@ -310,8 +346,6 @@ export function Navbar() {
         )}
       </header>
 
-      {/* User Profile Pop-Up Modal */}
-      <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
     </>
   );
 }

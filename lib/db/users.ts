@@ -37,6 +37,8 @@ export async function getUserByEmail(email: string) {
   }
 }
 
+import { encryptCredential, decryptCredential } from "@/lib/security/credentialEncryption";
+
 /**
  * Retrieve User's Gemini API Key (BYOK) by ID
  */
@@ -46,7 +48,7 @@ export async function getUserGeminiApiKey(userId: string): Promise<string | null
       where: { id: userId },
       select: { geminiApiKey: true },
     });
-    return user?.geminiApiKey || null;
+    return decryptCredential(user?.geminiApiKey);
   } catch (err) {
     console.error(`[UsersDB] Failed to get geminiApiKey for user ${userId}:`, err);
     return null;
@@ -64,14 +66,14 @@ export async function getEffectiveUserGeminiApiKey(identifier?: string | null): 
       where: { id: identifier },
       select: { geminiApiKey: true },
     });
-    if (userById?.geminiApiKey) return userById.geminiApiKey;
+    if (userById?.geminiApiKey) return decryptCredential(userById.geminiApiKey);
 
     // 2. Try by Email
     const userByEmail = await prisma.user.findUnique({
       where: { email: identifier.toLowerCase().trim() },
       select: { geminiApiKey: true },
     });
-    if (userByEmail?.geminiApiKey) return userByEmail.geminiApiKey;
+    if (userByEmail?.geminiApiKey) return decryptCredential(userByEmail.geminiApiKey);
   } catch (err) {
     console.error(`[UsersDB] Failed to get geminiApiKey for ${identifier}:`, err);
   }
@@ -92,7 +94,7 @@ export async function createUser(data: {
       email: data.email.toLowerCase().trim(),
       name: data.name?.trim() || null,
       passwordHash: data.passwordHash,
-      geminiApiKey: data.geminiApiKey?.trim() || null,
+      geminiApiKey: data.geminiApiKey ? encryptCredential(data.geminiApiKey) : null,
     },
   });
 }
@@ -113,7 +115,9 @@ export async function updateUserProfile(
 
   if (data.name !== undefined) updatePayload.name = data.name.trim() || null;
   if (data.email !== undefined) updatePayload.email = data.email.toLowerCase().trim();
-  if (data.geminiApiKey !== undefined) updatePayload.geminiApiKey = data.geminiApiKey.trim() || null;
+  if (data.geminiApiKey !== undefined) {
+    updatePayload.geminiApiKey = data.geminiApiKey ? encryptCredential(data.geminiApiKey) : null;
+  }
   if (data.newPasswordHash) updatePayload.passwordHash = data.newPasswordHash;
 
   return await prisma.user.update({

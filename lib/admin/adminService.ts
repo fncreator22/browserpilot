@@ -14,7 +14,7 @@ import { sourceRegistry } from "@/lib/discovery/sources/sourceRegistry";
 
 export interface SystemHealthMetrics {
   status: "HEALTHY" | "DEGRADED" | "CRITICAL";
-  databaseEngine: "POSTGRESQL" | "SQLITE_LIBSQL";
+  databaseEngine: "POSTGRESQL";
   uptimeSeconds: number;
   memoryRssMb: number;
   nodeVersion: string;
@@ -164,7 +164,7 @@ export class AdminControlPlaneService {
   public async getOverviewMetrics(): Promise<AdminOverviewMetrics> {
     const memoryRssMb = Math.round((process.memoryUsage().rss / (1024 * 1024)) * 10) / 10;
     const uptimeSeconds = Math.round(process.uptime());
-    const dbEngine = isPostgresDatabase() ? "POSTGRESQL" : "SQLITE_LIBSQL";
+    const dbEngine: "POSTGRESQL" = "POSTGRESQL";
 
     const [
       totalUsers,

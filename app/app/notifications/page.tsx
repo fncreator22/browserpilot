@@ -14,12 +14,10 @@ import {
   RotateCw,
   Compass
 } from "lucide-react";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
-import { WorkspaceNav } from "@/components/workspace/workspace-nav";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useUIState } from "@/components/providers/ui-state-provider";
 
 interface LifecycleAlertItem {
   id: string;
@@ -44,8 +42,13 @@ interface LifecycleAlertItem {
 
 export default function NotificationsPage() {
   const [alerts, setAlerts] = useState<LifecycleAlertItem[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const { 
+    unreadNotificationsCount, 
+    setUnreadNotificationsCount, 
+    markNotificationAsRead, 
+    markAllNotificationsAsRead 
+  } = useUIState();
 
   const fetchAlerts = async () => {
     try {
@@ -54,7 +57,7 @@ export default function NotificationsPage() {
       if (res.ok) {
         const data = await res.json();
         setAlerts(data.notifications || []);
-        setUnreadCount(data.unreadCount || 0);
+        setUnreadNotificationsCount(data.unreadCount || 0);
       }
     } catch {
       // Non-fatal
@@ -69,14 +72,9 @@ export default function NotificationsPage() {
 
   const handleMarkAllRead = async () => {
     try {
-      const res = await fetch("/api/notifications/read-all", {
-        method: "POST",
-      });
-      if (res.ok) {
-        setAlerts(prev => prev.map(a => ({ ...a, isRead: true })));
-        setUnreadCount(0);
-        toast.success("All alerts marked as read");
-      }
+      await markAllNotificationsAsRead();
+      setAlerts(prev => prev.map(a => ({ ...a, isRead: true })));
+      toast.success("All alerts marked as read");
     } catch {
       toast.error("Failed to mark alerts read");
     }
@@ -84,9 +82,8 @@ export default function NotificationsPage() {
 
   const handleMarkRead = async (id: string) => {
     try {
-      await fetch(`/api/notifications/${id}/read`, { method: "PUT" });
+      await markNotificationAsRead(id);
       setAlerts(prev => prev.map(a => a.id === id ? { ...a, isRead: true } : a));
-      setUnreadCount(prev => Math.max(0, prev - 1));
     } catch {
       // Non-fatal
     }
@@ -95,24 +92,19 @@ export default function NotificationsPage() {
   const getTransitionBadge = (type: string) => {
     switch (type) {
       case "NEW_OPPORTUNITY":
-        return <Badge variant="default" className="font-mono text-[10px] bg-emerald-500/15 text-emerald-600 border-emerald-500/30">NEW MATCH</Badge>;
+        return <Badge variant="default" className="font-sans text-[10px] font-medium bg-emerald-500/15 text-emerald-700 border-emerald-500/30">New Match</Badge>;
       case "NEW_SOURCE":
-        return <Badge variant="secondary" className="font-mono text-[10px] bg-blue-500/15 text-blue-600 border-blue-500/30">NEW SOURCE</Badge>;
+        return <Badge variant="secondary" className="font-sans text-[10px] font-medium bg-blue-500/15 text-blue-700 border-blue-500/30">New Source</Badge>;
       case "REPOSTED":
-        return <Badge variant="outline" className="font-mono text-[10px] bg-amber-500/15 text-amber-600 border-amber-500/30">REPOSTED</Badge>;
+        return <Badge variant="outline" className="font-sans text-[10px] font-medium bg-amber-500/15 text-amber-700 border-amber-500/30">Reposted</Badge>;
       default:
-        return <Badge variant="outline" className="font-mono text-[10px]">{type}</Badge>;
+        return <Badge variant="outline" className="font-sans text-[10px] font-medium">{type}</Badge>;
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
-      <Navbar />
-
-      <main className="flex-1 container mx-auto max-w-7xl px-4 py-8 sm:px-6 space-y-8">
-        {/* Workspace Navigation Bar */}
-        <WorkspaceNav unreadAlertsCount={unreadCount} showNewSearchButton />
-
+    <div className="flex-1 flex flex-col antialiased selection:bg-[#1F3D2E]/20 selection:text-[#1F3D2E]">
+      <main className="flex-1 container mx-auto max-w-7xl px-4 py-8 pb-32 sm:px-6 space-y-8">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/60">
           <div>
@@ -120,27 +112,32 @@ export default function NotificationsPage() {
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <Bell className="h-4 w-4" />
               </span>
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+              <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-foreground">
                 Lifecycle Alerts
               </h1>
-              {unreadCount > 0 && (
+              {unreadNotificationsCount > 0 && (
                 <Badge variant="outline" className="font-mono text-xs bg-amber-500/15 text-amber-600 border-amber-500/30">
-                  {unreadCount} Unread
+                  {unreadNotificationsCount} Unread
                 </Badge>
               )}
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              Autonomous notifications when new roles match your watch criteria or existing postings refresh.
+              <span className="hidden sm:inline">
+                Autonomous notifications when new roles match your watch criteria or existing postings refresh.
+              </span>
+              <span className="sm:hidden">
+                Match and refresh alerts.
+              </span>
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            {unreadCount > 0 && (
+            {unreadNotificationsCount > 0 && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleMarkAllRead}
-                className="h-8 font-mono text-xs gap-1.5 border-border/80 cursor-pointer"
+                className="h-8 font-sans font-medium text-xs gap-1.5 border-border/80 cursor-pointer"
               >
                 <CheckCheck className="h-3.5 w-3.5" />
                 Mark All Read
@@ -236,7 +233,7 @@ export default function NotificationsPage() {
                 </Button>
               </Link>
               <Link href="/app">
-                <Button size="sm" className="font-mono text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-xs">
+                <Button size="sm" className="font-sans font-semibold text-xs gap-1.5 bg-[#1F3D2E] hover:bg-[#162D22] text-white cursor-pointer shadow-xs">
                   <Compass className="h-3.5 w-3.5" />
                   Discover Roles
                 </Button>
@@ -245,8 +242,6 @@ export default function NotificationsPage() {
           </div>
         )}
       </main>
-
-      <Footer />
     </div>
   );
 }

@@ -104,7 +104,7 @@ export function ScreenshotCard({
               className="w-full h-auto rounded-lg object-contain shadow-sm max-h-[500px]"
             />
           ) : showServerlessNotice ? (
-            /* Serverless Mode Notice — shown when Playwright is unavailable on Vercel Lambda */
+            /* Serverless Mode Notice - shown when Playwright is unavailable on Vercel Lambda */
             <div className="flex flex-col items-center justify-center p-8 text-center gap-4 max-w-sm">
               <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
                 <Cloud className="h-10 w-10 text-blue-400 mx-auto mb-3" />
@@ -113,7 +113,7 @@ export function ScreenshotCard({
                 </p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   This job ran on Vercel Lambda, which cannot launch a Chromium browser.
-                  Text extraction and page navigation still worked — only visual screenshots are unavailable.
+                  Text extraction and page navigation still worked - only visual screenshots are unavailable.
                 </p>
               </div>
               <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-left">

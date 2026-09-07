@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "motion/react";
+import { useEffect, useState, useRef } from "react";
 import { 
   Bot, 
   Search, 
@@ -9,14 +8,17 @@ import {
   ShieldCheck, 
   CheckCircle2, 
   Loader2, 
-  Sparkles,
-  Compass
+  Compass,
+  AlertCircle
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-interface SearchProgressProps {
+export interface SearchProgressProps {
   query: string;
+  executionId?: string;
+  onComplete?: (result: any) => void;
+  onError?: (error: any) => void;
 }
 
 interface SearchStage {
@@ -24,67 +26,174 @@ interface SearchStage {
   label: string;
   description: string;
   icon: typeof Search;
-  estimatedDurationMs: number;
 }
 
 const SEARCH_STAGES: SearchStage[] = [
   {
     id: "intent",
-    label: "Understanding Request",
+    label: "Parsing Intent",
     description: "Extracting role, location, work mode, and freshness constraints",
     icon: Compass,
-    estimatedDurationMs: 600,
   },
   {
     id: "plan",
     label: "Planning Search",
     description: "Selecting optimal target ATS sources and retrieval tools",
     icon: Bot,
-    estimatedDurationMs: 900,
   },
   {
     id: "harvest",
-    label: "Searching Sources",
+    label: "Querying ATS Portals",
     description: "Querying multi-source platforms and job boards",
     icon: Search,
-    estimatedDurationMs: 1400,
   },
   {
     id: "verify",
-    label: "Verifying Opportunities",
+    label: "Verifying URLs",
     description: "Running evidence Quality Gate checks and freshness gating",
     icon: ShieldCheck,
-    estimatedDurationMs: 1600,
   },
   {
     id: "rank",
-    label: "Ranking Results",
+    label: "Scoring & Ranking",
     description: "Calculating deterministic relevance scores and deduplicating",
     icon: Layers,
-    estimatedDurationMs: 1000,
   },
 ];
 
-export function SearchProgress({ query }: SearchProgressProps) {
+const STAGE_INDEX_MAP: Record<string, number> = {
+  intent: 0,
+  plan: 1,
+  harvest: 2,
+  verify: 3,
+  rank: 4,
+};
+
+export function SearchProgress({
+  query,
+  executionId,
+  onComplete,
+  onError,
+}: SearchProgressProps) {
   const [currentStageIndex, setCurrentStageIndex] = useState(0);
+  const [stageDetails, setStageDetails] = useState<string | null>(null);
+  const [errorNotice, setErrorNotice] = useState<string | null>(null);
+  const hasCompletedRef = useRef(false);
 
   useEffect(() => {
-    let accumulatedTime = 0;
-    const timers: NodeJS.Timeout[] = [];
+    if (!executionId) {
+      setCurrentStageIndex(0);
+      return;
+    }
 
-    SEARCH_STAGES.forEach((stage, idx) => {
-      if (idx === 0) return;
-      accumulatedTime += SEARCH_STAGES[idx - 1].estimatedDurationMs;
-      const timer = setTimeout(() => {
-        setCurrentStageIndex((prev) => Math.max(prev, idx));
-      }, accumulatedTime);
-      timers.push(timer);
-    });
+    hasCompletedRef.current = false;
+    let eventSource: EventSource | null = null;
+    let fallbackPollInterval: NodeJS.Timeout | null = null;
+
+    const fetchFinalResults = async () => {
+      if (hasCompletedRef.current) return;
+      hasCompletedRef.current = true;
+      try {
+        const res = await fetch(`/api/search/${executionId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (onComplete) {
+            onComplete(data);
+          }
+        }
+      } catch (fetchErr) {
+        console.warn("[SearchProgress] Error fetching completed results:", fetchErr);
+      }
+    };
+
+    try {
+      eventSource = new EventSource(`/api/search/${executionId}/events`);
+
+      eventSource.onopen = () => {
+        setErrorNotice(null);
+      };
+
+      // Generic message handler
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.stage && STAGE_INDEX_MAP[data.stage] !== undefined) {
+            setCurrentStageIndex(STAGE_INDEX_MAP[data.stage]);
+            if (data.label) setStageDetails(data.label);
+          }
+        } catch {}
+      };
+
+      // Listen to specific pipeline stage events
+      Object.keys(STAGE_INDEX_MAP).forEach((stageKey) => {
+        eventSource?.addEventListener(stageKey, (event: MessageEvent) => {
+          const stageIdx = STAGE_INDEX_MAP[stageKey];
+          setCurrentStageIndex(stageIdx);
+          try {
+            const parsed = JSON.parse(event.data);
+            if (parsed.label) setStageDetails(parsed.label);
+          } catch {}
+        });
+      });
+
+      // Completion event
+      eventSource.addEventListener("complete", () => {
+        setCurrentStageIndex(5);
+        fetchFinalResults();
+        eventSource?.close();
+      });
+
+      // Cancellation event
+      eventSource.addEventListener("cancelled", () => {
+        setCurrentStageIndex(5);
+        fetchFinalResults();
+        eventSource?.close();
+      });
+
+      // Error event from server
+      eventSource.addEventListener("error", (e) => {
+        // If readyState is CLOSED or server emitted custom error
+        const customEvent = e as MessageEvent;
+        if (customEvent.data) {
+          try {
+            const parsed = JSON.parse(customEvent.data);
+            setErrorNotice(parsed.message || "Search encountered an error.");
+            if (onError) onError(parsed);
+          } catch {}
+        }
+      });
+
+      // Fallback Polling (in case SSE drops or client is in an environment blocking SSE)
+      fallbackPollInterval = setInterval(async () => {
+        if (hasCompletedRef.current) {
+          if (fallbackPollInterval) clearInterval(fallbackPollInterval);
+          return;
+        }
+        try {
+          const res = await fetch(`/api/search/${executionId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (["COMPLETED", "PARTIAL", "STOPPED", "FAILED"].includes(data.status)) {
+              if (fallbackPollInterval) clearInterval(fallbackPollInterval);
+              eventSource?.close();
+              fetchFinalResults();
+            }
+          }
+        } catch {}
+      }, 3000);
+    } catch (sseErr) {
+      console.warn("[SearchProgress] Could not initialize EventSource:", sseErr);
+    }
 
     return () => {
-      timers.forEach(clearTimeout);
+      if (eventSource) {
+        eventSource.close();
+      }
+      if (fallbackPollInterval) {
+        clearInterval(fallbackPollInterval);
+      }
     };
-  }, []);
+  }, [executionId, onComplete, onError]);
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6" aria-live="polite" aria-busy="true">
@@ -98,14 +207,23 @@ export function SearchProgress({ query }: SearchProgressProps) {
             <div>
               <h3 className="text-sm font-semibold text-foreground">Searching Opportunities</h3>
               <p className="text-xs text-muted-foreground">
-                BrowserPilot is actively executing your search through the Intelligence Harness
+                {stageDetails
+                  ? `Active stage: ${stageDetails}`
+                  : "BrowserPilot is actively executing your search through the Intelligence Harness"}
               </p>
             </div>
           </div>
           <Badge variant="outline" className="font-mono text-xs text-primary border-primary/30 bg-primary/5 self-start sm:self-auto">
-            Live Search Execution
+            Live Stream
           </Badge>
         </div>
+
+        {errorNotice && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-xs border border-destructive/20">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{errorNotice}</span>
+          </div>
+        )}
 
         {/* Active Query Quote */}
         <div className="rounded-lg bg-muted/40 p-3 font-mono text-xs text-foreground/90 border border-border/50 break-words">

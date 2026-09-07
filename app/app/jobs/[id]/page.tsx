@@ -17,8 +17,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
 import { StatusTimeline, type TimelineStep } from "@/components/execution/status-timeline";
 import { WorkerMetrics } from "@/components/execution/worker-metrics";
 import { ExecutionLogs } from "@/components/execution/execution-logs";
@@ -404,23 +402,20 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col bg-background text-foreground">
-        <Navbar />
+      <div className="flex-1 flex flex-col antialiased">
         <main className="flex-1 container mx-auto max-w-7xl px-4 py-20 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3 text-center">
-            <RefreshCw className="h-8 w-8 text-primary animate-spin" />
-            <p className="text-sm font-mono text-muted-foreground">Loading job telemetry from database...</p>
+            <RefreshCw className="h-8 w-8 text-[#1F3D2E] animate-spin" />
+            <p className="text-sm font-sans text-muted-foreground">Loading job telemetry from database...</p>
           </div>
         </main>
-        <Footer />
       </div>
     );
   }
 
   if (fetchError || !job) {
     return (
-      <div className="min-h-screen flex flex-col bg-background text-foreground">
-        <Navbar />
+      <div className="flex-1 flex flex-col antialiased">
         <main className="flex-1 container mx-auto max-w-7xl px-4 py-16 space-y-6">
           <Link href="/app">
             <Button variant="ghost" size="sm" className="font-mono text-xs gap-1.5 text-muted-foreground">
@@ -436,7 +431,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             </Button>
           </div>
         </main>
-        <Footer />
       </div>
     );
   }
@@ -535,10 +529,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const lastObservation = job.observations[job.observations.length - 1];
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
-      <Navbar />
-
-      <main className="flex-1 container mx-auto max-w-7xl px-4 py-8 sm:px-6 space-y-8">
+    <div className="flex-1 flex flex-col antialiased selection:bg-[#1F3D2E]/20 selection:text-[#1F3D2E]">
+      <main className="flex-1 container mx-auto max-w-7xl px-4 py-8 pb-32 sm:px-6 space-y-8">
         {/* Navigation Breadcrumb */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -613,7 +605,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                 {job.status === "PLANNING" && (
                   <Badge className="bg-primary/10 text-primary border-primary/20 font-mono text-xs gap-1.5 py-1 px-3 animate-pulse">
                     <Bot className="h-3.5 w-3.5 animate-pulse" />
-                    Planning — Gemini 3.6 Flash ({job.progress || 25}%)
+                    Planning - Gemini 3.6 Flash ({job.progress || 25}%)
                   </Badge>
                 )}
                 {isActive && job.status !== "QUEUED" && job.status !== "PLANNING" && (
@@ -625,7 +617,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                 {isActive && secondsRemaining !== null && (
                   <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 font-mono text-xs gap-1.5 py-1 px-3">
                     <Clock className="h-3.5 w-3.5 animate-pulse" />
-                    Running — {secondsRemaining}s of {Math.round((job.maxDurationMs || 120000) / 1000)}s remaining
+                    Running - {secondsRemaining}s of {Math.round((job.maxDurationMs || 120000) / 1000)}s remaining
                   </Badge>
                 )}
                 {(job.status === "BLOCKED" || job.status === "FAILED") && (
@@ -663,8 +655,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             className="space-y-2"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <Radio className="h-3.5 w-3.5 text-primary" /> Active WebGL Uplink Channel (§19)
+              <span className="text-xs font-sans font-medium text-muted-foreground flex items-center gap-1.5">
+                <Radio className="h-3.5 w-3.5 text-primary" /> Active WebGL uplink channel
               </span>
               <span className="text-[11px] font-mono text-emerald-500">Live Telemetry Feed</span>
             </div>
@@ -788,8 +780,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           <ExecutionLogs logs={toolLogs} />
         </motion.div>
       </main>
-
-      <Footer />
     </div>
   );
 }

@@ -6,8 +6,7 @@
  * Bounded Playwright Evidence Verification.
  */
 
-import { type SearchIntent } from "./providers/baseProvider";
-import { type DiscoveryResult } from "./searchOrchestrator";
+import { type SearchIntent, type RawJobCandidate, type ProviderTelemetry } from "./providers/baseProvider";
 import { SwarmDiscoveryEngine, swarmDiscoveryEngine, type SwarmTelemetry, type SourceStatusSummary } from "./swarmDiscovery";
 import { buildDiscoveryPlan, type DiscoveryPlan, type UserProfilePreferences } from "./discoveryPlanner";
 import { parseSearchIntent } from "./intentParser";
@@ -38,6 +37,14 @@ export interface SearchDiagnostics {
   sourceCount: number;
   sourceFailures: number;
   searchDurationMs: number;
+}
+
+export interface DiscoveryResult {
+  candidates: RawJobCandidate[];
+  telemetry: ProviderTelemetry[];
+  totalCandidates: number;
+  durationMs: number;
+  status: "SUCCESS" | "PARTIAL" | "FAILED" | "EMPTY";
 }
 
 export interface PipelineExecutionOptions {

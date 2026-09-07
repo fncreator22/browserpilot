@@ -35,25 +35,25 @@ export default function LandingPage() {
     <div className="min-h-screen flex flex-col bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
       <Navbar />
 
-      <main className="flex-1">
+      <main className="flex-1 pb-20 md:pb-0">
         {/* 1. Hero Section (Parallax & Motion Reveal) */}
         <HeroSection />
 
         {/* 2. "How It Works" Strip (Scroll-Triggered Stagger Reveal) */}
-        <section id="how-it-works" className="py-16 border-y border-border/60 bg-muted/30 relative">
+        <section id="how-it-works" className="py-12 border-y border-border/60 bg-muted/30 relative">
           <div className="container mx-auto max-w-7xl px-4 sm:px-6">
             <motion.div
               initial={{ opacity: 0, y: 15 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.45 }}
-              className="text-center max-w-2xl mx-auto mb-12"
+              className="text-center max-w-2xl mx-auto mb-10"
             >
               <Badge variant="outline" className="mb-2 font-mono text-xs text-primary border-primary/30">
-                Agent Lifecycle
+                Discovery Pipeline
               </Badge>
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-                From Natural Language to Verified Result
+              <h2 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-foreground">
+                From High-Level Query to Verified Opportunity
               </h2>
             </motion.div>
 
@@ -61,27 +61,27 @@ export default function LandingPage() {
               {[
                 {
                   step: "01",
-                  title: "Specify Goal",
-                  desc: "Declare your target task in plain English with optional domain whitelist constraints.",
+                  title: "Declare Intent",
+                  desc: "Declare your role, target skills, location, and freshness criteria in natural language.",
                   icon: Sparkles,
                 },
                 {
                   step: "02",
-                  title: "Autonomous Planning",
-                  desc: "Gemini 2.5 Flash synthesizes DOM accessibility trees into structured tool action sequences.",
+                  title: "Multi-Source Extraction",
+                  desc: "Concurrently queries direct ATS endpoints, top professional networks, and startup directories.",
                   icon: Cpu,
                 },
                 {
                   step: "03",
-                  title: "Deterministic Execution",
-                  desc: "Background worker executes parameterized Playwright tools in an isolated incognito sandbox.",
-                  icon: Terminal,
+                  title: "Truth-Gate Verification",
+                  desc: "Screens out closed listings, verifies compensation data, and computes deterministic match scores.",
+                  icon: ShieldCheck,
                 },
                 {
                   step: "04",
-                  title: "Automated Verification",
-                  desc: "Extracted data is audited against Zod contracts and streamed live via 4 disclosure tiers.",
-                  icon: ShieldCheck,
+                  title: "Autonomous Watch",
+                  desc: "Background monitors continuously rescan sources and notify you when fresh matches appear.",
+                  icon: Activity,
                 },
               ].map((item, idx) => {
                 const Icon = item.icon;
@@ -109,30 +109,30 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* 3. Execution Section (Sticky / Pinned Behavior) */}
+        {/* 3. Execution Section */}
         <ExecutionSection />
 
-        {/* 4. Architecture Section (Vertical-Scroll-Drives-Horizontal-Movement) */}
+        {/* 4. Architecture Section */}
         <ArchitectureSection />
 
-        {/* 5. Result Showcase Section (Scale / Reveal on Appearance) */}
-        <section id="showcase" className="py-16 sm:py-24 relative overflow-hidden">
+        {/* 5. Result Showcase Section */}
+        <section id="showcase" className="py-12 sm:py-16 relative overflow-hidden">
           <div className="container mx-auto max-w-7xl px-4 sm:px-6">
             <motion.div
               initial={{ opacity: 0, y: 15 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.45 }}
-              className="text-center max-w-2xl mx-auto mb-10"
+              className="text-center max-w-2xl mx-auto mb-8"
             >
               <Badge variant="outline" className="mb-2 font-mono text-xs text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
                 Verified Outcome
               </Badge>
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-                Structured Result Presentation (Level 1)
+              <h2 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-foreground">
+                Autonomous Opportunity Dossier
               </h2>
               <p className="mt-2 text-xs sm:text-sm text-muted-foreground">
-                Extracted data is automatically verified against typed schema contracts before returning.
+                Verified opportunity profiles with direct application links, salary transparency, and match scoring.
               </p>
             </motion.div>
 

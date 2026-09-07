@@ -669,8 +669,17 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   const matchedRoles: string[] = [];
   for (const roleDef of KNOWN_ROLE_DEFINITIONS) {
     if (roleDef.regex.test(lower)) {
-      if (!matchedRoles.includes(roleDef.canonicalName)) {
-        matchedRoles.push(roleDef.canonicalName);
+      const roleName = roleDef.canonicalName;
+      if (!matchedRoles.includes(roleName)) {
+        matchedRoles.push(roleName);
+      }
+      if (isInternshipMentioned) {
+        const internVariant = roleName.endsWith("Engineer")
+          ? roleName.replace(/Engineer$/, "Intern")
+          : `${roleName} Intern`;
+        if (!matchedRoles.includes(internVariant)) {
+          matchedRoles.push(internVariant);
+        }
       }
       for (const rel of roleDef.related) {
         if (!matchedRoles.includes(rel)) {
@@ -684,7 +693,7 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   if (matchedRoles.length === 0) {
     // Strip conversational filler, prompt enhancer verbs, evidence phrases, and prepositions
     const cleanRemainder = workingQuery
-      .replace(/\b(search|find|give\s+me|show\s+me|looking\s+for|look\s+for|i\s*m\s+looking\s+for|some|verified|positions?|jobs?|roles?|openings?|internships?|opportunities|listings?|extract|with|and|or|visual|snapshots?|page|direct|application|links?|core|technical|qualifications?|salary|compensation|locations?|company|names?|titles?|for|\d+)\b/gi, " ")
+      .replace(/\b(search|find|give\s+me|show\s+me|get\s+me|find\s+me|tell\s+me|me|us|i|my|we|looking\s+for|look\s+for|i\s*m\s+looking\s+for|some|any|all|verified|positions?|jobs?|roles?|openings?|internships?|opportunities|listings?|extract|with|and|or|visual|snapshots?|page|direct|application|links?|core|technical|qualifications?|salary|compensation|locations?|company|names?|titles?|for|\d+)\b/gi, " ")
       .replace(/\b(in|at|around|near|on|from|to|into|across)\b/gi, " ")
       .replace(/\s+/g, " ")
       .trim();
@@ -799,4 +808,266 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   };
 
   return intent;
+}
+
+export interface IntentParseAsyncOptions {
+  userId?: string | null;
+  apiKey?: string | null;
+  puterToken?: string | null;
+  provider?: string | null;
+  filterOverrides?: Partial<SearchIntent>;
+  signal?: AbortSignal;
+}
+
+/**
+ * LLM-Backed Search Intent Parser with deterministic offline fallback.
+ * Uses user's configured AI provider (Gemini BYOK, Puter, or server fallback).
+ * If no AI provider is configured or an error occurs, falls back to parseSearchIntent().
+ */
+export async function parseSearchIntentAsync(
+  rawQuery: string,
+  options?: IntentParseAsyncOptions
+): Promise<SearchIntent> {
+  const query = (rawQuery || "").trim();
+  if (!query) {
+    return parseSearchIntent(query, options?.filterOverrides);
+  }
+
+  // 1. Resolve Provider Credentials
+  let effectiveGeminiKey: string | null = null;
+  let effectivePuterToken: string | null = null;
+  let resolvedProvider: "GEMINI" | "PUTER" | "DETERMINISTIC" = "DETERMINISTIC";
+
+  if (options?.apiKey && options.apiKey.trim()) {
+    effectiveGeminiKey = options.apiKey.trim();
+    resolvedProvider = "GEMINI";
+  } else if (options?.puterToken && options.puterToken.trim()) {
+    effectivePuterToken = options.puterToken.trim();
+    resolvedProvider = "PUTER";
+  } else if (options?.userId && typeof window === "undefined") {
+    try {
+      const { getUserGeminiApiKey } = await import("@/lib/db/users");
+      const { getUserPuterToken } = await import("@/lib/ai/governance/providerGovernance");
+
+      const userKey = await getUserGeminiApiKey(options.userId);
+      if (userKey) {
+        effectiveGeminiKey = userKey;
+        resolvedProvider = "GEMINI";
+      } else {
+        const pTok = await getUserPuterToken(options.userId);
+        if (pTok) {
+          effectivePuterToken = pTok;
+          resolvedProvider = "PUTER";
+        }
+      }
+    } catch (err) {
+      console.warn("[IntentParser] Error resolving user credentials from database:", err);
+    }
+  }
+
+  // Check server environment fallback for Gemini
+  if (!effectiveGeminiKey && !effectivePuterToken) {
+    const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    if (envKey && envKey.trim() && envKey.trim() !== "your-gemini-api-key") {
+      effectiveGeminiKey = envKey.trim();
+      resolvedProvider = "GEMINI";
+    }
+  }
+
+  // If no AI provider is available, use deterministic fallback
+  if (resolvedProvider === "DETERMINISTIC" || (!effectiveGeminiKey && !effectivePuterToken)) {
+    return parseSearchIntent(rawQuery, options?.filterOverrides);
+  }
+
+  // 2. Execute via Gemini
+  if (resolvedProvider === "GEMINI" && effectiveGeminiKey) {
+    try {
+      const { Type } = await import("@google/genai");
+      const { createGeminiClient, detectOptimalGeminiModel, DEFAULT_GEMINI_MODEL, FALLBACK_GEMINI_MODEL } = await import("@/lib/ai/modelSelector");
+
+      const ai = createGeminiClient(effectiveGeminiKey);
+      const modelName = await detectOptimalGeminiModel(effectiveGeminiKey).catch(() => DEFAULT_GEMINI_MODEL);
+
+      const prompt = `User search query: "${query}"\nExisting filter overrides: ${JSON.stringify(options?.filterOverrides || {})}`;
+
+      const schema = {
+        type: Type.OBJECT,
+        properties: {
+          role: { type: Type.STRING, description: "Primary standardized role or job title extracted holistically (e.g. 'Management', 'AI Intern', 'Full Stack Engineer')" },
+          roles: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Related or alternative role titles" },
+          skills: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Technical or domain skills mentioned" },
+          location: { type: Type.STRING, description: "Target location, city, state, or country" },
+          locations: { type: Type.ARRAY, items: { type: Type.STRING } },
+          company: { type: Type.STRING, description: "Target employer or company if specified" },
+          companies: { type: Type.ARRAY, items: { type: Type.STRING } },
+          workMode: { type: Type.STRING, enum: ["REMOTE", "HYBRID", "ON_SITE", "ANY"] },
+          experienceLevel: { type: Type.STRING, enum: ["INTERN", "ENTRY_LEVEL", "MID", "SENIOR", "ANY"] },
+          opportunityType: { type: Type.STRING, enum: ["INTERNSHIP", "FULL_TIME", "CONTRACT", "ANY"] },
+          companyType: { type: Type.STRING, enum: ["STARTUP", "ENTERPRISE", "ANY"] },
+          requestedCount: { type: Type.INTEGER, description: "Requested number of results, default 10" },
+          freshnessWindowHours: { type: Type.INTEGER, description: "Freshness window in hours, e.g. 168 for past week" },
+          postedWithinDays: { type: Type.INTEGER, description: "Days filter, e.g. 7" },
+          sortMode: { type: Type.STRING, enum: ["RELEVANCE", "LATEST", "RELEVANCE_THEN_FRESHNESS"] },
+        },
+        required: ["role", "roles", "skills", "workMode", "experienceLevel", "opportunityType"],
+      };
+
+      const systemInstruction = `You are the Search Intent Understanding subsystem of BrowserPilot.
+Analyze natural language job and opportunity search queries and produce a structured JSON SearchIntent.
+Rules:
+- Strip conversational filler words completely ("find me jobs for Management" -> role: "Management", NOT "Me Management").
+- Understand role and level phrases holistically ("AI intern" -> role: "AI Intern", experienceLevel: "INTERN", opportunityType: "INTERNSHIP").
+- Extract technical and domain skills into the skills array.
+- Identify work modes: REMOTE, HYBRID, ON_SITE, or ANY.
+- Identify requested result counts (default 10).`;
+
+      let response;
+      try {
+        response = await ai.models.generateContent({
+          model: modelName || DEFAULT_GEMINI_MODEL,
+          contents: prompt,
+          config: {
+            systemInstruction,
+            temperature: 0.1,
+            responseMimeType: "application/json",
+            responseSchema: schema,
+          },
+        });
+      } catch (err) {
+        console.warn(`[IntentParser] Primary model failed, trying fallback model ${FALLBACK_GEMINI_MODEL}:`, err);
+        response = await ai.models.generateContent({
+          model: FALLBACK_GEMINI_MODEL,
+          contents: prompt,
+          config: {
+            systemInstruction,
+            temperature: 0.1,
+            responseMimeType: "application/json",
+            responseSchema: schema,
+          },
+        });
+      }
+
+      const text = response.text;
+      if (text) {
+        const parsed = JSON.parse(text);
+        const baseIntent = parseSearchIntent(rawQuery, options?.filterOverrides);
+
+        // Record AI Usage Event if user ID is present and running in Node
+        if (options?.userId && typeof window === "undefined") {
+          try {
+            const { recordAIUsageEvent } = await import("@/lib/ai/governance/providerGovernance");
+            const totalTokens = response.usageMetadata?.totalTokenCount || 0;
+            await recordAIUsageEvent({
+              userId: options.userId,
+              provider: "GEMINI_BYOK",
+              model: modelName || DEFAULT_GEMINI_MODEL,
+              operation: "INTENT_PARSING",
+              inputTokens: response.usageMetadata?.promptTokenCount || 0,
+              outputTokens: response.usageMetadata?.candidatesTokenCount || 0,
+              totalTokens,
+              status: "SUCCESS",
+            });
+          } catch (recErr) {
+            console.warn("[IntentParser] Failed to record AI usage event:", recErr);
+          }
+        }
+
+        return {
+          ...baseIntent,
+          role: parsed.role || baseIntent.role,
+          roles: parsed.roles && parsed.roles.length > 0 ? parsed.roles : baseIntent.roles,
+          skills: parsed.skills && parsed.skills.length > 0 ? parsed.skills : baseIntent.skills,
+          location: parsed.location || baseIntent.location,
+          locations: parsed.locations && parsed.locations.length > 0 ? parsed.locations : baseIntent.locations,
+          company: parsed.company || baseIntent.company,
+          companies: parsed.companies && parsed.companies.length > 0 ? parsed.companies : baseIntent.companies,
+          workMode: parsed.workMode || baseIntent.workMode,
+          experienceLevel: parsed.experienceLevel || baseIntent.experienceLevel,
+          opportunityType: parsed.opportunityType || baseIntent.opportunityType,
+          companyType: parsed.companyType || baseIntent.companyType,
+          requestedCount: typeof parsed.requestedCount === "number" ? parsed.requestedCount : baseIntent.requestedCount,
+          freshnessWindowHours: typeof parsed.freshnessWindowHours === "number" ? parsed.freshnessWindowHours : baseIntent.freshnessWindowHours,
+          postedWithinDays: typeof parsed.postedWithinDays === "number" ? parsed.postedWithinDays : baseIntent.postedWithinDays,
+          sortMode: parsed.sortMode || baseIntent.sortMode,
+          ...options?.filterOverrides,
+        };
+      }
+    } catch (llmErr) {
+      console.warn("[IntentParser] Gemini LLM parsing error, falling back to deterministic parser:", llmErr);
+    }
+  }
+
+  // 3. Execute via Puter
+  if (resolvedProvider === "PUTER" && effectivePuterToken) {
+    try {
+      const resp = await fetch("https://api.puter.com/drivers/call", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${effectivePuterToken}`,
+        },
+        body: JSON.stringify({
+          interface: "puter-chat-completion",
+          driver: "claude-3-7-sonnet",
+          test_mode: false,
+          method: "chat",
+          args: {
+            messages: [
+              {
+                role: "system",
+                content: `You are the Search Intent Understanding subsystem of BrowserPilot. Output strictly valid JSON matching this schema:
+{"role": string, "roles": string[], "skills": string[], "location": string, "workMode": "REMOTE"|"HYBRID"|"ON_SITE"|"ANY", "experienceLevel": "INTERN"|"ENTRY_LEVEL"|"MID"|"SENIOR"|"ANY", "opportunityType": "INTERNSHIP"|"FULL_TIME"|"CONTRACT"|"ANY", "requestedCount": number}.
+Strip filler words completely ("find me jobs for Management" -> role: "Management"). "AI intern" -> role: "AI Intern", experienceLevel: "INTERN", opportunityType: "INTERNSHIP".`,
+              },
+              { role: "user", content: `Query: "${query}"` },
+            ],
+          },
+        }),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        let rawContent = "";
+        if (typeof data === "string") rawContent = data;
+        else if (data?.message?.content) rawContent = data.message.content;
+        else if (data?.text) rawContent = data.text;
+        else rawContent = JSON.stringify(data);
+
+        const cleanJson = rawContent.replace(/```json|```/gi, "").trim();
+        const parsed = JSON.parse(cleanJson);
+        const baseIntent = parseSearchIntent(rawQuery, options?.filterOverrides);
+
+        if (options?.userId && typeof window === "undefined") {
+          try {
+            const { recordAIUsageEvent } = await import("@/lib/ai/governance/providerGovernance");
+            await recordAIUsageEvent({
+              userId: options.userId,
+              provider: "PUTER",
+              model: "claude-3-7-sonnet",
+              operation: "INTENT_PARSING",
+              status: "SUCCESS",
+            });
+          } catch {}
+        }
+
+        return {
+          ...baseIntent,
+          role: parsed.role || baseIntent.role,
+          roles: parsed.roles && parsed.roles.length > 0 ? parsed.roles : baseIntent.roles,
+          skills: parsed.skills && parsed.skills.length > 0 ? parsed.skills : baseIntent.skills,
+          location: parsed.location || baseIntent.location,
+          workMode: parsed.workMode || baseIntent.workMode,
+          experienceLevel: parsed.experienceLevel || baseIntent.experienceLevel,
+          opportunityType: parsed.opportunityType || baseIntent.opportunityType,
+          requestedCount: typeof parsed.requestedCount === "number" ? parsed.requestedCount : baseIntent.requestedCount,
+          ...options?.filterOverrides,
+        };
+      }
+    } catch (puterErr) {
+      console.warn("[IntentParser] Puter LLM parsing error, falling back to deterministic parser:", puterErr);
+    }
+  }
+
+  // Fallback to deterministic regex parser
+  return parseSearchIntent(rawQuery, options?.filterOverrides);
 }

@@ -20,7 +20,7 @@ export function HeroSection() {
   const heroContentY = useTransform(scrollYProgress, [0, 1], shouldReduceMotion ? [0, 0] : [0, -30]);
 
   return (
-    <section ref={heroRef} className="relative pt-12 pb-20 sm:pt-20 sm:pb-28 overflow-hidden">
+    <section ref={heroRef} className="relative pt-10 pb-14 sm:pt-16 sm:pb-20 overflow-hidden">
       {/* Ambient Parallax Gradient Backgrounds */}
       <motion.div
         style={{ y: bgGlowY, scale: bgGlowScale }}
@@ -32,18 +32,18 @@ export function HeroSection() {
       />
 
       <div className="container mx-auto max-w-7xl px-4 sm:px-6">
-        <motion.div style={{ y: heroContentY }} className="text-center max-w-3xl mx-auto mb-10">
+        <motion.div style={{ y: heroContentY }} className="text-center max-w-3xl mx-auto mb-8">
           {/* Badge */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, ease: "easeOut" }}
-            className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3.5 py-1 text-xs font-mono text-primary mb-6 shadow-xs backdrop-blur-sm"
+            className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3.5 py-1 text-xs font-mono text-primary mb-5 shadow-xs backdrop-blur-sm"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            <span>Next-Gen Autonomous Web Agent</span>
+            <span>AI-Native Career & Opportunity Intelligence</span>
             <span className="text-muted-foreground">•</span>
-            <span className="text-foreground font-semibold">Gemini 2.5 + Playwright</span>
+            <span className="text-foreground font-semibold">Multi-Source ATS Engine</span>
           </motion.div>
 
           {/* Heading */}
@@ -51,11 +51,11 @@ export function HeroSection() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, delay: 0.1, ease: "easeOut" }}
-            className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-foreground leading-[1.12]"
+            className="text-4xl sm:text-5xl md:text-6xl font-serif font-bold tracking-tight text-foreground leading-[1.12]"
           >
-            Deterministic Browser Automation,{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-emerald-500 to-teal-400">
-              Autonomously Verified.
+            AI-Native Career &{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-emerald-600 to-teal-500">
+              Opportunity Intelligence.
             </span>
           </motion.h1>
 
@@ -64,9 +64,9 @@ export function HeroSection() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, delay: 0.2, ease: "easeOut" }}
-            className="mt-6 text-base sm:text-lg text-muted-foreground leading-relaxed"
+            className="mt-5 text-base sm:text-lg text-muted-foreground leading-relaxed"
           >
-            BrowserPilot turns high-level natural language goals into sandboxed, multi-step browser interactions with zero arbitrary JavaScript injection and real-time progressive disclosure telemetry.
+            BrowserPilot turns high-level career intentions into verified, multi-source opportunity discovery across top tech platforms and direct ATS feeds with autonomous continuous monitoring.
           </motion.p>
         </motion.div>
 
@@ -85,23 +85,23 @@ export function HeroSection() {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}
-          className="mt-10 flex flex-wrap items-center justify-center gap-6 text-xs text-muted-foreground font-mono"
+          className="mt-8 flex flex-wrap items-center justify-center gap-6 text-xs text-muted-foreground font-mono"
         >
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            <span>8 Sandboxed v1 Tools</span>
+            <span>Direct ATS Discovery</span>
           </div>
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            <span>Zero `eval()` Policy</span>
+            <span>Truth-Gate Verification</span>
           </div>
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            <span>Redis BullMQ Queue</span>
+            <span>Autonomous Watch Schedules</span>
           </div>
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            <span>Server-Sent Events (SSE)</span>
+            <span>Real-Time SSE Telemetry</span>
           </div>
         </motion.div>
       </div>

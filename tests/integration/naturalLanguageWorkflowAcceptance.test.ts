@@ -8,7 +8,7 @@
 process.env.IS_TEST_HARNESS = "true";
 (process.env as Record<string, string | undefined>).NODE_ENV = "test";
 
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/db/prisma";
 import {
   parseSearchIntent,
   buildDiscoveryPlan,

@@ -130,7 +130,7 @@ export function ScreenshotGallery({ screenshots = [], jobId, className = "" }: S
               className="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain border border-zinc-800"
             />
             <p className="text-zinc-400 font-mono text-xs mt-3">
-              Step {currentScreenshot.stepIndex} — {currentScreenshot.url} (Click anywhere to close)
+              Step {currentScreenshot.stepIndex} - {currentScreenshot.url} (Click anywhere to close)
             </p>
           </div>
         </div>

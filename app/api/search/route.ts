@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
-import { parseSearchIntent, type SearchIntent } from "@/lib/scraper";
+import { parseSearchIntent, parseSearchIntentAsync, type SearchIntent } from "@/lib/scraper";
 import { intelligenceHarness } from "@/lib/ai/harness";
 import {
   isOpportunitySaved,
@@ -19,6 +19,7 @@ import {
 import { rateLimiter } from "@/lib/security/rateLimiter";
 import { prisma } from "@/lib/db/prisma";
 import { executionLifecycleManager } from "@/lib/discovery/execution/executionLifecycleManager";
+import { enqueueSearchDiscoveryJob } from "@/lib/queue/searchQueue";
 
 export const dynamic = "force-dynamic";
 
@@ -87,8 +88,26 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json().catch(() => ({}))) as SearchApiRequest;
     const customProviders = (request as any)._customProviders || body.customProviders;
-    rawQuery = (body.query || "").trim();
     const filters = body.filters || {};
+
+    // Resolve Global User Connector Preferences (Single Source of Truth)
+    if ((!filters.sources || filters.sources.length === 0) && userId) {
+      try {
+        const userWatch = await prisma.discoveryWatch.findUnique({
+          where: { userId },
+          select: { preferredSources: true },
+        });
+        if (userWatch?.preferredSources) {
+          const parsed = JSON.parse(userWatch.preferredSources);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            filters.sources = parsed;
+          }
+        }
+      } catch (prefErr) {
+        console.warn("[SearchAPI] Could not load user connector preferences:", prefErr);
+      }
+    }
+
     const maxResultsCeiling = Math.min(Math.max(body.maxResults || 50, 1), 50);
     const verifyEvidence = body.verifyEvidence ?? true;
     const persistToDb = body.persistToDb !== false;
@@ -119,12 +138,16 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Precedence-Aware Intent Extraction & Canonical Normalization (TASK-053.1 & TASK-067)
-    const initialIntent = parseSearchIntent(rawQuery, filters);
+    const initialIntent = await parseSearchIntentAsync(rawQuery, {
+      userId,
+      filterOverrides: filters,
+    });
     const requestedCount = initialIntent.requestedCount || filters.requestedCount || (typeof body.maxResults === "number" ? body.maxResults : 10);
 
     const canonicalNorm = executionLifecycleManager.computeCanonicalIntentHash({
       ...initialIntent,
       ...filters,
+      queryHint: rawQuery || initialIntent.queryHint,
       requestedCount,
     });
     const canonicalIntentHash = canonicalNorm.hash;
@@ -132,16 +155,35 @@ export async function POST(request: NextRequest) {
 
     // 4. Concurrency Idempotency & In-Flight Attach (TASK-067)
     const activeHandle = executionLifecycleManager.getActiveExecutionForIntent(userId, canonicalIntentHash);
-    if (activeHandle?.promise) {
-      const sharedResult = await activeHandle.promise;
-      const isStopped = sharedResult.status === "STOPPED" || sharedResult.error === "CANCELLED";
-      const response = NextResponse.json(sharedResult, {
-        status: isStopped ? 499 : 200,
-      });
-      response.headers.set("x-correlation-id", correlationId);
-      response.headers.set("x-execution-id", activeHandle.executionId);
-      response.headers.set("x-idempotent-attach", "true");
-      return response;
+    if (activeHandle) {
+      if (activeHandle.promise) {
+        const sharedResult = await activeHandle.promise;
+        const isStopped = sharedResult.status === "STOPPED" || sharedResult.error === "CANCELLED";
+        const response = NextResponse.json(sharedResult, {
+          status: isStopped ? 499 : 200,
+        });
+        response.headers.set("x-correlation-id", correlationId);
+        response.headers.set("x-execution-id", activeHandle.executionId);
+        response.headers.set("x-idempotent-attach", "true");
+        return response;
+      } else {
+        const response = NextResponse.json({
+          success: true,
+          executionId: activeHandle.executionId,
+          searchId: activeHandle.executionId,
+          status: "QUEUED",
+          query: rawQuery || initialIntent.queryHint,
+          intent: initialIntent,
+          canonicalIntent: initialIntent,
+          canonicalIntentHash,
+          requestedCount,
+          idempotentAttach: true,
+        });
+        response.headers.set("x-correlation-id", correlationId);
+        response.headers.set("x-execution-id", activeHandle.executionId);
+        response.headers.set("x-idempotent-attach", "true");
+        return response;
+      }
     }
 
     // 5. Durable Execution Identity & Isolated AbortSignal (TASK-067)
@@ -155,6 +197,73 @@ export async function POST(request: NextRequest) {
         executionAbort.abort("REQUEST_ABORTED");
         executionLifecycleManager.cancelExecution(executionId, userId, "REQUEST_ABORTED").catch(() => {});
       });
+    }
+
+    const isSyncRequested = Boolean(
+      request.signal?.aborted ||
+      customProviders ||
+      (body as any).sync === true ||
+      request.headers.get("x-sync") === "true"
+    );
+
+    // Asynchronous BullMQ Path (Standard Production Mode)
+    if (!isSyncRequested) {
+      if (persistToDb) {
+        try {
+          await createSearch({
+            id: executionId,
+            userId: userId || null,
+            rawQuery: rawQuery || initialIntent.queryHint || "",
+            canonicalIntentHash,
+            canonicalIntent: canonicalJson,
+            intentType: (initialIntent as any).intentType || "JOB_SEARCH_GENERAL",
+            parsedRole: initialIntent.roles?.[0] || initialIntent.role || null,
+            parsedSkills: initialIntent.skills || [],
+            parsedLocation: initialIntent.locations?.[0] || initialIntent.location || null,
+            parsedWorkMode: initialIntent.workModes?.[0] || initialIntent.workMode || "ANY",
+            targetGradYear: typeof initialIntent.targetGradYear === "number" ? initialIntent.targetGradYear : null,
+            status: "QUEUED",
+            startedAt: new Date(),
+            totalFound: 0,
+          });
+        } catch (dbErr) {
+          console.warn("[SearchAPI] Upfront search record creation warning:", dbErr);
+        }
+      }
+
+      await enqueueSearchDiscoveryJob({
+        executionId,
+        userId,
+        query: rawQuery || initialIntent.queryHint || "Find software jobs",
+        filters,
+        maxResultsCeiling,
+        requestedCount,
+        verifyEvidence,
+        persistToDb,
+        correlationId,
+        canonicalIntentHash,
+        canonicalJson,
+      });
+
+      const response = NextResponse.json(
+        {
+          success: true,
+          executionId,
+          searchId: executionId,
+          status: "QUEUED",
+          query: rawQuery || initialIntent.queryHint,
+          intent: initialIntent,
+          canonicalIntent: initialIntent,
+          canonicalIntentHash,
+          requestedCount,
+          createdAt: new Date().toISOString(),
+        },
+        { status: 200 }
+      );
+      response.headers.set("x-correlation-id", correlationId);
+      response.headers.set("x-execution-id", executionId);
+      response.headers.set("x-queue-status", "QUEUED");
+      return response;
     }
 
     const executionPromise = (async () => {
@@ -203,7 +312,7 @@ export async function POST(request: NextRequest) {
         const correctionResult = harnessResult.context.correctionLoopResult;
 
         const isCancelled = executionAbort.signal.aborted || request.signal.aborted || harnessResult.telemetry.status === "CANCELLED";
-        const stillActive = await executionLifecycleManager.isExecutionActive(executionId);
+        const stillActive = persistToDb ? await executionLifecycleManager.isExecutionActive(executionId) : true;
         const effectivelyCancelled = isCancelled || !stillActive;
 
         // 6. Database Persistence (Opportunities & Source Listings)
@@ -478,7 +587,7 @@ export async function POST(request: NextRequest) {
     const finalResult = await executionPromise;
     const isCancelledFinal = finalResult.status === "STOPPED" || finalResult.error === "CANCELLED";
 
-    const response = NextResponse.json(finalResult, { status: isCancelledFinal ? 499 : 200 });
+    const response = NextResponse.json(finalResult, { status: 200 });
     response.headers.set("x-correlation-id", correlationId);
     response.headers.set("x-execution-id", executionId);
     return response;
