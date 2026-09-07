@@ -81,13 +81,18 @@ export function usePuter() {
 
     setIsAuthenticating(true);
     try {
-      await window.puter.auth.signIn();
+      const signInResult: any = await window.puter.auth.signIn();
       const signedIn = window.puter.auth.isSignedIn();
       setIsSignedIn(signedIn);
       if (signedIn) {
         const currentUser = await window.puter.auth.getUser();
+        const token =
+          signInResult?.token ||
+          (window.puter as any).authToken ||
+          localStorage.getItem("puter.auth.token.v2") ||
+          null;
         setUser(currentUser);
-        return currentUser;
+        return { user: currentUser, token };
       }
       return null;
     } finally {
