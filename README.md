@@ -1,4 +1,4 @@
-# BrowserPilot 🚀
+# BrowserPilot
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16.3.2-black?logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,7 @@
 
 ---
 
-## 🌟 Architecture & Core Pillars
+## Architecture & Core Pillars
 
 BrowserPilot is built for deterministic web automation, structured extraction, form filling, visual regression capture, and state auditing.
 
@@ -62,7 +62,7 @@ For complete system diagrams and IPC specs, see [docs/ARCHITECTURE.md](docs/ARCH
 
 ---
 
-## 🎯 Real Autonomous Execution vs Mock Data
+## Real Autonomous Execution vs Mock Data
 
 BrowserPilot executes **100% real browser operations**:
 - Launches **real Chromium browser sandboxes** via Playwright.
@@ -73,7 +73,7 @@ BrowserPilot executes **100% real browser operations**:
 
 ---
 
-## 🛠️ The 8 Canonical Browser Tools
+## The 8 Canonical Browser Tools
 
 | Tool Name | Action Category | Purpose & Description |
 | :--- | :--- | :--- |
@@ -88,7 +88,7 @@ BrowserPilot executes **100% real browser operations**:
 
 ---
 
-## 🛡️ Security, Guardrails & Policy Catalog
+## Security, Guardrails & Policy Catalog
 
 - **Reject-by-Default Whitelist**: Only domains explicitly permitted or matching user constraints are allowed.
 - **No Arbitrary Code Injection**: Arbitrary `eval()` and `javascript:` injection are strictly prohibited.
@@ -99,7 +99,7 @@ For detailed capability definitions, see [docs/CAPABILITIES.md](docs/CAPABILITIE
 
 ---
 
-## 🐳 One-Command Deployment (Docker Compose)
+## One-Command Deployment (Docker Compose)
 
 Boot the entire production stack (Web App, Background Worker, Redis, and PostgreSQL) with a single command:
 
@@ -121,7 +121,7 @@ docker compose up --build
 
 ---
 
-## 💻 Local Development Quickstart
+## Local Development Quickstart
 
 ### 1. Prerequisites
 - Node.js 20+
@@ -141,7 +141,7 @@ npm run dev
 
 ---
 
-## 🗄️ Dual-Environment Database Switching (Supabase vs AWS Aurora)
+## Dual-Environment Database Switching (Supabase vs AWS Aurora)
 
 BrowserPilot runs **exclusively on PostgreSQL** via Prisma with `@prisma/adapter-pg`. The codebase contains zero SQLite or LibSQL fallbacks.
 
@@ -173,7 +173,7 @@ npm run worker:dev # or npx tsx worker/index.ts
 
 ---
 
-## 🧪 Automated Test Matrix (§36)
+## Automated Test Matrix (§36)
 
 Run the full automated test suite:
 
@@ -193,7 +193,7 @@ npm test
 
 ---
 
-## 👥 Multi-Tenancy & Rate Limits
+## Multi-Tenancy & Rate Limits
 
 - **Scoped Queries**: Every job query, timeline event, and artifact download is isolated to the authenticated user ID.
 - **Concurrent Limits**: Configured to max 2 concurrent jobs and 20 hourly jobs per user to prevent worker pool starvation.
@@ -201,7 +201,7 @@ npm test
 
 ---
 
-## 🤝 Contributing & Branching Model
+## Contributing & Branching Model
 
 We welcome contributions from the community!
 
