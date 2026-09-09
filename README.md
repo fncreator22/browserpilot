@@ -10,7 +10,7 @@
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 - [🌟 Architecture & Core Pillars](#-architecture--core-pillars)
 - [🎯 Real Autonomous Execution vs Mock Data](#-real-autonomous-execution-vs-mock-data)
 - [🛠️ The 8 Canonical Browser Tools](#️-the-8-canonical-browser-tools)
