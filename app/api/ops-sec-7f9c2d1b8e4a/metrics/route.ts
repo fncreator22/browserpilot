@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const adminHeader = request.headers.get("x-admin-key") || request.headers.get("authorization");
+    const adminHeader = request.headers.get("x-admin-key") || request.headers.get("authorization") || request.nextUrl.searchParams.get("admin_key");
     const auth = await verifyAdminAccess(adminHeader, request);
 
     if (!auth.isAdmin) {
