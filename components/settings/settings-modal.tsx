@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
@@ -13,7 +14,8 @@ import {
   HelpCircle, 
   X, 
   ChevronRight, 
-  ArrowLeft, 
+  ArrowLeft,
+  ArrowRight, 
   ShieldCheck, 
   Check, 
   ExternalLink, 
@@ -57,6 +59,7 @@ interface CategoryNavDef {
 }
 
 export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProps) {
+  const router = useRouter();
   const { data: session, update: updateSession } = useSession();
   const { isLoaded: isPuterLoaded, isSignedIn: isPuterSignedIn, user: puterUser, signIn: puterSignIn, signOut: puterSignOut } = usePuter();
   const { unreadNotificationsCount, refreshNotifications } = useUIState();
@@ -953,6 +956,33 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     {billingData?.usage?.monthlyAIOperations || 0} / {billingData?.plan?.maxMonthlyAIOperations || 100} monthly
                   </span>
                 </div>
+              </div>
+
+              <div className="pt-3 border-t border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="text-xs text-muted-foreground font-sans">
+                  {billingData?.subscription ? (
+                    <span>
+                      Billed <span className="font-semibold text-foreground">{billingData.subscription.billingInterval.toLowerCase()}</span>
+                      {billingData.subscription.currentPeriodEnd ? ` • Period ends ${new Date(billingData.subscription.currentPeriodEnd).toLocaleDateString()}` : ""}
+                    </span>
+                  ) : (
+                    <span>Looking to upgrade or compare tier quotas?</span>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    onClose();
+                    router.push("/app/plans");
+                  }}
+                  className="font-sans text-xs font-semibold gap-1.5 border-[#1F3D2E]/25 text-[#1F3D2E] hover:bg-[#1F3D2E]/5 cursor-pointer shrink-0"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  View All Plans & Subscriptions
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
               </div>
             </div>
 
