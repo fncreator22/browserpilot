@@ -22,6 +22,7 @@ export interface VerifyPaymentParams {
   paymentId: string;
   signature?: string;
   planCode: string;
+  billingInterval?: "MONTHLY" | "YEARLY";
 }
 
 export interface PaymentGatewayAdapter {
@@ -118,6 +119,7 @@ export class RazorpayAdapter implements PaymentGatewayAdapter {
     // Provision subscription on verified payment
     await assignUserToPlan(params.userId, params.planCode, {
       paymentProvider: "RAZORPAY",
+      billingInterval: params.billingInterval || "MONTHLY",
       providerSubscriptionId: params.paymentId,
       metadata: { orderId: params.orderId, paymentId: params.paymentId },
     });
