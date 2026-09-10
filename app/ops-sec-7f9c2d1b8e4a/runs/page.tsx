@@ -63,6 +63,10 @@ export default function AdminRunsPage() {
       if (statusFilter !== "ALL") {
         params.set("status", statusFilter);
       }
+      const adminKey = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("admin_key") : null;
+      if (adminKey) {
+        params.set("admin_key", adminKey);
+      }
 
       const res = await fetch(`${ADMIN_API_ROUTES.RUNS}?${params.toString()}`);
       if (!res.ok) {
@@ -89,14 +93,20 @@ export default function AdminRunsPage() {
     <div className="space-y-6">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-border/60">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Layers className="h-6 w-6 text-amber-400" />
-            Discovery Run Telemetry & Execution Log
-          </h1>
-          <p className="text-sm text-muted-foreground font-mono">
-            Full telemetry audit of autonomous discovery cycles, deduplication, and notifications
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-sm">
+            <Layers className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-foreground">
+              Discovery Runs
+            </h1>
+            <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+              <span className="text-emerald-400 font-semibold">{totalCount} total runs</span>
+              <span>•</span>
+              <span>Execution Logs & Novelty Audits</span>
+            </div>
+          </div>
         </div>
         <Button
           variant="outline"
@@ -176,24 +186,38 @@ export default function AdminRunsPage() {
               <tbody className="divide-y divide-border/50">
                 {runs.map((r) => (
                   <tr key={r.id} className="hover:bg-muted/20 transition-colors">
-                    {/* Run ID & User */}
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-foreground">{r.user.email}</div>
-                      <span className="text-[10px] text-muted-foreground truncate max-w-[140px] block">
-                        {r.id}
-                      </span>
+                    {/* User & Run ID */}
+                    <td className="py-2.5 px-4">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold text-[10px] shrink-0">
+                          {r.user.email.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="truncate max-w-[160px]">
+                          <span className="font-semibold text-foreground text-xs block truncate">{r.user.email}</span>
+                          <span className="text-[10px] text-muted-foreground/70 font-mono block truncate">
+                            {r.id.substring(0, 14)}...
+                          </span>
+                        </div>
+                      </div>
                     </td>
 
                     {/* Trigger Type */}
-                    <td className="py-3 px-4">
-                      <Badge variant="outline" className="text-[10px] font-mono">
-                        {r.triggerType}
+                    <td className="py-2.5 px-4">
+                      <Badge variant="outline" className="text-[10px] font-mono gap-1 px-1.5 py-0.5">
+                        {r.triggerType === "SCHEDULED" ? (
+                          <Clock className="h-3 w-3 text-blue-400" />
+                        ) : (
+                          <Zap className="h-3 w-3 text-amber-400" />
+                        )}
+                        <span>{r.triggerType}</span>
                       </Badge>
                     </td>
 
                     {/* Duration */}
-                    <td className="py-3 px-4">
-                      <span className="text-foreground">{r.durationMs ? `${r.durationMs}ms` : "—"}</span>
+                    <td className="py-2.5 px-4">
+                      <span className="text-foreground font-mono text-[11px] bg-muted/40 px-1.5 py-0.5 rounded border border-border/40">
+                        {r.durationMs ? `${r.durationMs}ms` : "-"}
+                      </span>
                     </td>
 
                     {/* Harvested */}
