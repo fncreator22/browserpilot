@@ -69,6 +69,7 @@ import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalL
 
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
+import { runAdminUserTokenVisibilityTests } from "./integration/adminUserTokenVisibility.test";
 
 async function runMasterTestSuite() {
   console.log("=================================================");
@@ -136,6 +137,7 @@ async function runMasterTestSuite() {
     { name: "Integration: Final Security, Abuse & Data-Isolation Gate (TASK-058)", fn: runFinalSecurityAndAbuseGateTests },
     { name: "Integration: Distributed Redis State Sync & Multi-Instance", fn: runDistributedStateSyncTests },
     { name: "Integration: End-to-End Natural-Language Workflow Acceptance", fn: runNaturalLanguageWorkflowAcceptanceTest },
+    { name: "Integration: Admin User Token Visibility & Puter Status", fn: runAdminUserTokenVisibilityTests },
 
     { name: "Integration: Autonomous Job Monitoring Lifecycle Simulation", fn: runAutonomousJobMonitoringSimulation },
     { name: "Integration: Playwright Executor & Fixture", fn: runExecutorIntegrationTests },
