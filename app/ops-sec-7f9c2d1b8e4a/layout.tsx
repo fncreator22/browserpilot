@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -17,7 +17,9 @@ import {
   Server,
   Layers,
   Cpu,
-  Plug
+  Plug,
+  Users,
+  ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +38,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   } | null>(null);
 
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [opsDropdownOpen, setOpsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpsDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    setOpsDropdownOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -64,7 +82,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Fetch basic system health for header status indicator
   useEffect(() => {
     if (isAuthorized) {
-      fetch(ADMIN_API_ROUTES.METRICS)
+      const adminKey = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("admin_key") : null;
+      const metricsUrl = adminKey ? `${ADMIN_API_ROUTES.METRICS}?admin_key=${encodeURIComponent(adminKey)}` : ADMIN_API_ROUTES.METRICS;
+      fetch(metricsUrl)
         .then((res) => {
           if (res.ok) return res.json();
           if (res.status === 403) setIsAuthorized(false);
@@ -114,92 +134,156 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  const navItems = [
+  const directNavItems = [
     { label: "Overview", href: ADMIN_UI_ROUTES.OVERVIEW, icon: Activity },
+    { label: "Users & Quotas", href: ADMIN_UI_ROUTES.USERS, icon: Users },
     { label: "Connectors", href: ADMIN_UI_ROUTES.CONNECTORS, icon: Plug },
-    { label: "Discovery Watches", href: ADMIN_UI_ROUTES.WATCHES, icon: Eye },
-    { label: "Discovery Runs", href: ADMIN_UI_ROUTES.RUNS, icon: Layers },
-    { label: "Scheduler & Workers", href: ADMIN_UI_ROUTES.SCHEDULER, icon: Clock },
   ];
+
+  const dropdownNavItems = [
+    { 
+      label: "Discovery Watches", 
+      href: ADMIN_UI_ROUTES.WATCHES, 
+      icon: Eye,
+      description: "Automated candidate triggers" 
+    },
+    { 
+      label: "Discovery Runs", 
+      href: ADMIN_UI_ROUTES.RUNS, 
+      icon: Layers,
+      description: "Autonomous run execution logs" 
+    },
+    { 
+      label: "Scheduler & Workers", 
+      href: ADMIN_UI_ROUTES.SCHEDULER, 
+      icon: Clock,
+      description: "Background queues & health" 
+    },
+  ];
+
+  const isOpsActive = dropdownNavItems.some((item) => pathname.startsWith(item.href));
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Top Administrative Header */}
       <header className="sticky top-0 z-50 w-full border-b border-border/80 bg-background/95 backdrop-blur-md">
-        <div className="container mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-4">
+        <div className="container mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
+          {/* Left: Brand + Status */}
+          <div className="flex items-center gap-3 flex-shrink-0">
             <Link href={ADMIN_UI_ROUTES.OVERVIEW} className="flex items-center gap-2.5 group">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-600 text-white shadow-md transition-transform group-hover:scale-105">
                 <ShieldCheck className="h-5 w-5" />
               </div>
               <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <span className="text-base font-bold tracking-tight text-foreground">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-bold tracking-tight text-foreground">
                     BrowserPilot
                   </span>
-                  <Badge variant="outline" className="text-[10px] font-mono border-purple-500/40 text-purple-400 bg-purple-500/10 px-1.5 py-0">
-                    CONTROL PLANE
+                  <Badge variant="outline" className="text-[9px] font-mono border-purple-500/40 text-purple-400 bg-purple-500/10 px-1 py-0">
+                    CONTROL
                   </Badge>
                 </div>
-                <span className="text-[11px] font-mono text-muted-foreground -mt-0.5">
-                  Administrative Observatory
+                <span className="hidden sm:inline text-[10px] font-mono text-muted-foreground -mt-0.5">
+                  Observatory
                 </span>
               </div>
             </Link>
 
-            {/* System Health Indicators */}
+            {/* Compact System Health Dot */}
             {systemHealth && (
-              <div className="hidden lg:flex items-center gap-2.5 pl-4 border-l border-border/60 text-xs font-mono">
-                <div className="flex items-center gap-1.5 bg-muted/40 px-2 py-0.5 rounded border border-border/50">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-muted-foreground">Status:</span>
-                  <span className="text-emerald-400 font-semibold">{systemHealth.status}</span>
-                </div>
-                <div className="flex items-center gap-1 bg-muted/40 px-2 py-0.5 rounded border border-border/50 text-muted-foreground">
-                  <Database className="h-3 w-3 text-purple-400" />
-                  <span>{systemHealth.databaseEngine}</span>
-                </div>
+              <div className="hidden lg:flex items-center gap-1.5 pl-3 border-l border-border/60 text-xs font-mono">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" title={`Status: ${systemHealth.status}`} />
+                <span className="text-[11px] text-muted-foreground">{systemHealth.databaseEngine}</span>
               </div>
             )}
           </div>
 
-          {/* Nav Links */}
-          <nav className="hidden md:flex items-center gap-1 bg-muted/30 p-1 rounded-lg border border-border/60">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link key={item.href} href={item.href}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={`font-mono text-xs gap-1.5 px-3 h-8 ${
-                      isActive
-                        ? "bg-purple-600/20 text-purple-300 font-semibold border border-purple-500/30"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {item.label}
-                  </Button>
-                </Link>
-              );
-            })}
-          </nav>
+          {/* Center: Truly Centered Navigation */}
+          <div className="hidden md:flex flex-1 items-center justify-center px-2">
+            <nav className="flex items-center gap-1 bg-muted/30 p-1 rounded-lg border border-border/60">
+              {directNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link key={item.href} href={item.href}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`font-mono text-xs gap-1.5 px-3 h-8 ${
+                        isActive
+                          ? "bg-purple-600/20 text-purple-300 font-semibold border border-purple-500/30"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      <span>{item.label}</span>
+                    </Button>
+                  </Link>
+                );
+              })}
 
-          {/* Right Actions */}
-          <div className="flex items-center gap-2">
+              {/* Dropdown for Operations */}
+              <div className="relative" ref={dropdownRef}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setOpsDropdownOpen(!opsDropdownOpen)}
+                  className={`font-mono text-xs gap-1.5 px-3 h-8 ${
+                    isOpsActive
+                      ? "bg-purple-600/20 text-purple-300 font-semibold border border-purple-500/30"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  <span>Operations</span>
+                  <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${opsDropdownOpen ? "rotate-180" : ""}`} />
+                </Button>
+
+                {opsDropdownOpen && (
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 rounded-xl border border-border/80 bg-background/98 backdrop-blur-xl shadow-2xl p-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-muted-foreground font-semibold border-b border-border/40 mb-1">
+                      Engines & Runs
+                    </div>
+                    {dropdownNavItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = pathname === item.href;
+                      return (
+                        <Link key={item.href} href={item.href}>
+                          <div
+                            className={`flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-xs font-mono transition-colors cursor-pointer ${
+                              isActive
+                                ? "bg-purple-600/20 text-purple-300 font-semibold border border-purple-500/20"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                            }`}
+                          >
+                            <Icon className={`h-4 w-4 mt-0.5 ${isActive ? "text-purple-400" : "text-muted-foreground"}`} />
+                            <div className="flex flex-col">
+                              <span className="leading-tight">{item.label}</span>
+                              <span className="text-[10px] text-muted-foreground/80 mt-0.5 font-sans">{item.description}</span>
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </nav>
+          </div>
+
+          {/* Right: Actions */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Link href="/app">
-              <Button variant="outline" size="sm" className="font-mono text-xs gap-1.5 border-border/80 hover:border-primary/40">
+              <Button variant="outline" size="sm" className="font-mono text-xs gap-1.5 border-border/80 hover:border-primary/40 h-8">
                 <Terminal className="h-3.5 w-3.5 text-primary" />
                 <span className="hidden sm:inline">Workspace</span>
               </Button>
             </Link>
-            <div className="flex items-center gap-1.5 bg-muted/40 px-2.5 py-1 rounded-md border border-border/60 text-xs font-mono">
+            <div className="flex items-center gap-1.5 bg-muted/40 px-2.5 py-1 rounded-md border border-border/60 text-xs font-mono h-8">
               <span className="text-purple-400 font-bold text-[10px] uppercase">
                 {(session?.user as any)?.role || "ADMIN"}
               </span>
-              <span className="text-muted-foreground max-w-[120px] truncate">
+              <span className="text-muted-foreground max-w-[90px] truncate">
                 {session?.user?.email?.split("@")[0]}
               </span>
             </div>
@@ -208,7 +292,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Mobile Navigation bar */}
         <div className="flex md:hidden items-center justify-around border-t border-border/60 bg-muted/20 px-2 py-1.5 overflow-x-auto">
-          {navItems.map((item) => {
+          {[...directNavItems, ...dropdownNavItems].map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (
