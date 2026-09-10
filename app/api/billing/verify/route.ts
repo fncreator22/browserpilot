@@ -14,6 +14,7 @@ const VerifyPaymentSchema = z.object({
   paymentId: z.string().min(1),
   signature: z.string().optional(),
   planCode: z.enum(["PREMIUM", "ENTERPRISE"]),
+  billingInterval: z.enum(["MONTHLY", "YEARLY"]).optional().default("MONTHLY"),
 });
 
 export async function POST(req: Request) {
@@ -55,6 +56,7 @@ export async function POST(req: Request) {
       paymentId: parseResult.data.paymentId,
       signature: parseResult.data.signature,
       planCode: parseResult.data.planCode,
+      billingInterval: parseResult.data.billingInterval,
     });
 
     if (!result.verified) {
