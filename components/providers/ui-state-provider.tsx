@@ -77,12 +77,19 @@ export function UIStateProvider({ children }: { children: React.ReactNode }) {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [profileModalTab, setProfileModalTab] = useState<ProfileTab>("ACCOUNT");
-  const [isSidebarCollapsed, setIsSidebarCollapsedState] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("browserpilot_sidebar_collapsed") === "true";
+  const [isSidebarCollapsed, setIsSidebarCollapsedState] = useState<boolean>(false);
+
+  // Safely restore collapsed state from localStorage post-hydration
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("browserpilot_sidebar_collapsed");
+      if (saved === "true") {
+        setIsSidebarCollapsedState(true);
+      }
+    } catch {
+      // Ignore storage access errors
     }
-    return false;
-  });
+  }, []);
 
   const setIsSidebarCollapsed = useCallback((collapsed: boolean) => {
     setIsSidebarCollapsedState(collapsed);
