@@ -16,6 +16,8 @@ export const ADMIN_ROUTE_SEGMENT = process.env.ADMIN_ROUTE_SEGMENT || "ops-sec-7
 
 export const ADMIN_UI_ROUTES = {
   OVERVIEW: `/${ADMIN_ROUTE_SEGMENT}`,
+  USERS: `/${ADMIN_ROUTE_SEGMENT}/users`,
+  USER_DETAIL: (id: string) => `/${ADMIN_ROUTE_SEGMENT}/users/${id}`,
   CONNECTORS: `/${ADMIN_ROUTE_SEGMENT}/connectors`,
   WATCHES: `/${ADMIN_ROUTE_SEGMENT}/watches`,
   RUNS: `/${ADMIN_ROUTE_SEGMENT}/runs`,
@@ -25,11 +27,15 @@ export const ADMIN_UI_ROUTES = {
 export const ADMIN_API_ROUTES = {
   BASE: `/api/${ADMIN_ROUTE_SEGMENT}`,
   METRICS: `/api/${ADMIN_ROUTE_SEGMENT}/metrics`,
+  USERS: `/api/${ADMIN_ROUTE_SEGMENT}/users`,
+  USER_DETAIL: (id: string) => `/api/${ADMIN_ROUTE_SEGMENT}/users/${id}`,
+  PLANS: `/api/${ADMIN_ROUTE_SEGMENT}/plans`,
   CONNECTORS: `/api/${ADMIN_ROUTE_SEGMENT}/connectors`,
   WATCHES: `/api/${ADMIN_ROUTE_SEGMENT}/watches`,
   RUNS: `/api/${ADMIN_ROUTE_SEGMENT}/runs`,
   SCHEDULER: `/api/${ADMIN_ROUTE_SEGMENT}/scheduler`,
   BILLING: `/api/${ADMIN_ROUTE_SEGMENT}/billing`,
   COUPONS: `/api/${ADMIN_ROUTE_SEGMENT}/coupons`,
+  USER_SUBSCRIPTION: (id: string) => `/api/${ADMIN_ROUTE_SEGMENT}/users/${id}/subscription`,
   SEARCH_TELEMETRY: `/api/${ADMIN_ROUTE_SEGMENT}/search-telemetry`,
 } as const;
