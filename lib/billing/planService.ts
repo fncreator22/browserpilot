@@ -24,6 +24,8 @@ export interface PlanFeatureConfig {
   supportsPuterPremium: boolean;
   supportsPriorityExecution: boolean;
   active: boolean;
+  features?: string[];
+  dailyTokenLimit?: number;
 }
 
 export const DEFAULT_PLANS: Array<Omit<PlanFeatureConfig, "id">> = [
@@ -122,6 +124,44 @@ export function formatPlanRecord(record: any): PlanFeatureConfig {
     intervals = JSON.parse(record.allowedIntervals || "[]");
   } catch {}
 
+  let meta: Record<string, any> = {};
+  try {
+    meta = JSON.parse(record.metadata || "{}");
+  } catch {}
+
+  const defaultFeaturesMap: Record<string, string[]> = {
+    FREE: [
+      "1 Active Autonomous Watch",
+      "10 Daily Job Discoveries",
+      "Standard 24h Scan Interval",
+      "10,000 Daily Gemini AI Tokens",
+    ],
+    PREMIUM: [
+      "25 Active Autonomous Watches",
+      "100 Daily Job Discoveries",
+      "High-frequency 2h/4h/6h Scans",
+      "50,000 Daily Gemini AI Tokens",
+      "Puter AI & Gemini Flash priority access",
+      "Target Company filtering & alerts",
+    ],
+    ENTERPRISE: [
+      "500 Active Autonomous Watches",
+      "1,000 Daily Job Discoveries",
+      "Real-time & instant priority execution",
+      "250,000 Daily Gemini AI Tokens",
+      "Dedicated AI fleet & unconstrained quotas",
+      "Priority 24/7 dedicated support",
+    ],
+  };
+
+  const features = Array.isArray(meta.features) && meta.features.length > 0
+    ? meta.features
+    : (defaultFeaturesMap[String(record.code || "").toUpperCase()] || ["Standard autonomous monitoring"]);
+
+  const dailyTokenLimit = typeof meta.dailyTokenLimit === "number"
+    ? meta.dailyTokenLimit
+    : (record.code === "ENTERPRISE" ? 250000 : record.code === "PREMIUM" ? 50000 : 10000);
+
   return {
     id: record.id,
     code: record.code,
@@ -139,6 +179,8 @@ export function formatPlanRecord(record: any): PlanFeatureConfig {
     supportsPuterPremium: Boolean(record.supportsPuterPremium),
     supportsPriorityExecution: Boolean(record.supportsPriorityExecution),
     active: Boolean(record.active),
+    features,
+    dailyTokenLimit,
   };
 }
 
