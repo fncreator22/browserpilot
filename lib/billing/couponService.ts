@@ -16,6 +16,9 @@ export interface CouponValidationResult {
   discountValue?: number;
   targetPlanCode?: string | null;
   couponId?: string;
+  validFrom?: Date | null;
+  validUntil?: Date | null;
+  description?: string | null;
 }
 
 export interface CreateCouponInput {
@@ -26,6 +29,8 @@ export interface CreateCouponInput {
   targetPlanCode?: string;
   maxRedemptions?: number;
   validUntilDays?: number;
+  validFrom?: Date | string | null;
+  validUntil?: Date | string | null;
   active?: boolean;
 }
 
@@ -62,6 +67,10 @@ export async function validateCoupon(
   }
 
   const now = new Date();
+  if (coupon.validFrom && now < coupon.validFrom) {
+    return { valid: false, code: cleanCode, reason: "COUPON_NOT_YET_ACTIVE" };
+  }
+
   if (coupon.validUntil && now > coupon.validUntil) {
     return { valid: false, code: cleanCode, reason: "COUPON_EXPIRED" };
   }
@@ -91,6 +100,9 @@ export async function validateCoupon(
     discountType: coupon.discountType,
     discountValue: coupon.discountValue,
     targetPlanCode: coupon.targetPlan?.code || null,
+    validFrom: coupon.validFrom,
+    validUntil: coupon.validUntil,
+    description: coupon.description,
   };
 }
 
@@ -187,8 +199,15 @@ export async function adminCreateCoupon(
   }
 
   let validUntil: Date | null = null;
-  if (input.validUntilDays && input.validUntilDays > 0) {
+  if (input.validUntil) {
+    validUntil = new Date(input.validUntil);
+  } else if (input.validUntilDays && input.validUntilDays > 0) {
     validUntil = new Date(Date.now() + input.validUntilDays * 24 * 60 * 60 * 1000);
+  }
+
+  let validFrom: Date = new Date();
+  if (input.validFrom) {
+    validFrom = new Date(input.validFrom);
   }
 
   return prisma.coupon.create({
@@ -199,6 +218,7 @@ export async function adminCreateCoupon(
       discountValue: input.discountValue,
       targetPlanId,
       maxRedemptions: input.maxRedemptions ?? 100,
+      validFrom,
       validUntil,
       active: input.active !== false,
       createdById: adminUserId || null,
