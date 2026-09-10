@@ -39,7 +39,9 @@ export default function AdminOverviewPage() {
   const fetchMetrics = async (isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
-      const res = await fetch(ADMIN_API_ROUTES.METRICS);
+      const adminKey = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("admin_key") : null;
+      const url = adminKey ? `${ADMIN_API_ROUTES.METRICS}?admin_key=${encodeURIComponent(adminKey)}` : ADMIN_API_ROUTES.METRICS;
+      const res = await fetch(url);
       if (!res.ok) {
         throw new Error(`Failed to load metrics (HTTP ${res.status})`);
       }
@@ -88,13 +90,22 @@ export default function AdminOverviewPage() {
     <div className="space-y-6">
       {/* Top Banner & Refresh Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-border/60">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            System Observability & Telemetry
-          </h1>
-          <p className="text-sm text-muted-foreground font-mono">
-            Autonomous multi-source swarm metrics, scheduler health, and tenant monitoring
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-sm">
+            <Activity className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-foreground">
+              System Observability
+            </h1>
+            <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+              <span className="text-emerald-400 font-semibold">{system.status}</span>
+              <span>•</span>
+              <span>{users.totalUsers} tenants</span>
+              <span>•</span>
+              <span>{runs.totalRuns} total cycles</span>
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -119,23 +130,25 @@ export default function AdminOverviewPage() {
       {/* KPI Metric Cards Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Users */}
-        <div className="p-4 rounded-xl border border-border/70 bg-card/60 backdrop-blur-sm space-y-2 shadow-sm">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-mono">
-            <span>REGISTERED USERS</span>
-            <Users className="h-4 w-4 text-purple-400" />
+        <Link href={ADMIN_UI_ROUTES.USERS} className="group">
+          <div className="p-4 rounded-xl border border-border/70 bg-card/60 backdrop-blur-sm space-y-2 shadow-sm transition-all group-hover:border-purple-500/40 group-hover:bg-muted/20 cursor-pointer">
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-mono">
+              <span className="group-hover:text-purple-300 transition-colors">REGISTERED USERS</span>
+              <Users className="h-4 w-4 text-purple-400 group-hover:scale-110 transition-transform" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
+                {users.totalUsers}
+              </span>
+              <span className="text-xs text-muted-foreground font-mono">
+                ({users.usersWithActiveWatch} active)
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {Math.round((users.usersWithActiveWatch / Math.max(1, users.totalUsers)) * 100)}% of tenants have automated watches
+            </p>
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
-              {users.totalUsers}
-            </span>
-            <span className="text-xs text-muted-foreground font-mono">
-              ({users.usersWithActiveWatch} active)
-            </span>
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            {Math.round((users.usersWithActiveWatch / Math.max(1, users.totalUsers)) * 100)}% of tenants have automated watches
-          </p>
-        </div>
+        </Link>
 
         {/* Discovery Watches */}
         <div className="p-4 rounded-xl border border-border/70 bg-card/60 backdrop-blur-sm space-y-2 shadow-sm">
