@@ -1,0 +1,45 @@
+import { NextRequest, NextResponse } from "next/server";
+import { verifyAdminAccess } from "@/lib/auth/adminGuard";
+import { adminControlPlaneService } from "@/lib/admin/adminService";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(request: NextRequest) {
+  try {
+    const adminHeader = request.headers.get("x-admin-key") || request.headers.get("authorization") || request.nextUrl.searchParams.get("admin_key");
+    const auth = await verifyAdminAccess(adminHeader, request);
+
+    if (!auth.isAdmin) {
+      return NextResponse.json(
+        { error: "FORBIDDEN", message: "Admin privileges required." },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const limit = parseInt(searchParams.get("limit") || "15", 10);
+    const search = searchParams.get("search") || undefined;
+    const planFilter = searchParams.get("plan") || undefined;
+    const puterFilter = searchParams.get("puter") || undefined;
+
+    const data = await adminControlPlaneService.getAdminUsersList({
+      page,
+      limit,
+      search,
+      planFilter,
+      puterFilter,
+    });
+
+    return NextResponse.json({
+      success: true,
+      role: auth.role,
+      ...data,
+    });
+  } catch (err: unknown) {
+    return NextResponse.json(
+      { error: "USERS_FETCH_ERROR", message: (err as Error).message },
+      { status: 500 }
+    );
+  }
+}
