@@ -583,6 +583,584 @@ export class AdminControlPlaneService {
       activeWorkerClaims: currentlyLockedWatches,
     };
   }
+
+  /**
+   * Retrieves all plan configurations with their configurable daily token limits and rich features.
+   */
+  public async getAdminPlansWithLimits() {
+    const plans = await prisma.plan.findMany({ orderBy: { priceMonthly: "asc" } });
+    return plans.map((p) => {
+      let meta: Record<string, any> = {};
+      try {
+        meta = JSON.parse(p.metadata || "{}");
+      } catch {}
+
+      const defaultFeatures: Record<string, string[]> = {
+        FREE: [
+          "1 Active Watch",
+          "10 Daily Job Discoveries",
+          "Standard 24h scan interval",
+          "Community AI Model Tier",
+          "Basic notification alerts",
+        ],
+        PREMIUM: [
+          "25 Active Watches",
+          "100 Daily Job Discoveries",
+          "High-frequency 2h/4h/6h scans",
+          "Puter AI & Gemini Flash priority access",
+          "Target Company filtering & alerts",
+          "Direct recruiter intelligence extraction",
+        ],
+        ENTERPRISE: [
+          "500 Active Watches",
+          "1,000 Daily Job Discoveries",
+          "Real-time & instant priority execution",
+          "Dedicated AI fleet & unconstrained quotas",
+          "Full swarm orchestration & custom webhooks",
+          "Priority 24/7 dedicated support",
+        ],
+      };
+
+      const features = Array.isArray(meta.features) && meta.features.length > 0
+        ? meta.features
+        : (defaultFeatures[p.code.toUpperCase()] || ["Standard autonomous monitoring"]);
+
+      return {
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        description: p.description,
+        priceMonthly: p.priceMonthly,
+        priceYearly: p.priceYearly,
+        currency: p.currency,
+        maxWatches: p.maxWatches,
+        maxDailyDiscoveries: p.maxDailyDiscoveries,
+        features,
+        dailyTokenLimit: resolvePlanDailyLimit(p.code, p.metadata),
+        active: p.active,
+      };
+    });
+  }
+
+  /**
+   * Updates plan configuration including pricing, rich features, and token limits.
+   */
+  public async updatePlanConfig(planCode: string, updates: {
+    dailyTokenLimit?: number;
+    priceMonthly?: number;
+    priceYearly?: number;
+    description?: string;
+    features?: string[];
+    maxWatches?: number;
+    maxDailyDiscoveries?: number;
+  }) {
+    const cleanCode = planCode.toUpperCase().trim();
+    const plan = await prisma.plan.findUnique({ where: { code: cleanCode } });
+    if (!plan) {
+      throw new Error(`Plan ${cleanCode} does not exist.`);
+    }
+
+    let meta: Record<string, any> = {};
+    try {
+      meta = JSON.parse(plan.metadata || "{}");
+    } catch {}
+
+    if (typeof updates.dailyTokenLimit === "number") {
+      if (updates.dailyTokenLimit < 1000) {
+        throw new Error("INVALID_LIMIT: Daily token limit must be at least 1,000.");
+      }
+      meta.dailyTokenLimit = updates.dailyTokenLimit;
+    }
+
+    if (Array.isArray(updates.features)) {
+      meta.features = updates.features.map((f) => String(f).trim()).filter(Boolean);
+    }
+
+    const dataToUpdate: any = {
+      metadata: JSON.stringify(meta),
+    };
+
+    if (typeof updates.priceMonthly === "number" && updates.priceMonthly >= 0) {
+      dataToUpdate.priceMonthly = updates.priceMonthly;
+    }
+    if (typeof updates.priceYearly === "number" && updates.priceYearly >= 0) {
+      dataToUpdate.priceYearly = updates.priceYearly;
+    }
+    if (typeof updates.description === "string") {
+      dataToUpdate.description = updates.description.trim();
+    }
+    if (typeof updates.maxWatches === "number" && updates.maxWatches >= 1) {
+      dataToUpdate.maxWatches = updates.maxWatches;
+    }
+    if (typeof updates.maxDailyDiscoveries === "number" && updates.maxDailyDiscoveries >= 1) {
+      dataToUpdate.maxDailyDiscoveries = updates.maxDailyDiscoveries;
+    }
+
+    return prisma.plan.update({
+      where: { code: cleanCode },
+      data: dataToUpdate,
+    });
+  }
+
+  /**
+   * Updates the daily token limit for a given plan tier in Plan.metadata (backwards compatibility).
+   */
+  public async updatePlanDailyTokenLimit(planCode: string, dailyTokenLimit: number) {
+    return this.updatePlanConfig(planCode, { dailyTokenLimit });
+  }
+
+  /**
+   * Retrieves paginated admin users with live token usage and Puter connection status.
+   */
+  public async getAdminUsersList(options: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    planFilter?: string;
+    puterFilter?: string;
+  } = {}) {
+    const page = Math.max(1, options.page || 1);
+    const limit = Math.min(100, Math.max(1, options.limit || 15));
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (options.search?.trim()) {
+      const q = options.search.trim();
+      where.OR = [
+        { email: { contains: q, mode: "insensitive" } },
+        { name: { contains: q, mode: "insensitive" } },
+        { id: { contains: q } },
+      ];
+    }
+
+    if (options.puterFilter === "CONNECTED") {
+      where.providerConnections = {
+        some: { provider: "PUTER", status: "CONNECTED" },
+      };
+    } else if (options.puterFilter === "NOT_CONNECTED") {
+      where.providerConnections = {
+        none: { provider: "PUTER", status: "CONNECTED" },
+      };
+    }
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          geminiApiKey: true,
+          createdAt: true,
+          subscriptions: {
+            where: { status: { in: ["ACTIVE", "TRIALING"] } },
+            take: 1,
+            orderBy: { createdAt: "desc" },
+            include: { plan: true },
+          },
+          providerConnections: {
+            where: { provider: "PUTER" },
+            take: 1,
+          },
+        },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    const userIds = users.map((u) => u.id);
+    const now = new Date();
+    const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Live aggregate today's token usage per user & provider
+    const todayUsageGrouped = userIds.length > 0 ? await prisma.aIUsageEvent.groupBy({
+      by: ["userId", "provider"],
+      where: {
+        userId: { in: userIds },
+        timestamp: { gte: startOfToday },
+      },
+      _sum: { totalTokens: true },
+    }) : [];
+
+    // Live aggregate 7-day Puter calls
+    const puterCallsGrouped = userIds.length > 0 ? await prisma.aIUsageEvent.groupBy({
+      by: ["userId", "status"],
+      where: {
+        userId: { in: userIds },
+        provider: "PUTER",
+        timestamp: { gte: sevenDaysAgo },
+      },
+      _count: { id: true },
+    }) : [];
+
+    // Build lookup maps
+    const todayTokensByUser: Record<string, { total: number; gemini: number; puter: number; other: number }> = {};
+    for (const row of todayUsageGrouped) {
+      if (!todayTokensByUser[row.userId]) {
+        todayTokensByUser[row.userId] = { total: 0, gemini: 0, puter: 0, other: 0 };
+      }
+      const tokens = row._sum.totalTokens || 0;
+      todayTokensByUser[row.userId].total += tokens;
+      const prov = row.provider.toUpperCase();
+      if (prov === "PUTER") {
+        todayTokensByUser[row.userId].puter += tokens;
+      } else if (prov.includes("GEMINI")) {
+        todayTokensByUser[row.userId].gemini += tokens;
+      } else {
+        todayTokensByUser[row.userId].other += tokens;
+      }
+    }
+
+    const puterCallsByUser: Record<string, { success: number; failed: number }> = {};
+    for (const row of puterCallsGrouped) {
+      if (!puterCallsByUser[row.userId]) {
+        puterCallsByUser[row.userId] = { success: 0, failed: 0 };
+      }
+      const count = row._count.id || 0;
+      if (row.status === "SUCCESS") {
+        puterCallsByUser[row.userId].success += count;
+      } else {
+        puterCallsByUser[row.userId].failed += count;
+      }
+    }
+
+    // Load plans to resolve live tier daily limits even for unsubscribed users
+    const allPlans = await prisma.plan.findMany({ select: { code: true, name: true, metadata: true } });
+    const plansByCode = new Map(allPlans.map((p) => [p.code, p]));
+
+    // Format list items
+    const userItems = users.map((u) => {
+      const activeSub = u.subscriptions[0];
+      const planCode = activeSub?.plan?.code || "FREE";
+      const planRecord = plansByCode.get(planCode) || activeSub?.plan;
+      const planName = planRecord?.name || activeSub?.plan?.name || "Free Community Tier";
+      const dailyTokenLimit = resolvePlanDailyLimit(planCode, planRecord?.metadata);
+
+      const puterConn = u.providerConnections[0];
+      const isPuterConnected = puterConn?.status === "CONNECTED";
+      const connectedSince = isPuterConnected ? puterConn.createdAt.toISOString() : null;
+      const puterUsername = isPuterConnected ? puterConn.providerUsername : null;
+
+      const userToday = todayTokensByUser[u.id] || { total: 0, gemini: 0, puter: 0, other: 0 };
+      const percentage = Math.min(100, Math.round((userToday.total / dailyTokenLimit) * 100));
+
+      const puterStats = puterCallsByUser[u.id] || { success: 0, failed: 0 };
+
+      return {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        createdAt: u.createdAt.toISOString(),
+        hasGeminiKey: Boolean(u.geminiApiKey),
+        plan: {
+          code: planCode,
+          name: planName,
+          dailyTokenLimit,
+        },
+        puterConnection: {
+          isConnected: isPuterConnected,
+          connectedSince,
+          username: puterUsername,
+          sevenDaySuccessCalls: puterStats.success,
+          sevenDayFailedCalls: puterStats.failed,
+        },
+        todayTokenUsage: {
+          totalTokens: userToday.total,
+          geminiTokens: userToday.gemini,
+          puterTokens: userToday.puter,
+          otherTokens: userToday.other,
+          dailyLimit: dailyTokenLimit,
+          percentage,
+        },
+      };
+    });
+
+    return {
+      users: userItems,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * Retrieves comprehensive live metrics for a single user detail view.
+   */
+  public async getAdminUserDetail(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        subscriptions: {
+          where: { status: { in: ["ACTIVE", "TRIALING"] } },
+          take: 1,
+          orderBy: { createdAt: "desc" },
+          include: { plan: true },
+        },
+        providerConnections: {
+          orderBy: { updatedAt: "desc" },
+        },
+        profile: true,
+      },
+    });
+
+    if (!user) {
+      throw new Error(`User with ID "${userId}" was not found.`);
+    }
+
+    const now = new Date();
+    const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const activeSub = user.subscriptions[0];
+    const planCode = activeSub?.plan?.code || "FREE";
+    const planRecord = activeSub?.plan || await prisma.plan.findUnique({ where: { code: planCode } });
+    const planName = planRecord?.name || "Free Community Tier";
+    const dailyTokenLimit = resolvePlanDailyLimit(planCode, planRecord?.metadata);
+
+    // Puter connection check
+    const puterConn = user.providerConnections.find((c) => c.provider === "PUTER");
+    const isPuterConnected = puterConn?.status === "CONNECTED";
+    const connectedSince = isPuterConnected ? puterConn.createdAt.toISOString() : null;
+
+    // 7-day Puter call aggregates & errors
+    const [
+      puterSuccessCalls,
+      puterFailedCalls,
+      recentPuterErrors,
+      geminiTodayAgg,
+      geminiMonthAgg,
+      totalTodayAgg,
+      recentEvents,
+      sevenDayEvents,
+    ] = await Promise.all([
+      prisma.aIUsageEvent.count({
+        where: {
+          userId,
+          provider: "PUTER",
+          status: "SUCCESS",
+          timestamp: { gte: sevenDaysAgo },
+        },
+      }),
+      prisma.aIUsageEvent.count({
+        where: {
+          userId,
+          provider: "PUTER",
+          status: { in: ["FAILED", "RATE_LIMITED", "QUOTA_EXCEEDED"] },
+          timestamp: { gte: sevenDaysAgo },
+        },
+      }),
+      prisma.aIUsageEvent.findMany({
+        where: {
+          userId,
+          provider: "PUTER",
+          status: { in: ["FAILED", "RATE_LIMITED", "QUOTA_EXCEEDED"] },
+          timestamp: { gte: sevenDaysAgo },
+        },
+        orderBy: { timestamp: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          model: true,
+          operation: true,
+          status: true,
+          errorMessage: true,
+          timestamp: true,
+        },
+      }),
+      // Gemini BYOK today & month
+      prisma.aIUsageEvent.aggregate({
+        _sum: { totalTokens: true },
+        _count: { id: true },
+        where: {
+          userId,
+          provider: { in: ["GEMINI_BYOK", "Google Gemini", "GEMINI"] },
+          timestamp: { gte: startOfToday },
+        },
+      }),
+      prisma.aIUsageEvent.aggregate({
+        _sum: { totalTokens: true },
+        where: {
+          userId,
+          provider: { in: ["GEMINI_BYOK", "Google Gemini", "GEMINI"] },
+          timestamp: { gte: startOfMonth },
+        },
+      }),
+      // Overall today tokens
+      prisma.aIUsageEvent.aggregate({
+        _sum: { totalTokens: true },
+        where: {
+          userId,
+          timestamp: { gte: startOfToday },
+        },
+      }),
+      // Recent raw logs
+      prisma.aIUsageEvent.findMany({
+        where: { userId },
+        orderBy: { timestamp: "desc" },
+        take: 30,
+      }),
+      // 7-day raw events for daily bar chart
+      prisma.aIUsageEvent.findMany({
+        where: {
+          userId,
+          timestamp: { gte: sevenDaysAgo },
+        },
+        select: {
+          provider: true,
+          totalTokens: true,
+          status: true,
+          timestamp: true,
+        },
+      }),
+    ]);
+
+    // Construct 7-day daily trend buckets
+    const dayBuckets: Record<string, {
+      date: string;
+      dayLabel: string;
+      totalTokens: number;
+      geminiTokens: number;
+      puterTokens: number;
+      otherTokens: number;
+      puterSuccessCalls: number;
+      puterFailedCalls: number;
+    }> = {};
+
+    const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 86400000);
+      const dateKey = d.toISOString().slice(0, 10);
+      dayBuckets[dateKey] = {
+        date: dateKey,
+        dayLabel: i === 0 ? "Today" : weekdayNames[d.getUTCDay()],
+        totalTokens: 0,
+        geminiTokens: 0,
+        puterTokens: 0,
+        otherTokens: 0,
+        puterSuccessCalls: 0,
+        puterFailedCalls: 0,
+      };
+    }
+
+    for (const ev of sevenDayEvents) {
+      const dateKey = ev.timestamp.toISOString().slice(0, 10);
+      if (dayBuckets[dateKey]) {
+        dayBuckets[dateKey].totalTokens += ev.totalTokens;
+        const prov = ev.provider.toUpperCase();
+        if (prov === "PUTER") {
+          dayBuckets[dateKey].puterTokens += ev.totalTokens;
+          if (ev.status === "SUCCESS") {
+            dayBuckets[dateKey].puterSuccessCalls++;
+          } else {
+            dayBuckets[dateKey].puterFailedCalls++;
+          }
+        } else if (prov.includes("GEMINI")) {
+          dayBuckets[dateKey].geminiTokens += ev.totalTokens;
+        } else {
+          dayBuckets[dateKey].otherTokens += ev.totalTokens;
+        }
+      }
+    }
+
+    const usageTrend7Days = Object.values(dayBuckets);
+    const usedToday = totalTodayAgg._sum.totalTokens || 0;
+    const percentage = Math.min(100, Math.round((usedToday / dailyTokenLimit) * 100));
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+      hasGeminiKey: Boolean(user.geminiApiKey),
+      maskedGeminiKey: user.geminiApiKey ? maskSecret(user.geminiApiKey) : null,
+      plan: {
+        code: planCode,
+        name: planName,
+        dailyTokenLimit,
+        isPaid: planCode !== "FREE",
+      },
+      puterConnection: {
+        isConnected: isPuterConnected,
+        connectedSince,
+        username: isPuterConnected ? puterConn.providerUsername : null,
+        status: puterConn ? puterConn.status : "DISCONNECTED",
+        sevenDaySuccessCalls: puterSuccessCalls,
+        sevenDayFailedCalls: puterFailedCalls,
+        recentErrors: recentPuterErrors.map((e) => ({
+          model: e.model,
+          operation: e.operation,
+          status: e.status,
+          errorMessage: e.errorMessage,
+          timestamp: e.timestamp.toISOString(),
+        })),
+      },
+      geminiUsage: {
+        tokensToday: geminiTodayAgg._sum.totalTokens || 0,
+        tokensThisMonth: geminiMonthAgg._sum.totalTokens || 0,
+        recentCalls: geminiTodayAgg._count.id || 0,
+      },
+      dailyTokenLimit: {
+        limit: dailyTokenLimit,
+        usedToday,
+        percentage,
+      },
+      usageTrend7Days,
+      recentEvents: recentEvents.map((e) => ({
+        id: e.id,
+        provider: e.provider,
+        model: e.model,
+        operation: e.operation,
+        inputTokens: e.inputTokens,
+        outputTokens: e.outputTokens,
+        totalTokens: e.totalTokens,
+        durationMs: e.durationMs,
+        status: e.status,
+        errorMessage: e.errorMessage,
+        timestamp: e.timestamp.toISOString(),
+      })),
+    };
+  }
+}
+
+/**
+ * Resolves plan daily token limit from metadata or fallback default
+ */
+export function resolvePlanDailyLimit(planCode: string, metadataStr?: string | null): number {
+  if (metadataStr) {
+    try {
+      const meta = JSON.parse(metadataStr);
+      if (typeof meta.dailyTokenLimit === "number" && meta.dailyTokenLimit > 0) {
+        return meta.dailyTokenLimit;
+      }
+    } catch {}
+  }
+  switch (planCode?.toUpperCase()) {
+    case "ENTERPRISE":
+      return 5000000;
+    case "PREMIUM":
+      return 500000;
+    case "FREE":
+    default:
+      return 50000;
+  }
+}
+
+function maskSecret(secret: string): string {
+  if (!secret || secret.length < 8) return "••••••••";
+  const prefix = secret.slice(0, Math.min(6, Math.floor(secret.length / 3)));
+  const suffix = secret.slice(-Math.min(4, Math.floor(secret.length / 4)));
+  return `${prefix}••••••••${suffix}`;
 }
 
 export const adminControlPlaneService = new AdminControlPlaneService();
