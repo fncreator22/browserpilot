@@ -17,12 +17,15 @@ const AdminCreateCouponSchema = z.object({
   targetPlanCode: z.string().optional(),
   maxRedemptions: z.number().int().min(0).default(100),
   validUntilDays: z.number().int().min(1).optional(),
+  validFrom: z.string().optional(),
+  validUntil: z.string().optional(),
   active: z.boolean().default(true),
 });
 
 export async function GET(req: Request) {
   try {
-    const authHeader = req.headers.get("x-admin-key") || req.headers.get("authorization");
+    const url = new URL(req.url);
+    const authHeader = req.headers.get("x-admin-key") || req.headers.get("authorization") || url.searchParams.get("admin_key");
     const auth = await verifyAdminAccess(authHeader, req);
 
     if (!auth.isAdmin) {
@@ -61,7 +64,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const authHeader = req.headers.get("x-admin-key") || req.headers.get("authorization");
+    const url = new URL(req.url);
+    const authHeader = req.headers.get("x-admin-key") || req.headers.get("authorization") || url.searchParams.get("admin_key");
     const auth = await verifyAdminAccess(authHeader, req);
 
     if (!auth.isAdmin) {
