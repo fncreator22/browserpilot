@@ -17,7 +17,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authHeader = req.headers.get("x-admin-key") || req.headers.get("authorization");
+    const url = new URL(req.url);
+    const authHeader = req.headers.get("x-admin-key") || req.headers.get("authorization") || url.searchParams.get("admin_key");
     const auth = await verifyAdminAccess(authHeader, req);
 
     if (!auth.isAdmin) {
