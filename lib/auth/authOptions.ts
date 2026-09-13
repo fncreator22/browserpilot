@@ -65,6 +65,17 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as any).role || "USER";
       }
       if (token.email) {
+        // Synchronize token.id with the database to heal any stale JWT IDs across re-seeds
+        try {
+          const dbUser = await getUserByEmail(token.email as string);
+          if (dbUser) {
+            token.id = dbUser.id;
+            token.role = (dbUser as any).role || "USER";
+          }
+        } catch (syncErr) {
+          console.error("[authOptions:jwt] User DB sync error:", syncErr);
+        }
+
         const adminEmails = (process.env.ADMIN_EMAILS || "")
           .split(",")
           .map((e) => e.trim().toLowerCase())
@@ -76,12 +87,24 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      if (session.user && token.id) {
-        (session.user as { id?: string; name?: string | null; email?: string | null; role?: string }).id = token.id as string;
+      if (session.user) {
+        let resolvedId = (token.id as string) || "";
+        if (token.email) {
+          try {
+            const dbUser = await getUserByEmail(token.email as string);
+            if (dbUser) {
+              resolvedId = dbUser.id;
+              (session.user as any).role = dbUser.role;
+            }
+          } catch (syncErr) {
+            console.error("[authOptions:session] User DB sync error:", syncErr);
+          }
+        }
+        (session.user as { id?: string; name?: string | null; email?: string | null; role?: string }).id = resolvedId;
         if (token.name) {
           session.user.name = token.name as string;
         }
-        (session.user as any).role = (token.role as string) || "USER";
+        (session.user as any).role = (token.role as string) || (session.user as any).role || "USER";
       }
       return session;
     },

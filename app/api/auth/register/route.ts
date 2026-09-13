@@ -18,7 +18,8 @@ const RegisterSchema = z.object({
   geminiApiKey: z
     .string()
     .trim()
-    .min(10, { message: "Please provide a valid Gemini API Key from Google AI Studio." }),
+    .optional()
+    .transform((v) => (v && v.length >= 10 ? v : undefined)),
 });
 
 /**
