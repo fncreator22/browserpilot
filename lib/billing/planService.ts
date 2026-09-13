@@ -14,6 +14,7 @@ export interface PlanFeatureConfig {
   description: string;
   priceMonthly: number;
   priceYearly: number;
+  discountPercentage?: number;
   currency: string;
   maxWatches: number;
   maxDailyDiscoveries: number;
@@ -82,10 +83,14 @@ export const DEFAULT_PLANS: Array<Omit<PlanFeatureConfig, "id">> = [
   },
 ];
 
+let plansSeeded = false;
+
 /**
  * Ensures default canonical plans exist in the database.
  */
-export async function ensureDefaultPlans(): Promise<void> {
+export async function ensureDefaultPlans(force = false): Promise<void> {
+  if (plansSeeded && !force) return;
+
   for (const p of DEFAULT_PLANS) {
     const existing = await prisma.plan.findUnique({
       where: { code: p.code },
@@ -113,6 +118,11 @@ export async function ensureDefaultPlans(): Promise<void> {
       });
     }
   }
+
+  // Ensure default capabilities are seeded for each plan tier
+  const { seedDefaultPlanCapabilities } = await import("./entitlementService");
+  await seedDefaultPlanCapabilities();
+  plansSeeded = true;
 }
 
 /**
@@ -169,6 +179,7 @@ export function formatPlanRecord(record: any): PlanFeatureConfig {
     description: record.description,
     priceMonthly: record.priceMonthly,
     priceYearly: record.priceYearly,
+    discountPercentage: record.discountPercentage ?? 0.0,
     currency: record.currency,
     maxWatches: record.maxWatches,
     maxDailyDiscoveries: record.maxDailyDiscoveries,
