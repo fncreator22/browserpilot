@@ -40,8 +40,8 @@ export default function SignupPage() {
     const cleanPassword = password.trim();
     const cleanKey = geminiApiKey.trim();
 
-    if (!cleanEmail || !cleanPassword || !cleanKey) {
-      setErrorMsg("Please fill in all required fields including your Gemini API Key.");
+    if (!cleanEmail || !cleanPassword) {
+      setErrorMsg("Please fill in email and password.");
       return;
     }
 
@@ -55,7 +55,7 @@ export default function SignupPage() {
       return;
     }
 
-    if (cleanKey.length < 10) {
+    if (cleanKey && cleanKey.length < 10) {
       setErrorMsg("Please enter a valid Gemini API Key from Google AI Studio.");
       return;
     }
@@ -71,7 +71,7 @@ export default function SignupPage() {
           name: name.trim() || undefined,
           email: cleanEmail,
           password: cleanPassword,
-          geminiApiKey: cleanKey,
+          geminiApiKey: cleanKey || undefined,
         }),
       });
 
@@ -175,7 +175,7 @@ export default function SignupPage() {
               <div className="flex items-center justify-between">
                 <label htmlFor="signup-api-key" className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
                   <Sparkles className="h-3.5 w-3.5 text-primary" />
-                  Gemini API Key <span className="text-rose-500">*</span>
+                  Gemini API Key <span className="text-muted-foreground font-normal">(Optional)</span>
                 </label>
                 <a
                   href="https://aistudio.google.com/app/apikey"
@@ -190,22 +190,21 @@ export default function SignupPage() {
                 <Input
                   id="signup-api-key"
                   type={showApiKey ? "text" : "password"}
-                  required
                   value={geminiApiKey}
                   onChange={(e) => setGeminiApiKey(e.target.value)}
-                  placeholder="AIzaSy..."
+                  placeholder="Optional: AIzaSy... (Unlocks unlimited BYOK quota)"
                   className="h-10 text-xs font-mono pr-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                 >
                   {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
               <p className="text-[11px] text-muted-foreground font-mono">
-                Stored encrypted and used exclusively for your autonomous tasks.
+                Optional: Bring your own Gemini key for unlimited quota, or leave empty to use your free monthly quota.
               </p>
             </div>
 
@@ -243,7 +242,7 @@ export default function SignupPage() {
 
             <Button
               type="submit"
-              disabled={isLoading || !email.trim() || !password.trim() || !confirmPassword.trim() || !geminiApiKey.trim()}
+              disabled={isLoading || !email.trim() || !password.trim() || !confirmPassword.trim()}
               className="w-full h-10 font-semibold gap-2 shadow-md mt-2"
             >
               {isLoading ? (
