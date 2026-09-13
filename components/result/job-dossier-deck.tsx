@@ -162,6 +162,12 @@ export interface DossierJobItem {
     freshness: number;
     verification: number;
   };
+  matchType?: string;
+  matchBadge?: {
+    type: string;
+    label: string;
+    tagline: string;
+  };
   classification?: "NEW_OPPORTUNITY" | "NEW_SOURCE" | "REPOSTED" | "ALREADY_KNOWN" | string;
   rankPosition?: number;
   saved?: boolean;
@@ -238,6 +244,8 @@ export function JobDossierDeck({
       matchScore: (job as any).matchScore || 85,
       matchReason: (job as any).matchReason,
       scoreBreakdown: (job as any).scoreBreakdown,
+      matchType: (job as any).matchType || (job as any).matchBadge?.type,
+      matchBadge: (job as any).matchBadge,
       classification: (job as any).classification || "NEW_OPPORTUNITY",
       rankPosition: (job as any).rankPosition || idx + 1,
       saved: (job as any).saved || false,
@@ -411,6 +419,19 @@ export function JobDossierDeck({
                       {conn.displayName}
                     </span>
 
+                    {/* Recommendation vs Exact Match Badge */}
+                    {job.matchBadge?.label === "Recommendation" || job.matchType?.startsWith("RECOMMENDED") ? (
+                      <Badge variant="outline" className="text-[10px] font-sans font-medium px-2 py-0 text-amber-800 border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 flex items-center gap-1">
+                        <Sparkles className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
+                        <span>Recommendation</span>
+                      </Badge>
+                    ) : job.matchBadge?.label === "Exact Match" || job.matchType === "EXACT_MATCH" ? (
+                      <Badge variant="outline" className="text-[10px] font-sans font-medium px-2 py-0 text-emerald-800 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                        <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
+                        <span>Exact Match</span>
+                      </Badge>
+                    ) : null}
+
                     {job.classification === "NEW_OPPORTUNITY" && (
                       <Badge variant="outline" className="text-[10px] font-sans px-1.5 py-0 text-emerald-700 border-emerald-300 bg-emerald-50 flex items-center gap-1">
                         <Sparkles className="h-2.5 w-2.5 stroke-[1.75]" />
@@ -435,6 +456,23 @@ export function JobDossierDeck({
                     {job.title}
                   </h4>
                 </div>
+
+                {/* Recommendation Tagline / Relevance explanation */}
+                {job.matchBadge?.tagline && (
+                  <div className="flex items-center gap-1.5 text-[11px] font-sans text-muted-foreground -mt-1">
+                    {job.matchBadge.label === "Recommendation" ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800/40">
+                        <Sparkles className="h-2.5 w-2.5 text-amber-600 shrink-0" />
+                        {job.matchBadge.tagline}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800/40">
+                        <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
+                        {job.matchBadge.tagline}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Location & Metadata Row in calm Inter */}
                 <div className="flex items-center gap-4 text-xs text-muted-foreground font-sans flex-wrap pt-0.5">
