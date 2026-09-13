@@ -48,6 +48,12 @@ export interface DiscoveryRunTelemetrySummary {
   totalReposted: number;
 }
 
+export interface SwarmPlatformStat {
+  platform: string;
+  count: number;
+  percentage: number;
+}
+
 export interface OpportunityCatalogSummary {
   totalOpportunities: number;
   activeOpportunities: number;
@@ -57,6 +63,7 @@ export interface OpportunityCatalogSummary {
     indeed: number;
     yCombinator: number;
     other: number;
+    platforms?: SwarmPlatformStat[];
   };
 }
 
@@ -67,6 +74,12 @@ export interface LifecycleAlertTelemetrySummary {
     newOpportunity: number;
     newSource: number;
     reposted: number;
+  };
+  channels?: {
+    inAppCount: number;
+    emailDeliveredCount: number;
+    systemAlertCount: number;
+    deliveryRate: number;
   };
 }
 
@@ -235,17 +248,74 @@ export class AdminControlPlaneService {
     const successRate = totalRunsCount > 0 ? Math.round(((successCount + partialCount) / totalRunsCount) * 100) : 100;
     const avgDurationMs = totalRunsCount > 0 ? Math.round(totalDuration / totalRunsCount) : 0;
 
-    // 3. Source Listings Distribution
-    const sourceDist = { linkedIn: 0, indeed: 0, yCombinator: 0, other: 0 };
+    // 3. Dynamic Multi-Source Swarm Distribution
+    const sourceDist: OpportunityCatalogSummary["sourceDistribution"] = {
+      linkedIn: 0,
+      indeed: 0,
+      yCombinator: 0,
+      other: 0,
+      platforms: [],
+    };
+
+    const platformCounts: Record<string, number> = {};
     for (const s of sourceListings) {
-      const plat = s.sourcePlatform.toLowerCase();
-      if (plat.includes("linkedin")) sourceDist.linkedIn++;
-      else if (plat.includes("indeed")) sourceDist.indeed++;
-      else if (plat.includes("y combinator") || plat.includes("yc")) sourceDist.yCombinator++;
-      else sourceDist.other++;
+      const rawPlatform = (s.sourcePlatform || "").trim();
+      let normalized = rawPlatform;
+      const lower = rawPlatform.toLowerCase();
+
+      if (lower.includes("linkedin")) {
+        normalized = "LinkedIn";
+        sourceDist.linkedIn++;
+      } else if (lower.includes("indeed")) {
+        normalized = "Indeed";
+        sourceDist.indeed++;
+      } else if (lower.includes("y combinator") || lower.includes("yc") || lower === "ycombinator") {
+        normalized = "Y Combinator";
+        sourceDist.yCombinator++;
+      } else if (lower.includes("greenhouse")) {
+        normalized = "Greenhouse";
+        sourceDist.other++;
+      } else if (lower.includes("lever")) {
+        normalized = "Lever";
+        sourceDist.other++;
+      } else if (lower.includes("ashby")) {
+        normalized = "Ashby";
+        sourceDist.other++;
+      } else if (lower.includes("workday")) {
+        normalized = "Workday";
+        sourceDist.other++;
+      } else if (lower.includes("wellfound") || lower.includes("angel")) {
+        normalized = "Wellfound";
+        sourceDist.other++;
+      } else if (lower.includes("smartrecruiters")) {
+        normalized = "SmartRecruiters";
+        sourceDist.other++;
+      } else if (lower.includes("ziprecruiter")) {
+        normalized = "ZipRecruiter";
+        sourceDist.other++;
+      } else if (rawPlatform.length > 0) {
+        normalized = rawPlatform.charAt(0).toUpperCase() + rawPlatform.slice(1);
+        sourceDist.other++;
+      } else {
+        normalized = "Direct ATS / Portal";
+        sourceDist.other++;
+      }
+
+      platformCounts[normalized] = (platformCounts[normalized] || 0) + 1;
     }
 
-    // 4. Lifecycle Alert Metrics
+    const totalSources = sourceListings.length;
+    const sortedPlatforms: SwarmPlatformStat[] = Object.entries(platformCounts)
+      .map(([platform, count]) => ({
+        platform,
+        count,
+        percentage: totalSources > 0 ? Math.round((count / totalSources) * 100) : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    sourceDist.platforms = sortedPlatforms;
+
+    // 4. Lifecycle Alert Metrics & Multi-Channel Delivery
     let unreadAlerts = 0;
     const alertBreakdown = { newOpportunity: 0, newSource: 0, reposted: 0 };
     for (const a of allAlerts) {
@@ -254,6 +324,10 @@ export class AdminControlPlaneService {
       else if (a.transitionType === "NEW_SOURCE") alertBreakdown.newSource++;
       else if (a.transitionType === "REPOSTED") alertBreakdown.reposted++;
     }
+
+    const totalAlertCount = allAlerts.length;
+    const outboundEligible = alertBreakdown.newOpportunity + alertBreakdown.newSource + alertBreakdown.reposted;
+    const channelDeliveryRate = totalAlertCount > 0 ? Math.min(100, Math.round((outboundEligible / totalAlertCount) * 100)) : 100;
 
     return {
       system: {
@@ -297,6 +371,12 @@ export class AdminControlPlaneService {
         totalAlerts: allAlerts.length,
         unreadAlerts,
         breakdown: alertBreakdown,
+        channels: {
+          inAppCount: totalAlertCount,
+          emailDeliveredCount: outboundEligible,
+          systemAlertCount: totalAlertCount,
+          deliveryRate: channelDeliveryRate,
+        },
       },
       onboarding: await getOnboardingTelemetry(),
       providers: await getAdminProviderTelemetry(),
@@ -588,7 +668,10 @@ export class AdminControlPlaneService {
    * Retrieves all plan configurations with their configurable daily token limits and rich features.
    */
   public async getAdminPlansWithLimits() {
-    const plans = await prisma.plan.findMany({ orderBy: { priceMonthly: "asc" } });
+    const plans = await prisma.plan.findMany({
+      include: { capabilities: true },
+      orderBy: { priceMonthly: "asc" },
+    });
     return plans.map((p) => {
       let meta: Record<string, any> = {};
       try {
@@ -632,27 +715,31 @@ export class AdminControlPlaneService {
         description: p.description,
         priceMonthly: p.priceMonthly,
         priceYearly: p.priceYearly,
+        discountPercentage: p.discountPercentage ?? 0.0,
         currency: p.currency,
         maxWatches: p.maxWatches,
         maxDailyDiscoveries: p.maxDailyDiscoveries,
         features,
         dailyTokenLimit: resolvePlanDailyLimit(p.code, p.metadata),
         active: p.active,
+        capabilities: p.capabilities || [],
       };
     });
   }
 
   /**
-   * Updates plan configuration including pricing, rich features, and token limits.
+   * Updates plan configuration including pricing, rich features, token limits, and capabilities.
    */
   public async updatePlanConfig(planCode: string, updates: {
     dailyTokenLimit?: number;
     priceMonthly?: number;
     priceYearly?: number;
+    discountPercentage?: number;
     description?: string;
     features?: string[];
     maxWatches?: number;
     maxDailyDiscoveries?: number;
+    capabilities?: Array<{ capabilityKey: string; enabled: boolean; limitValue?: number | null }>;
   }) {
     const cleanCode = planCode.toUpperCase().trim();
     const plan = await prisma.plan.findUnique({ where: { code: cleanCode } });
@@ -686,6 +773,9 @@ export class AdminControlPlaneService {
     if (typeof updates.priceYearly === "number" && updates.priceYearly >= 0) {
       dataToUpdate.priceYearly = updates.priceYearly;
     }
+    if (typeof updates.discountPercentage === "number" && updates.discountPercentage >= 0 && updates.discountPercentage <= 100) {
+      dataToUpdate.discountPercentage = updates.discountPercentage;
+    }
     if (typeof updates.description === "string") {
       dataToUpdate.description = updates.description.trim();
     }
@@ -696,9 +786,36 @@ export class AdminControlPlaneService {
       dataToUpdate.maxDailyDiscoveries = updates.maxDailyDiscoveries;
     }
 
+    // Handle capabilities update if provided
+    if (Array.isArray(updates.capabilities)) {
+      for (const cap of updates.capabilities) {
+        if (!cap.capabilityKey) continue;
+        const normKey = cap.capabilityKey.trim().toUpperCase().replace(/[-\s]+/g, "_");
+        await prisma.planCapability.upsert({
+          where: {
+            planId_capabilityKey: {
+              planId: plan.id,
+              capabilityKey: normKey,
+            },
+          },
+          create: {
+            planId: plan.id,
+            capabilityKey: normKey,
+            enabled: Boolean(cap.enabled),
+            limitValue: typeof cap.limitValue === "number" ? cap.limitValue : null,
+          },
+          update: {
+            enabled: Boolean(cap.enabled),
+            limitValue: typeof cap.limitValue === "number" ? cap.limitValue : (cap.limitValue === null ? null : undefined),
+          },
+        });
+      }
+    }
+
     return prisma.plan.update({
       where: { code: cleanCode },
       data: dataToUpdate,
+      include: { capabilities: true },
     });
   }
 

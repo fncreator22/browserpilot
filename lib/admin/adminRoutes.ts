@@ -19,14 +19,18 @@ export const ADMIN_UI_ROUTES = {
   USERS: `/${ADMIN_ROUTE_SEGMENT}/users`,
   USER_DETAIL: (id: string) => `/${ADMIN_ROUTE_SEGMENT}/users/${id}`,
   CONNECTORS: `/${ADMIN_ROUTE_SEGMENT}/connectors`,
+  PLANS: `/${ADMIN_ROUTE_SEGMENT}/plans`,
   WATCHES: `/${ADMIN_ROUTE_SEGMENT}/watches`,
   RUNS: `/${ADMIN_ROUTE_SEGMENT}/runs`,
   SCHEDULER: `/${ADMIN_ROUTE_SEGMENT}/scheduler`,
+  TAXONOMY: `/${ADMIN_ROUTE_SEGMENT}/taxonomy`,
+  AGENTIC: `/${ADMIN_ROUTE_SEGMENT}/agentic`,
 } as const;
 
 export const ADMIN_API_ROUTES = {
   BASE: `/api/${ADMIN_ROUTE_SEGMENT}`,
   METRICS: `/api/${ADMIN_ROUTE_SEGMENT}/metrics`,
+  AGENTIC: `/api/${ADMIN_ROUTE_SEGMENT}/agentic`,
   USERS: `/api/${ADMIN_ROUTE_SEGMENT}/users`,
   USER_DETAIL: (id: string) => `/api/${ADMIN_ROUTE_SEGMENT}/users/${id}`,
   PLANS: `/api/${ADMIN_ROUTE_SEGMENT}/plans`,
@@ -38,4 +42,5 @@ export const ADMIN_API_ROUTES = {
   COUPONS: `/api/${ADMIN_ROUTE_SEGMENT}/coupons`,
   USER_SUBSCRIPTION: (id: string) => `/api/${ADMIN_ROUTE_SEGMENT}/users/${id}/subscription`,
   SEARCH_TELEMETRY: `/api/${ADMIN_ROUTE_SEGMENT}/search-telemetry`,
+  TAXONOMY: `/api/${ADMIN_ROUTE_SEGMENT}/taxonomy`,
 } as const;
