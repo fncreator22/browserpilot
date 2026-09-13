@@ -176,7 +176,41 @@ export async function runRankerUnitTests(): Promise<void> {
   const rankedTies = rankOpportunities([oppTie2, oppTie1], intent);
   assert.strictEqual(rankedTies[0].opportunity.canonicalHash, "hash_aaa_tie", "Tie breaker must sort canonicalHash ASC stably");
   assert.strictEqual(rankedTies[1].opportunity.canonicalHash, "hash_zzz_tie");
-  console.log("  ✓ Verified deterministic ranking order and stable tie-breaking");
+  // 8. Multi-Source 40% Diversity Cap Verification (TASK-001 Hardening)
+  const createMockOpp = (id: string, platform: string, scoreModifier: number = 0): DeduplicatedOpportunity => ({
+    ...oppPerfectMatch,
+    canonicalHash: `hash_${platform}_${id}`,
+    companyName: `${platform} Company ${id}`,
+    sourceListings: [
+      {
+        sourcePlatform: platform,
+        sourceUrl: `https://${platform.toLowerCase().replace(/\s+/g, "")}.com/jobs/${id}`,
+        applyUrl: `https://${platform.toLowerCase().replace(/\s+/g, "")}.com/jobs/${id}`,
+        verificationStatus: "VERIFIED",
+        seenAt: new Date(Date.now() - scoreModifier * 86400000),
+      },
+    ],
+  });
+
+  // 10 LinkedIn opportunities + 3 Greenhouse opportunities + 2 YC opportunities
+  const diversePool: DeduplicatedOpportunity[] = [
+    ...Array.from({ length: 10 }, (_, i) => createMockOpp(`li_${i}`, "LinkedIn", i)),
+    ...Array.from({ length: 3 }, (_, i) => createMockOpp(`gh_${i}`, "Greenhouse", i + 1)),
+    ...Array.from({ length: 2 }, (_, i) => createMockOpp(`yc_${i}`, "Y Combinator", i + 1)),
+  ];
+
+  const rankedDiverse = rankOpportunities(diversePool, intent);
+  const top10 = rankedDiverse.slice(0, 10);
+  const platformsInTop10 = top10.map((r) => r.opportunity.sourceListings[0].sourcePlatform);
+  const linkedInCount = platformsInTop10.filter((p) => p === "LinkedIn").length;
+  const greenhouseCount = platformsInTop10.filter((p) => p === "Greenhouse").length;
+  const ycCount = platformsInTop10.filter((p) => p === "Y Combinator").length;
+
+  assert.ok(linkedInCount <= 5, `LinkedIn should not monopolize top 10 (expected <= 5, got ${linkedInCount})`);
+  assert.ok(greenhouseCount >= 2, `Greenhouse candidates should appear in top 10 (got ${greenhouseCount})`);
+  assert.ok(ycCount >= 1, `YC candidates should appear in top 10 (got ${ycCount})`);
+  console.log(`  ✓ Verified 40% diversity cap (Top 10: ${linkedInCount} LinkedIn, ${greenhouseCount} Greenhouse, ${ycCount} YC)`);
 
   console.log("✓ [UNIT] 100-Point Student Relevance Ranker Tests Passed!\n");
 }
+

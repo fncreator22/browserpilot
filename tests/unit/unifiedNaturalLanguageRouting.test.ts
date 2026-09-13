@@ -151,7 +151,7 @@ export async function runUnifiedNaturalLanguageRoutingTests() {
   const retrievedWatch = await getDiscoveryWatch(testUser.id);
   assert(retrievedWatch !== null && retrievedWatch.enabled === true, "Watch must be retrievable and enabled");
   assert(retrievedWatch.scanIntervalHours === 4, "Watch config must preserve scanIntervalHours");
-  const directDbWatch = await prisma.discoveryWatch.findUnique({ where: { userId: testUser.id } });
+  const directDbWatch = await prisma.discoveryWatch.findFirst({ where: { userId: testUser.id } });
   assert(directDbWatch !== null && directDbWatch.userId === testUser.id, "Watch must belong strictly to authenticated user");
   console.log("  ✓ 1-Click Autonomous Watch persistence verified with authenticated session isolation");
 

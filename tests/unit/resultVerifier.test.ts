@@ -84,5 +84,36 @@ export async function runResultVerifierTests() {
   }
   console.log("  ✓ Cleanly fell back to PARTIAL when max recovery attempts (2) were exhausted");
 
+  // 4. Rate-limit / Bot detection error page extraction -> BLOCKED with 0.0 confidence (never 0.95)
+  const botBlockedExtractObs: Observation = {
+    stepIndex: 2,
+    action: {
+      tool: "browser.extractText",
+      parameters: { selector: "body", extractMultiple: false, maxChars: 5000 },
+    },
+    status: "SUCCESS",
+    currentUrl: "https://duckduckgo.com",
+    title: "DuckDuckGo",
+    extractedData:
+      "If this persists, please email us at duckduckgo.com using the subject 'anonymized error code'. To help us understand the context of your search, please include the approximate date...",
+    elapsedMs: 310,
+    timestamp: new Date().toISOString(),
+  };
+
+  const blockedResult = ResultVerifier.verify({
+    goal: "data analyst in bengaluru in last 30 days",
+    observations: [baseNavObs, botBlockedExtractObs],
+    currentRecoveryAttempt: 0,
+    expectedFields: [],
+  });
+
+  if (blockedResult.status !== "BLOCKED") {
+    throw new Error(`Expected status BLOCKED on bot detection page, got ${blockedResult.status}`);
+  }
+  if (blockedResult.confidence !== 0.0) {
+    throw new Error(`Expected confidence 0.0 on bot detection page, got ${blockedResult.confidence}`);
+  }
+  console.log("  ✓ Correctly rejected bot-detection error page as BLOCKED with 0.0 confidence");
+
   console.log("✓ [UNIT] Result Verifier Tests Passed!\n");
 }
