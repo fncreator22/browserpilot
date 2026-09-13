@@ -81,6 +81,7 @@ export function AppSidebar() {
       }`}>
         <Link 
           href="/app" 
+          prefetch={false}
           className="flex items-center gap-2.5 group overflow-hidden"
           title="BrowserPilot Discovery Engine"
         >
@@ -150,6 +151,7 @@ export function AppSidebar() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               title={isSidebarCollapsed ? item.label : undefined}
               className={`relative flex items-center rounded-lg transition-colors ${
                 isSidebarCollapsed 
@@ -224,16 +226,13 @@ export function AppSidebar() {
 }
 
 export function MobileAppHeader() {
-  const { data: session } = useSession();
-  const { openCommandPalette, openProfileModal } = useUIState();
-  const userName = session?.user?.name || session?.user?.email || "User";
-  const userInitial = userName.charAt(0).toUpperCase();
+  const { unreadNotificationsCount, openCommandPalette } = useUIState();
 
   return (
-    <header className="md:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 bg-[#F6F6F4]/90 backdrop-blur-md border-b border-[#E6E6E3]">
-      <Link href="/app" className="flex items-center gap-2">
-        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#1F3D2E] text-white">
-          <Compass className="h-3.5 w-3.5 stroke-[1.75]" />
+    <header className="md:hidden sticky top-0 z-30 flex items-center justify-between px-3.5 py-2.5 bg-[#F6F6F4]/95 backdrop-blur-md border-b border-[#E6E6E3]">
+      <Link href="/app" prefetch={false} className="flex items-center gap-2">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1F3D2E] text-white shadow-xs">
+          <Compass className="h-4 w-4 stroke-[1.75]" />
         </div>
         <span className="text-sm font-serif font-bold text-foreground">BrowserPilot</span>
       </Link>
@@ -243,21 +242,26 @@ export function MobileAppHeader() {
           type="button"
           onClick={openCommandPalette}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border/70 bg-white text-muted-foreground hover:text-foreground text-xs font-sans cursor-pointer shadow-2xs"
+          aria-label="Quick Search"
         >
           <Search className="h-3.5 w-3.5 stroke-[1.75]" />
-          <span className="text-[11px]">Search</span>
+          <span className="text-[11px] hidden sm:inline">Search</span>
           <kbd className="text-[9px] font-mono px-1 rounded bg-muted/60">⌘K</kbd>
         </button>
 
-        <button
-          type="button"
-          onClick={() => openProfileModal("ACCOUNT")}
-          className="flex h-8 w-8 min-h-[32px] min-w-[32px] items-center justify-center rounded-full bg-[#1F3D2E]/10 text-[#1F3D2E] hover:bg-[#1F3D2E]/20 font-mono text-xs font-bold cursor-pointer border border-[#1F3D2E]/30 transition-colors shadow-2xs"
-          aria-label="Open Account and Settings"
-          title="Open Account and Settings"
+        <Link
+          href="/app/notifications"
+          prefetch={false}
+          className="relative flex h-8 w-8 min-h-[32px] min-w-[32px] items-center justify-center rounded-full bg-white text-foreground hover:bg-muted/80 cursor-pointer border border-border/70 transition-colors shadow-2xs"
+          aria-label="Notifications & Alerts"
         >
-          {userInitial || <User className="h-4 w-4 stroke-[1.75]" />}
-        </button>
+          <Bell className="h-4 w-4 stroke-[1.75]" />
+          {unreadNotificationsCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-mono font-bold text-white ring-1 ring-white">
+              {unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount}
+            </span>
+          )}
+        </Link>
       </div>
     </header>
   );
