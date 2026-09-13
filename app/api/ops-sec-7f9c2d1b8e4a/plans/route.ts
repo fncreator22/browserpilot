@@ -50,10 +50,12 @@ export async function PATCH(request: NextRequest) {
       dailyTokenLimit,
       priceMonthly,
       priceYearly,
+      discountPercentage,
       description,
       features,
       maxWatches,
       maxDailyDiscoveries,
+      capabilities,
     } = body;
 
     if (!planCode || typeof planCode !== "string") {
@@ -67,10 +69,12 @@ export async function PATCH(request: NextRequest) {
       dailyTokenLimit: typeof dailyTokenLimit === "number" ? dailyTokenLimit : undefined,
       priceMonthly: typeof priceMonthly === "number" ? priceMonthly : undefined,
       priceYearly: typeof priceYearly === "number" ? priceYearly : undefined,
+      discountPercentage: typeof discountPercentage === "number" ? discountPercentage : undefined,
       description: typeof description === "string" ? description : undefined,
       features: Array.isArray(features) ? features : undefined,
       maxWatches: typeof maxWatches === "number" ? maxWatches : undefined,
       maxDailyDiscoveries: typeof maxDailyDiscoveries === "number" ? maxDailyDiscoveries : undefined,
+      capabilities: Array.isArray(capabilities) ? capabilities : undefined,
     });
 
     recordSecurityEvent({
@@ -82,6 +86,8 @@ export async function PATCH(request: NextRequest) {
         dailyTokenLimit,
         priceMonthly,
         priceYearly,
+        discountPercentage,
+        capabilitiesUpdated: Array.isArray(capabilities) ? capabilities.length : 0,
         adminUser: auth.userEmail || "SUPERADMIN_KEY",
       },
     });
@@ -94,8 +100,10 @@ export async function PATCH(request: NextRequest) {
         name: updatedPlan.name,
         priceMonthly: updatedPlan.priceMonthly,
         priceYearly: updatedPlan.priceYearly,
+        discountPercentage: (updatedPlan as any).discountPercentage ?? 0.0,
         description: updatedPlan.description,
         metadata: updatedPlan.metadata,
+        capabilities: (updatedPlan as any).capabilities || [],
       },
     });
   } catch (err: unknown) {
