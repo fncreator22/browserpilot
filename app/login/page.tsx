@@ -150,7 +150,7 @@ export default function LoginPage() {
             Sign in to your account
           </h1>
           <p className="text-xs text-muted-foreground">
-            Access your autonomous browser worker sessions and execution logs
+            Access your career discovery workspace, autonomous watches, and verified opportunities
           </p>
         </div>
 
