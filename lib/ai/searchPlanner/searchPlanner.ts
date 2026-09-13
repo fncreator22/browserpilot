@@ -14,8 +14,9 @@ import {
 import { validateSearchActionPlan, type PlanValidationResult } from "./searchPlanValidator";
 import { type BrainContext } from "@/lib/ai/brain/brainTypes";
 import { type SearchIntent } from "@/lib/scraper/providers/baseProvider";
-import { getEffectiveGeminiApiKey, detectOptimalGeminiModel, DEFAULT_GEMINI_MODEL } from "@/lib/ai/modelSelector";
+import { getEffectiveGeminiApiKey, resolveGeminiApiKey, detectOptimalGeminiModel, DEFAULT_GEMINI_MODEL } from "@/lib/ai/modelSelector";
 import { recordAIUsageEvent } from "@/lib/ai/governance/providerGovernance";
+import { callPuterChatCompletion } from "@/lib/ai/puterClient";
 
 export interface SearchPlannerOptions {
   userId?: string | null;
@@ -51,8 +52,15 @@ export class SearchPlanner {
     options: SearchPlannerOptions = {}
   ): Promise<SearchPlannerResult> {
     const startTime = Date.now();
-    const effectiveKey = getEffectiveGeminiApiKey(options.apiKeyOverride);
-    const hasPuterToken = !!options.puterTokenOverride;
+    const effectiveKey = await resolveGeminiApiKey(options.apiKeyOverride, options.userId);
+    let effectivePuterToken = options.puterTokenOverride;
+    if (!effectivePuterToken && options.userId && typeof window === "undefined") {
+      try {
+        const { getUserPuterToken } = await import("@/lib/ai/governance/providerGovernance");
+        effectivePuterToken = (await getUserPuterToken(options.userId)) || undefined;
+      } catch {}
+    }
+    const hasPuterToken = !!effectivePuterToken;
     const planId = `plan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
     let aiConfigurationStatus: SearchPlannerResult["aiConfigurationStatus"] =
@@ -117,20 +125,55 @@ Generate an optimal search plan using available capabilities:
 
 Return JSON adhering to SearchActionPlan schema.`;
 
-        const response = await ai.models.generateContent({
-          model: modelName || DEFAULT_GEMINI_MODEL,
-          contents: prompt,
-          config: {
-            temperature: 0.1,
-            responseMimeType: "application/json",
-          },
-        });
+        let effectiveModelUsed = modelName || DEFAULT_GEMINI_MODEL;
+        let response;
+        try {
+          response = await ai.models.generateContent({
+            model: effectiveModelUsed,
+            contents: prompt,
+            config: {
+              temperature: 0.1,
+              responseMimeType: "application/json",
+            },
+          });
+        } catch (mErr) {
+          const { FALLBACK_GEMINI_MODEL, SECONDARY_FALLBACK_GEMINI_MODEL } = await import("@/lib/ai/modelSelector");
+          console.warn(`[SearchPlanner] Primary model ${effectiveModelUsed} failed, attempting ${FALLBACK_GEMINI_MODEL}:`, mErr);
+          effectiveModelUsed = FALLBACK_GEMINI_MODEL;
+          try {
+            response = await ai.models.generateContent({
+              model: FALLBACK_GEMINI_MODEL,
+              contents: prompt,
+              config: {
+                temperature: 0.1,
+                responseMimeType: "application/json",
+              },
+            });
+          } catch (fbErr) {
+            console.warn(`[SearchPlanner] Fallback ${FALLBACK_GEMINI_MODEL} failed, attempting ${SECONDARY_FALLBACK_GEMINI_MODEL}:`, fbErr);
+            effectiveModelUsed = SECONDARY_FALLBACK_GEMINI_MODEL;
+            response = await ai.models.generateContent({
+              model: SECONDARY_FALLBACK_GEMINI_MODEL,
+              contents: prompt,
+              config: {
+                temperature: 0.1,
+                responseMimeType: "application/json",
+              },
+            });
+          }
+        }
 
         const text = response.text;
         if (text) {
           const parsed = JSON.parse(text);
+          const rawActions = Array.isArray(parsed.actions) ? parsed.actions : [];
+          const normalizedActions = rawActions.map((a: any) => ({
+            ...a,
+            dependencyIds: Array.isArray(a.dependencyIds) ? a.dependencyIds : [],
+          }));
           generatedPlan = {
             ...parsed,
+            actions: normalizedActions,
             planId,
             query: rawQuery,
             constraints,
@@ -138,7 +181,7 @@ Return JSON adhering to SearchActionPlan schema.`;
           };
           modelTelemetry = {
             provider: "Google Gemini",
-            modelName: modelName || DEFAULT_GEMINI_MODEL,
+            modelName: effectiveModelUsed,
             durationMs: Date.now() - tModelStart,
             tokensUsed: response.usageMetadata?.totalTokenCount,
           };
@@ -149,7 +192,7 @@ Return JSON adhering to SearchActionPlan schema.`;
             await recordAIUsageEvent({
               userId: options.userId,
               provider: "Google Gemini",
-              model: modelName || DEFAULT_GEMINI_MODEL,
+              model: effectiveModelUsed,
               operation: "ACTION_PLANNING",
               inputTokens: usage?.promptTokenCount || 0,
               outputTokens: usage?.candidatesTokenCount || 0,
@@ -159,22 +202,33 @@ Return JSON adhering to SearchActionPlan schema.`;
             }).catch((uErr) => console.warn("[SearchPlanner] Failed to record AI usage:", uErr));
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         if (options.signal?.aborted) {
           throw err;
         }
         console.warn("[SearchPlanner] Gemini model planning failed, falling back to deterministic planning:", err);
+        if (options.userId) {
+          const isQuota = err?.message?.includes("quota") || err?.status === 429;
+          const status = isQuota ? "RATE_LIMITED" : "FAILED";
+          await recordAIUsageEvent({
+            userId: options.userId,
+            provider: "Google Gemini",
+            model: DEFAULT_GEMINI_MODEL,
+            operation: "ACTION_PLANNING",
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            durationMs: 0,
+            status,
+            errorMessage: String(err?.message || err).slice(0, 500),
+          }).catch((uErr) => console.warn("[SearchPlanner] Failed to record AI failure:", uErr));
+        }
       }
     }
 
     // 2. Puter-Based Planning (if user connected Puter and Gemini was not used or failed)
-    if (!generatedPlan && options.puterTokenOverride && !process.env.IS_TEST_HARNESS) {
+    if (!generatedPlan && effectivePuterToken && !process.env.IS_TEST_HARNESS) {
       try {
-        const tModelStart = Date.now();
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { init } = require("@heyputer/puter.js/src/init.cjs");
-        const puter = init(options.puterTokenOverride);
-
         const prompt = `User Query: "${rawQuery}"
 Canonical Constraints: ${JSON.stringify(constraints)}
 Brain Context:
@@ -195,53 +249,69 @@ Generate an optimal search plan using available capabilities:
 
 Return strictly valid JSON adhering to SearchActionPlan schema.`;
 
-        const response = await puter.ai.chat(
-          [
-            { role: "system", content: "You are BrowserPilot's search planner. Generate strictly valid JSON for a SearchActionPlan matching the user request." },
+        const puterRes = await callPuterChatCompletion({
+          token: effectivePuterToken,
+          userId: options.userId || undefined,
+          operation: "ACTION_PLANNING",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are BrowserPilot's search planner. Generate strictly valid JSON for a SearchActionPlan matching the user request with fields: query, constraints, actions (array of objects with actionId, capability, parameters, rationale, dependencyIds: string[]).",
+            },
             { role: "user", content: prompt },
           ],
-          {
-            model: "claude-3-5-sonnet",
-            temperature: 0.1,
-          }
-        );
+        });
 
-        let rawText = "";
-        if (typeof response === "string") rawText = response;
-        else if (response?.message?.content) rawText = response.message.content;
-        else if (response?.text) rawText = response.text;
-        else rawText = JSON.stringify(response);
-
+        const rawText = puterRes.content;
         const cleanJson = rawText.replace(/```json|```/gi, "").trim();
         const parsed = JSON.parse(cleanJson);
+
+        const rawActions = Array.isArray(parsed.actions) ? parsed.actions : [];
+        const normalizedActions = rawActions.map((a: any, idx: number) => ({
+          actionId: a.actionId || `act_${idx + 1}`,
+          capabilityId: a.capabilityId || a.capability || "discovery.search_pipeline",
+          priority: typeof a.priority === "number" ? Math.min(Math.max(a.priority, 1), 10) : 1,
+          input: a.input || a.parameters || {},
+          purpose: a.purpose || a.rationale || "Discover matching opportunities",
+          expectedEvidence: a.expectedEvidence || "Job vacancy postings and direct application URLs",
+          maxResults: typeof a.maxResults === "number" ? a.maxResults : 10,
+          timeoutMs: typeof a.timeoutMs === "number" ? a.timeoutMs : 15000,
+          dependencyIds: Array.isArray(a.dependencyIds) ? a.dependencyIds : [],
+        }));
+
+        if (normalizedActions.length === 0) {
+          normalizedActions.push({
+            actionId: "act_1",
+            capabilityId: "discovery.search_pipeline",
+            priority: 1,
+            input: { query: rawQuery, targetRoles: constraints.roles, targetLocations: constraints.locations },
+            purpose: "Execute unified search pipeline",
+            expectedEvidence: "Verified job vacancies",
+            maxResults: 10,
+            timeoutMs: 15000,
+            dependencyIds: [],
+          });
+        }
 
         generatedPlan = {
           ...parsed,
           planId,
           query: rawQuery,
-          constraints,
+          actions: normalizedActions,
+          constraints: parsed.constraints || constraints,
+          stoppingCriteria: parsed.stoppingCriteria || { maxResults: 10, stopOnTargetCount: true, maxPlanningRounds: 2 },
+          confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.9,
+          reasoningSummary: (parsed.reasoningSummary || parsed.reasoning || "Generated dynamic search action plan").slice(0, 500),
           createdAt: new Date(),
         };
 
         modelTelemetry = {
           provider: "Puter AI",
-          modelName: "claude-3-5-sonnet",
-          durationMs: Date.now() - tModelStart,
+          modelName: puterRes.modelUsed,
+          durationMs: puterRes.durationMs,
+          tokensUsed: puterRes.totalTokens,
         };
-
-        if (options.userId) {
-          await recordAIUsageEvent({
-            userId: options.userId,
-            provider: "Puter AI",
-            model: "claude-3-5-sonnet",
-            operation: "ACTION_PLANNING",
-            inputTokens: 0,
-            outputTokens: 0,
-            totalTokens: 0,
-            durationMs: Date.now() - tModelStart,
-            status: "SUCCESS",
-          }).catch((uErr) => console.warn("[SearchPlanner] Failed to record Puter AI usage:", uErr));
-        }
       } catch (err) {
         if (options.signal?.aborted) {
           throw err;

@@ -85,7 +85,7 @@ export function validateSearchActionPlan(
   // 3. Dependency Cycle Detection
   const actionIds = new Set(plan.actions.map((a) => a.actionId));
   for (const action of plan.actions) {
-    for (const depId of action.dependencyIds) {
+    for (const depId of (action.dependencyIds || [])) {
       if (!actionIds.has(depId)) {
         errors.push(`Action [${action.actionId}] references non-existent dependency [${depId}].`);
       }
