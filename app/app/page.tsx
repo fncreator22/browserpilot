@@ -13,7 +13,9 @@ import {
   Clock, 
   CheckCircle2,
   AlertTriangle,
-  RotateCw
+  RotateCw,
+  Search,
+  Globe
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -27,10 +29,14 @@ import { SearchStatusBanner } from "@/components/discovery/search-status-banner"
 import { SearchRefinements } from "@/components/discovery/search-refinements";
 import { SearchDiagnosticsCard } from "@/components/discovery/search-diagnostics-card";
 import { PersonalizationIndicator } from "@/components/discovery/personalization-indicator";
+import { useUIState } from "@/components/providers/ui-state-provider";
+import { usePuter } from "@/hooks/usePuter";
 
 function DiscoverContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
+  const { openProfileModal } = useUIState();
+  const { signIn: puterSignIn, isAuthenticating: isPuterAuthenticating } = usePuter();
 
   const [opportunityData, setOpportunityData] = useState<OpportunitySearchResultPayload | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -39,23 +45,28 @@ function DiscoverContent() {
   const [searchHistory, setSearchHistory] = useState<Array<{ id: string; rawQuery: string; totalFound: number; createdAt: string }>>([]);
   const [hasCheckedHistory, setHasCheckedHistory] = useState(false);
 
+  const refreshSearchHistory = useCallback(async () => {
+    try {
+      const res = await fetch("/api/search/history?limit=6");
+      if (res.ok) {
+        const histData = await res.json();
+        if (histData?.history) {
+          setSearchHistory(histData.history);
+          setHasCheckedHistory(true);
+        }
+      }
+    } catch {
+      setHasCheckedHistory(true);
+    }
+  }, []);
+
   // Active search recovery and search history lookup (TASK-067 & Quality Pass Round 1)
   useEffect(() => {
     let cancelled = false;
     async function initDiscover() {
       try {
         // 1. Fetch user search history to determine returning vs first-time state
-        fetch("/api/search/history?limit=6")
-          .then((res) => (res.ok ? res.json() : null))
-          .then((histData) => {
-            if (!cancelled && histData?.history) {
-              setSearchHistory(histData.history);
-              setHasCheckedHistory(true);
-            }
-          })
-          .catch(() => {
-            if (!cancelled) setHasCheckedHistory(true);
-          });
+        await refreshSearchHistory();
 
         // 2. Check active search
         const res = await fetch("/api/search/active");
@@ -72,20 +83,48 @@ function DiscoverContent() {
           if (histRes.ok) {
             const histData = await histRes.json();
             if (!cancelled && histData.search) {
+              const verifiedCount = (histData.search.results || []).length;
+              const rawStatus = histData.search.status === "COMPLETED" ? "COMPLETE" : histData.search.status;
+              const status = (verifiedCount === 0 && (rawStatus === "COMPLETE" || rawStatus === "COMPLETED"))
+                ? "NO_RESULTS"
+                : rawStatus;
+
+              const canonicalIntent = histData.search.canonicalIntent || {
+                role: histData.search.parsedRole || undefined,
+                roles: histData.search.parsedRole ? [histData.search.parsedRole] : [],
+                skills: histData.search.parsedSkills || [],
+                location: histData.search.parsedLocation || undefined,
+                locations: histData.search.parsedLocation ? [histData.search.parsedLocation] : [],
+                workMode: histData.search.parsedWorkMode || undefined,
+                workModes: histData.search.parsedWorkMode ? [histData.search.parsedWorkMode] : [],
+                targetGradYear: histData.search.targetGradYear || undefined,
+              };
+
               setOpportunityData({
                 searchId: histData.search.id,
-                status: histData.search.status === "COMPLETED" ? "COMPLETE" : histData.search.status,
+                status,
                 query: histData.search.rawQuery,
                 results: histData.search.results || [],
-                verifiedCount: (histData.search.results || []).length,
-                explanation: `Restored recent search for "${histData.search.rawQuery}".`,
+                verifiedCount,
+                requestedCount: 10,
+                canonicalIntent,
+                intent: canonicalIntent,
+                diagnostics: {
+                  requestedCount: 10,
+                  validResultCount: verifiedCount,
+                  rejectedResultCount: 0,
+                  stoppingReason: verifiedCount === 0 ? "NO_PROGRESS" : "TARGET_SATISFIED",
+                },
+                explanation: verifiedCount > 0
+                  ? `Restored recent search for "${histData.search.rawQuery}".`
+                  : `No verified opportunities found for "${histData.search.rawQuery}".`,
                 metadata: {
-                  totalUniqueOpportunities: (histData.search.results || []).length,
-                  returnedCount: (histData.search.results || []).length,
+                  totalUniqueOpportunities: verifiedCount,
+                  returnedCount: verifiedCount,
                   durationMs: 0,
                   providersAttempted: 3,
                   providersSucceeded: 3,
-                  explanation: "Restored recent search.",
+                  explanation: verifiedCount > 0 ? "Restored recent search." : "No verified opportunities found.",
                 },
               });
               setActiveQuery(histData.search.rawQuery);
@@ -113,13 +152,18 @@ function DiscoverContent() {
         ),
       };
     });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("browserai:bookmark-updated", { detail: { opportunityId, isSaved } }));
+    }
   };
 
   const handleResetDiscovery = () => {
     setOpportunityData(null);
     setActiveQuery("");
     if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", "/app");
+      if (window.location.pathname + window.location.search !== "/app") {
+        window.history.replaceState(null, "", "/app");
+      }
     }
   };
 
@@ -130,10 +174,15 @@ function DiscoverContent() {
     if (result?.query) {
       setActiveQuery(result.query);
       if (typeof window !== "undefined") {
-        window.history.replaceState(null, "", `/app?q=${encodeURIComponent(result.query)}`);
+        const targetUrl = `/app?q=${encodeURIComponent(result.query)}`;
+        if (window.location.pathname + window.location.search !== targetUrl) {
+          window.history.replaceState(null, "", targetUrl);
+        }
+        window.dispatchEvent(new CustomEvent("browserai:search-completed"));
       }
     }
-  }, []);
+    refreshSearchHistory();
+  }, [refreshSearchHistory]);
 
   const handleSearchError = useCallback(() => {
     setIsSearching(false);
@@ -142,6 +191,32 @@ function DiscoverContent() {
 
   const handleRefineSearch = (refinementText: string) => {
     setActiveQuery(refinementText);
+  };
+
+  const handleRunFallbackScraper = async () => {
+    const q = opportunityData?.query || activeQuery;
+    if (!q) return;
+    setIsSearching(true);
+    try {
+      const res = await fetch("/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: q,
+          allowDeterministicFallback: true,
+        }),
+      });
+      const data = await res.json();
+      if (data.status === "QUEUED" && data.executionId) {
+        setActiveExecutionId(data.executionId);
+        setActiveQuery(q);
+        setIsSearching(true);
+      } else {
+        handleSearchResult(data);
+      }
+    } catch {
+      setIsSearching(false);
+    }
   };
 
   return (
@@ -287,7 +362,7 @@ function DiscoverContent() {
                 </div>
               </div>
 
-              {/* Status Banner: Explains COMPLETE, PARTIAL, NO_RESULTS, or UNAUTHORIZED */}
+              {/* Status Banner: Explains COMPLETE, PARTIAL, NO_RESULTS, UNAUTHORIZED, or MODEL_CONFIGURATION_REQUIRED */}
               <SearchStatusBanner
                 status={opportunityData.status}
                 requestedCount={opportunityData.requestedCount || opportunityData.canonicalIntent?.requestedCount || 10}
@@ -295,6 +370,10 @@ function DiscoverContent() {
                 explanation={opportunityData.explanation}
                 stoppingReason={opportunityData.diagnostics?.stoppingReason}
                 errorCode={opportunityData.errorCode}
+                onOpenProviders={() => openProfileModal("PROVIDERS")}
+                onConnectPuter={puterSignIn}
+                onRunFallbackScraper={handleRunFallbackScraper}
+                isPuterAuthenticating={isPuterAuthenticating}
               />
 
               {/* Personalization Indicator (when active user memory applied) */}
@@ -325,21 +404,62 @@ function DiscoverContent() {
                 onSelectRefinement={handleRefineSearch}
               />
 
-              {/* 1-Click Autonomous Watch Conversion Banner (if results found) */}
-              {opportunityData.results?.length > 0 && (
-                <AutonomousWatchCard
-                  intent={opportunityData.canonicalIntent || opportunityData.intent || { role: "Software Engineer" }}
-                  query={opportunityData.query}
-                />
-              )}
+              {/* 1-Click Autonomous Watch Conversion Banner */}
+              <AutonomousWatchCard
+                intent={opportunityData.canonicalIntent || opportunityData.intent || { role: "Software Engineer" }}
+                query={opportunityData.query}
+              />
 
-              {/* Ranked Dossier Deck */}
-              {opportunityData.results?.length > 0 && (
+              {/* Ranked Dossier Deck (when results > 0) or Smart Recovery Empty Deck */}
+              {opportunityData.results?.length > 0 ? (
                 <JobDossierDeck
                   jobs={opportunityData.results}
                   jobId={opportunityData.searchId}
                   onBookmarkChange={handleBookmarkChange}
                 />
+              ) : (
+                <div className="rounded-2xl border border-dashed border-border bg-muted/10 p-6 sm:p-8 text-center space-y-4">
+                  <div className="flex justify-center">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-foreground">
+                      <Search className="h-6 w-6 text-muted-foreground" />
+                    </span>
+                  </div>
+                  <div className="space-y-1.5 max-w-md mx-auto">
+                    <h3 className="text-base font-serif font-bold text-foreground">
+                      No matching verified opportunities right now
+                    </h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      We searched {
+                        (opportunityData as any).sourceStatusSummary?.attemptedSources?.length
+                          ? (opportunityData as any).sourceStatusSummary.attemptedSources.join(", ")
+                          : ((opportunityData as any).sources?.length
+                              ? (opportunityData as any).sources.join(", ")
+                              : "our verified multi-source networks and ATS connectors")
+                      }, but found 0 verified listings meeting your exact criteria in this time window. Try expanding your search parameters below.
+                    </p>
+                  </div>
+
+                  <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRefineSearch(`${opportunityData.query} remote`)}
+                      className="text-xs h-8 cursor-pointer"
+                    >
+                      <Globe className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                      Try Remote Roles
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRefineSearch(`${opportunityData.query.replace(/in last \d+ days?/i, "").trim()} in last 60 days`)}
+                      className="text-xs h-8 cursor-pointer"
+                    >
+                      <Clock className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                      Expand to Last 60 Days
+                    </Button>
+                  </div>
+                </div>
               )}
             </motion.div>
           )}

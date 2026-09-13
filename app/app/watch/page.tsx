@@ -130,6 +130,8 @@ export default function WatchPage() {
   const [newCompanyInput, setNewCompanyInput] = useState("");
   const [newRoleInput, setNewRoleInput] = useState("");
   const [newSkillInput, setNewSkillInput] = useState("");
+  const [newLocationInput, setNewLocationInput] = useState("");
+  const [isSyncingProfile, setIsSyncingProfile] = useState(false);
   const [isMobileSettingsOpen, setIsMobileSettingsOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isConnectorModalOpen, setIsConnectorModalOpen] = useState(false);
@@ -315,6 +317,55 @@ export default function WatchPage() {
       ...prev,
       skills: prev.skills.filter(s => s !== skillToRemove),
     }));
+  };
+
+  const handleAddLocation = (e: React.FormEvent) => {
+    e.preventDefault();
+    const loc = newLocationInput.trim();
+    if (!loc) return;
+    if (watchConfig.locations.map(l => l.toLowerCase()).includes(loc.toLowerCase())) {
+      toast.info("Location already in watch list");
+      return;
+    }
+    setWatchConfig(prev => ({
+      ...prev,
+      locations: [...prev.locations, loc],
+    }));
+    setNewLocationInput("");
+  };
+
+  const handleRemoveLocation = (locToRemove: string) => {
+    setWatchConfig(prev => ({
+      ...prev,
+      locations: prev.locations.filter(l => l !== locToRemove),
+    }));
+  };
+
+  const handleSyncCareerMemory = async () => {
+    try {
+      setIsSyncingProfile(true);
+      const res = await fetch("/api/account/profile");
+      if (!res.ok) throw new Error("Failed to fetch profile");
+      const data = await res.json();
+      const prof = data.profile;
+      if (!prof) {
+        toast.info("No saved career memory found. Set your preferences in Settings.");
+        return;
+      }
+      setWatchConfig(prev => ({
+        ...prev,
+        roles: Array.from(new Set([...prev.roles, ...(prof.preferredRoles || [])])),
+        skills: Array.from(new Set([...prev.skills, ...(prof.targetSkills || [])])),
+        locations: Array.from(new Set([...prev.locations, ...(prof.preferredLocations || [])])),
+        workModes: prof.preferredWorkModes?.length ? prof.preferredWorkModes : prev.workModes,
+      }));
+      toast.success("Synchronized with Career Memory & Preferences!");
+    } catch (err: unknown) {
+      const msg = (err as Error).message || "Failed to sync from Career Memory";
+      toast.error(msg);
+    } finally {
+      setIsSyncingProfile(false);
+    }
   };
 
   return (
@@ -716,13 +767,24 @@ export default function WatchPage() {
 
             {/* Target Criteria (Roles, Skills, Work Mode) */}
             <div className="rounded-xl border border-border/70 bg-white p-5 space-y-4 shadow-xs">
-              <div className="flex items-center justify-between pb-3 border-b border-border/50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border/50">
                 <div className="flex items-center gap-2">
                   <Briefcase className="h-4 w-4 stroke-[1.75] text-[#1F3D2E]" />
                   <h2 className="text-sm sm:text-base font-serif font-bold tracking-tight text-foreground">
-                    Target roles, skills, and work mode
+                    Target roles, skills, locations, and work mode
                   </h2>
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSyncCareerMemory}
+                  disabled={isSyncingProfile}
+                  className="text-xs h-7 gap-1.5 font-sans border-border/70 hover:bg-[#1F3D2E]/5 text-[#1F3D2E] cursor-pointer self-start sm:self-auto"
+                >
+                  <Sparkles className={`h-3.5 w-3.5 stroke-[1.75] ${isSyncingProfile ? "animate-spin text-emerald-600" : "text-amber-600"}`} />
+                  {isSyncingProfile ? "Syncing..." : "Sync from Career Memory"}
+                </Button>
               </div>
 
               {/* Roles */}
@@ -820,6 +882,60 @@ export default function WatchPage() {
                   {watchConfig.skills.length === 0 && (
                     <p className="text-xs text-muted-foreground font-sans italic">
                       No specific skills filtered. Add keywords or tools above.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Target Locations */}
+              <div className="space-y-2 pt-2 border-t border-border/40">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 text-[#1F3D2E]" />
+                    <label className="text-xs font-semibold text-muted-foreground block font-sans font-medium">
+                      Target Locations Monitored
+                    </label>
+                  </div>
+                  <span className="text-xs text-muted-foreground font-mono">
+                    {watchConfig.locations.length} locations
+                  </span>
+                </div>
+
+                <form onSubmit={handleAddLocation} className="flex gap-2">
+                  <Input
+                    placeholder="e.g. Hyderabad, Bengaluru, San Francisco, Remote, India..."
+                    value={newLocationInput}
+                    onChange={(e) => setNewLocationInput(e.target.value)}
+                    className="font-sans text-xs bg-slate-50/50"
+                  />
+                  <Button type="submit" size="sm" variant="secondary" className="font-sans text-xs gap-1 cursor-pointer bg-slate-100 hover:bg-slate-200">
+                    <Plus className="h-3.5 w-3.5 stroke-[1.75]" />
+                    Add
+                  </Button>
+                </form>
+
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {watchConfig.locations.map((loc) => (
+                    <Badge
+                      key={loc}
+                      variant="outline"
+                      className="font-sans text-xs bg-slate-50 py-1 px-2.5 gap-1.5 border-border/70 text-slate-800"
+                    >
+                      <MapPin className="h-3 w-3 text-muted-foreground" />
+                      <span>{loc}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLocation(loc)}
+                        className="hover:text-rose-500 cursor-pointer ml-1"
+                        aria-label={`Remove location ${loc}`}
+                      >
+                        <X className="h-3 w-3 stroke-[1.75]" />
+                      </button>
+                    </Badge>
+                  ))}
+                  {watchConfig.locations.length === 0 && (
+                    <p className="text-xs text-muted-foreground font-sans italic">
+                      No specific locations filtered (Global scope). Add cities, countries, or Remote above to restrict search.
                     </p>
                   )}
                 </div>
