@@ -605,6 +605,7 @@ export class IntelligenceHarness {
       discoveryPlan,
       {
         userId,
+        apiKey: options.apiKey,
         referenceTime: startTimeDate,
         signal: options.signal,
       }

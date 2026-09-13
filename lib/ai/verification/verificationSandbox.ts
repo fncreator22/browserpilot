@@ -130,6 +130,10 @@ export class GlobalVerificationSandbox {
       isExplicitFreshness: canonical.isExplicitFreshness,
     };
 
+    plan.constraints = plan.constraints || {};
+    plan.stoppingCriteria = plan.stoppingCriteria || {};
+    plan.actions = Array.isArray(plan.actions) ? plan.actions : [];
+
     // Verify requested count preservation
     if (plan.constraints.requestedCount !== validatedConstraints.requestedCount) {
       warnings.push(`Plan requestedCount (${plan.constraints.requestedCount}) normalized to canonical (${validatedConstraints.requestedCount}).`);
@@ -158,7 +162,7 @@ export class GlobalVerificationSandbox {
     const actionIds = new Set(plan.actions.map((a) => a.actionId));
     for (const action of plan.actions) {
       // Circular / non-existent dependencies
-      for (const depId of action.dependencyIds) {
+      for (const depId of (action.dependencyIds || [])) {
         if (!actionIds.has(depId)) {
           failures.push(`Action [${action.actionId}] references missing dependency [${depId}].`);
         }

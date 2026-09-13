@@ -72,7 +72,7 @@ export class SearchActionExecutor {
       const remainingActions: PlannedSearchAction[] = [];
 
       for (const act of pendingActions) {
-        const depsSatisfied = act.dependencyIds.every((depId) => executedActionIds.has(depId));
+        const depsSatisfied = (act.dependencyIds || []).every((depId) => executedActionIds.has(depId));
         if (depsSatisfied) {
           readyActions.push(act);
         } else {
