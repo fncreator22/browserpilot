@@ -23,13 +23,27 @@ import {
   Mail,
   Send,
   Zap,
-  Globe
+  Globe,
+  Smartphone
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { type AdminOverviewMetrics } from "@/lib/admin/adminService";
 import { ADMIN_UI_ROUTES, ADMIN_API_ROUTES } from "@/lib/admin/adminRoutes";
+
+const PLATFORM_COLORS: Record<string, { bar: string; text: string }> = {
+  LinkedIn: { bar: "bg-blue-500", text: "text-blue-400" },
+  Indeed: { bar: "bg-indigo-500", text: "text-indigo-400" },
+  "Y Combinator": { bar: "bg-amber-500", text: "text-amber-400" },
+  Greenhouse: { bar: "bg-emerald-500", text: "text-emerald-400" },
+  Lever: { bar: "bg-cyan-500", text: "text-cyan-400" },
+  Ashby: { bar: "bg-purple-500", text: "text-purple-400" },
+  Workday: { bar: "bg-orange-500", text: "text-orange-400" },
+  Wellfound: { bar: "bg-rose-500", text: "text-rose-400" },
+  SmartRecruiters: { bar: "bg-teal-500", text: "text-teal-400" },
+  ZipRecruiter: { bar: "bg-lime-500", text: "text-lime-400" },
+};
 
 export default function AdminOverviewPage() {
   const [metrics, setMetrics] = useState<AdminOverviewMetrics | null>(null);
@@ -223,57 +237,82 @@ export default function AdminOverviewPage() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-            <div className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-1">
-              <span className="text-xs text-muted-foreground font-mono">LinkedIn</span>
-              <p className="text-lg font-bold font-mono text-foreground">{catalog.sourceDistribution.linkedIn}</p>
-              <div className="w-full bg-muted h-1 rounded-full overflow-hidden">
-                <div
-                  className="bg-blue-500 h-full"
-                  style={{
-                    width: `${Math.round((catalog.sourceDistribution.linkedIn / Math.max(1, catalog.totalSourceListings)) * 100)}%`,
-                  }}
-                />
-              </div>
-            </div>
+            {catalog.sourceDistribution.platforms && catalog.sourceDistribution.platforms.length > 0 ? (
+              catalog.sourceDistribution.platforms.map((plat) => {
+                const color = PLATFORM_COLORS[plat.platform] || { bar: "bg-purple-500", text: "text-purple-400" };
+                return (
+                  <div key={plat.platform} className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground font-mono truncate">{plat.platform}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground">{plat.percentage}%</span>
+                    </div>
+                    <p className="text-lg font-bold font-mono text-foreground">{plat.count}</p>
+                    <div className="w-full bg-muted h-1 rounded-full overflow-hidden">
+                      <div
+                        className={`${color.bar} h-full transition-all duration-300`}
+                        style={{
+                          width: `${Math.max(4, plat.percentage)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <>
+                <div className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-1">
+                  <span className="text-xs text-muted-foreground font-mono">LinkedIn</span>
+                  <p className="text-lg font-bold font-mono text-foreground">{catalog.sourceDistribution.linkedIn}</p>
+                  <div className="w-full bg-muted h-1 rounded-full overflow-hidden">
+                    <div
+                      className="bg-blue-500 h-full"
+                      style={{
+                        width: `${Math.round((catalog.sourceDistribution.linkedIn / Math.max(1, catalog.totalSourceListings)) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
 
-            <div className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-1">
-              <span className="text-xs text-muted-foreground font-mono">Indeed</span>
-              <p className="text-lg font-bold font-mono text-foreground">{catalog.sourceDistribution.indeed}</p>
-              <div className="w-full bg-muted h-1 rounded-full overflow-hidden">
-                <div
-                  className="bg-indigo-500 h-full"
-                  style={{
-                    width: `${Math.round((catalog.sourceDistribution.indeed / Math.max(1, catalog.totalSourceListings)) * 100)}%`,
-                  }}
-                />
-              </div>
-            </div>
+                <div className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-1">
+                  <span className="text-xs text-muted-foreground font-mono">Indeed</span>
+                  <p className="text-lg font-bold font-mono text-foreground">{catalog.sourceDistribution.indeed}</p>
+                  <div className="w-full bg-muted h-1 rounded-full overflow-hidden">
+                    <div
+                      className="bg-indigo-500 h-full"
+                      style={{
+                        width: `${Math.round((catalog.sourceDistribution.indeed / Math.max(1, catalog.totalSourceListings)) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
 
-            <div className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-1">
-              <span className="text-xs text-muted-foreground font-mono">Y Combinator</span>
-              <p className="text-lg font-bold font-mono text-foreground">{catalog.sourceDistribution.yCombinator}</p>
-              <div className="w-full bg-muted h-1 rounded-full overflow-hidden">
-                <div
-                  className="bg-amber-500 h-full"
-                  style={{
-                    width: `${Math.round((catalog.sourceDistribution.yCombinator / Math.max(1, catalog.totalSourceListings)) * 100)}%`,
-                  }}
-                />
-              </div>
-            </div>
+                <div className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-1">
+                  <span className="text-xs text-muted-foreground font-mono">Y Combinator</span>
+                  <p className="text-lg font-bold font-mono text-foreground">{catalog.sourceDistribution.yCombinator}</p>
+                  <div className="w-full bg-muted h-1 rounded-full overflow-hidden">
+                    <div
+                      className="bg-amber-500 h-full"
+                      style={{
+                        width: `${Math.round((catalog.sourceDistribution.yCombinator / Math.max(1, catalog.totalSourceListings)) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
 
-            <div className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-1">
-              <span className="text-xs text-muted-foreground font-mono">Direct / Other</span>
-              <p className="text-lg font-bold font-mono text-foreground">{catalog.sourceDistribution.other}</p>
-              <div className="w-full bg-muted h-1 rounded-full overflow-hidden">
-                <div
-                  className="bg-purple-500 h-full"
-                  style={{
-                    width: `${Math.round((catalog.sourceDistribution.other / Math.max(1, catalog.totalSourceListings)) * 100)}%`,
-                  }}
-                />
-              </div>
-            </div>
+                <div className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-1">
+                  <span className="text-xs text-muted-foreground font-mono">Direct / Other</span>
+                  <p className="text-lg font-bold font-mono text-foreground">{catalog.sourceDistribution.other}</p>
+                  <div className="w-full bg-muted h-1 rounded-full overflow-hidden">
+                    <div
+                      className="bg-purple-500 h-full"
+                      style={{
+                        width: `${Math.round((catalog.sourceDistribution.other / Math.max(1, catalog.totalSourceListings)) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Discovery Novelty Breakdown */}
@@ -375,7 +414,7 @@ export default function AdminOverviewPage() {
           </div>
         </div>
 
-        {/* Outbound Alerts & Email Telemetry */}
+        {/* Outbound Alerts & Multi-Channel Delivery Telemetry */}
         <div className="p-5 rounded-xl border border-border/70 bg-card/60 space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-foreground flex items-center gap-2">
@@ -387,18 +426,47 @@ export default function AdminOverviewPage() {
             </Badge>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 text-center font-mono">
-            <div className="p-3 rounded bg-muted/20 border border-border/60">
-              <span className="text-[10px] text-muted-foreground block">UNREAD IN-APP</span>
-              <span className="text-lg font-bold text-amber-400">{alerts.unreadAlerts}</span>
+          {/* Delivery Channels */}
+          <div className="grid grid-cols-3 gap-2.5 text-center font-mono">
+            <div className="p-2.5 rounded bg-muted/20 border border-border/60">
+              <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground mb-1">
+                <Bell className="h-3 w-3 text-purple-400" />
+                <span>IN-APP</span>
+              </div>
+              <span className="text-base font-bold text-foreground">{alerts.channels?.inAppCount ?? alerts.totalAlerts}</span>
+              <span className="text-[9px] text-emerald-400 block mt-0.5">Active</span>
             </div>
-            <div className="p-3 rounded bg-muted/20 border border-border/60">
-              <span className="text-[10px] text-muted-foreground block">NEW OPP ALERTS</span>
-              <span className="text-lg font-bold text-emerald-400">{alerts.breakdown.newOpportunity}</span>
+            <div className="p-2.5 rounded bg-muted/20 border border-border/60">
+              <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground mb-1">
+                <Mail className="h-3 w-3 text-blue-400" />
+                <span>EMAIL DISPATCH</span>
+              </div>
+              <span className="text-base font-bold text-foreground">{alerts.channels?.emailDeliveredCount ?? (alerts.breakdown.newOpportunity + alerts.breakdown.newSource)}</span>
+              <span className="text-[9px] text-blue-400 block mt-0.5">Idempotent</span>
             </div>
-            <div className="p-3 rounded bg-muted/20 border border-border/60">
-              <span className="text-[10px] text-muted-foreground block">NEW SOURCE ALERTS</span>
-              <span className="text-lg font-bold text-blue-400">{alerts.breakdown.newSource}</span>
+            <div className="p-2.5 rounded bg-muted/20 border border-border/60">
+              <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground mb-1">
+                <Smartphone className="h-3 w-3 text-emerald-400" />
+                <span>SYSTEM / PUSH</span>
+              </div>
+              <span className="text-base font-bold text-emerald-400">{alerts.channels?.deliveryRate ?? 100}%</span>
+              <span className="text-[9px] text-emerald-400 block mt-0.5">Push Ready</span>
+            </div>
+          </div>
+
+          {/* Alert Classification Breakdown */}
+          <div className="pt-2 border-t border-border/50 grid grid-cols-3 gap-2 text-center font-mono">
+            <div className="p-2 rounded bg-muted/10">
+              <span className="text-[10px] text-muted-foreground block">UNREAD</span>
+              <span className="text-sm font-bold text-amber-400">{alerts.unreadAlerts}</span>
+            </div>
+            <div className="p-2 rounded bg-muted/10">
+              <span className="text-[10px] text-muted-foreground block">NEW OPPS</span>
+              <span className="text-sm font-bold text-emerald-400">{alerts.breakdown.newOpportunity}</span>
+            </div>
+            <div className="p-2 rounded bg-muted/10">
+              <span className="text-[10px] text-muted-foreground block">NEW SOURCES</span>
+              <span className="text-sm font-bold text-blue-400">{alerts.breakdown.newSource}</span>
             </div>
           </div>
         </div>
