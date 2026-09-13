@@ -40,7 +40,7 @@ export function isOpportunityDiscoveryIntent(rawPrompt?: string | null): boolean
 
   // 4. Tech Role with Discovery Verbs (e.g. "Find React developer in Hyderabad", "Looking for AI engineers")
   const hasDiscoveryVerb = /\b(find|search|looking for|seek|seeking|show me|discover|get|locate|list)\b/i.test(lower);
-  const hasTechRole = /\b(software engineer|swe|sde|software developer|developer|frontend|front-end|backend|back-end|fullstack|full-stack|ai engineer|ml engineer|data scientist|data engineer|devops|product manager|qa engineer|programmer)\b/i.test(lower);
+  const hasTechRole = /\b(software engineer|swe|sde|software developer|developer|frontend|front-end|backend|back-end|fullstack|full-stack|ai engineer|ml engineer|data scientist|data engineer|data analyst|business analyst|bi analyst|devops|product manager|qa engineer|programmer)\b/i.test(lower);
 
   // If it's a generic web automation command AND lacks clear job/opportunity keywords, it is NOT job discovery
   if (isGenericWebAutomation && !hasJobKeywords && !hasWatchJobKeywords) {
@@ -135,6 +135,7 @@ export const KNOWN_COMPANY_DEFINITIONS: KnownCompanyDefinition[] = [
   { canonicalName: "GitHub", regex: /\b(github)\b/i },
   { canonicalName: "GitLab", regex: /\b(gitlab)\b/i },
   { canonicalName: "Figma", regex: /\b(figma)\b/i },
+  { canonicalName: "Y Combinator", regex: /\b(y\s*combinator|yc|workatastartup)\b/i },
 ];
 
 export interface KnownLocationDefinition {
@@ -218,9 +219,17 @@ export const KNOWN_LOCATION_DEFINITIONS: KnownLocationDefinition[] = [
   { canonicalName: "New York", isCity: true, regex: /\b(new york|nyc|ny)\b/i },
   { canonicalName: "London", isCity: true, regex: /\b(london)\b/i },
   { canonicalName: "Berlin", isCity: true, regex: /\b(berlin)\b/i },
+  { canonicalName: "Tokyo", isCity: true, regex: /\b(tokyo)\b/i },
   { canonicalName: "Toronto", isCity: true, regex: /\b(toronto)\b/i },
   { canonicalName: "Singapore", isCity: true, regex: /\b(singapore)\b/i },
   { canonicalName: "Sydney", isCity: true, regex: /\b(sydney)\b/i },
+  { canonicalName: "Paris", isCity: true, regex: /\b(paris)\b/i },
+  { canonicalName: "Amsterdam", isCity: true, regex: /\b(amsterdam)\b/i },
+  { canonicalName: "Dublin", isCity: true, regex: /\b(dublin)\b/i },
+  { canonicalName: "Zurich", isCity: true, regex: /\b(zurich)\b/i },
+  { canonicalName: "Seattle", isCity: true, regex: /\b(seattle)\b/i },
+  { canonicalName: "Austin", isCity: true, regex: /\b(austin)\b/i },
+  { canonicalName: "Boston", isCity: true, regex: /\b(boston)\b/i },
 
   // Countries
   { canonicalName: "India", isCity: false, regex: /\b(india)\b/i },
@@ -228,6 +237,11 @@ export const KNOWN_LOCATION_DEFINITIONS: KnownLocationDefinition[] = [
   { canonicalName: "United Kingdom", isCity: false, regex: /\b(united kingdom|uk)\b/i },
   { canonicalName: "Canada", isCity: false, regex: /\b(canada)\b/i },
   { canonicalName: "Germany", isCity: false, regex: /\b(germany)\b/i },
+  { canonicalName: "Japan", isCity: false, regex: /\b(japan)\b/i },
+  { canonicalName: "France", isCity: false, regex: /\b(france)\b/i },
+  { canonicalName: "Netherlands", isCity: false, regex: /\b(netherlands)\b/i },
+  { canonicalName: "Ireland", isCity: false, regex: /\b(ireland)\b/i },
+  { canonicalName: "Switzerland", isCity: false, regex: /\b(switzerland)\b/i },
   { canonicalName: "Australia", isCity: false, regex: /\b(australia)\b/i },
 ];
 
@@ -262,6 +276,11 @@ export const KNOWN_ROLE_DEFINITIONS: KnownRoleDefinition[] = [
     canonicalName: "Software Engineer",
     regex: /\b(software\s*(?:engineer(?:ing)?|developer|dev)|swe|sde|developer roles?|programmer)\b/i,
     related: ["Software Developer", "Junior Software Engineer", "Full Stack Developer", "Full Stack Engineer", "SDE Intern"],
+  },
+  {
+    canonicalName: "Data Analyst",
+    regex: /\b(data analyst|business analyst|bi analyst|business intelligence analyst|analytics analyst|product analyst)\b/i,
+    related: ["Business Intelligence Analyst", "Analytics Specialist", "Junior Data Analyst", "Data Analytics Intern"],
   },
   {
     canonicalName: "Data Engineer",
@@ -372,9 +391,14 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   if (/\b(greenhouse)\b/i.test(lower)) matchedSources.push("Greenhouse");
   if (/\b(ashby)\b/i.test(lower)) matchedSources.push("Ashby");
   if (/\b(lever)\b/i.test(lower)) matchedSources.push("Lever");
+  if (/\b(ats|direct|company\s+careers?)\b/i.test(lower)) matchedSources.push("ATS Direct");
 
   // Mask source clause in working query (e.g. "search across linkedin, y combinator, indeed")
-  workingQuery = workingQuery.replace(/\b(?:search\s+)?(?:across|on|in|via)\s+(?:linkedin|y\s*combinator|yc|indeed|naukri|glassdoor|wellfound|github|hacker\s*news|greenhouse|ashby|lever)(?:\s*,\s*(?:linkedin|y\s*combinator|yc|indeed|naukri|glassdoor|wellfound|github|hacker\s*news|greenhouse|ashby|lever))*(?:\s+(?:and|or)\s+(?:linkedin|y\s*combinator|yc|indeed|naukri|glassdoor|wellfound|github|hacker\s*news|greenhouse|ashby|lever))?/gi, " ");
+  workingQuery = workingQuery.replace(/\b(?:search\s+)?(?:across|on|in|via)\s+(?:linkedin|y\s*combinator|yc|indeed|naukri|glassdoor|wellfound|github|hacker\s*news|greenhouse|ashby|lever|ats|direct)(?:\s*,\s*(?:linkedin|y\s*combinator|yc|indeed|naukri|glassdoor|wellfound|github|hacker\s*news|greenhouse|ashby|lever|ats|direct))*(?:\s+(?:and|or)\s+(?:linkedin|y\s*combinator|yc|indeed|naukri|glassdoor|wellfound|github|hacker\s*news|greenhouse|ashby|lever|ats|direct))?/gi, " ");
+
+  // Mask memory & profile references so they are not captured as role or company clauses
+  workingQuery = workingQuery.replace(/\b(?:based\s+on\s+)?(?:my\s+)?(?:saved\s+roles?|saved\s+preferences?)(?:\s+(?:on|in|from)\s+(?:the\s+)?(?:memory(?:\s+vault)?|profile))?\b/gi, " ");
+  workingQuery = workingQuery.replace(/\b(?:on|in|from)\s+(?:the\s+)?(?:memory(?:\s+vault)?|profile)\b/gi, " ");
 
   // 3. Temporal Expressions & Date Constraint Parsing (Shielded early to prevent count/role collision)
   let isExplicitFreshness = false;
@@ -641,10 +665,23 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
 
   // Dynamic Location Fallback: "in <Location>", "around <Location>", "near <Location>"
   if (matchedLocations.length === 0) {
-    const locMatch = workingQuery.match(/\b(?:in|at|near|around)\s+([A-Za-z\s]+?)(?=\s+(?:jobs?|roles?|positions?|openings?|internships?|remote|hybrid|$))/i);
+    // Strip temporal phrases starting with in/within/past/last so "in last 3 days" is never misidentified as a location
+    const temporalCleaned = workingQuery
+      .replace(/\b(?:in|at|within|past|last|for)\s+(?:the\s+)?(?:\d{1,2}\s+)?(?:days?|hours?|hrs?|d|h|weeks?|w|months?|mo|few\s+days|today|yesterday)\b/gi, " ")
+      .replace(/\b(?:in|within)\s+(?:recent|new|latest)\b/gi, " ");
+
+    const locMatch = temporalCleaned.match(
+      /\b(?:in|at|near|around)\s+([A-Za-z\s,.-]+?)(?=\s+(?:jobs?|roles?|positions?|openings?|internships?|remote|hybrid|last|past|within|companies?|startups?|accelerators?|enterprises?|firms?|studios?|with|using|having|where|posted)|$)/i
+    );
     if (locMatch && locMatch[1]) {
       const candLoc = locMatch[1].trim();
-      const isBlacklisted = /^(the|any|all|some|good|latest|recent|new|urgent|verified|mechanical|software|civil|electrical|chemical|process|nurse|financial|marketing)$/i.test(candLoc);
+      const isBlacklisted =
+        /^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|mechanical|software|civil|electrical|chemical|process|nurse|financial|marketing|data|frontend|backend|fullstack|engineering|developer|intern|internship|entry|senior|junior|y\s*combinator|yc|techstars|startups?|companies?|firms?|enterprises?|faang|big\s*tech|fortune\s*500)$/i.test(candLoc) ||
+        /\b(with|using|having|where|startup|startups|company|companies|accelerator|accelerators|y\s*combinator|yc)\b/i.test(candLoc) ||
+        KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(candLoc)) ||
+        KNOWN_COMPANY_DEFINITIONS.some((c) => c.regex.test(candLoc)) ||
+        candLoc.length > 40;
+
       if (candLoc.length >= 2 && !isBlacklisted) {
         const canonicalLoc = candLoc.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
         matchedLocations.push(canonicalLoc);
@@ -653,7 +690,14 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     }
   }
 
-  const primaryLocation = matchedLocations[0] || undefined;
+  const hasExplicitLocation = Boolean(
+    (filterOverrides?.location && filterOverrides.location !== "Any" && filterOverrides.location.toLowerCase() !== "worldwide") ||
+    (filterOverrides?.locations && filterOverrides.locations.length > 0) ||
+    matchedLocations.length > 0
+  );
+  const primaryLocation = (hasExplicitLocation && matchedLocations.length > 0)
+    ? matchedLocations[0]
+    : (filterOverrides?.location && filterOverrides.location !== "Any" ? filterOverrides.location : undefined);
 
   // 8. Skills Extraction
   const matchedSkills: string[] = [];
@@ -667,6 +711,39 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
 
   // 9. Roles Extraction
   const matchedRoles: string[] = [];
+  let specificExtractedRole: string | undefined = undefined;
+
+  // 9a. Explicit Targeted Role Extraction from Contextual Clauses
+  // Handles phrases like: "jobs on <ROLE>", "jobs for <ROLE>", "positions in <ROLE>", "roles for <ROLE>"
+  const explicitRoleClauseMatch = workingQuery.match(
+    /\b(?:jobs?|roles?|positions?|openings?|internships?|opportunities)\s+(?:on|for|in|as|targeting|about)\s+([A-Za-z0-9\s/&+-]+?)(?=\s+(?:in|at|near|around|within|posted|last|past|with|salary|compensation|$))/i
+  );
+  if (explicitRoleClauseMatch && explicitRoleClauseMatch[1]) {
+    const rawCand = explicitRoleClauseMatch[1].trim();
+    if (rawCand.length >= 3 && !/^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|fresh|remote|hybrid|the\s+memory|memory|saved\s+role|my\s+saved\s+role|memory\s+vault|profile)$/i.test(rawCand)) {
+      const matchedKnownDef = KNOWN_ROLE_DEFINITIONS.find((def) => def.regex.test(rawCand));
+      if (matchedKnownDef) {
+        specificExtractedRole = matchedKnownDef.canonicalName;
+      } else {
+        let normRole = rawCand;
+        if (/engineering$/i.test(normRole)) {
+          normRole = normRole.replace(/engineering$/i, "Engineer");
+        }
+        specificExtractedRole = normRole
+          .split(/\s+/)
+          .map((w) => {
+            const lowerW = w.toLowerCase();
+            if (["ai", "ml", "qa", "ui", "ux", "llm", "nlp", "sre", "swe", "sde", "ats", "devops"].includes(lowerW)) {
+              return lowerW.toUpperCase();
+            }
+            return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+          })
+          .join(" ");
+      }
+    }
+  }
+
+  // 9b. Match against Known Role Definitions
   for (const roleDef of KNOWN_ROLE_DEFINITIONS) {
     if (roleDef.regex.test(lower)) {
       const roleName = roleDef.canonicalName;
@@ -689,22 +766,44 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     }
   }
 
-  // Dynamic Arbitrary Role Extraction from shielded workingQuery
-  if (matchedRoles.length === 0) {
-    // Strip conversational filler, prompt enhancer verbs, evidence phrases, and prepositions
+  // 9c. Dynamic Arbitrary Role Extraction from shielded workingQuery (only if no role identified yet)
+  if (!specificExtractedRole && matchedRoles.length === 0) {
     const cleanRemainder = workingQuery
-      .replace(/\b(search|find|give\s+me|show\s+me|get\s+me|find\s+me|tell\s+me|me|us|i|my|we|looking\s+for|look\s+for|i\s*m\s+looking\s+for|some|any|all|verified|positions?|jobs?|roles?|openings?|internships?|opportunities|listings?|extract|with|and|or|visual|snapshots?|page|direct|application|links?|core|technical|qualifications?|salary|compensation|locations?|company|names?|titles?|for|\d+)\b/gi, " ")
-      .replace(/\b(in|at|around|near|on|from|to|into|across)\b/gi, " ")
+      .replace(/\b(search|find|give\s+me|show\s+me|get\s+me|find\s+me|tell\s+me|me|us|i\s*am\s*an?|i\s*am\s*a|i\s*am|i'?m\s*an?|i'?m\s*a|i'?m|am\s*an?|am\s*a|am|my|we|looking\s+for|look\s+for|i\s*m\s+looking\s+for|some|any|all|verified|positions?|jobs?|roles?|openings?|internships?|opportunities|listings?|extract|with|and|or|visual|snapshots?|page|direct|application|links?|core|technical|qualifications?|salary|compensation|locations?|company|names?|titles?|for|\d+)\b/gi, " ")
+      .replace(/\b(in|at|around|near|on|from|to|into|across|an?|the|posted|budget|percent|percentage|tokens?|usage|credits?|days?|weeks?|months?|hours?|ago|recently|recent|latest|new|fresh)\b/gi, " ")
+      .replace(/[%$#@!*&^~]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
 
     if (cleanRemainder.length >= 3 && !/^(the|any|all|some|good|top|best|entry\s*level|junior|senior)$/i.test(cleanRemainder)) {
-      const canonical = cleanRemainder.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
-      matchedRoles.push(canonical);
+      let normRemainder = cleanRemainder;
+      if (/engineering$/i.test(normRemainder)) {
+        normRemainder = normRemainder.replace(/engineering$/i, "Engineer");
+      }
+      specificExtractedRole = normRemainder
+        .split(/\s+/)
+        .map((w) => {
+          const lowerW = w.toLowerCase();
+          if (["ai", "ml", "qa", "ui", "ux", "llm", "nlp", "sre", "swe", "sde", "ats", "devops"].includes(lowerW)) {
+            return lowerW.toUpperCase();
+          }
+          return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+        })
+        .join(" ");
     }
   }
 
-  // Only default to Software Engineer if explicit tech keywords were used
+  // If a specific multi-token or specialized role was explicitly extracted, prioritize it at the top
+  if (specificExtractedRole) {
+    // Remove if already in list to avoid duplicates
+    const existingIdx = matchedRoles.findIndex((r) => r.toLowerCase() === specificExtractedRole!.toLowerCase());
+    if (existingIdx >= 0) {
+      matchedRoles.splice(existingIdx, 1);
+    }
+    matchedRoles.unshift(specificExtractedRole);
+  }
+
+  // Only default to Software Engineer if explicit tech keywords were used and no role found
   if (matchedRoles.length === 0 && /\b(tech|technology|developer|coding)\b/i.test(cleanQuery)) {
     matchedRoles.push("Software Engineer");
   }
@@ -722,10 +821,15 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   }
 
   if (matchedCompanies.length === 0) {
-    const compMatch = cleanQuery.match(/\b(?:from|at|by|company|companies|watch|watching|track|tracking|monitor|monitoring)\s+([A-Za-z0-9&.-]+(?:\s+[A-Za-z0-9&.-]+)?)(?:\s+(?:for|in|roles?|jobs?|internships?|with|where|seeking|and|from|posted|last|past|within|today|yesterday|this)|$)/i);
+    const compMatch = cleanQuery.match(
+      /\b(?:from|at|by|company|companies|watch|watching|track|tracking|monitor|monitoring)\s+([A-Za-z0-9&.-]+(?:\s+[A-Za-z0-9&.-]+)?)(?:\s+(?:for|in|roles?|jobs?|internships?|with|where|seeking|and|from|posted|last|past|within|today|yesterday|this)|$)/i
+    );
     if (compMatch && compMatch[1]) {
       const candidateComp = compMatch[1].trim();
-      const isGeneric = /^(the|any|all|remote|hybrid|on-site|an?|india|hyderabad|bengaluru|pune|mumbai|delhi|tripura|agartala|usa|uk|software|developer|engineer|intern|internship|startups?|enterprises?|faang|big\s*tech|companies?|jobs?|internships?|roles?|positions?|openings?|freshers?|graduates?|students?|\d{4})$/i.test(candidateComp);
+      const isGeneric =
+        /^(the|any|all|remote|hybrid|on-site|an?|india|hyderabad|bengaluru|pune|mumbai|delhi|tripura|agartala|usa|uk|software|developer|engineer|intern|internship|startups?|enterprises?|faang|big\s*tech|companies?|jobs?|internships?|roles?|positions?|openings?|freshers?|graduates?|students?|\d{4})$/i.test(candidateComp) ||
+        /\b(with|using|having|where|for)\b/i.test(candidateComp) ||
+        KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(candidateComp));
       if (candidateComp.length >= 2 && !isGeneric && !matchedCompanies.includes(candidateComp)) {
         matchedCompanies.push(candidateComp);
       }
@@ -751,10 +855,36 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     }
   }
 
-  // 12. Final Sources Resolution (TASK-060: Strict User Preference Preservation)
-  // If user requested specific sources, use ONLY those. Never silently inject ATS or unrequested defaults.
-  const defaultSources = ["LinkedIn", "Y Combinator", "Indeed"];
-  const finalSources = matchedSources.length > 0 ? matchedSources : defaultSources;
+  // 12. Final Sources Resolution (TASK-060: Strict User Preference Preservation & Multi-Source Balance)
+  // If user requested specific sources, use ONLY those. Otherwise query all configured active harvesters.
+  const defaultSources = [
+    "LinkedIn",
+    "ATS Direct",
+    "Greenhouse",
+    "Lever",
+    "Ashby",
+    "Y Combinator",
+    "Hacker News",
+    "GitHub Curated",
+  ];
+  const isExplicitOnly = /\b(only on|exclusively on|just on|solely on)\b/i.test(lower);
+  let finalSources: string[];
+  if (matchedSources.length > 0) {
+    if (isExplicitOnly) {
+      finalSources = matchedSources;
+    } else {
+      // Prioritize matched sources at the front, but keep direct ATS harvesters available
+      const combined = [...matchedSources];
+      for (const ds of defaultSources) {
+        if (!combined.includes(ds)) {
+          combined.push(ds);
+        }
+      }
+      finalSources = combined;
+    }
+  } else {
+    finalSources = defaultSources;
+  }
 
   // 13. Exclusion Intent
   const excludeKnown = /\b(avoid showing|already know|exclude known|hide seen|only new|genuinely new|brand new|skip seen|skip saved|only tell me when|haven't seen|havent seen|not seen before|never seen|unseen)\b/i.test(lower);
@@ -799,6 +929,7 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     dateConstraint: filterOverrides?.dateConstraint !== undefined ? filterOverrides.dateConstraint : dateConstraint,
     requestedCount: requestedCount !== undefined ? requestedCount : filterOverrides?.requestedCount,
     isExplicitFreshness: filterOverrides?.isExplicitFreshness !== undefined ? filterOverrides.isExplicitFreshness : isExplicitFreshness,
+    isExplicitLocation: filterOverrides?.isExplicitLocation !== undefined ? filterOverrides.isExplicitLocation : hasExplicitLocation,
     minimumMatchScore: filterOverrides?.minimumMatchScore || minimumMatchScore,
     sources: filterOverrides?.sources || finalSources,
     excludeKnown: filterOverrides?.excludeKnown !== undefined ? filterOverrides.excludeKnown : excludeKnown,
@@ -838,30 +969,54 @@ export async function parseSearchIntentAsync(
   let effectivePuterToken: string | null = null;
   let resolvedProvider: "GEMINI" | "PUTER" | "DETERMINISTIC" = "DETERMINISTIC";
 
+  let userProfileMemories: {
+    preferredRoles: string[];
+    preferredLocations: string[];
+    preferredWorkModes: string[];
+    targetSkills: string[];
+    experienceLevel?: string;
+  } | null = null;
+
   if (options?.apiKey && options.apiKey.trim()) {
     effectiveGeminiKey = options.apiKey.trim();
     resolvedProvider = "GEMINI";
   } else if (options?.puterToken && options.puterToken.trim()) {
     effectivePuterToken = options.puterToken.trim();
     resolvedProvider = "PUTER";
-  } else if (options?.userId && typeof window === "undefined") {
+  }
+
+  if (options?.userId && typeof window === "undefined") {
     try {
       const { getUserGeminiApiKey } = await import("@/lib/db/users");
       const { getUserPuterToken } = await import("@/lib/ai/governance/providerGovernance");
+      const { getUserProfile } = await import("@/lib/db/onboarding");
 
-      const userKey = await getUserGeminiApiKey(options.userId);
-      if (userKey) {
-        effectiveGeminiKey = userKey;
-        resolvedProvider = "GEMINI";
-      } else {
-        const pTok = await getUserPuterToken(options.userId);
-        if (pTok) {
-          effectivePuterToken = pTok;
-          resolvedProvider = "PUTER";
+      if (!effectiveGeminiKey && !effectivePuterToken) {
+        const userKey = await getUserGeminiApiKey(options.userId);
+        if (userKey) {
+          effectiveGeminiKey = userKey;
+          resolvedProvider = "GEMINI";
+        } else {
+          const pTok = await getUserPuterToken(options.userId);
+          if (pTok) {
+            effectivePuterToken = pTok;
+            resolvedProvider = "PUTER";
+          }
         }
       }
+
+      const profile = await getUserProfile(options.userId);
+      if (profile) {
+        userProfileMemories = {
+          preferredRoles: profile.preferredRoles || [],
+          preferredLocations: profile.preferredLocations || [],
+          preferredWorkModes: profile.preferredWorkModes || [],
+          targetSkills: profile.targetSkills || [],
+          experienceLevel: profile.experienceLevel || undefined,
+        };
+      }
     } catch (err) {
-      console.warn("[IntentParser] Error resolving user credentials from database:", err);
+      console.warn("[IntentParser] Error resolving user credentials or memory profile:", err);
     }
   }
 
@@ -874,21 +1029,62 @@ export async function parseSearchIntentAsync(
     }
   }
 
+  // Build user memory context snippet if available
+  let memoryContextString = "";
+  if (userProfileMemories) {
+    const lines: string[] = [];
+    if (userProfileMemories.preferredRoles.length > 0) lines.push(`Saved Target Roles in Memory: ${userProfileMemories.preferredRoles.join(", ")}`);
+    if (userProfileMemories.preferredLocations.length > 0) lines.push(`Saved Locations in Memory: ${userProfileMemories.preferredLocations.join(", ")}`);
+    if (userProfileMemories.targetSkills.length > 0) lines.push(`Saved Skills in Memory: ${userProfileMemories.targetSkills.join(", ")}`);
+    if (userProfileMemories.preferredWorkModes.length > 0) lines.push(`Saved Work Modes: ${userProfileMemories.preferredWorkModes.join(", ")}`);
+    if (userProfileMemories.experienceLevel) lines.push(`Saved Experience Level: ${userProfileMemories.experienceLevel}`);
+    if (lines.length > 0) {
+      memoryContextString = `\nUser Memory Vault Preferences:\n${lines.join("\n")}\n`;
+    }
+  }
+
   // If no AI provider is available, use deterministic fallback
   if (resolvedProvider === "DETERMINISTIC" || (!effectiveGeminiKey && !effectivePuterToken)) {
-    return parseSearchIntent(rawQuery, options?.filterOverrides);
+    const deterministicBase = parseSearchIntent(rawQuery, options?.filterOverrides);
+    if (userProfileMemories) {
+      if ((!deterministicBase.role || /^(the\s+)?(memory|saved\s+role|memory\s+vault)$/i.test(deterministicBase.role)) && userProfileMemories.preferredRoles?.length) {
+        deterministicBase.role = userProfileMemories.preferredRoles[0];
+        deterministicBase.roles = [...userProfileMemories.preferredRoles];
+      }
+      if (!deterministicBase.location && userProfileMemories.preferredLocations?.length) {
+        deterministicBase.location = userProfileMemories.preferredLocations[0];
+        deterministicBase.locations = [...userProfileMemories.preferredLocations];
+      }
+      if ((!deterministicBase.workMode || deterministicBase.workMode === "ANY") && userProfileMemories.preferredWorkModes?.length) {
+        deterministicBase.workMode = userProfileMemories.preferredWorkModes[0];
+        deterministicBase.workModes = [...userProfileMemories.preferredWorkModes];
+      }
+      if (userProfileMemories.targetSkills?.length) {
+        const sSet = new Set(deterministicBase.skills || []);
+        for (const s of userProfileMemories.targetSkills) {
+          if (sSet.size >= 6) break;
+          sSet.add(s);
+        }
+        deterministicBase.skills = Array.from(sSet);
+      }
+      if ((!deterministicBase.experienceLevel || deterministicBase.experienceLevel === "ANY") && userProfileMemories.experienceLevel) {
+        deterministicBase.experienceLevel = userProfileMemories.experienceLevel;
+      }
+    }
+    return deterministicBase;
   }
 
   // 2. Execute via Gemini
   if (resolvedProvider === "GEMINI" && effectiveGeminiKey) {
+    let modelName: string = "gemini-3.7-flash";
     try {
       const { Type } = await import("@google/genai");
-      const { createGeminiClient, detectOptimalGeminiModel, DEFAULT_GEMINI_MODEL, FALLBACK_GEMINI_MODEL } = await import("@/lib/ai/modelSelector");
+      const { createGeminiClient, detectOptimalGeminiModel, DEFAULT_GEMINI_MODEL, FALLBACK_GEMINI_MODEL, SECONDARY_FALLBACK_GEMINI_MODEL } = await import("@/lib/ai/modelSelector");
 
       const ai = createGeminiClient(effectiveGeminiKey);
-      const modelName = await detectOptimalGeminiModel(effectiveGeminiKey).catch(() => DEFAULT_GEMINI_MODEL);
+      modelName = await detectOptimalGeminiModel(effectiveGeminiKey).catch(() => DEFAULT_GEMINI_MODEL);
 
-      const prompt = `User search query: "${query}"\nExisting filter overrides: ${JSON.stringify(options?.filterOverrides || {})}`;
+      const prompt = `User search query: "${query}"${memoryContextString}\nExisting filter overrides: ${JSON.stringify(options?.filterOverrides || {})}`;
 
       const schema = {
         type: Type.OBJECT,
@@ -916,15 +1112,20 @@ export async function parseSearchIntentAsync(
 Analyze natural language job and opportunity search queries and produce a structured JSON SearchIntent.
 Rules:
 - Strip conversational filler words completely ("find me jobs for Management" -> role: "Management", NOT "Me Management").
+- NEVER extract meta-storage or vault phrases ("the memory", "memory", "saved role", "my saved role", "memory vault", "profile") as a job role title.
+- If the user query refers to "my saved role", "saved role", or "on the memory", resolve it to the user's Saved Target Roles from their User Memory Vault Preferences (e.g. if Saved Target Roles has "Software Developer", output role: "Software Developer").
 - Understand role and level phrases holistically ("AI intern" -> role: "AI Intern", experienceLevel: "INTERN", opportunityType: "INTERNSHIP").
 - Extract technical and domain skills into the skills array.
 - Identify work modes: REMOTE, HYBRID, ON_SITE, or ANY.
-- Identify requested result counts (default 10).`;
+- Extract target location, city, state, or country (e.g. "in hyderabad" -> location: "Hyderabad").
+- Identify requested result counts (default 10).
+- If days/freshness is specified (e.g. "in last 4 days"), set postedWithinDays: 4, freshnessWindowHours: 96, sortMode: "LATEST".`;
 
       let response;
+      let effectiveModelUsed = modelName || DEFAULT_GEMINI_MODEL;
       try {
         response = await ai.models.generateContent({
-          model: modelName || DEFAULT_GEMINI_MODEL,
+          model: effectiveModelUsed,
           contents: prompt,
           config: {
             systemInstruction,
@@ -934,17 +1135,33 @@ Rules:
           },
         });
       } catch (err) {
-        console.warn(`[IntentParser] Primary model failed, trying fallback model ${FALLBACK_GEMINI_MODEL}:`, err);
-        response = await ai.models.generateContent({
-          model: FALLBACK_GEMINI_MODEL,
-          contents: prompt,
-          config: {
-            systemInstruction,
-            temperature: 0.1,
-            responseMimeType: "application/json",
-            responseSchema: schema,
-          },
-        });
+        console.warn(`[IntentParser] Primary model ${effectiveModelUsed} failed, trying fallback ${FALLBACK_GEMINI_MODEL}:`, err);
+        effectiveModelUsed = FALLBACK_GEMINI_MODEL;
+        try {
+          response = await ai.models.generateContent({
+            model: FALLBACK_GEMINI_MODEL,
+            contents: prompt,
+            config: {
+              systemInstruction,
+              temperature: 0.1,
+              responseMimeType: "application/json",
+              responseSchema: schema,
+            },
+          });
+        } catch (fbErr) {
+          console.warn(`[IntentParser] Fallback ${FALLBACK_GEMINI_MODEL} failed, trying secondary fallback ${SECONDARY_FALLBACK_GEMINI_MODEL}:`, fbErr);
+          effectiveModelUsed = SECONDARY_FALLBACK_GEMINI_MODEL;
+          response = await ai.models.generateContent({
+            model: SECONDARY_FALLBACK_GEMINI_MODEL,
+            contents: prompt,
+            config: {
+              systemInstruction,
+              temperature: 0.1,
+              responseMimeType: "application/json",
+              responseSchema: schema,
+            },
+          });
+        }
       }
 
       const text = response.text;
@@ -960,7 +1177,7 @@ Rules:
             await recordAIUsageEvent({
               userId: options.userId,
               provider: "GEMINI_BYOK",
-              model: modelName || DEFAULT_GEMINI_MODEL,
+              model: effectiveModelUsed,
               operation: "INTENT_PARSING",
               inputTokens: response.usageMetadata?.promptTokenCount || 0,
               outputTokens: response.usageMetadata?.candidatesTokenCount || 0,
@@ -972,15 +1189,70 @@ Rules:
           }
         }
 
+        const isMetaRole = (r?: string) => {
+          if (!r) return false;
+          return /^(the\s+)?(memory|memory\s+vault|saved\s+role|my\s+saved\s+role|profile)$/i.test(r.trim());
+        };
+
+        let resolvedRole = parsed.role?.trim() || "";
+        if (isMetaRole(resolvedRole) || !resolvedRole) {
+          if (userProfileMemories?.preferredRoles?.length) {
+            resolvedRole = userProfileMemories.preferredRoles[0];
+          } else {
+            resolvedRole = isMetaRole(baseIntent.role) ? "" : (baseIntent.role || "");
+          }
+        }
+
+        let resolvedRoles = Array.isArray(parsed.roles) ? parsed.roles.filter((r: string) => !isMetaRole(r)) : [];
+        if (resolvedRoles.length === 0 && userProfileMemories?.preferredRoles?.length) {
+          resolvedRoles = [...userProfileMemories.preferredRoles];
+        }
+        if (resolvedRoles.length === 0 && baseIntent.roles && baseIntent.roles.length > 0) {
+          resolvedRoles = baseIntent.roles.filter((r) => !isMetaRole(r));
+        }
+        if (resolvedRole && !resolvedRoles.includes(resolvedRole)) {
+          resolvedRoles.unshift(resolvedRole);
+        }
+
+        const isInvalidLocation = (loc?: string) => {
+          if (!loc) return true;
+          return /^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|y\s*combinator|yc|techstars|startups?|companies?|firms?|enterprises?)$/i.test(loc.trim()) ||
+            /\b(with|using|having|where)\b/i.test(loc) ||
+            KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(loc)) ||
+            KNOWN_COMPANY_DEFINITIONS.some((c) => c.regex.test(loc));
+        };
+
+        const isInvalidCompany = (comp?: string) => {
+          if (!comp) return true;
+          return /^(the|any|all|remote|hybrid|on-site|an?|software|developer|engineer|startups?|companies?)$/i.test(comp.trim()) ||
+            /\b(with|using|having|where)\b/i.test(comp) ||
+            KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(comp));
+        };
+
+        let resolvedLocation = parsed.location || (!isInvalidLocation(baseIntent.location) ? baseIntent.location : undefined);
+        let resolvedLocations = parsed.locations && parsed.locations.length > 0
+          ? parsed.locations
+          : (baseIntent.locations ? baseIntent.locations.filter((l) => !isInvalidLocation(l)) : undefined);
+
+        if (!resolvedLocation && userProfileMemories?.preferredLocations?.length && /\b(?:my\s+)?(?:saved\s+location|memory|profile)\b/i.test(query)) {
+          resolvedLocation = userProfileMemories.preferredLocations[0];
+          resolvedLocations = [...userProfileMemories.preferredLocations];
+        }
+
+        const resolvedCompany = parsed.company || (!isInvalidCompany(baseIntent.company) ? baseIntent.company : undefined);
+        const resolvedCompanies = parsed.companies && parsed.companies.length > 0
+          ? parsed.companies
+          : (baseIntent.companies ? baseIntent.companies.filter((c) => !isInvalidCompany(c)) : undefined);
+
         return {
           ...baseIntent,
-          role: parsed.role || baseIntent.role,
-          roles: parsed.roles && parsed.roles.length > 0 ? parsed.roles : baseIntent.roles,
+          role: resolvedRole,
+          roles: resolvedRoles,
           skills: parsed.skills && parsed.skills.length > 0 ? parsed.skills : baseIntent.skills,
-          location: parsed.location || baseIntent.location,
-          locations: parsed.locations && parsed.locations.length > 0 ? parsed.locations : baseIntent.locations,
-          company: parsed.company || baseIntent.company,
-          companies: parsed.companies && parsed.companies.length > 0 ? parsed.companies : baseIntent.companies,
+          location: resolvedLocation,
+          locations: resolvedLocations,
+          company: resolvedCompany,
+          companies: resolvedCompanies,
           workMode: parsed.workMode || baseIntent.workMode,
           experienceLevel: parsed.experienceLevel || baseIntent.experienceLevel,
           opportunityType: parsed.opportunityType || baseIntent.opportunityType,
@@ -992,82 +1264,162 @@ Rules:
           ...options?.filterOverrides,
         };
       }
-    } catch (llmErr) {
+    } catch (llmErr: any) {
       console.warn("[IntentParser] Gemini LLM parsing error, falling back to deterministic parser:", llmErr);
+      if (options?.userId && typeof window === "undefined") {
+        try {
+          const { recordAIUsageEvent } = await import("@/lib/ai/governance/providerGovernance");
+          const isQuota = llmErr?.message?.includes("quota") || llmErr?.status === 429;
+          const status = isQuota ? "RATE_LIMITED" : "FAILED";
+          await recordAIUsageEvent({
+            userId: options.userId,
+            provider: "GEMINI_BYOK",
+            model: modelName || "gemini-3.6-flash",
+            operation: "INTENT_PARSING",
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            status,
+            errorMessage: String(llmErr?.message || llmErr).slice(0, 500),
+          });
+        } catch (recErr) {
+          console.warn("[IntentParser] Failed to record AI usage failure:", recErr);
+        }
+      }
     }
   }
 
   // 3. Execute via Puter
   if (resolvedProvider === "PUTER" && effectivePuterToken) {
     try {
-      const resp = await fetch("https://api.puter.com/drivers/call", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${effectivePuterToken}`,
-        },
-        body: JSON.stringify({
-          interface: "puter-chat-completion",
-          driver: "claude-3-7-sonnet",
-          test_mode: false,
-          method: "chat",
-          args: {
-            messages: [
-              {
-                role: "system",
-                content: `You are the Search Intent Understanding subsystem of BrowserPilot. Output strictly valid JSON matching this schema:
-{"role": string, "roles": string[], "skills": string[], "location": string, "workMode": "REMOTE"|"HYBRID"|"ON_SITE"|"ANY", "experienceLevel": "INTERN"|"ENTRY_LEVEL"|"MID"|"SENIOR"|"ANY", "opportunityType": "INTERNSHIP"|"FULL_TIME"|"CONTRACT"|"ANY", "requestedCount": number}.
-Strip filler words completely ("find me jobs for Management" -> role: "Management"). "AI intern" -> role: "AI Intern", experienceLevel: "INTERN", opportunityType: "INTERNSHIP".`,
-              },
-              { role: "user", content: `Query: "${query}"` },
-            ],
+      const { callPuterChatCompletion } = await import("@/lib/ai/puterClient");
+      const puterRes = await callPuterChatCompletion({
+        token: effectivePuterToken,
+        userId: options?.userId || undefined,
+        operation: "INTENT_PARSING",
+        messages: [
+          {
+            role: "system",
+            content: `You are the Search Intent Understanding subsystem of BrowserPilot. Output strictly valid JSON matching this schema:
+{"role": string, "roles": string[], "skills": string[], "location": string, "locations": string[], "company": string, "companies": string[], "workMode": "REMOTE"|"HYBRID"|"ON_SITE"|"ANY", "experienceLevel": "INTERN"|"ENTRY_LEVEL"|"MID"|"SENIOR"|"ANY", "opportunityType": "INTERNSHIP"|"FULL_TIME"|"CONTRACT"|"ANY", "requestedCount": number, "freshnessWindowHours": number, "postedWithinDays": number, "sortMode": "RELEVANCE"|"LATEST"|"RELEVANCE_THEN_FRESHNESS"}.
+Strip filler words completely ("find me jobs for Management" -> role: "Management").
+NEVER extract meta-words ("the memory", "memory", "saved role", "my saved role", "memory vault", "profile") as a job role title. If the user query refers to "my saved role" or "saved role on the memory", resolve it to the user's Saved Target Roles from their User Memory Vault Preferences.
+"AI intern" -> role: "AI Intern", experienceLevel: "INTERN", opportunityType: "INTERNSHIP".
+If days/freshness is specified (e.g. "last 4 days"), set postedWithinDays: 4, freshnessWindowHours: 96, sortMode: "LATEST".`,
           },
-        }),
+          { role: "user", content: `Query: "${query}"${memoryContextString}` },
+        ],
       });
 
-      if (resp.ok) {
-        const data = await resp.json();
-        let rawContent = "";
-        if (typeof data === "string") rawContent = data;
-        else if (data?.message?.content) rawContent = data.message.content;
-        else if (data?.text) rawContent = data.text;
-        else rawContent = JSON.stringify(data);
+      const rawContent = puterRes.content;
+      const cleanJson = rawContent.replace(/```json|```/gi, "").trim();
+      const parsed = JSON.parse(cleanJson);
+      const baseIntent = parseSearchIntent(rawQuery, options?.filterOverrides);
 
-        const cleanJson = rawContent.replace(/```json|```/gi, "").trim();
-        const parsed = JSON.parse(cleanJson);
-        const baseIntent = parseSearchIntent(rawQuery, options?.filterOverrides);
+        const isMetaRole = (r?: string) => {
+          if (!r) return false;
+          return /^(the\s+)?(memory|memory\s+vault|saved\s+role|my\s+saved\s+role|profile)$/i.test(r.trim());
+        };
 
-        if (options?.userId && typeof window === "undefined") {
-          try {
-            const { recordAIUsageEvent } = await import("@/lib/ai/governance/providerGovernance");
-            await recordAIUsageEvent({
-              userId: options.userId,
-              provider: "PUTER",
-              model: "claude-3-7-sonnet",
-              operation: "INTENT_PARSING",
-              status: "SUCCESS",
-            });
-          } catch {}
+        let resolvedRole = parsed.role?.trim() || "";
+        if (isMetaRole(resolvedRole) || !resolvedRole) {
+          if (userProfileMemories?.preferredRoles?.length) {
+            resolvedRole = userProfileMemories.preferredRoles[0];
+          } else {
+            resolvedRole = isMetaRole(baseIntent.role) ? "" : (baseIntent.role || "");
+          }
+        }
+
+        let resolvedRoles = Array.isArray(parsed.roles) ? parsed.roles.filter((r: string) => !isMetaRole(r)) : [];
+        if (resolvedRoles.length === 0 && userProfileMemories?.preferredRoles?.length) {
+          resolvedRoles = [...userProfileMemories.preferredRoles];
+        }
+        if (resolvedRoles.length === 0 && baseIntent.roles && baseIntent.roles.length > 0) {
+          resolvedRoles = baseIntent.roles.filter((r) => !isMetaRole(r));
+        }
+        if (resolvedRole && !resolvedRoles.includes(resolvedRole)) {
+          resolvedRoles.unshift(resolvedRole);
+        }
+
+        const isInvalidLocation = (loc?: string) => {
+          if (!loc) return true;
+          return /^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|y\s*combinator|yc|techstars|startups?|companies?|firms?|enterprises?)$/i.test(loc.trim()) ||
+            /\b(with|using|having|where)\b/i.test(loc) ||
+            KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(loc)) ||
+            KNOWN_COMPANY_DEFINITIONS.some((c) => c.regex.test(loc));
+        };
+
+        const isInvalidCompany = (comp?: string) => {
+          if (!comp) return true;
+          return /^(the|any|all|remote|hybrid|on-site|an?|software|developer|engineer|startups?|companies?)$/i.test(comp.trim()) ||
+            /\b(with|using|having|where)\b/i.test(comp) ||
+            KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(comp));
+        };
+
+        let resolvedLocation = parsed.location || (!isInvalidLocation(baseIntent.location) ? baseIntent.location : undefined);
+        let resolvedLocations = parsed.locations && parsed.locations.length > 0
+          ? parsed.locations
+          : (baseIntent.locations ? baseIntent.locations.filter((l) => !isInvalidLocation(l)) : undefined);
+
+        if (!resolvedLocation && userProfileMemories?.preferredLocations?.length) {
+          resolvedLocation = userProfileMemories.preferredLocations[0];
+          resolvedLocations = [...userProfileMemories.preferredLocations];
+        }
+
+        const resolvedCompany = parsed.company || (!isInvalidCompany(baseIntent.company) ? baseIntent.company : undefined);
+        const resolvedCompanies = parsed.companies && parsed.companies.length > 0
+          ? parsed.companies
+          : (baseIntent.companies ? baseIntent.companies.filter((c) => !isInvalidCompany(c)) : undefined);
+
+        let resolvedSkills = parsed.skills && parsed.skills.length > 0 ? parsed.skills : (baseIntent.skills || []);
+        if (userProfileMemories?.targetSkills?.length) {
+          const sSet = new Set(resolvedSkills);
+          for (const s of userProfileMemories.targetSkills) {
+            if (sSet.size >= 6) break;
+            sSet.add(s);
+          }
+          resolvedSkills = Array.from(sSet);
+        }
+
+        let resolvedWorkMode = parsed.workMode || baseIntent.workMode;
+        if ((!resolvedWorkMode || resolvedWorkMode === "ANY") && userProfileMemories?.preferredWorkModes?.length) {
+          resolvedWorkMode = userProfileMemories.preferredWorkModes[0];
+        }
+
+        let resolvedExpLevel = parsed.experienceLevel || baseIntent.experienceLevel;
+        if ((!resolvedExpLevel || resolvedExpLevel === "ANY") && userProfileMemories?.experienceLevel) {
+          resolvedExpLevel = userProfileMemories.experienceLevel;
         }
 
         return {
           ...baseIntent,
-          role: parsed.role || baseIntent.role,
-          roles: parsed.roles && parsed.roles.length > 0 ? parsed.roles : baseIntent.roles,
-          skills: parsed.skills && parsed.skills.length > 0 ? parsed.skills : baseIntent.skills,
-          location: parsed.location || baseIntent.location,
-          workMode: parsed.workMode || baseIntent.workMode,
-          experienceLevel: parsed.experienceLevel || baseIntent.experienceLevel,
+          role: resolvedRole,
+          roles: resolvedRoles,
+          skills: resolvedSkills.length > 0 ? resolvedSkills : undefined,
+          location: resolvedLocation,
+          locations: resolvedLocations,
+          company: resolvedCompany,
+          companies: resolvedCompanies,
+          workMode: resolvedWorkMode,
+          experienceLevel: resolvedExpLevel,
           opportunityType: parsed.opportunityType || baseIntent.opportunityType,
+          companyType: parsed.companyType || baseIntent.companyType,
           requestedCount: typeof parsed.requestedCount === "number" ? parsed.requestedCount : baseIntent.requestedCount,
+          freshnessWindowHours: typeof parsed.freshnessWindowHours === "number" ? parsed.freshnessWindowHours : baseIntent.freshnessWindowHours,
+          postedWithinDays: typeof parsed.postedWithinDays === "number" ? parsed.postedWithinDays : baseIntent.postedWithinDays,
+          sortMode: parsed.sortMode || baseIntent.sortMode,
           ...options?.filterOverrides,
         };
-      }
     } catch (puterErr) {
       console.warn("[IntentParser] Puter LLM parsing error, falling back to deterministic parser:", puterErr);
     }
   }
 
   // Fallback to deterministic regex parser
-  return parseSearchIntent(rawQuery, options?.filterOverrides);
+  const base = parseSearchIntent(rawQuery, options?.filterOverrides);
+  if ((!base.role || /^(the\s+)?(memory|saved\s+role|memory\s+vault)$/i.test(base.role)) && userProfileMemories?.preferredRoles?.length) {
+    base.role = userProfileMemories.preferredRoles[0];
+    base.roles = [...userProfileMemories.preferredRoles];
+  }
+  return base;
 }
