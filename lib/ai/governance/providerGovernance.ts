@@ -79,9 +79,11 @@ export interface AIUsageInput {
 export interface UserUsageSummary {
   userId: string;
   totalOperations: number;
+  operationsCount: number;
   successfulOperations: number;
   failedOperations: number;
   totalTokensTracked: number;
+  totalTokens: number;
   operationsByProvider: Record<string, number>;
   operationsByModel: Record<string, number>;
   recentEvents: Array<{
@@ -336,16 +338,16 @@ export async function disconnectProviderConnection(
     },
   });
 
-  if (!existing) {
-    return { success: true, provider, status: "DISCONNECTED" };
-  }
-
-  // If disconnecting Gemini BYOK, also clear legacy user.geminiApiKey
-  if (provider === "GEMINI_BYOK") {
+  // If disconnecting Gemini BYOK or GEMINI, always ensure legacy user.geminiApiKey is cleared in database
+  if (provider === "GEMINI_BYOK" || provider === "GEMINI") {
     await prisma.user.update({
       where: { id: userId },
       data: { geminiApiKey: null },
     });
+  }
+
+  if (!existing) {
+    return { success: true, provider: provider as any, status: "DISCONNECTED" };
   }
 
   await prisma.providerConnection.update({
@@ -411,9 +413,11 @@ export async function getUserUsageSummary(userId: string): Promise<UserUsageSumm
   return {
     userId,
     totalOperations,
+    operationsCount: totalOperations,
     successfulOperations,
     failedOperations,
     totalTokensTracked,
+    totalTokens: totalTokensTracked,
     operationsByProvider,
     operationsByModel,
     recentEvents: events.map((e: {
@@ -446,31 +450,19 @@ export async function checkFeatureEntitlement(
   userId: string,
   capability: string
 ): Promise<{ allowed: boolean; reason?: string; effectiveProvider?: string; plan?: string }> {
-  const { getUserEffectivePlan } = await import("@/lib/billing/planService");
-  const { plan } = await getUserEffectivePlan(userId);
+  // Delegate capability authorization to unified entitlement service
+  const { checkCapabilityEntitlement } = await import("../../billing/entitlementService");
+  const entitlement = await checkCapabilityEntitlement(userId, capability);
 
-  // Capability restrictions
-  if (capability === "COMPANY_TARGETING" && !plan.supportsCompanyTargeting) {
+  if (!entitlement.allowed) {
+    const reasonCode =
+      entitlement.planCode === "FREE"
+        ? `${capability}_REQUIRES_PREMIUM`
+        : entitlement.reason || `${capability}_NOT_PERMITTED`;
     return {
       allowed: false,
-      reason: "COMPANY_TARGETING_REQUIRES_PREMIUM",
-      plan: plan.code,
-    };
-  }
-
-  if (capability === "ADVANCED_FILTERS" && !plan.supportsAdvancedFilters) {
-    return {
-      allowed: false,
-      reason: "ADVANCED_FILTERS_REQUIRES_PREMIUM",
-      plan: plan.code,
-    };
-  }
-
-  if (capability === "PUTER_PREMIUM" && !plan.supportsPuterPremium) {
-    return {
-      allowed: false,
-      reason: "PUTER_PREMIUM_REQUIRES_PREMIUM",
-      plan: plan.code,
+      reason: reasonCode,
+      plan: entitlement.planCode,
     };
   }
 
@@ -480,7 +472,7 @@ export async function checkFeatureEntitlement(
   });
 
   if (!user) {
-    return { allowed: false, reason: "USER_NOT_FOUND", plan: plan.code };
+    return { allowed: false, reason: "USER_NOT_FOUND", plan: entitlement.planCode };
   }
 
   // Active Puter connection
@@ -488,7 +480,7 @@ export async function checkFeatureEntitlement(
     (p) => p.provider === "PUTER" && p.status === "CONNECTED"
   );
   if (puter) {
-    return { allowed: true, effectiveProvider: "PUTER", plan: plan.code };
+    return { allowed: true, effectiveProvider: "PUTER", plan: entitlement.planCode };
   }
 
   // Active BYOK connection
@@ -496,18 +488,18 @@ export async function checkFeatureEntitlement(
     (p) => p.provider.endsWith("_BYOK") && p.status === "CONNECTED"
   );
   if (byok) {
-    return { allowed: true, effectiveProvider: byok.provider, plan: plan.code };
+    return { allowed: true, effectiveProvider: byok.provider, plan: entitlement.planCode };
   }
 
   // Legacy BYOK key or server environment fallback
   if (user.geminiApiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
-    return { allowed: true, effectiveProvider: "SERVER_MANAGED", plan: plan.code };
+    return { allowed: true, effectiveProvider: "SERVER_MANAGED", plan: entitlement.planCode };
   }
 
   return {
     allowed: true, // Baseline allowance for standard discovery
     effectiveProvider: "SERVER_MANAGED",
-    plan: plan.code,
+    plan: entitlement.planCode,
   };
 }
 
