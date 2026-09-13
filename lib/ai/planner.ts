@@ -87,6 +87,7 @@ Planning Guidelines:
 import { 
   createGeminiClient, 
   getEffectiveGeminiApiKey, 
+  resolveGeminiApiKey,
   detectOptimalGeminiModel,
   DEFAULT_GEMINI_MODEL,
   FALLBACK_GEMINI_MODEL 
@@ -110,7 +111,7 @@ export async function generateActionPlan(
   options: PlanGenerationOptions = {}
 ): Promise<ActionPlan> {
   const isTest = isTestHarnessEnvironment();
-  const effectiveKey = getEffectiveGeminiApiKey(options.apiKey);
+  const effectiveKey = await resolveGeminiApiKey(options.apiKey, options.userId);
   const hasValidKey = !!effectiveKey;
 
   // In test harness mode or when key is missing in test mode, use deterministic test fallback
@@ -235,9 +236,25 @@ export async function generateActionPlan(
     }
 
     return Object.assign(validated, { tokensUsed });
-  } catch (apiErr) {
+  } catch (apiErr: any) {
     if (options.signal?.aborted) throw apiErr;
     console.warn(`[Planner] Gemini API rate limit or error, using autonomous resilient plan synthesis:`, apiErr);
+    if (options.userId) {
+      const isQuota = apiErr?.message?.includes("quota") || apiErr?.status === 429;
+      const status = isQuota ? "RATE_LIMITED" : "FAILED";
+      await recordAIUsageEvent({
+        userId: options.userId,
+        provider: "Google Gemini",
+        model: DEFAULT_GEMINI_MODEL,
+        operation: "ACTION_PLANNING",
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        durationMs: 0,
+        status,
+        errorMessage: String(apiErr?.message || apiErr).slice(0, 500),
+      }).catch((uErr) => console.warn("[Planner] Failed to record AI failure:", uErr));
+    }
     
     // Autonomous Plan Generation via Search Resolver
     const { resolveTargetUrl } = await import("@/lib/scraper/searchResolver");
