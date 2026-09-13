@@ -41,6 +41,17 @@ export function normalizeCouponCode(code: string): string {
   return (code || "").trim().toUpperCase();
 }
 
+export const COUPON_ERROR_MESSAGES: Record<string, string> = {
+  COUPON_CODE_REQUIRED: "Coupon code is required.",
+  COUPON_NOT_FOUND: "This coupon code does not exist or is invalid.",
+  COUPON_INACTIVE: "This coupon is currently inactive or disabled.",
+  COUPON_NOT_YET_ACTIVE: "This coupon has not reached its scheduled activation date yet.",
+  COUPON_EXPIRED: "This coupon has expired.",
+  COUPON_MAX_REDEMPTIONS_REACHED: "This coupon has reached its maximum global redemption limit.",
+  COUPON_ALREADY_REDEEMED: "You have already used this coupon on your account (1 use per account).",
+  COUPON_INVALID: "Invalid promotional coupon code.",
+};
+
 /**
  * Validates a coupon code server-side for a specific user.
  */
@@ -210,12 +221,14 @@ export async function adminCreateCoupon(
     validFrom = new Date(input.validFrom);
   }
 
+  const discountValue = input.discountType === "PLAN_ACCESS" ? 100 : Number(input.discountValue || 0);
+
   return prisma.coupon.create({
     data: {
       code: cleanCode,
       description: input.description || null,
       discountType: input.discountType,
-      discountValue: input.discountValue,
+      discountValue,
       targetPlanId,
       maxRedemptions: input.maxRedemptions ?? 100,
       validFrom,
