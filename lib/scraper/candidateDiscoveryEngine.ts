@@ -20,7 +20,9 @@ import {
   DEFAULT_GEMINI_MODEL,
   FALLBACK_GEMINI_MODEL,
   getEffectiveGeminiApiKey,
+  resolveGeminiApiKey,
 } from "@/lib/ai/modelSelector";
+import { recordAIUsageEvent } from "@/lib/ai/governance/providerGovernance";
 
 export interface CandidateDiscoveredTarget {
   name: string;
@@ -132,21 +134,7 @@ export async function discoverCandidateTargets(
   }
 
   // 2. Resolve AI Credentials
-  let effectiveGeminiKey: string | null = null;
-  if (options?.apiKey) {
-    effectiveGeminiKey = options.apiKey;
-  } else if (options?.userId && typeof window === "undefined") {
-    try {
-      const { getUserGeminiApiKey } = await import("@/lib/db/users");
-      effectiveGeminiKey = await getUserGeminiApiKey(options.userId);
-    } catch {
-      // ignore
-    }
-  }
-
-  if (!effectiveGeminiKey) {
-    effectiveGeminiKey = getEffectiveGeminiApiKey();
-  }
+  const effectiveGeminiKey = await resolveGeminiApiKey(options?.apiKey, options?.userId);
 
   // 3. AI-Driven Open-Domain Synthesis
   if (effectiveGeminiKey) {
@@ -199,6 +187,7 @@ Output strictly a valid JSON array:
 Do NOT default to tech startups unless the query is specifically about tech or software.`;
 
       let text: string | undefined;
+      const tModelStart = Date.now();
       try {
         const res = await ai.models.generateContent({
           model: DEFAULT_GEMINI_MODEL,
@@ -206,22 +195,69 @@ Do NOT default to tech startups unless the query is specifically about tech or s
           config: { temperature: 0.1 },
         });
         text = res.text;
-      } catch {
+        if (options?.userId && typeof window === "undefined") {
+          const usage = res.usageMetadata;
+          await recordAIUsageEvent({
+            userId: options.userId,
+            provider: "Google Gemini",
+            model: DEFAULT_GEMINI_MODEL,
+            operation: "STRUCTURED_EXTRACTION",
+            inputTokens: usage?.promptTokenCount || 0,
+            outputTokens: usage?.candidatesTokenCount || 0,
+            totalTokens: usage?.totalTokenCount || 0,
+            durationMs: Date.now() - tModelStart,
+            status: "SUCCESS",
+          }).catch((uErr) => console.warn("[CandidateDiscoveryEngine] Failed to record AI usage:", uErr));
+        }
+      } catch (primaryErr) {
         // Fallback model
-        const fallbackRes = await ai.models.generateContent({
-          model: FALLBACK_GEMINI_MODEL,
-          contents: prompt,
-          config: { temperature: 0.1 },
-        });
-        text = fallbackRes.text;
+        try {
+          const fallbackRes = await ai.models.generateContent({
+            model: FALLBACK_GEMINI_MODEL,
+            contents: prompt,
+            config: { temperature: 0.1 },
+          });
+          text = fallbackRes.text;
+          if (options?.userId && typeof window === "undefined") {
+            const usage = fallbackRes.usageMetadata;
+            await recordAIUsageEvent({
+              userId: options.userId,
+              provider: "Google Gemini",
+              model: FALLBACK_GEMINI_MODEL,
+              operation: "STRUCTURED_EXTRACTION",
+              inputTokens: usage?.promptTokenCount || 0,
+              outputTokens: usage?.candidatesTokenCount || 0,
+              totalTokens: usage?.totalTokenCount || 0,
+              durationMs: Date.now() - tModelStart,
+              status: "SUCCESS",
+            }).catch((uErr) => console.warn("[CandidateDiscoveryEngine] Failed to record fallback AI usage:", uErr));
+          }
+        } catch (fallbackErr) {
+          throw fallbackErr;
+        }
       }
 
       if (text) {
         const clean = text.replace(/```json|```/gi, "").trim();
         rawOrgs = JSON.parse(clean);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn("[CandidateDiscoveryEngine] LLM entity synthesis failed, using domain taxonomy fallback:", err);
+      if (options?.userId && typeof window === "undefined") {
+        const isQuota = err?.message?.includes("quota") || err?.status === 429;
+        const status = isQuota ? "RATE_LIMITED" : "FAILED";
+        await recordAIUsageEvent({
+          userId: options.userId,
+          provider: "Google Gemini",
+          model: DEFAULT_GEMINI_MODEL,
+          operation: "STRUCTURED_EXTRACTION",
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          status,
+          errorMessage: String(err?.message || err).slice(0, 500),
+        }).catch((uErr) => console.warn("[CandidateDiscoveryEngine] Failed to record failure AI usage:", uErr));
+      }
     }
 
     if (rawOrgs.length > 0) {

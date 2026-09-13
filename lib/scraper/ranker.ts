@@ -21,11 +21,25 @@ export interface ScoreBreakdown {
   verification: number;
 }
 
+export type OpportunityMatchType =
+  | "EXACT_MATCH"
+  | "RECOMMENDED_LOCATION"
+  | "RECOMMENDED_SIMILAR_ROLE"
+  | "RECOMMENDED";
+
+export interface MatchBadgeInfo {
+  type: OpportunityMatchType;
+  label: string;
+  tagline: string;
+}
+
 export interface RankedOpportunity {
   opportunity: DeduplicatedOpportunity;
   totalScore: number;
   rankPosition: number;
   breakdown: ScoreBreakdown;
+  matchType?: OpportunityMatchType;
+  matchBadge?: MatchBadgeInfo;
 }
 
 /**
@@ -226,6 +240,66 @@ export interface RankerOptions {
   sortMode?: "RELEVANCE" | "LATEST" | "RELEVANCE_THEN_FRESHNESS";
   minimumScore?: number;
   sourceQualityBoosts?: Record<string, number>;
+  applyDiversityCap?: boolean;
+}
+
+/**
+ * Determines whether an opportunity is an Exact Match or a Recommendation
+ * based on role similarity, location relaxation, and score thresholds.
+ */
+export function determineMatchBadge(
+  opp: DeduplicatedOpportunity,
+  intent: SearchIntent,
+  breakdown: ScoreBreakdown,
+  totalScore: number
+): MatchBadgeInfo {
+  const targetLocation = (intent.location || (intent.locations && intent.locations[0]) || "").toLowerCase().trim();
+  const oppLocation = (opp.location || "").toLowerCase().trim();
+
+  // Check if location was specified and differs
+  let hasLocationMismatch = false;
+  if (targetLocation && targetLocation !== "remote" && targetLocation !== "anywhere") {
+    if (!oppLocation.includes(targetLocation) && !targetLocation.includes(oppLocation)) {
+      hasLocationMismatch = true;
+    }
+  }
+
+  // 1. Location Mismatch -> Recommendation (Alternative Location / Remote)
+  if (hasLocationMismatch) {
+    const isRemote = (opp.workMode || "").toUpperCase() === "REMOTE" || oppLocation.includes("remote");
+    return {
+      type: "RECOMMENDED_LOCATION",
+      label: "Recommendation",
+      tagline: isRemote
+        ? `Alternative Location • Remote Opportunity`
+        : `Alternative Location • ${opp.location || "Other Hub"}`,
+    };
+  }
+
+  // 2. Role partial match (adjacent role or skill fit) -> Recommendation (Similar Role)
+  if (breakdown.role > 0 && breakdown.role < 25) {
+    return {
+      type: "RECOMMENDED_SIMILAR_ROLE",
+      label: "Recommendation",
+      tagline: "Similar Role • Adjacent Skill Fit",
+    };
+  }
+
+  // 3. Overall match score lower than 70 -> General Recommendation
+  if (totalScore < 70) {
+    return {
+      type: "RECOMMENDED",
+      label: "Recommendation",
+      tagline: "Suggested Career Match",
+    };
+  }
+
+  // 4. Default: Verified Exact Match
+  return {
+    type: "EXACT_MATCH",
+    label: "Exact Match",
+    tagline: "Matches Role & Search Criteria",
+  };
 }
 
 /**
@@ -248,18 +322,16 @@ export function rankOpportunities(
     const verification = calculateVerificationScore(opp, options.sourceQualityBoosts);
 
     const totalScore = Math.min(100, Math.max(0, role + skills + workMode + freshness + verification));
+    const breakdown = { role, skills, workMode, freshness, verification };
+    const badgeInfo = determineMatchBadge(opp, intent, breakdown, totalScore);
 
     return {
       opportunity: opp,
       totalScore,
       rankPosition: 0,
-      breakdown: {
-        role,
-        skills,
-        workMode,
-        freshness,
-        verification,
-      },
+      breakdown,
+      matchType: badgeInfo.type,
+      matchBadge: badgeInfo,
     };
   });
 
@@ -304,9 +376,115 @@ export function rankOpportunities(
     ? scoredList.filter((item) => item.totalScore >= minScore)
     : scoredList;
 
+  // Apply 40% maximum per-source diversity cap when multi-source candidates are available
+  const diversifiedList = options.applyDiversityCap !== false
+    ? applySourceDiversityCap(filteredList, 0.40)
+    : filteredList;
+
   // Assign 1-indexed rank positions
-  return filteredList.map((item, idx) => ({
+  return diversifiedList.map((item, idx) => ({
     ...item,
     rankPosition: idx + 1,
   }));
 }
+
+/**
+ * Applies a 40% maximum per-source diversity cap across multi-source candidate pools
+ * so high-volume providers (e.g. LinkedIn) do not monopolize top result tiers when
+ * ATS Direct, Y Combinator, Hacker News, or GitHub Curated candidates are available.
+ */
+export function applySourceDiversityCap(
+  rankedList: RankedOpportunity[],
+  maxSourceShare: number = 0.40
+): RankedOpportunity[] {
+  if (!rankedList || rankedList.length <= 2) return rankedList;
+
+  const getSource = (item: RankedOpportunity): string => {
+    return (item.opportunity.sourceListings?.[0]?.sourcePlatform || "Unknown").toLowerCase().trim();
+  };
+
+  const distinctSources = new Set(rankedList.map(getSource));
+  if (distinctSources.size <= 1) {
+    return rankedList;
+  }
+
+  const result: RankedOpportunity[] = [];
+  const remaining = [...rankedList];
+  const pageSize = 10;
+  const numPages = Math.ceil(remaining.length / pageSize);
+
+  for (let p = 0; p < numPages; p++) {
+    const currentWindowTarget = Math.min(pageSize, remaining.length);
+    if (currentWindowTarget === 0) break;
+
+    const windowCap = Math.max(2, Math.ceil(currentWindowTarget * maxSourceShare));
+    const windowSourceCounts: Record<string, number> = {};
+    const windowItems: RankedOpportunity[] = [];
+
+    // Phase 1: Greedily select top candidates respecting the 40% cap
+    for (let i = 0; i < remaining.length; i++) {
+      if (windowItems.length >= currentWindowTarget) break;
+      const item = remaining[i];
+      const src = getSource(item);
+      const count = windowSourceCounts[src] || 0;
+      if (count < windowCap) {
+        windowItems.push(item);
+        windowSourceCounts[src] = count + 1;
+        remaining.splice(i, 1);
+        i--;
+      }
+    }
+
+    // Phase 2: If cap constrained selection and slots remain, fill with next best candidates regardless of source
+    while (windowItems.length < currentWindowTarget && remaining.length > 0) {
+      windowItems.push(remaining.shift()!);
+    }
+
+    result.push(...windowItems);
+  }
+
+  return result;
+}
+
+/**
+ * Enhanced RAG ranking that blends deterministic 100-point scoring
+ * with semantic dense vector similarity from Google Gemini embeddings.
+ */
+export async function rankOpportunitiesWithVectorRAG(
+  opportunities: DeduplicatedOpportunity[],
+  intent: SearchIntent,
+  options: RankerOptions & { apiKey?: string | null } = {}
+): Promise<RankedOpportunity[]> {
+  const baseRanked = rankOpportunities(opportunities, intent, options);
+  if (baseRanked.length === 0) return [];
+
+  try {
+    const { computeSemanticSimilarity } = await import("@/lib/ai/rag/semanticRanker");
+    const queryText = [intent.role, ...(intent.skills || []), intent.location].filter(Boolean).join(" ");
+
+    const enhanced = await Promise.all(
+      baseRanked.map(async (item) => {
+        const oppText = `${item.opportunity.title} at ${item.opportunity.companyName}. ${item.opportunity.description?.slice(0, 300) || ""}`;
+        const semanticSim = await computeSemanticSimilarity(queryText, oppText, options.apiKey);
+
+        // Blend up to 10 points of semantic boost if similarity is high
+        const semanticBoost = Math.round(semanticSim * 10);
+        const newScore = Math.min(100, item.totalScore + semanticBoost);
+        const newBadge = determineMatchBadge(item.opportunity, intent, item.breakdown, newScore);
+
+        return {
+          ...item,
+          totalScore: newScore,
+          matchType: newBadge.type,
+          matchBadge: newBadge,
+        };
+      })
+    );
+
+    enhanced.sort((a, b) => b.totalScore - a.totalScore);
+    return enhanced.map((item, idx) => ({ ...item, rankPosition: idx + 1 }));
+  } catch {
+    return baseRanked;
+  }
+}
+

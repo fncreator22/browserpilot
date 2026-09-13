@@ -17,6 +17,7 @@ import { isWithinFreshnessWindow, parsePostingDate } from "./freshnessExtractor"
 import { verifyEvidenceForOpportunities, type VerificationTelemetry } from "./evidenceVerifier";
 import { evaluateCandidateQualityGate, type QualityGateEvaluation } from "./searchQualityGate";
 import { globalVerificationSandbox } from "@/lib/ai/verification";
+import { careerBrainService } from "@/lib/discovery/taxonomy/careerBrainService";
 import {
   createSearch,
   upsertOpportunity,
@@ -106,19 +107,83 @@ export async function executeSearchPipeline(
     };
   }
 
-  // 1. Resolve DiscoveryPlan from Query or Intent
+  // 1. Resolve User Profile & DiscoveryPlan from Query or Intent
+  let resolvedProfile = options.profile;
+  if (!resolvedProfile && options.userId) {
+    try {
+      const { getUserProfile } = await import("@/lib/db/onboarding");
+      const dbProfile = await getUserProfile(options.userId);
+      if (dbProfile) {
+        resolvedProfile = {
+          skills: dbProfile.targetSkills,
+          preferredLocations: dbProfile.preferredLocations,
+          preferredWorkMode: dbProfile.preferredWorkModes?.[0] || "ANY",
+          targetRoles: dbProfile.preferredRoles,
+          experienceLevel: (dbProfile.experienceLevel as any) || undefined,
+        };
+      }
+    } catch (err) {
+      console.warn("[SearchPipeline] Could not hydrate user profile preferences:", err);
+    }
+  }
+
   let plan: DiscoveryPlan;
   let intent: SearchIntent;
 
   if (typeof queryOrIntent === "string") {
     intent = parseSearchIntent(queryOrIntent);
-    plan = options.plan || buildDiscoveryPlan(queryOrIntent, {}, options.profile);
+    // Merge user profile preferences additively when query omits specific criteria
+    if (resolvedProfile) {
+      if (!intent.location && resolvedProfile.preferredLocations?.length) {
+        intent.location = resolvedProfile.preferredLocations[0];
+        intent.locations = [...resolvedProfile.preferredLocations];
+      }
+      if ((!intent.workMode || intent.workMode === "ANY") && resolvedProfile.preferredWorkMode && resolvedProfile.preferredWorkMode !== "ANY") {
+        intent.workMode = resolvedProfile.preferredWorkMode;
+        intent.workModes = [resolvedProfile.preferredWorkMode];
+      }
+      if ((!intent.role || intent.role === "Job Search") && resolvedProfile.targetRoles?.length) {
+        intent.role = resolvedProfile.targetRoles[0];
+        intent.roles = [...resolvedProfile.targetRoles];
+      }
+      if (resolvedProfile.skills?.length) {
+        const currentSkills = new Set(intent.skills || []);
+        for (const s of resolvedProfile.skills) {
+          if (currentSkills.size >= 6) break;
+          currentSkills.add(s);
+        }
+        intent.skills = Array.from(currentSkills);
+      }
+    }
+    plan = options.plan || buildDiscoveryPlan(queryOrIntent, {}, resolvedProfile);
   } else {
-    intent = queryOrIntent;
+    intent = { ...queryOrIntent };
+    if (resolvedProfile) {
+      if (!intent.location && resolvedProfile.preferredLocations?.length) {
+        intent.location = resolvedProfile.preferredLocations[0];
+        intent.locations = [...resolvedProfile.preferredLocations];
+      }
+      if ((!intent.workMode || intent.workMode === "ANY") && resolvedProfile.preferredWorkMode && resolvedProfile.preferredWorkMode !== "ANY") {
+        intent.workMode = resolvedProfile.preferredWorkMode;
+        intent.workModes = [resolvedProfile.preferredWorkMode];
+      }
+      if ((!intent.role || intent.role === "Job Search") && resolvedProfile.targetRoles?.length) {
+        intent.role = resolvedProfile.targetRoles[0];
+        intent.roles = [...resolvedProfile.targetRoles];
+      }
+      if (resolvedProfile.skills?.length) {
+        const currentSkills = new Set(intent.skills || []);
+        for (const s of resolvedProfile.skills) {
+          if (currentSkills.size >= 6) break;
+          currentSkills.add(s);
+        }
+        intent.skills = Array.from(currentSkills);
+      }
+    }
     const effectiveRaw = options.rawQuery || queryOrIntent.queryHint || queryOrIntent.role || "Job Search";
     plan =
       options.plan ||
-      buildDiscoveryPlan(effectiveRaw, queryOrIntent, options.profile);
+      buildDiscoveryPlan(effectiveRaw, intent, resolvedProfile);
   }
 
   // 2. Swarm Discovery Harvesting across Pluggable Providers (TASK-003 & TASK-013)
@@ -214,6 +279,20 @@ export async function executeSearchPipeline(
 
   // 4. 3-Tier Multi-Source Deduplication (TASK-004)
   const deduplicatedOpps = deduplicateCandidates(eligibleCandidates as any);
+
+  // Self-Expanding Career Brain: Learn novel roles, co-occurring skills, and portal frequencies
+  if (deduplicatedOpps.length > 0) {
+    careerBrainService.learnFromDiscoveredJobs(
+      deduplicatedOpps.map((o) => ({
+        title: o.title,
+        skills: o.skills,
+        sourcePlatform: o.sourceListings?.[0]?.sourcePlatform || "Web",
+      })),
+      "SearchPipeline"
+    ).catch((err) => {
+      console.warn("[SearchPipeline] Career brain learning non-fatal warning:", err);
+    });
+  }
 
   // 5. Freshness-Aware 100-Point Relevance Ranking (TASK-004 & TASK-013)
   let allRanked = rankOpportunities(deduplicatedOpps, intent, {

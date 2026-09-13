@@ -22,6 +22,27 @@ export interface ResultVerificationEvaluation {
   };
 }
 
+export const BOT_DETECTION_AND_ERROR_PATTERNS: RegExp[] = [
+  /if this persists, please email us/i,
+  /anonymized error code/i,
+  /understand the context of your search/i,
+  /please verify you are a human/i,
+  /verify (?:that )?you are human/i,
+  /attention required.*cloudflare/i,
+  /cloudflare ray id/i,
+  /ddos-guard/i,
+  /\bcaptcha\b/i,
+  /\baccess denied\b/i,
+  /\b403 forbidden\b/i,
+  /\b429 too many requests\b/i,
+  /\brate limit(?:ed)?\b/i,
+  /security check to access/i,
+  /unusual traffic from your computer network/i,
+  /our systems have detected unusual traffic/i,
+  /enable javascript and cookies to continue/i,
+  /just a moment\.\.\./i,
+];
+
 export class ResultVerifier {
   /**
    * Evaluates whether the execution output actually answered the user's goal
@@ -31,12 +52,37 @@ export class ResultVerifier {
     const satisfiedCriteria: string[] = [];
     const missingFields: string[] = [];
 
+    // 0. Bot Detection / CAPTCHA / Rate Limit Inspection across all observations
+    for (const obs of observations) {
+      const textsToCheck = [
+        obs.title || "",
+        obs.pageSummary || "",
+        typeof obs.extractedData === "string" ? obs.extractedData : JSON.stringify(obs.extractedData || ""),
+        obs.error?.message || "",
+        obs.error?.userMessage || "",
+      ];
+      for (const text of textsToCheck) {
+        if (!text) continue;
+        const matchedPattern = BOT_DETECTION_AND_ERROR_PATTERNS.find((p) => p.test(text));
+        if (matchedPattern) {
+          return {
+            status: "BLOCKED",
+            confidence: 0.0,
+            reason: `Execution encountered bot-detection or access rate-limiting wall (${matchedPattern.source}). Target site prevented automated extraction.`,
+            satisfiedCriteria: [],
+            missingFields: ["AUTOMATED_ACCESS_BLOCKED"],
+            extractedPayload: obs.extractedData,
+          };
+        }
+      }
+    }
+
     // 1. Check for Blocked or Verification Wall
     const blockedObs = observations.find((o) => o.status === "BLOCKED");
     if (blockedObs) {
       return {
         status: "BLOCKED",
-        confidence: 1.0,
+        confidence: 0.0,
         reason: blockedObs.error?.userMessage || "Execution was halted due to a security verification or auth wall.",
         satisfiedCriteria: [],
         missingFields: ["ALL_FIELDS_BLOCKED"],
@@ -104,14 +150,27 @@ export class ResultVerifier {
       clickObs.length > 0;
 
     // Full Verification Check
+    const isSubstantiveData = payloadStr.trim().length >= 20;
+
     if (
-      (hasData && missingFields.length === 0 && (expectedFields.length === 0 || satisfiedCriteria.length >= expectedFields.length)) ||
+      (hasData && isSubstantiveData && missingFields.length === 0 && expectedFields.length > 0 && satisfiedCriteria.length >= expectedFields.length) ||
       (isPureInteraction && satisfiedCriteria.length > 0 && missingFields.length === 0)
     ) {
       return {
         status: "VERIFIED",
         confidence: 0.95,
-        reason: "Execution successfully satisfied all goal criteria and verified target data.",
+        reason: "Execution successfully satisfied all goal criteria and verified target data against expected schema.",
+        satisfiedCriteria,
+        missingFields: [],
+        extractedPayload: combinedExtractedData,
+      };
+    }
+
+    if (hasData && isSubstantiveData && expectedFields.length === 0 && missingFields.length === 0) {
+      return {
+        status: "VERIFIED",
+        confidence: 0.80,
+        reason: "Extracted substantive data matching execution target, though no explicit schema fields were specified.",
         satisfiedCriteria,
         missingFields: [],
         extractedPayload: combinedExtractedData,
