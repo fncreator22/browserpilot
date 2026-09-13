@@ -6,9 +6,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
-import { redeemCoupon } from "@/lib/billing/couponService";
+import { redeemCoupon, COUPON_ERROR_MESSAGES } from "@/lib/billing/couponService";
 import { rateLimiter } from "@/lib/security/rateLimiter";
 import { recordSecurityEvent } from "@/lib/security/auditLog";
+import { prisma } from "@/lib/db/prisma";
 import { z } from "zod";
 
 const RedeemCouponSchema = z.object({
@@ -21,18 +22,49 @@ export async function POST(req: Request) {
     const sessionUser = session?.user as { id?: string; email?: string } | undefined;
     const userId = sessionUser?.id;
 
-    if (!userId) {
+    if (!userId && !sessionUser?.email) {
       return NextResponse.json(
         { error: "UNAUTHORIZED", message: "Authentication required." },
         { status: 401 }
       );
     }
 
-    const rl = await rateLimiter.check(`coupon_redeem_${userId}`, 10, 60);
+    // Resolve or sync active user in database to prevent foreign key errors on coupon_redemptions
+    let activeUserId = userId;
+    let dbUser = userId ? await prisma.user.findUnique({ where: { id: userId } }) : null;
+
+    if (!dbUser && sessionUser?.email) {
+      dbUser = await prisma.user.findUnique({ where: { email: sessionUser.email } });
+      if (!dbUser) {
+        const adminEmails = (process.env.ADMIN_EMAILS || "")
+          .split(",")
+          .map((e) => e.trim().toLowerCase())
+          .filter(Boolean);
+        const isAdmin = adminEmails.includes(sessionUser.email.toLowerCase().trim());
+        dbUser = await prisma.user.create({
+          data: {
+            email: sessionUser.email,
+            name: session?.user?.name || "BrowserPilot User",
+            role: isAdmin ? "ADMIN" : "USER",
+            passwordHash: "oauth_auto_managed",
+          },
+        });
+      }
+      activeUserId = dbUser.id;
+    }
+
+    if (!activeUserId) {
+      return NextResponse.json(
+        { error: "USER_NOT_FOUND", message: "User account could not be found." },
+        { status: 404 }
+      );
+    }
+
+    const rl = await rateLimiter.check(`coupon_redeem_${activeUserId}`, 10, 60);
     if (!rl.success) {
       recordSecurityEvent({
         type: "COUPON_ABUSE_DETECTED",
-        userId,
+        userId: activeUserId,
         path: "/api/account/coupons/redeem",
         details: { action: "burst_coupon_attempt" },
       });
@@ -62,13 +94,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await redeemCoupon(userId, parseResult.data.code);
+    const result = await redeemCoupon(activeUserId, parseResult.data.code);
 
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("[POST /api/account/coupons/redeem] Error:", err);
+    const rawMsg = (err as Error).message || "Failed to redeem coupon.";
+    const friendlyMsg = COUPON_ERROR_MESSAGES[rawMsg] || rawMsg;
+    console.error("[POST /api/account/coupons/redeem] Error:", rawMsg);
     return NextResponse.json(
-      { error: "REDEMPTION_FAILED", message: (err as Error).message || "Failed to redeem coupon." },
+      { error: "REDEMPTION_FAILED", message: friendlyMsg, rawError: rawMsg },
       { status: 400 }
     );
   }

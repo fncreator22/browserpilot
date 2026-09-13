@@ -1,4 +1,4 @@
-﻿/**
+/**
  * §READ-ONLY COUPON VALIDATION REST API
  * POST /api/account/coupons/validate - Validate a coupon without consuming it
  * 
@@ -9,8 +9,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
-import { validateCoupon } from "@/lib/billing/couponService";
+import { validateCoupon, COUPON_ERROR_MESSAGES } from "@/lib/billing/couponService";
 import { rateLimiter } from "@/lib/security/rateLimiter";
+import { prisma } from "@/lib/db/prisma";
 import { z } from "zod";
 
 const ValidateCouponSchema = z.object({
@@ -23,14 +24,44 @@ export async function POST(req: Request) {
     const sessionUser = session?.user as { id?: string; email?: string } | undefined;
     const userId = sessionUser?.id;
 
-    if (!userId) {
+    if (!userId && !sessionUser?.email) {
       return NextResponse.json(
         { error: "UNAUTHORIZED", message: "Authentication required." },
         { status: 401 }
       );
     }
 
-    const rl = await rateLimiter.check(`coupon_validate_${userId}`, 20, 60);
+    let activeUserId = userId;
+    let dbUser = userId ? await prisma.user.findUnique({ where: { id: userId } }) : null;
+
+    if (!dbUser && sessionUser?.email) {
+      dbUser = await prisma.user.findUnique({ where: { email: sessionUser.email } });
+      if (!dbUser) {
+        const adminEmails = (process.env.ADMIN_EMAILS || "")
+          .split(",")
+          .map((e) => e.trim().toLowerCase())
+          .filter(Boolean);
+        const isAdmin = adminEmails.includes(sessionUser.email.toLowerCase().trim());
+        dbUser = await prisma.user.create({
+          data: {
+            email: sessionUser.email,
+            name: session?.user?.name || "BrowserPilot User",
+            role: isAdmin ? "ADMIN" : "USER",
+            passwordHash: "oauth_auto_managed",
+          },
+        });
+      }
+      activeUserId = dbUser.id;
+    }
+
+    if (!activeUserId) {
+      return NextResponse.json(
+        { error: "USER_NOT_FOUND", message: "User account could not be found." },
+        { status: 404 }
+      );
+    }
+
+    const rl = await rateLimiter.check(`coupon_validate_${activeUserId}`, 20, 60);
     if (!rl.success) {
       return NextResponse.json(
         { error: "TOO_MANY_REQUESTS", message: "Too many coupon validation attempts. Please try again in a moment." },
@@ -58,25 +89,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await validateCoupon(parseResult.data.code, userId);
+    const result = await validateCoupon(parseResult.data.code, activeUserId);
 
     if (!result.valid) {
-      const errorMessages: Record<string, string> = {
-        COUPON_CODE_REQUIRED: "Coupon code is required.",
-        COUPON_NOT_FOUND: "Coupon code does not exist or has expired.",
-        COUPON_INACTIVE: "This coupon is currently inactive.",
-        COUPON_NOT_YET_ACTIVE: "This coupon is not active yet.",
-        COUPON_EXPIRED: "This coupon has expired.",
-        COUPON_MAX_REDEMPTIONS_REACHED: "This coupon has reached its maximum global redemption limit.",
-        COUPON_ALREADY_REDEEMED: "You have already redeemed this coupon on your account (1 use per user).",
-      };
-
       return NextResponse.json(
         {
           valid: false,
           code: result.code,
           reason: result.reason || "COUPON_INVALID",
-          message: errorMessages[result.reason || ""] || "This coupon cannot be applied.",
+          message: COUPON_ERROR_MESSAGES[result.reason || ""] || result.reason || "This coupon cannot be applied.",
         },
         { status: 400 }
       );
