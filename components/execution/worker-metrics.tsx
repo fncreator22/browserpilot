@@ -27,7 +27,7 @@ export function WorkerMetrics({
   maxSteps = 15,
   tokensUsed,
   memoryMb,
-  confidenceScore = 95.0,
+  confidenceScore = 0,
 }: WorkerMetricsProps) {
   const hasRealTokens = typeof tokensUsed === "number" && tokensUsed > 0;
   const hasRealMemory = typeof memoryMb === "number" && memoryMb > 0;
@@ -114,10 +114,10 @@ export function WorkerMetrics({
         <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-[11px] font-mono uppercase">Confidence</span>
-            <CheckCheck className="h-3.5 w-3.5 text-emerald-500" />
+            <CheckCheck className={`h-3.5 w-3.5 ${confidenceScore >= 70 ? "text-emerald-500" : confidenceScore >= 40 ? "text-amber-500" : "text-muted-foreground"}`} />
           </div>
           <div className="mt-2">
-            <span className="text-xl font-bold font-mono tracking-tight text-emerald-600 dark:text-emerald-400">
+            <span className={`text-xl font-bold font-mono tracking-tight ${confidenceScore >= 70 ? "text-emerald-600 dark:text-emerald-400" : confidenceScore >= 40 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
               {confidenceScore}%
             </span>
           </div>

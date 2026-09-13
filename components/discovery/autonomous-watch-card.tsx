@@ -87,8 +87,17 @@ export function AutonomousWatchCard({ intent, query, onWatchSaved, className = "
         onWatchSaved(data.watch);
       }
       toast.success("Autonomous Watch Active!", {
-        description: `BrowserPilot will monitor for new opportunities every ${scanIntervalHours} hours and alert you.`,
+        description: `BrowserPilot will monitor for new opportunities every ${scanIntervalHours} hours and alert you. Initial scan running...`,
       });
+
+      // Trigger immediate baseline discovery scan so opportunities populate immediately
+      fetch("/api/discovery/run", { method: "POST" })
+        .then(() => {
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("browserai:refresh-state"));
+          }
+        })
+        .catch(() => {});
     } catch (err: unknown) {
       const msg = (err as Error).message || "An unexpected error occurred.";
       setError(msg);

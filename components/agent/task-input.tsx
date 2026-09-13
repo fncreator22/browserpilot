@@ -93,31 +93,39 @@ const PRESET_TEMPLATES = [
     label: "Remote AI Internships (2026 Batch)",
     icon: Briefcase,
     goal: "Find remote AI and Machine Learning internships for 2026 graduates in India and US at high-growth startups.",
-    domains: "linkedin.com, workatastartup.com, indeed.com",
-    steps: 10,
+    domains: "",
+    steps: 0,
   },
   {
     label: "YC Startup Full Stack Roles",
     icon: Layers,
     goal: "Discover entry-level full stack and frontend engineering opportunities at Y Combinator companies with React and TypeScript.",
-    domains: "workatastartup.com, linkedin.com",
-    steps: 10,
+    domains: "",
+    steps: 0,
   },
   {
-    label: "Hacker News AI Extraction",
+    label: "Data Analyst in Bengaluru (Last 30 Days)",
     icon: Search,
-    goal: "Navigate to news.ycombinator.com, find the top 5 articles discussing Artificial Intelligence or LLMs, extract their titles, authors, point scores, and outbound link URLs into a structured table.",
-    domains: "news.ycombinator.com",
-    steps: 8,
+    goal: "Find data analyst in bengaluru in last 30 days.",
+    domains: "",
+    steps: 0,
   },
   {
-    label: "SaaS Pricing Comparison",
+    label: "Staff & Lead Frontend Engineers",
     icon: Layers,
-    goal: "Inspect pricing pages for popular developer tools, compare monthly vs annual discounts, and extract feature matrices for the Pro and Team tiers.",
-    domains: "github.com, vercel.com",
-    steps: 12,
+    goal: "Search for lead or staff frontend engineer opportunities with React, Next.js, and TypeScript.",
+    domains: "",
+    steps: 0,
   },
 ];
+
+export interface RecommendationItem {
+  label: string;
+  goal: string;
+  icon?: any;
+  domains?: string;
+  steps?: number;
+}
 
 export function TaskInput({
   initialPrompt = "",
@@ -129,9 +137,11 @@ export function TaskInput({
 }: TaskInputProps) {
   const router = useRouter();
   const [prompt, setPrompt] = useState(initialPrompt);
+  const prevInitialPromptRef = useRef(initialPrompt);
 
   useEffect(() => {
-    if (initialPrompt !== undefined) {
+    if (initialPrompt !== undefined && initialPrompt !== prevInitialPromptRef.current) {
+      prevInitialPromptRef.current = initialPrompt;
       setPrompt(initialPrompt);
     }
   }, [initialPrompt]);
@@ -141,19 +151,55 @@ export function TaskInput({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Real-time deterministic intent detection and parsing (Defaults to career search when empty)
-  const isJobDiscovery = useMemo(() => {
-    if (!prompt.trim()) return true;
-    return isOpportunityDiscoveryIntent(prompt);
-  }, [prompt]);
+  // Dynamic recommendations personalized to user career memory & search history
+  const [recommendations, setRecommendations] = useState<RecommendationItem[]>(PRESET_TEMPLATES);
+  const [isPersonalized, setIsPersonalized] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDynamicRecommendations() {
+      try {
+        const res = await fetch("/api/account/recommendations");
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+            const mapped = data.recommendations.map((item: any) => {
+              let IconComponent = Briefcase;
+              if (item.icon === "layers") IconComponent = Layers;
+              else if (item.icon === "search") IconComponent = Search;
+              else if (item.icon === "sparkles") IconComponent = Sparkles;
+              return {
+                label: item.label,
+                goal: item.goal,
+                icon: IconComponent,
+                domains: "",
+                steps: 0,
+              };
+            });
+            setRecommendations(mapped);
+            setIsPersonalized(Boolean(data.personalized));
+          }
+        }
+      } catch {
+        // Silently retain static presets
+      }
+    }
+    loadDynamicRecommendations();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Discover search engine: all queries are processed through deterministic opportunity discovery
+  const isJobDiscovery = true;
   const parsedIntent = useMemo(() => {
-    if (!isJobDiscovery || !prompt.trim()) return null;
+    if (!prompt.trim()) return null;
     try {
       return parseSearchIntent(prompt);
     } catch {
       return null;
     }
-  }, [isJobDiscovery, prompt]);
+  }, [prompt]);
 
   // Refinement overrides state (progressive disclosure)
   const [showRefine, setShowRefine] = useState(false);
@@ -215,174 +261,135 @@ export function TaskInput({
     }, 25000);
 
     // -------------------------------------------------------------------------
-    // 1. ROUTING: Deterministic Opportunity Discovery vs General Browser Agent
+    // Real Opportunity Discovery Search Engine (POST /api/search)
     // -------------------------------------------------------------------------
-    if (isOpportunityDiscoveryIntent(text)) {
-      try {
-        const filters: Record<string, any> = {};
-        if (customFreshness !== null) {
-          if (customFreshness > 0) {
-            filters.freshnessWindowHours = customFreshness;
-            filters.isExplicitFreshness = true;
-          } else {
-            filters.freshnessWindowHours = undefined;
-            filters.isExplicitFreshness = false;
-          }
-        }
-        if (customWorkMode && customWorkMode !== "ANY") {
-          filters.workMode = customWorkMode;
-        }
-        if (customOppType && customOppType !== "ANY") {
-          filters.opportunityType = customOppType;
-        }
-        if (customMinScore !== null) {
-          filters.minimumMatchScore = customMinScore;
-        }
-
-        const res = await fetch("/api/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            query: text,
-            filters: Object.keys(filters).length > 0 ? filters : undefined
-          }),
-          signal: abortCtrl.signal,
-        });
-
-        const execIdHeader = res.headers.get("x-execution-id");
-        if (execIdHeader) {
-          currentExecutionIdRef.current = execIdHeader;
-        }
-
-        const data = await res.json();
-
-        // Late response guard: ignore if cancelled
-        if (abortCtrl.signal.aborted) {
-          return;
-        }
-
-        if (!res.ok) {
-          if (res.status === 401) {
-            if (onOpportunitySearchResult) {
-              onOpportunitySearchResult({
-                searchId: "",
-                status: "UNAUTHORIZED",
-                query: text,
-                errorCode: "UNAUTHORIZED",
-                explanation: data.message || "Authentication required. Please sign in to search.",
-                results: [],
-                metadata: { totalUniqueOpportunities: 0, returnedCount: 0, durationMs: 0, providersAttempted: 0, providersSucceeded: 0, explanation: "" },
-              });
-            }
-            throw new Error(data.message || "Authentication required to search opportunities. Please sign in.");
-          }
-          if (res.status === 499) {
-            // User cancelled
-            return;
-          }
-          throw new Error(data.message || "Failed to execute opportunity discovery search.");
-        }
-
-        if (data.status === "QUEUED" && data.executionId) {
-          currentExecutionIdRef.current = data.executionId;
-          setIsSubmitting(false);
-          if (onExecutionQueued) {
-            onExecutionQueued(data.executionId, text);
-          }
-          return;
-        }
-
-        if (onOpportunitySearchResult) {
-          onOpportunitySearchResult(data);
-        }
-
-        const foundCount = data.metadata?.totalUniqueOpportunities ?? data.results?.length ?? 0;
-        const sourceCount = data.metadata?.providersAttempted || 10;
-
-        if (foundCount === 0) {
-          toast.info("Search Complete", {
-            description: `Search complete - no matches found across your ${sourceCount} sources.`,
-          });
-        } else {
-          toast.success("Opportunities Discovered!", {
-            description: `Found ${foundCount} unique opportunities across ${sourceCount} sources.`,
-          });
-        }
-      } catch (err: unknown) {
-        clearTimeout(timeoutId);
-        const isTimeout = abortCtrl.signal.aborted && ((err as Error).name === "AbortError" || (err as Error).message?.includes("timed out"));
-        if (isTimeout) {
-          const timeoutMsg = "Search timed out: Upstream ATS connectors took too long to respond. Try narrowing your query or retrying.";
-          setSubmitError(timeoutMsg);
-          toast.error("Opportunity Search Error", { description: timeoutMsg });
-          if (onOpportunitySearchResult) {
-            onOpportunitySearchResult(null);
-          }
-          return;
-        }
-        if (abortCtrl.signal.aborted) {
-          // Ignored clean user cancellation
-          return;
-        }
-        const msg = (err as Error).message || "An unexpected error occurred during opportunity search.";
-        setSubmitError(msg);
-        toast.error("Opportunity Search Error", { description: msg });
-        if (onOpportunitySearchResult) {
-          onOpportunitySearchResult(null);
-        }
-      } finally {
-        clearTimeout(timeoutId);
-        setIsSubmitting(false);
-        if (onSearchingChange) onSearchingChange(false);
-      }
-      return;
-    }
-
-    // -------------------------------------------------------------------------
-    // 2. ROUTING: General Playwright Browser Agent Flow
-    // -------------------------------------------------------------------------
+    let searchHandedOffToQueue = false;
     try {
-      const domainsList = parseAllowedDomains(allowedDomains);
+      const filters: Record<string, any> = {};
+      if (customFreshness !== null) {
+        if (customFreshness > 0) {
+          filters.freshnessWindowHours = customFreshness;
+          filters.isExplicitFreshness = true;
+        } else {
+          filters.freshnessWindowHours = undefined;
+          filters.isExplicitFreshness = false;
+        }
+      }
+      if (customWorkMode && customWorkMode !== "ANY") {
+        filters.workMode = customWorkMode;
+      }
+      if (customOppType && customOppType !== "ANY") {
+        filters.opportunityType = customOppType;
+      }
+      if (customMinScore !== null) {
+        filters.minimumMatchScore = customMinScore;
+      }
 
-      const res = await fetch("/api/jobs", {
+      const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: text,
-          allowedDomains: domainsList.length > 0 ? domainsList : undefined,
-          maxStepsBudget: maxSteps,
+        body: JSON.stringify({ 
+          query: text,
+          filters: Object.keys(filters).length > 0 ? filters : undefined
         }),
+        signal: abortCtrl.signal,
       });
+
+      const execIdHeader = res.headers.get("x-execution-id");
+      if (execIdHeader) {
+        currentExecutionIdRef.current = execIdHeader;
+      }
 
       const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to dispatch job to queue");
+      // Late response guard: ignore if cancelled
+      if (abortCtrl.signal.aborted) {
+        return;
       }
 
-      if (data.jobId) {
-        try {
-          sessionStorage.setItem(
-            `browserpilot_dispatched_${data.jobId}`,
-            JSON.stringify({
-              id: data.jobId,
-              prompt: text,
-              allowedDomains: domainsList,
-              maxStepsBudget: maxSteps,
-              status: "QUEUED",
-              progress: 0,
-              createdAt: new Date().toISOString(),
-            })
-          );
-        } catch {
-          // Ignore storage quota errors
+      if (!res.ok) {
+        if (res.status === 401) {
+          if (onOpportunitySearchResult) {
+            onOpportunitySearchResult({
+              searchId: "",
+              status: "UNAUTHORIZED",
+              query: text,
+              errorCode: "UNAUTHORIZED",
+              explanation: data.message || "Authentication required. Please sign in to search.",
+              results: [],
+              metadata: { totalUniqueOpportunities: 0, returnedCount: 0, durationMs: 0, providersAttempted: 0, providersSucceeded: 0, explanation: "" },
+            });
+          }
+          throw new Error(data.message || "Authentication required to search opportunities. Please sign in.");
         }
-        router.push(`/app/jobs/${data.jobId}`);
+        if (res.status === 499) {
+          // User cancelled
+          return;
+        }
+        throw new Error(data.message || "Failed to execute opportunity discovery search.");
+      }
+
+      if (data.status === "QUEUED" && data.executionId) {
+        searchHandedOffToQueue = true;
+        currentExecutionIdRef.current = data.executionId;
+        setIsSubmitting(false);
+        if (onExecutionQueued) {
+          onExecutionQueued(data.executionId, text);
+        }
+        return;
+      }
+
+      if (onOpportunitySearchResult) {
+        onOpportunitySearchResult(data);
+      }
+
+      if (data.status === "MODEL_CONFIGURATION_REQUIRED" || data.errorCode === "MODEL_CONFIGURATION_REQUIRED") {
+        toast.warning("AI Provider Configuration Required", {
+          description: "Connect free Puter AI or add your Gemini API key to run autonomous AI searches.",
+        });
+        return;
+      }
+
+      const foundCount = data.metadata?.totalUniqueOpportunities ?? data.results?.length ?? 0;
+      const sourceCount = data.metadata?.providersAttempted || 10;
+
+      if (foundCount === 0) {
+        toast.info("Search Complete", {
+          description: `Search complete - no matches found across your ${sourceCount} sources.`,
+        });
+      } else {
+        toast.success("Opportunities Discovered!", {
+          description: `Found ${foundCount} unique opportunities across ${sourceCount} sources.`,
+        });
       }
     } catch (err: unknown) {
-      setSubmitError((err as Error).message || "An unexpected error occurred while dispatching the task.");
+      clearTimeout(timeoutId);
+      const isTimeout = abortCtrl.signal.aborted && ((err as Error).name === "AbortError" || (err as Error).message?.includes("timed out"));
+      if (isTimeout) {
+        const timeoutMsg = "Search timed out: Upstream ATS connectors took too long to respond. Try narrowing your query or retrying.";
+        setSubmitError(timeoutMsg);
+        toast.error("Opportunity Search Error", { description: timeoutMsg });
+        if (onOpportunitySearchResult) {
+          onOpportunitySearchResult(null);
+        }
+        return;
+      }
+      if (abortCtrl.signal.aborted) {
+        // Ignored clean user cancellation
+        return;
+      }
+      const msg = (err as Error).message || "An unexpected error occurred during opportunity search.";
+      setSubmitError(msg);
+      toast.error("Opportunity Search Error", { description: msg });
+      if (onOpportunitySearchResult) {
+        onOpportunitySearchResult(null);
+      }
+    } finally {
+      clearTimeout(timeoutId);
       setIsSubmitting(false);
-      if (onSearchingChange) onSearchingChange(false);
+      if (!searchHandedOffToQueue && onSearchingChange) {
+        onSearchingChange(false);
+      }
     }
   };
 
@@ -397,10 +404,10 @@ export function TaskInput({
     }, 50);
   };
 
-  const handleSelectPreset = (preset: typeof PRESET_TEMPLATES[0]) => {
+  const handleSelectPreset = (preset: RecommendationItem) => {
     setPrompt(preset.goal);
-    setAllowedDomains(preset.domains);
-    setMaxSteps(preset.steps);
+    setAllowedDomains(preset.domains || "");
+    setMaxSteps(preset.steps || 15);
   };
 
   return (
@@ -568,7 +575,7 @@ export function TaskInput({
           onSubmit={handleSubmit}
           className="rounded-2xl border border-border/80 bg-white p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow space-y-4"
         >
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div className="flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#1F3D2E]/10 text-[#1F3D2E]">
                 <Bot className="h-3.5 w-3.5 stroke-[1.75]" />
@@ -578,13 +585,14 @@ export function TaskInput({
               </label>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <div 
                 className="group relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border/70 text-[11px] font-sans transition-colors cursor-help bg-white shadow-2xs"
               >
                 <span className={`h-1.5 w-1.5 rounded-full ${isJobDiscovery ? "bg-[#1F3D2E]" : "bg-amber-600 animate-pulse"}`} />
                 <span className={isJobDiscovery ? "text-[#1F3D2E] font-medium" : "text-amber-800 font-medium"}>
-                  {isJobDiscovery ? "Career Search (10 ATS Connectors)" : "General Browser Agent (Playwright)"}
+                  <span className="hidden sm:inline">{isJobDiscovery ? "Career Search (10 ATS Connectors)" : "General Browser Agent (Playwright)"}</span>
+                  <span className="sm:hidden">{isJobDiscovery ? "10 ATS Connectors" : "Browser Agent"}</span>
                 </span>
                 <Info className="h-3 w-3 text-muted-foreground/70 group-hover:text-foreground" />
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-50 w-64 p-2 text-[11px] font-sans rounded-lg bg-slate-900 text-white shadow-lg pointer-events-none text-left">
@@ -607,7 +615,8 @@ export function TaskInput({
                 title="Configure AI Engine, Puter, or BYOK Gemini Key"
               >
                 <Sparkles className="h-3 w-3 stroke-[1.75] text-amber-500" />
-                <span>AI Provider & Keys</span>
+                <span className="hidden xs:inline">AI Provider & Keys</span>
+                <span className="xs:hidden">AI Keys</span>
               </button>
 
               <button
@@ -623,7 +632,8 @@ export function TaskInput({
                 title="Configure Global Monitored Sources & Connectors"
               >
                 <Radio className="h-3 w-3 stroke-[1.75] text-[#1F3D2E]" />
-                <span>Sources & Connectors</span>
+                <span className="hidden xs:inline">Sources & Connectors</span>
+                <span className="xs:hidden">Sources</span>
               </button>
             </div>
           </div>
@@ -828,15 +838,24 @@ export function TaskInput({
           </div>
         )}
 
-        {/* Preset Chips (Shown ONLY when input is empty AND user has no prior search history) */}
-        {!prompt.trim() && !hasSearchHistory && (
+        {/* Preset & Personalized Recommendation Chips */}
+        {!prompt.trim() && (
           <div className="space-y-2">
-            <span className="text-xs font-sans text-muted-foreground font-medium block">
-              Sample discovery queries:
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-sans text-muted-foreground font-medium flex items-center gap-1.5">
+                {isPersonalized ? (
+                  <>
+                    <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                    <span className="font-semibold text-foreground/90">Recommended for you:</span>
+                  </>
+                ) : (
+                  <span>Sample discovery queries:</span>
+                )}
+              </span>
+            </div>
             <div className="flex flex-wrap gap-2">
-              {PRESET_TEMPLATES.map((preset) => {
-                const Icon = preset.icon;
+              {recommendations.map((preset) => {
+                const Icon = preset.icon || Briefcase;
                 return (
                   <button
                     type="button"

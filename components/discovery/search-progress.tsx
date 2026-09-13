@@ -163,6 +163,16 @@ export function SearchProgress({
         }
       });
 
+      // Immediate check on mount in case search completed rapidly
+      fetch(`/api/search/${executionId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && ["COMPLETED", "COMPLETE", "PARTIAL", "STOPPED", "FAILED", "NO_RESULTS"].includes(data.status)) {
+            fetchFinalResults();
+          }
+        })
+        .catch(() => {});
+
       // Fallback Polling (in case SSE drops or client is in an environment blocking SSE)
       fallbackPollInterval = setInterval(async () => {
         if (hasCompletedRef.current) {
@@ -173,14 +183,14 @@ export function SearchProgress({
           const res = await fetch(`/api/search/${executionId}`);
           if (res.ok) {
             const data = await res.json();
-            if (["COMPLETED", "PARTIAL", "STOPPED", "FAILED"].includes(data.status)) {
+            if (["COMPLETED", "COMPLETE", "PARTIAL", "STOPPED", "FAILED", "NO_RESULTS"].includes(data.status)) {
               if (fallbackPollInterval) clearInterval(fallbackPollInterval);
               eventSource?.close();
               fetchFinalResults();
             }
           }
         } catch {}
-      }, 3000);
+      }, 1500);
     } catch (sseErr) {
       console.warn("[SearchProgress] Could not initialize EventSource:", sseErr);
     }
