@@ -243,6 +243,144 @@ export class UserMemoryVault {
       }
     }
 
+    // 3. Hydrate from UserProfile if available (ensures profile career preferences are discoverable as memories)
+    try {
+      if ((prisma as any)?.userProfile) {
+        const profile = await (prisma as any).userProfile.findUnique({
+          where: { userId: cleanUserId },
+        });
+        if (profile) {
+          const parseArray = (v: any): string[] => {
+            if (!v) return [];
+            if (Array.isArray(v)) return v;
+            try {
+              const p = JSON.parse(v);
+              return Array.isArray(p) ? p : [];
+            } catch {
+              return [];
+            }
+          };
+
+          const roles = parseArray(profile.preferredRoles);
+          const locations = parseArray(profile.preferredLocations);
+          const workModes = parseArray(profile.preferredWorkModes);
+          const skills = parseArray(profile.targetSkills);
+
+          const synthesized: UserMemoryItem[] = [];
+
+          if (roles.length > 0) {
+            if (!userStore.has("ROLE_PREFERENCE::preferred_roles")) {
+              synthesized.push({
+                id: `prof_roles_${cleanUserId}`,
+                userId: cleanUserId,
+                category: "ROLE_PREFERENCE",
+                key: "preferred_roles",
+                value: roles.join(", "),
+                confidence: "EXPLICIT",
+                importance: 1.0,
+                lifecycleStatus: "ACTIVE",
+                expiresAt: null,
+                sourceContext: "User Profile Settings",
+                createdAt: profile.createdAt || now,
+                updatedAt: profile.updatedAt || now,
+              });
+            }
+            if (!userStore.has("CAREER_PREFERENCE::target_role")) {
+              synthesized.push({
+                id: `prof_target_role_${cleanUserId}`,
+                userId: cleanUserId,
+                category: "CAREER_PREFERENCE",
+                key: "target_role",
+                value: roles[0],
+                confidence: "EXPLICIT",
+                importance: 1.0,
+                lifecycleStatus: "ACTIVE",
+                expiresAt: null,
+                sourceContext: "User Profile Settings",
+                createdAt: profile.createdAt || now,
+                updatedAt: profile.updatedAt || now,
+              });
+            }
+          }
+
+          if (locations.length > 0 && !userStore.has("LOCATION_PREFERENCE::preferred_locations")) {
+            synthesized.push({
+              id: `prof_locations_${cleanUserId}`,
+              userId: cleanUserId,
+              category: "LOCATION_PREFERENCE",
+              key: "preferred_locations",
+              value: locations.join(", "),
+              confidence: "EXPLICIT",
+              importance: 0.95,
+              lifecycleStatus: "ACTIVE",
+              expiresAt: null,
+              sourceContext: "User Profile Settings",
+              createdAt: profile.createdAt || now,
+              updatedAt: profile.updatedAt || now,
+            });
+          }
+
+          if (workModes.length > 0 && !userStore.has("WORK_MODE_PREFERENCE::preferred_work_modes")) {
+            synthesized.push({
+              id: `prof_workmodes_${cleanUserId}`,
+              userId: cleanUserId,
+              category: "WORK_MODE_PREFERENCE",
+              key: "preferred_work_modes",
+              value: workModes.join(", "),
+              confidence: "EXPLICIT",
+              importance: 0.85,
+              lifecycleStatus: "ACTIVE",
+              expiresAt: null,
+              sourceContext: "User Profile Settings",
+              createdAt: profile.createdAt || now,
+              updatedAt: profile.updatedAt || now,
+            });
+          }
+
+          if (skills.length > 0 && !userStore.has("SKILL_INTEREST::target_skills")) {
+            synthesized.push({
+              id: `prof_skills_${cleanUserId}`,
+              userId: cleanUserId,
+              category: "SKILL_INTEREST",
+              key: "target_skills",
+              value: skills.join(", "),
+              confidence: "EXPLICIT",
+              importance: 0.9,
+              lifecycleStatus: "ACTIVE",
+              expiresAt: null,
+              sourceContext: "User Profile Settings",
+              createdAt: profile.createdAt || now,
+              updatedAt: profile.updatedAt || now,
+            });
+          }
+
+          if (profile.experienceLevel && !userStore.has("CAREER_PREFERENCE::experience_level")) {
+            synthesized.push({
+              id: `prof_exp_${cleanUserId}`,
+              userId: cleanUserId,
+              category: "CAREER_PREFERENCE",
+              key: "experience_level",
+              value: profile.experienceLevel,
+              confidence: "EXPLICIT",
+              importance: 0.85,
+              lifecycleStatus: "ACTIVE",
+              expiresAt: null,
+              sourceContext: "User Profile Settings",
+              createdAt: profile.createdAt || now,
+              updatedAt: profile.updatedAt || now,
+            });
+          }
+
+          for (const item of synthesized) {
+            userStore.set(`${item.category}::${item.key}`, item);
+            activeItems.push(item);
+          }
+        }
+      }
+    } catch {
+      // Non-fatal
+    }
+
 
 
     // Filter by lifecycle and expiration
