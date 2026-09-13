@@ -168,18 +168,35 @@ export function JobDetailSlideOver({
 
             {/* Match Relevance & Reasoning Card */}
             {typeof job.matchScore === "number" && (
-              <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-4 space-y-2">
+              <div className={`rounded-xl border p-4 space-y-2 ${
+                job.matchBadge?.label === "Recommendation" || job.matchType?.startsWith("RECOMMENDED")
+                  ? "border-amber-200/80 bg-amber-50/50"
+                  : "border-emerald-200/80 bg-emerald-50/50"
+              }`}>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-sans font-semibold text-emerald-900 flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5 stroke-[1.75] text-emerald-700" />
-                    Student relevance match
+                  <span className={`text-xs font-sans font-semibold flex items-center gap-1.5 ${
+                    job.matchBadge?.label === "Recommendation" || job.matchType?.startsWith("RECOMMENDED")
+                      ? "text-amber-900"
+                      : "text-emerald-900"
+                  }`}>
+                    <Sparkles className="h-3.5 w-3.5 stroke-[1.75]" />
+                    {job.matchBadge?.label === "Recommendation" ? "AI Recommendation Match" : "Verified Direct Match"}
                   </span>
-                  <span className="text-sm font-mono font-bold text-[#1F3D2E] bg-white border border-emerald-300 px-2 py-0.5 rounded-md">
+                  <span className="text-sm font-mono font-bold text-[#1F3D2E] bg-white border border-border px-2 py-0.5 rounded-md">
                     {Math.round(job.matchScore)}% fit
                   </span>
                 </div>
+                {job.matchBadge?.tagline && (
+                  <p className={`text-xs font-sans font-medium ${
+                    job.matchBadge?.label === "Recommendation" || job.matchType?.startsWith("RECOMMENDED")
+                      ? "text-amber-950/80"
+                      : "text-emerald-950/80"
+                  }`}>
+                    {job.matchBadge.tagline}
+                  </p>
+                )}
                 {job.matchReason && (
-                  <p className="text-xs font-sans text-emerald-950/80 leading-relaxed">
+                  <p className="text-xs font-sans text-muted-foreground leading-relaxed">
                     {job.matchReason}
                   </p>
                 )}
@@ -280,7 +297,7 @@ export function JobDetailSlideOver({
                 size="sm"
                 onClick={onToggleSave}
                 disabled={isSaving}
-                className="h-10 px-4 font-sans text-xs gap-1.5 cursor-pointer border-border/80"
+                className="h-11 sm:h-10 px-4 font-sans text-xs gap-1.5 cursor-pointer border-border/80"
               >
                 {isSaved ? (
                   <>
@@ -301,7 +318,7 @@ export function JobDetailSlideOver({
                 href={effectiveUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 inline-flex items-center justify-center gap-2 h-10 px-5 rounded-lg bg-[#1F3D2E] hover:bg-[#162D22] text-white font-sans font-semibold text-xs shadow-xs transition-colors"
+                className="flex-1 inline-flex items-center justify-center gap-2 h-11 sm:h-10 px-5 rounded-lg bg-[#1F3D2E] hover:bg-[#162D22] text-white font-sans font-semibold text-xs shadow-xs transition-colors"
               >
                 <span>Apply on {conn.displayName}</span>
                 <ExternalLink className="h-3.5 w-3.5" />

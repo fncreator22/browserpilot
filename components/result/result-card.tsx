@@ -12,7 +12,9 @@ import {
   Briefcase,
   Layers,
   ShieldCheck,
-  Globe
+  Globe,
+  AlertTriangle,
+  AlertCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -120,7 +122,6 @@ export function ResultCard({
   const displaySummary = useMemo(() => {
     if (dossierData.overviewText) return dossierData.overviewText;
     if (!summary) return "";
-    // Strip raw markdown link syntax: [Title](url) -> Title
     return cleanCitationMarkers(
       summary
         .replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, "$1")
@@ -128,21 +129,48 @@ export function ResultCard({
     );
   }, [summary, dossierData.overviewText]);
 
+  const isHighConfidence = confidence >= 0.7 && status !== "BLOCKED" && status !== "FAILED";
+  const isMediumConfidence = confidence >= 0.4 && status !== "BLOCKED" && status !== "FAILED";
+
   return (
     <div className="rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-md transition-all space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-border/60">
         <div>
           <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            </span>
+            {isHighConfidence ? (
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              </span>
+            ) : isMediumConfidence ? (
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <AlertCircle className="h-4 w-4" aria-hidden="true" />
+              </span>
+            ) : (
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+              </span>
+            )}
             <h3 className="font-serif text-base sm:text-lg font-bold tracking-tight text-foreground">
               {title}
             </h3>
-            <Badge variant="outline" className="text-[10px] font-mono text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300">
-              {Math.round(confidence * 100)}% Confident
-            </Badge>
+            {isHighConfidence ? (
+              <Badge variant="outline" className="text-[10px] font-mono text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300">
+                {Math.round(confidence * 100)}% Confident
+              </Badge>
+            ) : isMediumConfidence ? (
+              <Badge variant="outline" className="text-[10px] font-mono text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-300">
+                {Math.round(confidence * 100)}% Partial
+              </Badge>
+            ) : status === "BLOCKED" ? (
+              <Badge variant="outline" className="text-[10px] font-mono text-destructive bg-destructive/10 border-destructive/30">
+                Blocked / 0% Confident
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[10px] font-mono text-muted-foreground bg-muted border-border">
+                Unverified ({Math.round(confidence * 100)}%)
+              </Badge>
+            )}
           </div>
           {displaySummary && (
             <p className="text-xs text-muted-foreground mt-2 leading-relaxed max-w-4xl">

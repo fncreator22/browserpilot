@@ -33,7 +33,8 @@ import {
   LogOut,
   Sliders,
   FileText,
-  MessageSquare
+  MessageSquare,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,6 +105,9 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const [hasKey, setHasKey] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingGeminiKey, setIsSavingGeminiKey] = useState(false);
+  const [isRemovingGeminiKey, setIsRemovingGeminiKey] = useState(false);
+  const [isReplacingKey, setIsReplacingKey] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
   // Providers & Usage State
@@ -123,9 +127,11 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const [organizationName, setOrganizationName] = useState("");
   const [organizationSize, setOrganizationSize] = useState("");
   const [preferredRoles, setPreferredRoles] = useState<string[]>([]);
+  const [preferredLocations, setPreferredLocations] = useState<string[]>([]);
   const [preferredWorkModes, setPreferredWorkModes] = useState<string[]>(["REMOTE"]);
   const [targetSkills, setTargetSkills] = useState<string[]>([]);
   const [newRoleInput, setNewRoleInput] = useState("");
+  const [newLocationInput, setNewLocationInput] = useState("");
   const [newSkillInput, setNewSkillInput] = useState("");
   const [isSavingCareerMemory, setIsSavingCareerMemory] = useState(false);
 
@@ -188,6 +194,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               setOrganizationName(data.personalization.organizationName || "");
               setOrganizationSize(data.personalization.organizationSize || "");
               setPreferredRoles(data.personalization.preferredRoles || []);
+              setPreferredLocations(data.personalization.preferredLocations || []);
               setPreferredWorkModes(data.personalization.preferredWorkModes || ["REMOTE"]);
               setTargetSkills(data.personalization.targetSkills || []);
             }
@@ -196,6 +203,35 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         .catch(() => {});
     }
   }, [isOpen, session]);
+
+  // Auto-synchronize browser Puter authentication token to server DB if logged in
+  useEffect(() => {
+    if (isOpen && session?.user && isPuterSignedIn && puterUser?.username) {
+      const hasServerPuter = connectedProviders.some(
+        (p) => p.providerName?.toUpperCase() === "PUTER" && p.status === "ACTIVE"
+      );
+      if (!hasServerPuter) {
+        const token =
+          (typeof window !== "undefined" &&
+            (localStorage.getItem("puter.auth.token.v2") || (window as any).puter?.authToken)) ||
+          undefined;
+        fetch("/api/account/providers/puter", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: puterUser.username,
+            token,
+          }),
+        })
+          .then((res) => {
+            if (res.ok) {
+              loadProvidersAndUsage();
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [isOpen, session, isPuterSignedIn, puterUser?.username, connectedProviders.length]);
 
   // Handle ESC key to close
   useEffect(() => {
@@ -207,6 +243,10 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
+
+  const puterProvider = connectedProviders.find((p) => p.providerName?.toUpperCase() === "PUTER" && p.status === "ACTIVE");
+  const isEffectivePuterConnected = isPuterSignedIn || !!puterProvider;
+  const effectivePuterUsername = puterUser?.username || puterProvider?.accountUsername || "Puter User";
 
   // Categories Definition
   const categories: CategoryNavDef[] = [
@@ -221,7 +261,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
       label: "AI Providers & Keys",
       shortDesc: "Puter OAuth, BYOK Gemini, token budget",
       icon: Sparkles,
-      badge: isPuterSignedIn ? "Puter Active" : hasKey ? "BYOK Active" : undefined,
+      badge: isEffectivePuterConnected ? "Puter Active" : hasKey ? "BYOK Active" : undefined,
     },
     {
       id: "CONNECTORS",
@@ -240,7 +280,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
       label: "Billing & Plans",
       shortDesc: "Subscription tier, quotas, coupons",
       icon: CreditCard,
-      badge: billingData?.plan?.code || "FREE",
+      badge: billingData?.plan?.code === "ENTERPRISE" ? "ENTERPRISE" : (billingData?.plan?.code || "FREE"),
     },
     {
       id: "NOTIFICATIONS",
@@ -290,6 +330,88 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
       loadProvidersAndUsage();
     } catch (err) {
       toast.error((err as Error).message || "Failed to disconnect Puter.");
+    }
+  };
+
+  const handleSaveGeminiKey = async () => {
+    const cleanKey = geminiApiKey.trim();
+    if (!cleanKey) {
+      toast.error("Please enter a valid Gemini API Key.");
+      return;
+    }
+    if (cleanKey.length < 8) {
+      toast.error("Gemini API Key must be at least 8 characters.");
+      return;
+    }
+
+    setIsSavingGeminiKey(true);
+    try {
+      const res = await fetch("/api/account/providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "GEMINI_BYOK",
+          apiKey: cleanKey,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error("Failed to save API key", { description: data.message || "Unknown error" });
+        return;
+      }
+
+      toast.success("Gemini API Key saved and activated successfully!");
+      setGeminiApiKey("");
+      setIsReplacingKey(false);
+      loadProvidersAndUsage();
+      fetch("/api/account/profile")
+        .then((r) => r.json())
+        .then((p) => {
+          if (p && !p.error) {
+            setHasKey(p.hasGeminiKey || false);
+            setMaskedKey(p.maskedKey || null);
+          }
+        })
+        .catch(() => {});
+    } catch (err: unknown) {
+      toast.error("Error saving Gemini key", { description: (err as Error).message });
+    } finally {
+      setIsSavingGeminiKey(false);
+    }
+  };
+
+  const handleRemoveGeminiKey = async () => {
+    setIsRemovingGeminiKey(true);
+    try {
+      const res = await fetch("/api/account/providers?provider=GEMINI_BYOK", {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error("Failed to remove API key", { description: data.message || "Unknown error" });
+        return;
+      }
+
+      toast.success("Gemini API Key removed from your account.");
+      setHasKey(false);
+      setMaskedKey(null);
+      setGeminiApiKey("");
+      setIsReplacingKey(false);
+      loadProvidersAndUsage();
+      fetch("/api/account/profile")
+        .then((r) => r.json())
+        .then((p) => {
+          if (p && !p.error) {
+            setHasKey(p.hasGeminiKey || false);
+            setMaskedKey(p.maskedKey || null);
+          }
+        })
+        .catch(() => {});
+    } catch (err: unknown) {
+      toast.error("Error removing Gemini key", { description: (err as Error).message });
+    } finally {
+      setIsRemovingGeminiKey(false);
     }
   };
 
@@ -346,8 +468,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
     e.preventDefault();
     setIsSavingCareerMemory(true);
     try {
-      const res = await fetch("/api/user/profile", {
-        method: "POST",
+      const res = await fetch("/api/account/profile", {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userCategory: userCategory || undefined,
@@ -356,6 +478,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
           organizationName: organizationName || undefined,
           organizationSize: organizationSize || undefined,
           preferredRoles,
+          preferredLocations,
           preferredWorkModes,
           targetSkills,
         }),
@@ -406,16 +529,28 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   // Plan Upgrade Handler
   const handleUpgradePlan = async (planCode: string) => {
     setIsUpgrading(true);
+    const activeCoupon = couponCodeInput.trim().toUpperCase() || undefined;
     try {
       const checkoutRes = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planCode, billingInterval: "MONTHLY" }),
+        body: JSON.stringify({ 
+          planCode, 
+          billingInterval: "MONTHLY",
+          couponCode: activeCoupon,
+        }),
       });
 
       const checkoutData = await checkoutRes.json().catch(() => ({}));
       if (!checkoutRes.ok) {
         toast.error(checkoutData.message || "Failed to initialize checkout.");
+        return;
+      }
+
+      if (checkoutData.freeUpgrade) {
+        toast.success(checkoutData.message || `Upgraded to ${planCode} plan!`);
+        setCouponCodeInput("");
+        loadBilling();
         return;
       }
 
@@ -426,6 +561,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
           orderId: checkoutData.order?.orderId || `order_${Date.now()}`,
           paymentId: `pay_${Date.now()}`,
           planCode,
+          couponCode: activeCoupon,
         }),
       });
 
@@ -436,6 +572,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
       }
 
       toast.success(verifyData.message || `Upgraded to ${planCode} plan!`);
+      setCouponCodeInput("");
       loadBilling();
     } catch (err) {
       toast.error((err as Error).message || "Upgrade error.");
@@ -443,10 +580,6 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
       setIsUpgrading(false);
     }
   };
-
-  const puterProvider = connectedProviders.find((p) => p.providerName?.toUpperCase() === "PUTER" && p.status === "ACTIVE");
-  const isEffectivePuterConnected = isPuterSignedIn || !!puterProvider;
-  const effectivePuterUsername = puterUser?.username || puterProvider?.accountUsername || "Puter User";
 
   // Navigation handlers
   const handleSelectCategory = (catId: ProfileTab) => {
@@ -662,47 +795,151 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               </div>
 
               {hasKey && maskedKey && (
-                <div className="p-3 rounded-lg bg-slate-50 border border-border/60 flex items-center justify-between text-xs font-mono">
-                  <span className="text-muted-foreground">Active Key:</span>
-                  <span className="font-bold text-foreground">{maskedKey}</span>
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-border/70 flex items-center justify-between gap-3 text-xs font-mono flex-wrap">
+                  <div className="space-y-0.5 min-w-[140px]">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider block font-sans">Active Key</span>
+                    <span className="font-bold text-foreground tracking-widest">{maskedKey}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsReplacingKey(!isReplacingKey);
+                        setGeminiApiKey("");
+                      }}
+                      className="h-8 text-xs font-sans border-border/80 hover:bg-muted/50 cursor-pointer"
+                    >
+                      {isReplacingKey ? "Cancel" : "Replace Key"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isRemovingGeminiKey}
+                      onClick={handleRemoveGeminiKey}
+                      className="h-8 text-xs font-sans text-rose-600 border-rose-200/80 hover:bg-rose-50 hover:text-rose-700 cursor-pointer gap-1.5"
+                    >
+                      {isRemovingGeminiKey ? (
+                        <RotateCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                      <span>Remove Key</span>
+                    </Button>
+                  </div>
                 </div>
               )}
 
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground font-sans">
-                  {hasKey ? "Replace Gemini API Key" : "Enter Gemini API Key"}
-                </label>
-                <div className="relative">
-                  <Input
-                    type={showApiKey ? "text" : "password"}
-                    value={geminiApiKey}
-                    onChange={(e) => setGeminiApiKey(e.target.value)}
-                    placeholder="AIzaSy..."
-                    className="font-mono text-xs pr-10 bg-slate-50/50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
-                  >
-                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+              {(!hasKey || isReplacingKey) && (
+                <div className="space-y-3 pt-2 border-t border-border/50">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-muted-foreground font-sans">
+                        {isReplacingKey ? "Enter New Gemini API Key" : "Enter Gemini API Key"}
+                      </label>
+                      <a
+                        href="https://aistudio.google.com/app/apikey"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-primary hover:underline flex items-center gap-1 font-mono"
+                      >
+                        Get free key <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        type={showApiKey ? "text" : "password"}
+                        value={geminiApiKey}
+                        onChange={(e) => setGeminiApiKey(e.target.value)}
+                        placeholder="AIzaSy... (min 8 characters)"
+                        className="font-mono text-xs pr-10 bg-slate-50/50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                      >
+                        {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    {isReplacingKey && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setIsReplacingKey(false);
+                          setGeminiApiKey("");
+                        }}
+                        className="h-8 text-xs font-sans cursor-pointer"
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isSavingGeminiKey || !geminiApiKey.trim()}
+                      onClick={handleSaveGeminiKey}
+                      className="h-8 font-sans text-xs bg-[#1F3D2E] hover:bg-[#162d22] text-white cursor-pointer shadow-xs gap-1.5"
+                    >
+                      {isSavingGeminiKey ? (
+                        <>
+                          <RotateCw className="h-3.5 w-3.5 animate-spin" />
+                          <span>Saving Key...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-3.5 w-3.5" />
+                          <span>{isReplacingKey ? "Update API Key" : "Save Gemini Key"}</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Token Usage Summary */}
             {usageSummary && (
               <div className="rounded-xl border border-border/60 bg-[#FBFBFA] p-4 text-xs font-mono space-y-2">
-                <span className="text-muted-foreground uppercase text-[10px] block">Monthly AI Usage</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground uppercase text-[10px] block font-sans font-semibold">Real AI Telemetry & Usage</span>
+                  {usageSummary.operationsByProvider && Object.keys(usageSummary.operationsByProvider).length > 0 && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {Object.keys(usageSummary.operationsByProvider).join(", ")}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center justify-between">
                   <span>Tokens Consumed:</span>
-                  <span className="font-bold text-foreground">{usageSummary.totalTokens?.toLocaleString() || 0}</span>
+                  <span className="font-bold text-foreground">
+                    {(usageSummary.totalTokensTracked ?? usageSummary.totalTokens ?? 0).toLocaleString()}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Operations Executed:</span>
-                  <span className="font-bold text-foreground">{usageSummary.operationsCount || 0}</span>
+                  <span className="font-bold text-foreground">
+                    {(usageSummary.totalOperations ?? usageSummary.operationsCount ?? 0).toLocaleString()}
+                  </span>
                 </div>
+                {typeof usageSummary.successfulOperations === "number" && (
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/40">
+                    <span>Successful Operations:</span>
+                    <span className="text-emerald-600 font-semibold">{usageSummary.successfulOperations}</span>
+                  </div>
+                )}
+                {Boolean(usageSummary.failedOperations) && (
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>Failed / Rate Limited:</span>
+                    <span className="text-amber-600 font-semibold">{usageSummary.failedOperations}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -804,6 +1041,51 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   ))}
                   {preferredRoles.length === 0 && (
                     <span className="text-xs text-muted-foreground italic font-sans">No target roles specified yet.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Target Locations */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground font-sans">Preferred Locations</label>
+                <div className="flex gap-2">
+                  <Input
+                    value={newLocationInput}
+                    onChange={(e) => setNewLocationInput(e.target.value)}
+                    placeholder="e.g. Hyderabad, Bengaluru, Remote, San Francisco..."
+                    className="font-sans text-xs bg-slate-50/50"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      if (newLocationInput.trim() && !preferredLocations.includes(newLocationInput.trim())) {
+                        setPreferredLocations([...preferredLocations, newLocationInput.trim()]);
+                        setNewLocationInput("");
+                      }
+                    }}
+                    className="font-sans text-xs cursor-pointer bg-slate-100 hover:bg-slate-200"
+                  >
+                    Add
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {preferredLocations.map((loc) => (
+                    <Badge key={loc} variant="secondary" className="font-sans text-xs py-1 px-2.5 gap-1.5 bg-blue-50 text-blue-800 border-blue-200">
+                      <span>{loc}</span>
+                      <button
+                        type="button"
+                        onClick={() => setPreferredLocations(preferredLocations.filter((l) => l !== loc))}
+                        className="hover:text-rose-500 cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                  {preferredLocations.length === 0 && (
+                    <span className="text-xs text-muted-foreground italic font-sans">No target locations specified yet.</span>
                   )}
                 </div>
               </div>
@@ -941,19 +1223,25 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Autonomous Watches:</span>
                   <span className="font-semibold text-foreground">
-                    {billingData?.usage?.activeWatches || 1} / {billingData?.plan?.maxWatches || 1} limit
+                    {typeof billingData?.usage?.activeWatches === "object"
+                      ? (billingData.usage.activeWatches as any)?.used ?? 0
+                      : (billingData?.usage?.activeWatches ?? (billingData?.quota?.activeWatches?.used ?? 1))} / {billingData?.plan?.maxWatches || 1} limit
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Daily Discovery Searches:</span>
                   <span className="font-semibold text-foreground">
-                    {billingData?.usage?.todayDiscoveries || 0} / {billingData?.plan?.maxDailyDiscoveries || 10} daily
+                    {typeof billingData?.usage?.todayDiscoveries === "object"
+                      ? (billingData.usage.todayDiscoveries as any)?.used ?? 0
+                      : (billingData?.usage?.todayDiscoveries ?? (billingData?.quota?.dailyDiscoveries?.used ?? 0))} / {billingData?.plan?.maxDailyDiscoveries || 10} daily
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Monthly AI Operations:</span>
                   <span className="font-semibold text-foreground">
-                    {billingData?.usage?.monthlyAIOperations || 0} / {billingData?.plan?.maxMonthlyAIOperations || 100} monthly
+                    {typeof billingData?.usage?.monthlyAIOperations === "object"
+                      ? (billingData.usage.monthlyAIOperations as any)?.used ?? 0
+                      : (billingData?.usage?.monthlyAIOperations ?? (billingData?.quota?.monthlyAIOperations?.used ?? 0))} / {billingData?.plan?.maxMonthlyAIOperations || 100} monthly
                   </span>
                 </div>
               </div>
@@ -1009,26 +1297,48 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             </div>
 
             {/* Upgrade Plan Action */}
-            {billingData?.plan?.code !== "PREMIUM" && (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-sans font-bold text-emerald-950">Upgrade to Pro Explorer</h3>
-                    <p className="text-xs text-emerald-800 font-sans mt-0.5">
-                      Unlock 10 concurrent autonomous watches, hourly scans, and 2,000 monthly AI operations.
-                    </p>
+            {billingData?.plan?.code !== "PREMIUM" && (() => {
+              const premiumPlan = (billingData as any)?.availablePlans?.find((p: any) => p.code === "PREMIUM");
+              const discountPct = premiumPlan?.discountPercentage || 0;
+              const basePrice = premiumPlan?.priceMonthly ?? 19;
+              const offerPrice = discountPct > 0 ? Math.round(basePrice * (1 - discountPct / 100) * 100) / 100 : basePrice;
+
+              return (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-sans font-bold text-emerald-950">Upgrade to Pro Explorer</h3>
+                        {discountPct > 0 && (
+                          <Badge className="bg-emerald-600 text-white font-mono text-[10px] px-1.5 py-0">
+                            {discountPct}% OFF DEAL
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-emerald-800 font-sans mt-0.5">
+                        Unlock 10 concurrent autonomous watches, hourly scans, and 2,000 monthly AI operations.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => handleUpgradePlan("PREMIUM")}
+                      disabled={isUpgrading}
+                      className="font-sans text-xs font-semibold bg-emerald-800 hover:bg-emerald-900 text-white cursor-pointer shrink-0 shadow-xs"
+                    >
+                      {isUpgrading ? (
+                        "Processing..."
+                      ) : discountPct > 0 ? (
+                        <span>
+                          Upgrade (<span className="line-through opacity-75 mr-1">${basePrice}</span>${offerPrice}/mo)
+                        </span>
+                      ) : (
+                        `Upgrade ($${basePrice}/mo)`
+                      )}
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => handleUpgradePlan("PREMIUM")}
-                    disabled={isUpgrading}
-                    className="font-sans text-xs font-semibold bg-emerald-800 hover:bg-emerald-900 text-white cursor-pointer shrink-0 shadow-xs"
-                  >
-                    {isUpgrading ? "Processing..." : "Upgrade ($19/mo)"}
-                  </Button>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         );
 
