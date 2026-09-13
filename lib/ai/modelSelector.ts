@@ -6,19 +6,23 @@ import { GoogleGenAI } from "@google/genai";
  * Defaults to gemini-2.5-flash (current generation Google GenAI API endpoint).
  */
 export const SUPPORTED_GEMINI_MODELS = [
+  "gemini-3.7-flash",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
+  "gemini-3.5-flash-lite",
   "gemini-2.5-pro",
+  "gemini-2.5-flash",
 ] as const;
 
 export type SupportedGeminiModel = (typeof SUPPORTED_GEMINI_MODELS)[number];
 
-// Default to Gemini 3.6 Flash, fallback to Gemini 3.5 Flash for quota diversification
-export const DEFAULT_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.6-flash";
-export const FALLBACK_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.5-flash";
+// Flagship agent model: Gemini 3.7 Flash; Recommended stable fallback: Gemini 3.6 Flash (per Google API migration guidance)
+export const DEFAULT_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.7-flash";
+export const FALLBACK_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.6-flash";
+export const SECONDARY_FALLBACK_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.5-flash";
+export const BACKGROUND_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.5-flash-lite";
+export const REASONING_GEMINI_MODEL: SupportedGeminiModel = "gemini-2.5-pro";
+export const EMBEDDING_GEMINI_MODEL = "gemini-embedding-001";
 
 /**
  * Get effective Gemini API Key from explicit key or environment
@@ -50,17 +54,7 @@ export async function resolveGeminiApiKey(
       if (userId) {
         const { getUserGeminiApiKey } = await import("@/lib/db/users");
         const userKey = await getUserGeminiApiKey(userId);
-        if (userKey) return userKey;
-      }
-      const { prisma } = await import("@/lib/db/prisma");
-      const { decryptCredential } = await import("@/lib/security/credentialEncryption");
-      const u = await prisma.user.findFirst({
-        where: { geminiApiKey: { not: null } },
-        select: { geminiApiKey: true },
-      });
-      if (u?.geminiApiKey) {
-        const decrypted = decryptCredential(u.geminiApiKey);
-        if (decrypted) return decrypted;
+        return userKey || null;
       }
     } catch {
       // Ignore database lookup failure in isolated execution
