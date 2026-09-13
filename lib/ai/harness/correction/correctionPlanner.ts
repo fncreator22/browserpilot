@@ -17,7 +17,7 @@ import {
   type PlannedSearchAction,
 } from "@/lib/ai/searchPlanner/searchActionPlan";
 import { validateSearchActionPlan } from "@/lib/ai/searchPlanner/searchPlanValidator";
-import { createGeminiClient, getEffectiveGeminiApiKey } from "@/lib/ai/modelSelector";
+import { createGeminiClient, getEffectiveGeminiApiKey, DEFAULT_GEMINI_MODEL, FALLBACK_GEMINI_MODEL, type SupportedGeminiModel } from "@/lib/ai/modelSelector";
 import { recordAIUsageEvent } from "@/lib/ai/governance/providerGovernance";
 import { type SearchIntent } from "@/lib/scraper/providers/baseProvider";
 
@@ -319,10 +319,19 @@ Propose next correction strategy.`;
       setTimeout(() => reject(new Error("CORRECTION_PLANNER_TIMEOUT")), 5000)
     );
 
-    const callPromise = ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-      config: { responseMimeType: "application/json", temperature: 0.1 },
+    let activeModelUsed: SupportedGeminiModel = DEFAULT_GEMINI_MODEL;
+    const executeCall = async (modelToUse: SupportedGeminiModel) => {
+      activeModelUsed = modelToUse;
+      return await ai.models.generateContent({
+        model: modelToUse,
+        contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+        config: { responseMimeType: "application/json", temperature: 0.1 },
+      });
+    };
+
+    const callPromise = executeCall(DEFAULT_GEMINI_MODEL).catch((err) => {
+      console.warn(`[CorrectionPlanner] Primary model ${DEFAULT_GEMINI_MODEL} failed, attempting ${FALLBACK_GEMINI_MODEL}:`, err);
+      return executeCall(FALLBACK_GEMINI_MODEL);
     });
 
     const resp = await Promise.race([callPromise, timeoutPromise]);
@@ -335,7 +344,7 @@ Propose next correction strategy.`;
       await recordAIUsageEvent({
         userId: options.userId,
         provider: "Google Gemini",
-        model: "gemini-2.5-flash",
+        model: activeModelUsed,
         operation: "ACTION_PLANNING",
         inputTokens: usage?.promptTokenCount || 0,
         outputTokens: usage?.candidatesTokenCount || 0,
