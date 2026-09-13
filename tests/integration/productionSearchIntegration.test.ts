@@ -38,6 +38,21 @@ export async function runProductionSearchIntegrationTests() {
 
   await ensureDatabaseSchema();
 
+  // Clean up stale searches from previous test runs to prevent concurrency collisions
+  const testUserIds = [
+    "usr_prod_test_a",
+    "usr_tenant_alpha",
+    "usr_tenant_beta",
+    "usr_real_authoritative",
+    "usr_forged_attacker",
+  ];
+  await prisma.searchResult.deleteMany({
+    where: { search: { userId: { in: testUserIds } } },
+  }).catch(() => {});
+  await prisma.search.deleteMany({
+    where: { userId: { in: testUserIds } },
+  }).catch(() => {});
+
   // Ensure test users exist in DB
   await prisma.user.upsert({
     where: { id: "usr_prod_test_a" },
@@ -394,10 +409,14 @@ export async function runProductionSearchIntegrationTests() {
       persistToDb: true,
     }),
   });
+  // Clean up any searches for test user before running Test 12
+  await prisma.searchResult.deleteMany({ where: { search: { userId: "usr_real_authoritative" } } }).catch(() => {});
+  await prisma.search.deleteMany({ where: { userId: "usr_real_authoritative" } }).catch(() => {});
+
   (forgedReq as any)._customProviders = [mockProviderSuccess];
   const forgedRes = await searchRoutePost(forgedReq);
+  assert.strictEqual(forgedRes.status, 200, "Search succeeds with 200 (Test 12)");
   const forgedJson = await forgedRes.json();
-
   const realSearches = await getUserSearches("usr_real_authoritative", 10);
   const forgedSearches = await getUserSearches("usr_forged_attacker", 10);
 

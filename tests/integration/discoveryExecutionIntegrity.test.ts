@@ -216,7 +216,7 @@ export async function runDiscoveryExecutionIntegrityTests() {
   // TEST K: Stale Lease Recovery (>120s)
   // ---------------------------------------------------------------------------
   console.log("▶ [TEST K] Verifying Stale Worker Lease Recovery...");
-  await prisma.discoveryWatch.update({
+  await prisma.discoveryWatch.updateMany({
     where: { userId: userA.id },
     data: {
       lockedAt: new Date(Date.now() - 180000), // 3 min ago (>120s maxLeaseAge)

@@ -122,7 +122,7 @@ export async function runPostgresProductionSchedulerTests() {
   console.log("▶ [FAULT TOLERANCE] Verifying Stale Lease Recovery After Worker Crash...");
   // Simulate worker crash leaving lockedAt in past (>120s)
   const staleLockedAt = new Date(Date.now() - 180000); // 3 minutes ago
-  await prisma.discoveryWatch.update({
+  await prisma.discoveryWatch.updateMany({
     where: { userId: user1.id },
     data: {
       lockedAt: staleLockedAt,

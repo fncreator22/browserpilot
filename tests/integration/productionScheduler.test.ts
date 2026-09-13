@@ -215,7 +215,7 @@ export async function runProductionSchedulerIntegrationTests() {
   // 5. Test Stale Lock Auto-Recovery on Worker Crash
   // Artificially lock User A with a timestamp from 5 minutes ago
   const fiveMinAgo = new Date(Date.now() - 300000);
-  await prisma.discoveryWatch.update({
+  await prisma.discoveryWatch.updateMany({
     where: { userId: userProdA.id },
     data: {
       lockedAt: fiveMinAgo,
