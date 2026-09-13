@@ -11,13 +11,17 @@ import {
   ArrowRight,
   Info,
   RotateCw,
-  ShieldCheck
+  ShieldCheck,
+  Zap,
+  Key,
+  Globe,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 interface SearchStatusBannerProps {
-  status: "COMPLETE" | "PARTIAL" | "NO_RESULTS" | "FAILED" | string;
+  status: "COMPLETE" | "PARTIAL" | "NO_RESULTS" | "FAILED" | "MODEL_CONFIGURATION_REQUIRED" | string;
   requestedCount?: number;
   verifiedCount?: number;
   explanation?: string;
@@ -25,6 +29,10 @@ interface SearchStatusBannerProps {
   sourceNotice?: string;
   errorCode?: string;
   onRetry?: () => void;
+  onOpenProviders?: () => void;
+  onConnectPuter?: () => void;
+  onRunFallbackScraper?: () => void;
+  isPuterAuthenticating?: boolean;
   className?: string;
 }
 
@@ -58,8 +66,73 @@ export function SearchStatusBanner({
   sourceNotice,
   errorCode,
   onRetry,
+  onOpenProviders,
+  onConnectPuter,
+  onRunFallbackScraper,
+  isPuterAuthenticating,
   className = "",
 }: SearchStatusBannerProps) {
+  // Case 0: MODEL_CONFIGURATION_REQUIRED (Strict AI mode enforcement)
+  if (errorCode === "MODEL_CONFIGURATION_REQUIRED" || status === "MODEL_CONFIGURATION_REQUIRED") {
+    return (
+      <div className={`rounded-xl border border-amber-500/40 bg-amber-500/10 p-5 space-y-4 ${className}`}>
+        <div className="flex items-start gap-3.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400 shrink-0 mt-0.5">
+            <Sparkles className="h-5 w-5" />
+          </div>
+          <div className="space-y-1.5 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="text-sm font-semibold text-foreground">
+                Autonomous AI Agent Configuration Required
+              </h4>
+              <Badge variant="outline" className="font-mono text-[10px] border-amber-500/40 text-amber-400 bg-amber-500/10">
+                Strict AI Active
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {explanation || "To execute genuine agentic searches (intent parsing, multi-source strategy planning, and semantic evidence verification) without silent scraper degradation, an AI backend connection is required."}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-amber-500/20">
+          {onConnectPuter && (
+            <Button
+              size="sm"
+              onClick={onConnectPuter}
+              disabled={isPuterAuthenticating}
+              className="font-mono text-xs gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white cursor-pointer shadow-sm"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              {isPuterAuthenticating ? "Connecting Puter..." : "Connect Free Puter AI (1-Click)"}
+            </Button>
+          )}
+          {onOpenProviders && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onOpenProviders}
+              className="font-mono text-xs gap-1.5 border-border/80 hover:bg-muted/50 cursor-pointer"
+            >
+              <Key className="h-3.5 w-3.5 text-primary" />
+              Configure Gemini API Key
+            </Button>
+          )}
+          {onRunFallbackScraper && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRunFallbackScraper}
+              className="font-mono text-xs gap-1.5 text-muted-foreground hover:text-foreground cursor-pointer sm:ml-auto"
+            >
+              <Globe className="h-3.5 w-3.5" />
+              Run Basic Scraper Only
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
   // Case 1: Unauthorized 401
   if (errorCode === "UNAUTHORIZED" || status === "UNAUTHORIZED") {
     return (
@@ -83,7 +156,32 @@ export function SearchStatusBanner({
     );
   }
 
-  // Case 2: COMPLETE (verifiedCount >= requestedCount)
+  // Case 2: COMPLETE or NO_RESULTS with 0 verifiedCount
+  if (status === "COMPLETE" && verifiedCount === 0) {
+    return (
+      <div className={`rounded-xl border border-border/80 bg-card p-6 text-center space-y-3 ${className}`}>
+        <div className="flex justify-center">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+            <HelpCircle className="h-5 w-5" />
+          </span>
+        </div>
+        <div className="space-y-1">
+          <h4 className="text-sm font-semibold text-foreground">No Verified Opportunities Found</h4>
+          <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
+            {explanation || "We could not find any active job listings that passed our verification Quality Gate matching your exact role, location, and date boundaries."}
+          </p>
+        </div>
+        <div className="pt-1 flex flex-wrap items-center justify-center gap-1.5 text-xs font-sans text-muted-foreground">
+          <span>Suggestions:</span>
+          <span className="px-2 py-0.5 rounded-md bg-muted/70 text-foreground font-medium text-[11px]">Expand date boundary</span>
+          <span className="px-2 py-0.5 rounded-md bg-muted/70 text-foreground font-medium text-[11px]">Include remote positions</span>
+          <span className="px-2 py-0.5 rounded-md bg-muted/70 text-foreground font-medium text-[11px]">Lower match threshold</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Case 2b: COMPLETE with verifiedCount > 0
   if (status === "COMPLETE") {
     return (
       <div className={`rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 space-y-2 ${className}`}>

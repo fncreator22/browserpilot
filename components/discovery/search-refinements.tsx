@@ -50,10 +50,19 @@ export function SearchRefinements({
     });
   }
 
-  if (!queryLower.includes("senior") && !queryLower.includes("intern") && !queryLower.includes("lead")) {
+  const isEntryLevel = queryLower.includes("entry") || queryLower.includes("junior") || queryLower.includes("intern") || queryLower.includes("grad") || queryLower.includes("fresh") || queryLower.includes("0-2");
+  const isSeniorLevel = queryLower.includes("senior") || queryLower.includes("lead") || queryLower.includes("staff") || queryLower.includes("principal");
+
+  if (!isEntryLevel && !isSeniorLevel) {
     refinements.push({
       label: "+ Senior / Lead",
       text: `Senior ${currentQuery.trim()}`,
+      icon: Sparkles,
+    });
+  } else if (isEntryLevel && !queryLower.includes("0-2")) {
+    refinements.push({
+      label: "+ 0-2 YOE only",
+      text: `${currentQuery.trim()} (0-2 years of experience)`,
       icon: Sparkles,
     });
   }
