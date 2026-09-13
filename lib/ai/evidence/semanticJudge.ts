@@ -12,7 +12,7 @@ import {
   SemanticVerificationResultSchema,
 } from "./evidenceTypes";
 import { type DiscoveryPlan } from "@/lib/scraper/discoveryPlanner";
-import { createGeminiClient, getEffectiveGeminiApiKey } from "@/lib/ai/modelSelector";
+import { createGeminiClient, getEffectiveGeminiApiKey, resolveGeminiApiKey, DEFAULT_GEMINI_MODEL, FALLBACK_GEMINI_MODEL, SECONDARY_FALLBACK_GEMINI_MODEL } from "@/lib/ai/modelSelector";
 import { recordAIUsageEvent } from "@/lib/ai/governance/providerGovernance";
 
 function escapeXml(str: string): string {
@@ -102,6 +102,7 @@ export interface SemanticJudgeOptions {
   timeoutMs?: number;
   forceDeterministic?: boolean;
   userId?: string | null;
+  apiKey?: string | null;
   signal?: AbortSignal;
 }
 
@@ -136,8 +137,11 @@ export async function evaluateSemanticEvidence(
   }
 
   // If deterministic was requested or in test harness without live LLM
-  const apiKey = getEffectiveGeminiApiKey();
-  const isTestHarness = process.env.IS_TEST_HARNESS === "true" || process.env.NODE_ENV === "test";
+  const apiKey = await resolveGeminiApiKey(options.apiKey, options.userId);
+  const isTestHarness =
+    (process.env.IS_TEST_HARNESS === "true" || process.env.NODE_ENV === "test") &&
+    !options.apiKey &&
+    !process.env.TEST_ALLOW_LIVE_AI;
 
   if (options.forceDeterministic || !apiKey || isTestHarness) {
     return evaluateDeterministicSemanticFallback(evidence, plan, deterministicResult, Date.now() - t0);
@@ -206,15 +210,29 @@ Evaluate semantic role equivalence, location wording, and scope alignment.`;
       setTimeout(() => reject(new Error("SEMANTIC_JUDGE_TIMEOUT")), timeoutMs)
     );
 
-    const callPromise = ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [
-        { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] },
-      ],
-      config: {
-        responseMimeType: "application/json",
-        temperature: 0.1,
-      },
+    let effectiveModelUsed: string = DEFAULT_GEMINI_MODEL;
+    const executeCall = async (modelToUse: string) => {
+      effectiveModelUsed = modelToUse;
+      return await ai.models.generateContent({
+        model: modelToUse,
+        contents: [
+          { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] },
+        ],
+        config: {
+          responseMimeType: "application/json",
+          temperature: 0.1,
+        },
+      });
+    };
+
+    const callPromise = executeCall(DEFAULT_GEMINI_MODEL).catch(async (err) => {
+      console.warn(`[SemanticJudge] Primary model ${DEFAULT_GEMINI_MODEL} failed, attempting ${FALLBACK_GEMINI_MODEL}:`, err);
+      try {
+        return await executeCall(FALLBACK_GEMINI_MODEL);
+      } catch (fbErr) {
+        console.warn(`[SemanticJudge] Fallback ${FALLBACK_GEMINI_MODEL} failed, attempting ${SECONDARY_FALLBACK_GEMINI_MODEL}:`, fbErr);
+        return await executeCall(SECONDARY_FALLBACK_GEMINI_MODEL);
+      }
     });
 
     const response = await Promise.race([callPromise, timeoutPromise]);
@@ -229,7 +247,7 @@ Evaluate semantic role equivalence, location wording, and scope alignment.`;
       await recordAIUsageEvent({
         userId: options.userId,
         provider: "Google Gemini",
-        model: "gemini-2.5-flash",
+        model: effectiveModelUsed,
         operation: "DISCOVERY_RANKING",
         inputTokens: usage?.promptTokenCount || 0,
         outputTokens: usage?.candidatesTokenCount || 0,
@@ -248,10 +266,26 @@ Evaluate semantic role equivalence, location wording, and scope alignment.`;
       evidenceRefs: evidence.records.map((r) => r.evidenceId),
       summary: validated.summary,
       evaluatedBy: "GEMINI_MODEL",
-      modelName: "gemini-2.5-flash",
+      modelName: effectiveModelUsed,
       durationMs: Date.now() - t0,
     };
   } catch (err: any) {
+    if (options.userId) {
+      const isQuota = err?.message?.includes("quota") || err?.status === 429;
+      const status = isQuota ? "RATE_LIMITED" : "FAILED";
+      await recordAIUsageEvent({
+        userId: options.userId,
+        provider: "Google Gemini",
+        model: FALLBACK_GEMINI_MODEL,
+        operation: "DISCOVERY_RANKING",
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        durationMs: Date.now() - t0,
+        status,
+        errorMessage: String(err?.message || err).slice(0, 500),
+      }).catch((uErr) => console.warn("[SemanticJudge] Failed to record AI failure:", uErr));
+    }
     // Graceful fallback to deterministic verification
     return evaluateDeterministicSemanticFallback(evidence, plan, deterministicResult, Date.now() - t0);
   }
