@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
 import { paymentGateway } from "@/lib/billing/paymentGateway";
+import { redeemCoupon } from "@/lib/billing/couponService";
 import { z } from "zod";
 
 const VerifyPaymentSchema = z.object({
@@ -15,6 +16,7 @@ const VerifyPaymentSchema = z.object({
   signature: z.string().optional(),
   planCode: z.enum(["PREMIUM", "ENTERPRISE"]),
   billingInterval: z.enum(["MONTHLY", "YEARLY"]).optional().default("MONTHLY"),
+  couponCode: z.string().optional(),
 });
 
 export async function POST(req: Request) {
@@ -64,6 +66,14 @@ export async function POST(req: Request) {
         { error: "PAYMENT_VERIFICATION_FAILED", message: "Invalid payment signature or credentials." },
         { status: 400 }
       );
+    }
+
+    if (parseResult.data.couponCode) {
+      try {
+        await redeemCoupon(userId, parseResult.data.couponCode);
+      } catch (couponErr) {
+        console.warn("[verify] Coupon redemption error (payment was successful):", couponErr);
+      }
     }
 
     return NextResponse.json({

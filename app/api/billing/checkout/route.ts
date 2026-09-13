@@ -10,11 +10,14 @@ import { paymentGateway } from "@/lib/billing/paymentGateway";
 import { rateLimiter } from "@/lib/security/rateLimiter";
 import { recordSecurityEvent } from "@/lib/security/auditLog";
 import { prisma } from "@/lib/db/prisma";
+import { validateCoupon, redeemCoupon, COUPON_ERROR_MESSAGES } from "@/lib/billing/couponService";
+import { assignUserToPlan } from "@/lib/billing/planService";
 import { z } from "zod";
 
 const CheckoutSchema = z.object({
   planCode: z.enum(["PREMIUM", "ENTERPRISE"]),
   billingInterval: z.enum(["MONTHLY", "YEARLY"]).default("MONTHLY"),
+  couponCode: z.string().optional(),
 });
 
 export async function POST(req: Request) {
@@ -75,11 +78,93 @@ export async function POST(req: Request) {
       );
     }
 
-    const amount = parseResult.data.billingInterval === "YEARLY" ? plan.priceYearly : plan.priceMonthly;
+    const baseAmount = parseResult.data.billingInterval === "YEARLY" ? plan.priceYearly : plan.priceMonthly;
 
+    // Apply plan-level discount percentage
+    let planDiscountAmount = 0;
+    const planDiscountPct = (plan as any).discountPercentage || 0;
+    if (planDiscountPct > 0) {
+      planDiscountAmount = Math.round(((baseAmount * planDiscountPct) / 100) * 100) / 100;
+    }
+    let discountedAmount = Math.max(0, baseAmount - planDiscountAmount);
+
+    let appliedCouponInfo: any = null;
+    const cleanCouponCode = parseResult.data.couponCode?.trim().toUpperCase();
+
+    if (cleanCouponCode) {
+      const validation = await validateCoupon(cleanCouponCode, userId);
+      if (!validation.valid) {
+        const msg = validation.reason && COUPON_ERROR_MESSAGES[validation.reason]
+          ? COUPON_ERROR_MESSAGES[validation.reason]
+          : "Invalid or expired coupon code.";
+        return NextResponse.json(
+          { error: "INVALID_COUPON", message: msg },
+          { status: 400 }
+        );
+      }
+
+      // Check plan restriction
+      if (
+        validation.targetPlanCode &&
+        validation.targetPlanCode !== "ALL" &&
+        validation.targetPlanCode !== plan.code
+      ) {
+        return NextResponse.json(
+          {
+            error: "COUPON_PLAN_MISMATCH",
+            message: `Coupon ${cleanCouponCode} is only applicable to the ${validation.targetPlanCode} plan.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      let couponDiscountAmount = 0;
+      if (validation.discountType === "PERCENTAGE") {
+        couponDiscountAmount = Math.round(((discountedAmount * (validation.discountValue || 0)) / 100) * 100) / 100;
+      } else if (validation.discountType === "FIXED_AMOUNT") {
+        couponDiscountAmount = validation.discountValue || 0;
+      } else if (validation.discountType === "PLAN_ACCESS") {
+        couponDiscountAmount = discountedAmount;
+      }
+
+      discountedAmount = Math.max(0, Math.round((discountedAmount - couponDiscountAmount) * 100) / 100);
+      appliedCouponInfo = {
+        code: cleanCouponCode,
+        discountType: validation.discountType,
+        discountValue: validation.discountValue,
+        discountAmount: couponDiscountAmount,
+      };
+    }
+
+    // If final amount is 0 (100% discount, full access coupon, or 100% off plan):
+    if (discountedAmount === 0) {
+      if (cleanCouponCode) {
+        await redeemCoupon(userId, cleanCouponCode);
+      } else {
+        await assignUserToPlan(userId, plan.code, {
+          paymentProvider: "PROMO_DISCOUNT",
+          billingInterval: parseResult.data.billingInterval,
+          metadata: { planDiscountPct },
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        freeUpgrade: true,
+        amount: 0,
+        currency: plan.currency,
+        plan: {
+          code: plan.code,
+          name: plan.name,
+        },
+        message: `Plan activated! Upgraded to ${plan.name} at 100% discount.`,
+      });
+    }
+
+    // Otherwise create payment order
     const order = await paymentGateway.createOrder({
       userId,
-      amount,
+      amount: discountedAmount,
       currency: plan.currency,
       planCode: plan.code,
     });
@@ -90,6 +175,14 @@ export async function POST(req: Request) {
       plan: {
         code: plan.code,
         name: plan.name,
+      },
+      pricing: {
+        originalAmount: baseAmount,
+        planDiscountPct,
+        planDiscountAmount,
+        appliedCoupon: appliedCouponInfo,
+        finalAmount: discountedAmount,
+        currency: plan.currency,
       },
     });
   } catch (err: unknown) {
