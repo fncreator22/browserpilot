@@ -14,7 +14,7 @@ import {
 
 config();
 
-export const GEMINI_MODEL_NAME = "gemini-3.6-flash";
+export const GEMINI_MODEL_NAME = DEFAULT_GEMINI_MODEL;
 
 /**
  * Helper to determine if execution is strictly running inside an automated test runner
