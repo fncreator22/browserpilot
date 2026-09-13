@@ -25,7 +25,7 @@ export interface SearchIntent {
   experienceLevels?: string[];
   opportunityType?: "INTERNSHIP" | "FULL_TIME" | "CONTRACT" | string;
   opportunityTypes?: string[];
-  targetGradYear?: number;
+  targetGradYear?: number | null;
   companyType?: "STARTUP" | "ENTERPRISE" | "ANY" | string;
   queryHint?: string;
   sortMode?: "RELEVANCE" | "LATEST" | "RELEVANCE_THEN_FRESHNESS";
@@ -34,6 +34,7 @@ export interface SearchIntent {
   dateConstraint?: DateConstraint;
   requestedCount?: number;
   isExplicitFreshness?: boolean;
+  isExplicitLocation?: boolean;
   minimumMatchScore?: number;
   sources?: string[];
   excludeKnown?: boolean;

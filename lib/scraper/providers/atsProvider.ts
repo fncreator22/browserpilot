@@ -33,7 +33,34 @@ const DEFAULT_ATS_COMPANIES: AtsCompanyTarget[] = [
   { name: "Supabase", ashbySlug: "supabase" },
   { name: "Netflix", leverSlug: "netflix" },
   { name: "DoorDash", greenhouseSlug: "doordash" },
+  { name: "Datadog", greenhouseSlug: "datadog" },
+  { name: "Discord", greenhouseSlug: "discord" },
+  { name: "Gusto", greenhouseSlug: "gusto" },
+  { name: "Brex", greenhouseSlug: "brex" },
+  { name: "Automattic", greenhouseSlug: "automattic" },
+  { name: "Retool", ashbySlug: "retool" },
+  { name: "Sentry", ashbySlug: "sentry" },
+  { name: "PostHog", ashbySlug: "posthog" },
 ];
+
+const YC_ATS_COMPANIES: AtsCompanyTarget[] = [
+  { name: "Stripe", greenhouseSlug: "stripe" },
+  { name: "DoorDash", greenhouseSlug: "doordash" },
+  { name: "GitLab", greenhouseSlug: "gitlab" },
+  { name: "Brex", greenhouseSlug: "brex" },
+  { name: "Gusto", greenhouseSlug: "gusto" },
+  { name: "Retool", ashbySlug: "retool" },
+  { name: "Supabase", ashbySlug: "supabase" },
+  { name: "PostHog", ashbySlug: "posthog" },
+  { name: "Linear", ashbySlug: "linear" },
+  { name: "Ramp", ashbySlug: "ramp" },
+  { name: "Vercel", ashbySlug: "vercel" },
+  { name: "Sentry", ashbySlug: "sentry" },
+];
+
+function isAcceleratorOrGroup(name: string): boolean {
+  return /\b(y\s*combinator|yc|techstars|500\s*startups|accelerator|incubator|portfolio)\b/i.test(name);
+}
 
 function stripHtml(html: string): string {
   if (!html) return "";
@@ -93,14 +120,23 @@ export class AtsProvider implements SearchProvider {
     ];
 
     if (explicitCompanies.length > 0) {
+      let hasAccelerator = false;
       for (const compName of explicitCompanies) {
-        const slug = compName.toLowerCase().replace(/[^a-z0-9]/g, "");
-        companiesToQuery.push({
-          name: compName,
-          greenhouseSlug: slug,
-          leverSlug: slug,
-          ashbySlug: slug,
-        });
+        if (isAcceleratorOrGroup(compName)) {
+          hasAccelerator = true;
+          companiesToQuery.push(...YC_ATS_COMPANIES);
+        } else {
+          const slug = compName.toLowerCase().replace(/[^a-z0-9]/g, "");
+          companiesToQuery.push({
+            name: compName,
+            greenhouseSlug: slug,
+            leverSlug: slug,
+            ashbySlug: slug,
+          });
+        }
+      }
+      if (hasAccelerator && companiesToQuery.length === 0) {
+        companiesToQuery.push(...YC_ATS_COMPANIES);
       }
     } else {
       // Dynamic Candidate Discovery for open-ended queries (TASK-061 & TASK-065)
@@ -134,7 +170,7 @@ export class AtsProvider implements SearchProvider {
         console.warn("[AtsProvider] Dynamic candidate discovery failed, falling back to curated list:", err);
       }
       if (companiesToQuery.length === 0 && harvestPromises.length === 0) {
-        companiesToQuery.push(...DEFAULT_ATS_COMPANIES.slice(0, 6));
+        companiesToQuery.push(...DEFAULT_ATS_COMPANIES);
       }
     }
 
