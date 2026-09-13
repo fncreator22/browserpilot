@@ -342,7 +342,7 @@ export async function runAutonomousJobMonitoringSimulation() {
     assert(schedRun3.status === "SUCCESS", "Overdue watch must execute exactly once");
 
     // Verify nextScanAt was advanced cleanly into future
-    const watchAfterCatchup = await prisma.discoveryWatch.findUnique({ where: { userId: testUserA.id } });
+    const watchAfterCatchup = await prisma.discoveryWatch.findFirst({ where: { userId: testUserA.id } });
     assert(
       Boolean(watchAfterCatchup && watchAfterCatchup.nextScanAt && watchAfterCatchup.nextScanAt.getTime() > Date.now()),
       "nextScanAt must be advanced cleanly into the future without queue explosion"
