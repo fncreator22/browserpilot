@@ -75,6 +75,13 @@ export default function PlansPage() {
   // Coupon state
   const [couponCode, setCouponCode] = useState<string>("");
   const [isRedeemingCoupon, setIsRedeemingCoupon] = useState<boolean>(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discountType: string;
+    discountValue: number;
+    targetPlanCode?: string | null;
+    description?: string | null;
+  } | null>(null);
 
   const fetchBillingData = useCallback(async () => {
     try {
@@ -112,6 +119,29 @@ export default function PlansPage() {
 
     setIsUpgradingCode(targetPlan.code);
     try {
+      // If a full access coupon is active for this plan, redeem directly
+      if (
+        appliedCoupon &&
+        (appliedCoupon.discountType === "PLAN_ACCESS" || appliedCoupon.discountValue >= 100) &&
+        (!appliedCoupon.targetPlanCode || appliedCoupon.targetPlanCode === "ALL" || appliedCoupon.targetPlanCode === targetPlan.code)
+      ) {
+        const redeemRes = await fetch("/api/account/coupons/redeem", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: appliedCoupon.code }),
+        });
+        const redeemData = await redeemRes.json().catch(() => ({}));
+        if (!redeemRes.ok) {
+          throw new Error(redeemData.message || "Failed to activate full access coupon.");
+        }
+        toast.success("Plan Activated!", {
+          description: `You have been upgraded to ${targetPlan.name} via coupon ${appliedCoupon.code}.`,
+        });
+        setAppliedCoupon(null);
+        await fetchBillingData();
+        return;
+      }
+
       // 1. Initialize checkout order
       const checkoutRes = await fetch("/api/billing/checkout", {
         method: "POST",
@@ -119,12 +149,23 @@ export default function PlansPage() {
         body: JSON.stringify({
           planCode: targetPlan.code,
           billingInterval,
+          couponCode: appliedCoupon?.code || undefined,
         }),
       });
 
       const checkoutData = await checkoutRes.json().catch(() => ({}));
       if (!checkoutRes.ok) {
         throw new Error(checkoutData.message || "Failed to initialize plan checkout.");
+      }
+
+      // If checkout granted 100% free upgrade via discount or coupon
+      if (checkoutData.freeUpgrade) {
+        toast.success("Plan Activated!", {
+          description: checkoutData.message || `Upgraded to ${targetPlan.name} at 100% discount!`,
+        });
+        setAppliedCoupon(null);
+        await fetchBillingData();
+        return;
       }
 
       // 2. Complete payment verification & plan assignment
@@ -136,12 +177,23 @@ export default function PlansPage() {
           paymentId: `pay_${Date.now()}_mock`,
           planCode: targetPlan.code,
           billingInterval,
+          couponCode: appliedCoupon?.code || undefined,
         }),
       });
 
       const verifyData = await verifyRes.json().catch(() => ({}));
       if (!verifyRes.ok) {
         throw new Error(verifyData.message || "Payment verification failed.");
+      }
+
+      // If a percentage coupon was active, redeem it too
+      if (appliedCoupon) {
+        await fetch("/api/account/coupons/redeem", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: appliedCoupon.code }),
+        }).catch(() => {});
+        setAppliedCoupon(null);
       }
 
       toast.success("Subscription Updated!", {
@@ -168,23 +220,55 @@ export default function PlansPage() {
 
     setIsRedeemingCoupon(true);
     try {
-      const res = await fetch("/api/account/coupons/redeem", {
+      // 1. Validate coupon first for instant eligibility & discount details
+      const valRes = await fetch("/api/account/coupons/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: clean }),
       });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || "Coupon redemption failed.");
+      const valData = await valRes.json().catch(() => ({}));
+      if (!valRes.ok || !valData.valid) {
+        throw new Error(valData.message || "Invalid coupon code.");
       }
 
-      toast.success("Coupon Redeemed!", {
-        description: data.message || `Promotional coupon ${clean} applied to your account.`,
+      // 2. If it's a 100% full plan access coupon, activate it immediately in one click!
+      if (valData.discountType === "PLAN_ACCESS" || valData.discountValue >= 100) {
+        const redeemRes = await fetch("/api/account/coupons/redeem", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: clean }),
+        });
+
+        const redeemData = await redeemRes.json().catch(() => ({}));
+        if (!redeemRes.ok) {
+          throw new Error(redeemData.message || "Failed to activate full access coupon.");
+        }
+
+        toast.success("Full Access Activated!", {
+          description: redeemData.message || `Upgraded to ${valData.targetPlanCode || "PREMIUM"} plan successfully.`,
+        });
+
+        setCouponCode("");
+        setAppliedCoupon(null);
+        await fetchBillingData();
+        return;
+      }
+
+      // 3. For percentage or fixed amount discounts, calculate cuts live on plan cards!
+      setAppliedCoupon({
+        code: clean,
+        discountType: valData.discountType,
+        discountValue: Number(valData.discountValue) || 0,
+        targetPlanCode: valData.targetPlanCode,
+        description: valData.description,
+      });
+
+      toast.success("Coupon Applied!", {
+        description: `${valData.discountValue}% discount applied! Check the plan cards below for your cut prices.`,
       });
 
       setCouponCode("");
-      await fetchBillingData();
     } catch (err: unknown) {
       toast.error("Coupon Error", { description: (err as Error).message });
     } finally {
@@ -372,6 +456,42 @@ export default function PlansPage() {
           </p>
         </section>
 
+        {/* Active Discount Coupon Alert Banner */}
+        {appliedCoupon && (
+          <section className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full bg-[#1F3D2E] text-white flex items-center justify-center shrink-0">
+                <Tag className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-serif font-bold text-[#1F3D2E]">
+                    Coupon Applied: {appliedCoupon.code}
+                  </span>
+                  <Badge className="text-[10px] font-mono bg-emerald-700 text-white border-none">
+                    {appliedCoupon.discountType === "PLAN_ACCESS"
+                      ? "100% OFF (Full Access)"
+                      : appliedCoupon.discountType === "FIXED_AMOUNT"
+                      ? `$${appliedCoupon.discountValue} OFF`
+                      : `${appliedCoupon.discountValue}% OFF`}
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-emerald-800 font-sans mt-0.5">
+                  Your promotional discount is applied live below. Original rates are crossed out with your cut pricing shown.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAppliedCoupon(null)}
+              className="text-xs font-mono h-7 text-emerald-900 border-emerald-300 hover:bg-emerald-100/60 shrink-0"
+            >
+              Remove Coupon
+            </Button>
+          </section>
+        )}
+
         {/* Responsive Plans Cards Grid */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
           {plans.map((p) => {
@@ -379,8 +499,54 @@ export default function PlansPage() {
             const isPro = p.code === "PREMIUM";
             const isEnterprise = p.code === "ENTERPRISE";
             
-            const price = billingInterval === "YEARLY" ? p.priceYearly : p.priceMonthly;
-            const savings = (p.priceMonthly * 12) - p.priceYearly;
+            const rawPrice = billingInterval === "YEARLY" ? p.priceYearly : p.priceMonthly;
+            const annualSavings = (p.priceMonthly * 12) - p.priceYearly;
+            const planDiscountPct = (p as any).discountPercentage || 0;
+
+            // 1. Calculate base discount from Plan tier discountPercentage
+            let priceAfterPlanDiscount = rawPrice;
+            let planDollarSaved = 0;
+            if (planDiscountPct > 0 && p.code !== "FREE") {
+              planDollarSaved = Math.round(((rawPrice * planDiscountPct) / 100) * 100) / 100;
+              priceAfterPlanDiscount = Math.max(0, rawPrice - planDollarSaved);
+            }
+
+            // 2. Check if active coupon applies to this tier
+            const couponApplies = Boolean(
+              appliedCoupon &&
+              p.code !== "FREE" &&
+              (!appliedCoupon.targetPlanCode || appliedCoupon.targetPlanCode === "ALL" || appliedCoupon.targetPlanCode === p.code)
+            );
+
+            let finalPrice = priceAfterPlanDiscount;
+            let cutPrice: number | null = (planDiscountPct > 0 && p.code !== "FREE") ? rawPrice : null;
+            let discountTag: string | null = (planDiscountPct > 0 && p.code !== "FREE") ? `${planDiscountPct}% OFF Deal` : null;
+            let dollarSaved: number = planDollarSaved;
+
+            if (couponApplies && appliedCoupon) {
+              if (appliedCoupon.discountType === "PLAN_ACCESS" || appliedCoupon.discountValue >= 100) {
+                cutPrice = rawPrice;
+                finalPrice = 0;
+                dollarSaved = rawPrice;
+                discountTag = "100% Full Access via Coupon";
+              } else if (appliedCoupon.discountType === "PERCENTAGE") {
+                const couponSavings = Math.round(((priceAfterPlanDiscount * appliedCoupon.discountValue) / 100) * 100) / 100;
+                cutPrice = rawPrice;
+                finalPrice = Math.max(0, priceAfterPlanDiscount - couponSavings);
+                dollarSaved += couponSavings;
+                discountTag = planDiscountPct > 0
+                  ? `${planDiscountPct}% OFF + Extra ${appliedCoupon.discountValue}% OFF (${appliedCoupon.code})`
+                  : `${appliedCoupon.discountValue}% OFF via ${appliedCoupon.code}`;
+              } else if (appliedCoupon.discountType === "FIXED_AMOUNT") {
+                const couponSavings = Math.min(priceAfterPlanDiscount, appliedCoupon.discountValue);
+                cutPrice = rawPrice;
+                finalPrice = Math.max(0, priceAfterPlanDiscount - couponSavings);
+                dollarSaved += couponSavings;
+                discountTag = planDiscountPct > 0
+                  ? `${planDiscountPct}% OFF + Extra $${appliedCoupon.discountValue} OFF (${appliedCoupon.code})`
+                  : `$${appliedCoupon.discountValue} OFF via ${appliedCoupon.code}`;
+              }
+            }
 
             return (
               <div
@@ -423,18 +589,36 @@ export default function PlansPage() {
 
                   {/* Pricing Display */}
                   <div className="pt-2 border-t border-border/40">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl sm:text-4xl font-serif font-bold text-foreground">
-                        ${price}
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      {cutPrice !== null && (
+                        <span className="text-xl sm:text-2xl font-serif font-bold text-muted-foreground line-through decoration-rose-500/80 decoration-2">
+                          ${cutPrice}
+                        </span>
+                      )}
+                      <span className={`text-3xl sm:text-4xl font-serif font-bold ${cutPrice !== null ? "text-emerald-700" : "text-foreground"}`}>
+                        ${finalPrice % 1 === 0 ? finalPrice : finalPrice.toFixed(2)}
                       </span>
                       <span className="text-xs font-mono text-muted-foreground">
                         /{billingInterval === "YEARLY" ? "year" : "month"}
                       </span>
                     </div>
 
-                    {billingInterval === "YEARLY" && savings > 0 && (
+                    {discountTag && (
+                      <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
+                          {discountTag}
+                        </span>
+                        {cutPrice !== null && dollarSaved > 0 && (
+                          <span className="text-[10px] font-mono text-emerald-700 font-semibold">
+                            (You save ${dollarSaved.toFixed(2)})
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {!discountTag && billingInterval === "YEARLY" && annualSavings > 0 && (
                       <span className="inline-block mt-1 text-[11px] font-sans font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        Save ${savings}/year ({Math.round((savings / (p.priceMonthly * 12)) * 100)}% discount)
+                        Save ${annualSavings}/year ({Math.round((annualSavings / (p.priceMonthly * 12)) * 100)}% discount)
                       </span>
                     )}
                   </div>
@@ -508,6 +692,10 @@ export default function PlansPage() {
                           <RotateCw className="h-3.5 w-3.5 animate-spin" />
                           Processing...
                         </span>
+                      ) : finalPrice === 0 ? (
+                        `Activate ${p.name} (Free Access)`
+                      ) : cutPrice !== null ? (
+                        `Upgrade to ${p.name} ($${finalPrice % 1 === 0 ? finalPrice : finalPrice.toFixed(2)})`
                       ) : (
                         `Upgrade to ${p.name}`
                       )}
