@@ -35,3 +35,17 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   `{{resolve:secretsmanager:secret-id:SecretString:json-key}}` with
   `asm-exec` so the secret resolves at runtime without entering context.
 
+## Agent skills
+
+### Issue tracker
+
+Local markdown files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) plus project work categories (`backend-fix`, `ui-ux`, `security`, `admin`, `discovery-engine`, `billing`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repository layout (`CONTEXT.md` + `docs/adr/`). See `docs/agents/domain.md`.
+
