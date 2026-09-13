@@ -251,12 +251,26 @@ export function UIStateProvider({ children }: { children: React.ReactNode }) {
     refreshNotifications();
     refreshSavedCount();
 
+    const handleRefreshEvent = () => {
+      refreshNotifications();
+      refreshSavedCount();
+    };
+
+    window.addEventListener("browserai:refresh-state", handleRefreshEvent);
+    window.addEventListener("browserai:bookmark-updated", handleRefreshEvent);
+    window.addEventListener("browserai:search-completed", handleRefreshEvent);
+
     // Poll at a conservative interval (60s) to keep all badges in sync without load
     const interval = setInterval(() => {
       refreshNotifications();
     }, 60000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("browserai:refresh-state", handleRefreshEvent);
+      window.removeEventListener("browserai:bookmark-updated", handleRefreshEvent);
+      window.removeEventListener("browserai:search-completed", handleRefreshEvent);
+    };
   }, [session?.user, refreshNotifications, refreshSavedCount]);
 
   // Mark single notification as read & update unread badge synchronously
