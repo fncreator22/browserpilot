@@ -27,13 +27,18 @@ export class IndeedProvider implements SearchProvider {
 
   public buildSearchUrl(intent: SearchIntent): string {
     const queryParts: string[] = [];
-    if (intent.companies && intent.companies.length > 0) {
-      queryParts.push(intent.companies.join(" "));
+    const targetCompanies = intent.companies || (intent as any).targetCompanies;
+    if (targetCompanies && targetCompanies.length > 0) {
+      queryParts.push(targetCompanies.join(" "));
     } else if (intent.company) {
       queryParts.push(intent.company);
     }
-    if (intent.role) queryParts.push(intent.role);
-    if (intent.experienceLevel === "INTERN" || intent.opportunityType === "INTERNSHIP") {
+    const role = intent.role || intent.roles?.[0] || "";
+    if (role) queryParts.push(role);
+    const expLevel = intent.experienceLevel || intent.experienceLevels?.[0];
+    const oppType = intent.opportunityType || intent.opportunityTypes?.[0];
+    const roleLower = role.toLowerCase();
+    if (!roleLower.includes("intern") && (expLevel === "INTERN" || oppType === "INTERNSHIP")) {
       queryParts.push("Internship");
     }
     if (intent.skills && intent.skills.length > 0) {
@@ -41,11 +46,16 @@ export class IndeedProvider implements SearchProvider {
     }
 
     const q = queryParts.join(" ").trim() || "Software Engineer Intern";
-    const l = intent.location || (intent.workMode === "REMOTE" ? "Remote" : "");
+    const rawLoc = intent.location || intent.locations?.[0] || "";
+    const isExplicitLoc = intent.isExplicitLocation ?? (rawLoc.length > 0 && rawLoc.toLowerCase() !== "any" && rawLoc.toLowerCase() !== "worldwide");
+    const workModeVal = intent.workMode || intent.workModes?.[0];
+    const l = (isExplicitLoc && rawLoc && rawLoc.toLowerCase() !== "any")
+      ? rawLoc
+      : (workModeVal === "REMOTE" ? "Remote" : "");
 
     const params = new URLSearchParams({ q });
     if (l) params.set("l", l);
-    if (intent.workMode === "REMOTE") {
+    if (workModeVal === "REMOTE") {
       params.set("sc", "0kf:attr(DS3AG);"); // Indeed Remote filter attribute
     }
 
