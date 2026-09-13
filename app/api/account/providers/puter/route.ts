@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
+import { prisma } from "@/lib/db/prisma";
 import {
   upsertPuterConnection,
   disconnectProviderConnection,
@@ -23,8 +24,14 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     const sessionUser = session?.user as { id?: string; email?: string } | undefined;
-    const userId = sessionUser?.id;
-    if (!userId) {
+    let activeUserId = sessionUser?.id;
+
+    if (sessionUser?.email) {
+      const dbUser = await prisma.user.findUnique({ where: { email: sessionUser.email.toLowerCase().trim() } });
+      if (dbUser) activeUserId = dbUser.id;
+    }
+
+    if (!activeUserId) {
       return NextResponse.json(
         { error: "UNAUTHORIZED", message: "Authentication required." },
         { status: 401 }
@@ -51,7 +58,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const connection = await upsertPuterConnection(userId, parseResult.data);
+    const connection = await upsertPuterConnection(activeUserId, parseResult.data);
 
     return NextResponse.json({
       success: true,
@@ -70,15 +77,21 @@ export async function DELETE() {
   try {
     const session = await getServerSession(authOptions);
     const sessionUser = session?.user as { id?: string; email?: string } | undefined;
-    const userId = sessionUser?.id;
-    if (!userId) {
+    let activeUserId = sessionUser?.id;
+
+    if (sessionUser?.email) {
+      const dbUser = await prisma.user.findUnique({ where: { email: sessionUser.email.toLowerCase().trim() } });
+      if (dbUser) activeUserId = dbUser.id;
+    }
+
+    if (!activeUserId) {
       return NextResponse.json(
         { error: "UNAUTHORIZED", message: "Authentication required." },
         { status: 401 }
       );
     }
 
-    const result = await disconnectProviderConnection(userId, "PUTER");
+    const result = await disconnectProviderConnection(activeUserId, "PUTER");
 
     return NextResponse.json(result);
   } catch (err: unknown) {
