@@ -19,7 +19,9 @@ import {
   Cpu,
   Plug,
   Users,
-  ChevronDown
+  ChevronDown,
+  Sliders,
+  Brain
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -136,7 +138,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const directNavItems = [
     { label: "Overview", href: ADMIN_UI_ROUTES.OVERVIEW, icon: Activity },
+    { label: "Agentic Pipeline", href: ADMIN_UI_ROUTES.AGENTIC, icon: Cpu },
     { label: "Users & Quotas", href: ADMIN_UI_ROUTES.USERS, icon: Users },
+    { label: "Plans & Capabilities", href: ADMIN_UI_ROUTES.PLANS, icon: Sliders },
+    { label: "Job Brain", href: ADMIN_UI_ROUTES.TAXONOMY, icon: Brain },
     { label: "Connectors", href: ADMIN_UI_ROUTES.CONNECTORS, icon: Plug },
   ];
 
