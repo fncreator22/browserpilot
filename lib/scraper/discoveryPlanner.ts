@@ -30,18 +30,26 @@ export type SortMode = "RELEVANCE" | "LATEST" | "RELEVANCE_THEN_FRESHNESS";
 
 export interface DiscoveryPlan {
   rawQuery: string;
+  role?: string;
   roles: string[];
   skills: string[];
+  location?: string;
   locations: string[];
+  workMode?: string;
   workModes: string[];
+  opportunityType?: string;
   opportunityTypes: string[];
+  experienceLevel?: string;
   experienceLevels: string[];
+  company?: string;
+  companies?: string[];
   targetCompanies: string[];
   freshnessWindowHours: number;
   postedWithinDays?: number;
   dateConstraint?: any;
   requestedCount?: number;
   isExplicitFreshness: boolean;
+  isExplicitLocation?: boolean;
   maxResultsPerSource: number;
   sources: string[];
   sortMode: SortMode;
@@ -139,17 +147,24 @@ export function buildDiscoveryPlan(
 
   const skillsList = Array.from(skillsSet);
 
-  // 4. Resolve Locations (Strict explicit precedence: filters.locations -> filters.location -> parsedIntent.locations -> profile.preferredLocations)
+  // 4. Resolve Locations (Strict explicit precedence: filters.locations -> filters.location -> parsedIntent.locations -> parsedIntent.location -> profile.preferredLocations)
   const locationsSet = new Set<string>();
+  const isExplicitLocation = Boolean(
+    parsedIntent.isExplicitLocation ||
+    (filters.locations && filters.locations.length > 0) ||
+    (filters.location && filters.location !== "Any" && filters.location.toLowerCase() !== "worldwide")
+  );
+
   if (filters.locations && filters.locations.length > 0) {
-    filters.locations.forEach((l) => locationsSet.add(l));
-  } else if (filters.location) {
+    filters.locations.forEach((l) => { if (l !== "Any" && l.toLowerCase() !== "worldwide") locationsSet.add(l); });
+  } else if (filters.location && filters.location !== "Any" && filters.location.toLowerCase() !== "worldwide") {
     locationsSet.add(filters.location);
   } else if (parsedIntent.locations && parsedIntent.locations.length > 0) {
     parsedIntent.locations.forEach((l) => locationsSet.add(l));
   } else if (parsedIntent.location) {
     locationsSet.add(parsedIntent.location);
   } else if (profile?.preferredLocations && profile.preferredLocations.length > 0) {
+    // Backfill location from user profile memory when no explicit location was specified
     profile.preferredLocations.forEach((l) => locationsSet.add(l));
   }
 
@@ -221,7 +236,7 @@ export function buildDiscoveryPlan(
     /\b(mechanical|civil|chemical|process|nurse|doctor|healthcare|accounting|sales|hr|human resources)\b/i.test(r)
   );
   // Indeed is deactivated from default active sources (Cloudflare 403 blocks direct server fetches)
-  const defaultSources = isNonTech ? ["LinkedIn"] : ["LinkedIn", "Y Combinator", "ATS Direct"];
+  const defaultSources = isNonTech ? ["LinkedIn"] : ["LinkedIn", "Y Combinator", "ATS Direct", "GitHub Curated", "Hacker News"];
   let sources = defaultSources;
   if (filters.sources && filters.sources.length > 0) {
     sources = filters.sources;
@@ -253,20 +268,31 @@ export function buildDiscoveryPlan(
 
   const targetResults = requestedCount ? Math.max(8, requestedCount) : (isLatestIntent ? 12 : 8);
 
+  const oppTypesArray = Array.from(oppTypesSet);
+  const expLevelsArray = Array.from(expLevelsSet);
+
   return {
     rawQuery: (rawQuery || "").trim(),
+    role: rolesList[0] || undefined,
     roles: rolesList,
     skills: skillsList,
+    location: locationsList[0] || undefined,
     locations: locationsList,
+    workMode: workModesList[0] || undefined,
     workModes: workModesList,
-    opportunityTypes: Array.from(oppTypesSet),
-    experienceLevels: Array.from(expLevelsSet),
+    opportunityType: oppTypesArray[0] || undefined,
+    opportunityTypes: oppTypesArray,
+    experienceLevel: expLevelsArray[0] || undefined,
+    experienceLevels: expLevelsArray,
+    company: targetCompanies[0] || undefined,
+    companies: targetCompanies,
     targetCompanies,
     freshnessWindowHours,
     postedWithinDays,
     dateConstraint,
     requestedCount,
     isExplicitFreshness,
+    isExplicitLocation,
     maxResultsPerSource: targetResults,
     sources,
     sortMode: finalSortMode,

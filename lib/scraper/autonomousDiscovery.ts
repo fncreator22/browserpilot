@@ -233,8 +233,20 @@ export class AutonomousDiscoveryEngine {
           )
         : cleanCandidates;
 
+      // Filter by watch target locations when specified (strict exclusion of on-site geographic mismatches)
+      const targetLocations = (watch?.locations || []).map((l: string) => l.trim().toLowerCase()).filter(Boolean);
+      const locationFilteredCandidates = targetLocations.length > 0
+        ? validFreshCandidates.filter((c) => {
+            const loc = (c.location || "").toLowerCase().trim();
+            const isRemote = (c.workMode || "").toUpperCase() === "REMOTE" || loc.includes("remote");
+            if (isRemote) return true;
+            if (!loc) return true; // Keep unspecified locations for ranking
+            return targetLocations.some((tl) => loc.includes(tl) || tl.includes(loc));
+          })
+        : validFreshCandidates;
+
       // 7. 3-Tier Multi-Source Deduplication (TASK-004)
-      const deduplicatedOpps = deduplicateCandidates(validFreshCandidates as any);
+      const deduplicatedOpps = deduplicateCandidates(locationFilteredCandidates as any);
 
       // 8. 100-Point Personalized Relevance Ranking (TASK-004 & TASK-013)
       const intent = swarmDiscoveryEngine.planToIntent(plan);

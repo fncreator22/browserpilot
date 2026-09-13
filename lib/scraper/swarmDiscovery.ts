@@ -304,13 +304,18 @@ export class SwarmDiscoveryEngine {
             // Filter candidates by target company if specified in discovery plan
             let filteredCandidates = candidates;
             if (plan.targetCompanies && plan.targetCompanies.length > 0) {
-              const normalizedTargets = plan.targetCompanies.map((t) => normalizeCompany(t));
-              filteredCandidates = candidates.filter((c) => {
-                const normComp = normalizeCompany(c.companyName);
-                return normalizedTargets.some((target) => {
-                  return normComp === target || normComp.includes(target) || target.includes(normComp);
+              const nonAcceleratorTargets = plan.targetCompanies.filter(
+                (t) => !/\b(y\s*combinator|yc|techstars|500\s*startups|accelerator|incubator|portfolio)\b/i.test(t)
+              );
+              if (nonAcceleratorTargets.length > 0) {
+                const normalizedTargets = nonAcceleratorTargets.map((t) => normalizeCompany(t));
+                filteredCandidates = candidates.filter((c) => {
+                  const normComp = normalizeCompany(c.companyName);
+                  return normalizedTargets.some((target) => {
+                    return normComp === target || normComp.includes(target) || target.includes(normComp);
+                  });
                 });
-              });
+              }
             }
 
             // Extract posting dates on raw candidates where available

@@ -21,6 +21,7 @@ import {
   type AutonomousDiscoveryOptions,
   type AutonomousDiscoveryRunResult,
 } from "./autonomousDiscovery";
+import { getCapabilityLimit } from "@/lib/billing/entitlementService";
 
 export interface SchedulerOptions {
   maxWatchesToProcess?: number;
@@ -73,7 +74,6 @@ export class DiscoveryScheduler {
     const startTime = Date.now();
     const schedulerRunId = `sched_${startTime}_${Math.random().toString(36).slice(2, 7)}`;
     const maxWatches = options.maxWatchesToProcess ?? 10;
-    const concurrencyLimit = Math.min(options.concurrencyLimit ?? 2, 4);
     const maxExecutionBudgetMs = options.maxExecutionBudgetMs ?? 30000;
     const maxLeaseAgeMs = options.maxLeaseAgeMs ?? 120000;
 
@@ -119,8 +119,18 @@ export class DiscoveryScheduler {
       };
     }
 
+    // Resolve per-user concurrency limits via PlanCapability system (replaces hardcoded Math.min clamp)
+    const userLimits = await Promise.all(
+      dueWatches.map(async ({ userId }) => ({
+        userId,
+        limit: options.concurrencyLimit ?? (await getCapabilityLimit(userId, "MAX_CONCURRENT_SEARCHES")) ?? 1,
+      }))
+    );
+    const userLimitMap = new Map(userLimits.map((u) => [u.userId, u.limit]));
+    const batchConcurrencyLimit = options.concurrencyLimit ?? (userLimits.length > 0 ? Math.max(...userLimits.map((u) => u.limit)) : 2);
+
     // 2. Process in bounded concurrent chunks with global execution watchdog
-    for (let i = 0; i < dueWatches.length; i += concurrencyLimit) {
+    for (let i = 0; i < dueWatches.length; i += batchConcurrencyLimit) {
       const elapsedMs = Date.now() - startTime;
       if (elapsedMs >= maxExecutionBudgetMs) {
         // Global watchdog budget reached — halt starting new chunks
@@ -142,7 +152,7 @@ export class DiscoveryScheduler {
         break;
       }
 
-      const chunk = dueWatches.slice(i, i + concurrencyLimit);
+      const chunk = dueWatches.slice(i, i + batchConcurrencyLimit);
 
       const chunkPromises = chunk.map(async ({ userId, watch }) => {
         const lockOwner = `${schedulerRunId}_${userId}`;
@@ -168,10 +178,12 @@ export class DiscoveryScheduler {
         watchesClaimed++;
 
         try {
-          // 4. Execute single-source-of-truth autonomous discovery engine (TASK-014)
+          // 4. Execute single-source-of-truth autonomous discovery engine with per-user concurrency limit
+          const userConcurrency = userLimitMap.get(userId) ?? batchConcurrencyLimit;
           const runResult: AutonomousDiscoveryRunResult =
             await autonomousDiscoveryEngine.runAutonomousDiscoveryForUser(userId, {
               ...options.discoveryOptions,
+              concurrencyLimit: userConcurrency,
               customFetch: options.customFetch,
               triggerType: "SCHEDULED",
               skipLockCheck: true, // Lock is already held at database level by scheduler
