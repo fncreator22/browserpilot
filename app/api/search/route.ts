@@ -20,6 +20,11 @@ import { rateLimiter } from "@/lib/security/rateLimiter";
 import { prisma } from "@/lib/db/prisma";
 import { executionLifecycleManager } from "@/lib/discovery/execution/executionLifecycleManager";
 import { enqueueSearchDiscoveryJob } from "@/lib/queue/searchQueue";
+import {
+  getCapabilityLimit,
+  getUserPeriodAIUsage,
+  isUserByokOrPuter,
+} from "@/lib/billing/entitlementService";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +37,8 @@ export interface SearchApiRequest {
   persistToDb?: boolean;
   customProviders?: any[];
   correlationId?: string;
+  strictAi?: boolean;
+  allowDeterministicFallback?: boolean;
 }
 
 export async function POST(request: NextRequest) {
@@ -87,14 +94,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json().catch(() => ({}))) as SearchApiRequest;
+    rawQuery = (body.query || (body as any).rawQuery || "").trim();
     const customProviders = (request as any)._customProviders || body.customProviders;
     const filters = body.filters || {};
 
     // Resolve Global User Connector Preferences (Single Source of Truth)
     if ((!filters.sources || filters.sources.length === 0) && userId) {
       try {
-        const userWatch = await prisma.discoveryWatch.findUnique({
-          where: { userId },
+        const userWatch = await prisma.discoveryWatch.findFirst({
+          where: { userId, enabled: true },
+          orderBy: { createdAt: "desc" },
           select: { preferredSources: true },
         });
         if (userWatch?.preferredSources) {
@@ -117,7 +126,14 @@ export async function POST(request: NextRequest) {
       `corr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
     // 2. Validate Request Boundaries
-    if (!rawQuery && !filters.role && !filters.skills?.length && !filters.location && !filters.companies?.length && !filters.company) {
+    const hasQuery = Boolean(rawQuery);
+    const hasRoleFilter = Boolean(filters.role || (filters.roles && filters.roles.length > 0));
+    const hasSkillFilter = Boolean(filters.skills && filters.skills.length > 0);
+    const hasLocationFilter = Boolean(filters.location || (filters.locations && filters.locations.length > 0));
+    const hasCompanyFilter = Boolean(filters.company || (filters.companies && filters.companies.length > 0));
+    const hasOtherFilter = Boolean(filters.opportunityType || filters.workMode || filters.freshnessWindowHours);
+
+    if (!hasQuery && !hasRoleFilter && !hasSkillFilter && !hasLocationFilter && !hasCompanyFilter && !hasOtherFilter) {
       return NextResponse.json(
         {
           error: "INVALID_REQUEST",
@@ -186,7 +202,86 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 5. Durable Execution Identity & Isolated AbortSignal (TASK-067)
+    // 5. Enforce Per-Plan Limits (PlanCapability System)
+    if (userId) {
+      // 5a. Enforce Monthly AI Operations Quota
+      // Q5 Option A: BYOK/Puter bypasses MONTHLY_AI_OPERATIONS quota specifically
+      const hasByokOrPuter = await isUserByokOrPuter(userId);
+      if (!hasByokOrPuter) {
+        const usage = await getUserPeriodAIUsage(userId);
+        const maxOperations = (await getCapabilityLimit(userId, "MONTHLY_AI_OPERATIONS")) ?? 100;
+
+        if (usage.used >= maxOperations) {
+          const resetDateStr = usage.periodEnd.toISOString().split("T")[0];
+          const response = NextResponse.json(
+            {
+              error: "QUOTA_EXCEEDED",
+              code: "MONTHLY_AI_OPERATIONS_LIMIT_EXCEEDED",
+              message: `You have reached your monthly AI operations limit of ${maxOperations}. Resets on ${resetDateStr}. Please upgrade your plan or configure your own Gemini API key in Settings to continue.`,
+              currentUsage: usage.used,
+              limit: maxOperations,
+              resetsAt: usage.periodEnd.toISOString(),
+              upgradeUrl: "/app/plans",
+            },
+            { status: 429 }
+          );
+          response.headers.set("x-quota-remaining", "0");
+          response.headers.set("x-quota-limit", String(maxOperations));
+          return response;
+        }
+      }
+
+      // 5a.2 Strict AI Enforcement & Agent Configuration Check (TASK-METHOD-2)
+      // If strictAi is requested (or default in user searches) and fallback is not explicitly permitted:
+      const isStrictAiRequested = !customProviders && (body.strictAi ?? (body.persistToDb !== false));
+      if (isStrictAiRequested && !body.allowDeterministicFallback) {
+        const hasSystemAi = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 0);
+        const hasAiBackend = hasSystemAi || hasByokOrPuter;
+
+        if (!hasAiBackend) {
+          return NextResponse.json(
+            {
+              success: false,
+              status: "MODEL_CONFIGURATION_REQUIRED",
+              errorCode: "MODEL_CONFIGURATION_REQUIRED",
+              message:
+                "Autonomous AI Agent execution is locked. Please connect Puter (free 1-click) or configure a Gemini API key in Settings to execute genuine agentic search.",
+              availableOptions: {
+                puterAvailable: true,
+                byokAvailable: true,
+                allowFallback: true,
+              },
+              query: rawQuery,
+            },
+            { status: 200 }
+          );
+        }
+      }
+
+      // 5b. Enforce Search Concurrency Limits (Applies to ALL users, including BYOK)
+      const activeSearchesCount = await prisma.search.count({
+        where: {
+          userId,
+          status: { in: ["CREATED", "QUEUED", "RUNNING"] },
+        },
+      });
+
+      const maxConcurrent = (await getCapabilityLimit(userId, "MAX_CONCURRENT_SEARCHES")) ?? 1;
+
+      if (activeSearchesCount >= maxConcurrent) {
+        return NextResponse.json(
+          {
+            error: "CONCURRENT_SEARCH_LIMIT_EXCEEDED",
+            message: `You have reached your limit of ${maxConcurrent} concurrent active search${maxConcurrent > 1 ? "es" : ""}. Please wait for your ongoing search to complete or upgrade your plan.`,
+            activeSearches: activeSearchesCount,
+            limit: maxConcurrent,
+          },
+          { status: 429 }
+        );
+      }
+    }
+
+    // 6. Durable Execution Identity & Isolated AbortSignal (TASK-067)
     const executionId = `search_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     const executionAbort = new AbortController();
 
@@ -436,6 +531,8 @@ export async function POST(request: NextRequest) {
               matchScore: item.totalScore,
               rankPosition: item.rankPosition,
               scoreBreakdown: item.breakdown,
+              matchType: item.matchType,
+              matchBadge: item.matchBadge,
               saved: isSaved,
             };
           })

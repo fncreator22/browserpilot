@@ -101,19 +101,33 @@ export async function GET(
       return [];
     }
 
+    const parsedSkills = parseStoredSkills(search.parsedSkills);
+    const canonicalIntent = {
+      role: search.parsedRole || undefined,
+      roles: search.parsedRole ? [search.parsedRole] : [],
+      skills: parsedSkills,
+      location: search.parsedLocation || undefined,
+      locations: search.parsedLocation ? [search.parsedLocation] : [],
+      workMode: search.parsedWorkMode || undefined,
+      workModes: search.parsedWorkMode ? [search.parsedWorkMode] : [],
+      targetGradYear: search.targetGradYear || undefined,
+    };
+
     return NextResponse.json({
       search: {
         id: search.id,
         rawQuery: search.rawQuery,
         intentType: search.intentType,
         parsedRole: search.parsedRole,
-        parsedSkills: parseStoredSkills(search.parsedSkills),
+        parsedSkills,
         parsedLocation: search.parsedLocation,
         parsedWorkMode: search.parsedWorkMode,
         targetGradYear: search.targetGradYear,
         totalFound: search.totalFound,
         status: search.status,
         createdAt: search.createdAt,
+        canonicalIntent,
+        intent: canonicalIntent,
         results,
       },
     });
