@@ -25,6 +25,46 @@ export function getRedisOptions(): RedisOptions {
 let sharedRedisClient: Redis | null = null;
 let sharedRedisSubscriber: Redis | null = null;
 
+let redisCircuitState: "UNKNOWN" | "AVAILABLE" | "OFFLINE" = "UNKNOWN";
+let lastCircuitProbeTime = 0;
+const PROBE_INTERVAL_MS = 60_000;
+
+/**
+ * Probes Redis availability with a bounded timeout and maintains circuit breaker state.
+ * Prevents continuous ECONNREFUSED retry floods when running in environments without Redis.
+ */
+export async function isRedisCircuitAvailable(): Promise<boolean> {
+  const now = Date.now();
+  if (redisCircuitState === "AVAILABLE") return true;
+  if (redisCircuitState === "OFFLINE" && now - lastCircuitProbeTime < PROBE_INTERVAL_MS) {
+    return false;
+  }
+
+  const url = getRedisUrl();
+  try {
+    const probe = new Redis(url, {
+      ...getRedisOptions(),
+      connectTimeout: 500,
+      lazyConnect: true,
+      retryStrategy: () => null,
+    });
+    probe.on("error", () => {});
+    await probe.connect();
+    const res = await probe.ping();
+    await probe.quit().catch(() => {});
+    if (res === "PONG") {
+      redisCircuitState = "AVAILABLE";
+      return true;
+    }
+  } catch {
+    // Offline
+  }
+
+  redisCircuitState = "OFFLINE";
+  lastCircuitProbeTime = now;
+  return false;
+}
+
 /**
  * Creates an isolated ioredis connection for BullMQ or dedicated tasks
  */
@@ -32,7 +72,7 @@ export function createRedisConnection(customOptions?: Partial<RedisOptions>): Re
   const url = getRedisUrl();
   const client = new Redis(url, { ...getRedisOptions(), ...customOptions });
   client.on("error", () => {
-    // Non-fatal error handler to prevent unhandled error event crash when Redis is offline
+    // Suppress unhandled error event crash when Redis is offline or circuit is open
   });
   return client;
 }

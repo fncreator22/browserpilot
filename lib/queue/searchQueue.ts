@@ -1,5 +1,6 @@
 import { Queue, type Job } from "bullmq";
-import { createRedisConnection } from "./redis";
+import { createRedisConnection, isRedisCircuitAvailable } from "./redis";
+import { hasCapability } from "@/lib/billing/entitlementService";
 
 export const SEARCH_DISCOVERY_QUEUE_NAME = "search-discovery";
 
@@ -51,23 +52,29 @@ export function getSearchDiscoveryQueue(): Queue<SearchDiscoveryJobPayload> {
 export async function enqueueSearchDiscoveryJob(
   payload: SearchDiscoveryJobPayload
 ): Promise<any> {
-  try {
-    const queue = getSearchDiscoveryQueue();
-    // Using executionId as the job ID enforces deduplication at the BullMQ layer
-    return await queue.add("discover", payload, {
-      jobId: payload.executionId,
-    });
-  } catch (queueErr) {
-    console.warn(
-      `[SearchQueue] BullMQ Redis enqueue unavailable (${(queueErr as Error).message}), using in-process async worker fallback.`
-    );
-    // Asynchronous background execution so HTTP responds immediately (< 100ms)
+  let priority = 10;
+  if (payload.userId) {
+    try {
+      const isPriority = await hasCapability(payload.userId, "PRIORITY_EXECUTION");
+      if (isPriority) {
+        priority = 1;
+      }
+    } catch (capErr) {
+      console.warn(
+        `[SearchQueue] Failed to evaluate PRIORITY_EXECUTION for user ${payload.userId}:`,
+        capErr
+      );
+    }
+  }
+
+  const runFallbackWorker = () => {
     setImmediate(async () => {
       try {
         const { processSearchDiscoveryJob } = await import("@/worker/searchWorker");
         const syntheticJob = {
           id: payload.executionId,
           data: payload,
+          opts: { priority },
           updateProgress: async () => {},
         } as any;
         await processSearchDiscoveryJob(syntheticJob);
@@ -75,7 +82,23 @@ export async function enqueueSearchDiscoveryJob(
         console.error(`[SearchQueue] Fallback worker error for ${payload.executionId}:`, err);
       }
     });
-    return { id: payload.executionId };
+    return { id: payload.executionId, priority, opts: { priority } };
+  };
+
+  const redisActive = await isRedisCircuitAvailable();
+  if (!redisActive) {
+    return runFallbackWorker();
+  }
+
+  try {
+    const queue = getSearchDiscoveryQueue();
+    // In BullMQ, lower integer priority executes first: 1 = Enterprise priority, 10 = standard
+    return await queue.add("discover", payload, {
+      jobId: payload.executionId,
+      priority,
+    });
+  } catch (queueErr) {
+    return runFallbackWorker();
   }
 }
 
