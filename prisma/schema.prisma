@@ -20,7 +20,7 @@ model User {
   searches  Search[]
   savedJobs SavedOpportunity[]
   alerts    LifecycleAlert[]
-  discoveryWatch  DiscoveryWatch?
+  discoveryWatches DiscoveryWatch[]
   discoveryRuns   DiscoveryRun[]
   discoveryEvents OpportunityDiscoveryEvent[]
   profile             UserProfile?
@@ -259,7 +259,8 @@ model LifecycleAlert {
 
 model DiscoveryWatch {
   id                   String    @id @default(cuid())
-  userId               String    @unique
+  userId               String
+  name                 String    @default("Autonomous Watch")
   enabled              Boolean   @default(true)
   roles                String    @default("[]")
   skills               String    @default("[]")
@@ -282,6 +283,7 @@ model DiscoveryWatch {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@index([enabled, nextScanAt])
   @@map("discovery_watches")
 }
@@ -409,6 +411,7 @@ model Plan {
   active                   Boolean  @default(true)
   priceMonthly             Float    @default(0.0)
   priceYearly              Float    @default(0.0)
+  discountPercentage       Float    @default(0.0)
   currency                 String   @default("USD")
   maxWatches               Int      @default(1)
   maxDailyDiscoveries      Int      @default(10)
@@ -424,8 +427,27 @@ model Plan {
 
   subscriptions Subscription[]
   coupons       Coupon[]
+  capabilities  PlanCapability[]
 
   @@map("plans")
+}
+
+model PlanCapability {
+  id            String   @id @default(cuid())
+  planId        String
+  capabilityKey String
+  enabled       Boolean  @default(true)
+  limitValue    Int?
+  metadata      String   @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, capabilityKey])
+  @@index([capabilityKey])
+  @@index([planId])
+  @@map("plan_capabilities")
 }
 
 model Subscription {

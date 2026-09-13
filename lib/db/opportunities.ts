@@ -844,6 +844,8 @@ export async function getUnreadAlertCount(userId: string): Promise<number> {
 }
 
 export interface DiscoveryWatchConfig {
+  id?: string;
+  name?: string;
   enabled: boolean;
   roles: string[];
   skills: string[];
@@ -866,7 +868,7 @@ export interface DiscoveryWatchConfig {
 /**
  * Gets or creates the default discovery watch configuration for a user.
  */
-export async function getDiscoveryWatch(userId: string): Promise<DiscoveryWatchConfig> {
+export async function getDiscoveryWatch(userId: string, watchId?: string): Promise<DiscoveryWatchConfig> {
   if (!userId) {
     return {
       enabled: false,
@@ -889,18 +891,36 @@ export async function getDiscoveryWatch(userId: string): Promise<DiscoveryWatchC
     };
   }
 
-  const existing = await prisma.discoveryWatch.findUnique({
-    where: { userId },
-  });
+  const existing = watchId
+    ? await prisma.discoveryWatch.findFirst({ where: { id: watchId, userId } })
+    : await prisma.discoveryWatch.findFirst({ where: { userId }, orderBy: { createdAt: "desc" } });
+
+  const profile = await prisma.userProfile.findUnique({ where: { userId } }).catch(() => null);
+  const profileRoles = profile?.preferredRoles || [];
+  const profileSkills = profile?.targetSkills || [];
+  const profileLocations = profile?.preferredLocations || [];
+  const profileWorkModes = profile?.preferredWorkModes?.length ? profile.preferredWorkModes : ["REMOTE", "HYBRID"];
 
   if (existing) {
+    const parsedRoles = JSON.parse(existing.roles || "[]");
+    const parsedSkills = JSON.parse(existing.skills || "[]");
+    const parsedLocations = JSON.parse(existing.locations || "[]");
+    const parsedWorkModes = JSON.parse(existing.workModes || "[]");
+
+    const effectiveRoles = parsedRoles.length > 0 ? parsedRoles : profileRoles;
+    const effectiveSkills = parsedSkills.length > 0 ? parsedSkills : profileSkills;
+    const effectiveLocations = parsedLocations.length > 0 ? parsedLocations : profileLocations;
+    const effectiveWorkModes = parsedWorkModes.length > 0 ? parsedWorkModes : profileWorkModes;
+
     return {
+      id: existing.id,
+      name: (existing as any).name || "Autonomous Watch",
       enabled: existing.enabled,
-      roles: JSON.parse(existing.roles || "[]"),
-      skills: JSON.parse(existing.skills || "[]"),
-      locations: JSON.parse(existing.locations || "[]"),
+      roles: effectiveRoles,
+      skills: effectiveSkills,
+      locations: effectiveLocations,
       companies: JSON.parse((existing as any).companies || "[]"),
-      workModes: JSON.parse(existing.workModes || "[]"),
+      workModes: effectiveWorkModes,
       experienceLevels: JSON.parse(existing.experienceLevels || "[]"),
       opportunityTypes: JSON.parse(existing.opportunityTypes || "[]"),
       preferredSources: JSON.parse(existing.preferredSources || "[]"),
@@ -915,19 +935,20 @@ export async function getDiscoveryWatch(userId: string): Promise<DiscoveryWatchC
     };
   }
 
-  // Create default watch config
+  // Create default watch config hydrated from Career Memory
   const created = await prisma.discoveryWatch.create({
     data: {
       userId,
+      name: "Autonomous Watch",
       enabled: true,
-      roles: JSON.stringify([]),
-      skills: JSON.stringify([]),
-      locations: JSON.stringify([]),
+      roles: JSON.stringify(profileRoles),
+      skills: JSON.stringify(profileSkills),
+      locations: JSON.stringify(profileLocations),
       companies: JSON.stringify([]),
-      workModes: JSON.stringify(["REMOTE", "HYBRID"]),
+      workModes: JSON.stringify(profileWorkModes),
       experienceLevels: JSON.stringify(["INTERN", "ENTRY_LEVEL"]),
       opportunityTypes: JSON.stringify(["INTERNSHIP", "FULL_TIME"]),
-      preferredSources: JSON.stringify(["LinkedIn", "Y Combinator", "Indeed"]),
+      preferredSources: JSON.stringify(["LinkedIn", "Y Combinator", "Indeed", "Greenhouse", "Ashby", "Lever"]),
       minimumMatchScore: 70,
       latestOnly: false,
       freshnessWindowHours: 48,
@@ -936,6 +957,98 @@ export async function getDiscoveryWatch(userId: string): Promise<DiscoveryWatchC
   });
 
   return {
+    id: created.id,
+    name: (created as any).name || "Autonomous Watch",
+    enabled: created.enabled,
+    roles: JSON.parse(created.roles),
+    skills: JSON.parse(created.skills),
+    locations: JSON.parse(created.locations),
+    companies: JSON.parse((created as any).companies || "[]"),
+    workModes: JSON.parse(created.workModes),
+    experienceLevels: JSON.parse(created.experienceLevels),
+    opportunityTypes: JSON.parse(created.opportunityTypes),
+    preferredSources: JSON.parse(created.preferredSources),
+    minimumMatchScore: created.minimumMatchScore,
+    latestOnly: created.latestOnly,
+    freshnessWindowHours: created.freshnessWindowHours,
+    scanIntervalHours: created.scanIntervalHours,
+    lastScannedAt: created.lastScannedAt,
+    nextScanAt: created.nextScanAt,
+    lockedAt: created.lockedAt,
+    lockOwner: created.lockOwner,
+  };
+}
+
+/**
+ * Retrieves all watches configured for a user.
+ */
+export async function getUserDiscoveryWatches(userId: string): Promise<DiscoveryWatchConfig[]> {
+  if (!userId) return [];
+  const watches = await prisma.discoveryWatch.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return watches.map((w) => ({
+    id: w.id,
+    name: (w as any).name || "Autonomous Watch",
+    enabled: w.enabled,
+    roles: JSON.parse(w.roles || "[]"),
+    skills: JSON.parse(w.skills || "[]"),
+    locations: JSON.parse(w.locations || "[]"),
+    companies: JSON.parse((w as any).companies || "[]"),
+    workModes: JSON.parse(w.workModes || "[]"),
+    experienceLevels: JSON.parse(w.experienceLevels || "[]"),
+    opportunityTypes: JSON.parse(w.opportunityTypes || "[]"),
+    preferredSources: JSON.parse(w.preferredSources || "[]"),
+    minimumMatchScore: w.minimumMatchScore,
+    latestOnly: w.latestOnly,
+    freshnessWindowHours: w.freshnessWindowHours,
+    scanIntervalHours: w.scanIntervalHours,
+    lastScannedAt: w.lastScannedAt,
+    nextScanAt: w.nextScanAt,
+    lockedAt: w.lockedAt,
+    lockOwner: w.lockOwner,
+  }));
+}
+
+/**
+ * Explicitly creates a new discovery watch for a user.
+ */
+export async function createDiscoveryWatch(
+  userId: string,
+  input: Partial<DiscoveryWatchConfig>
+): Promise<DiscoveryWatchConfig> {
+  const targetInterval = typeof input.scanIntervalHours === "number" ? input.scanIntervalHours : 6;
+  const nextScan = input.nextScanAt !== undefined ? input.nextScanAt : new Date(Date.now() + targetInterval * 3600 * 1000);
+
+  const created = await prisma.discoveryWatch.create({
+    data: {
+      userId,
+      name: input.name || "Autonomous Watch",
+      enabled: input.enabled ?? true,
+      roles: JSON.stringify(input.roles ?? []),
+      skills: JSON.stringify(input.skills ?? []),
+      locations: JSON.stringify(input.locations ?? []),
+      companies: JSON.stringify(input.companies ?? []),
+      workModes: JSON.stringify(input.workModes ?? ["REMOTE", "HYBRID"]),
+      experienceLevels: JSON.stringify(input.experienceLevels ?? ["ENTRY_LEVEL"]),
+      opportunityTypes: JSON.stringify(input.opportunityTypes ?? ["FULL_TIME"]),
+      preferredSources: JSON.stringify(input.preferredSources ?? ["LinkedIn", "Y Combinator", "Indeed"]),
+      minimumMatchScore: input.minimumMatchScore ?? 70,
+      latestOnly: input.latestOnly ?? false,
+      freshnessWindowHours: input.freshnessWindowHours ?? 48,
+      scanIntervalHours: targetInterval,
+      lastScannedAt: input.lastScannedAt ?? null,
+      nextScanAt: nextScan,
+      lockedAt: null,
+      lockOwner: null,
+    },
+  });
+
+  return {
+    id: created.id,
+    name: (created as any).name || "Autonomous Watch",
     enabled: created.enabled,
     roles: JSON.parse(created.roles),
     skills: JSON.parse(created.skills),
@@ -958,46 +1071,35 @@ export async function getDiscoveryWatch(userId: string): Promise<DiscoveryWatchC
 
 /**
  * Upserts a user's discovery watch configuration.
+ * If input.id is provided, updates that specific watch.
+ * If input.id is not provided, updates the existing watch or creates one if none exists.
  */
 export async function upsertDiscoveryWatch(
   userId: string,
   input: Partial<DiscoveryWatchConfig>
 ): Promise<DiscoveryWatchConfig> {
-  const current = await getDiscoveryWatch(userId);
+  const targetWatch = input.id
+    ? await prisma.discoveryWatch.findFirst({ where: { id: input.id, userId } })
+    : await prisma.discoveryWatch.findFirst({ where: { userId }, orderBy: { createdAt: "desc" } });
 
-  const targetInterval = typeof input.scanIntervalHours === "number" ? input.scanIntervalHours : current.scanIntervalHours;
-  const isIntervalChanged = typeof input.scanIntervalHours === "number" && input.scanIntervalHours !== current.scanIntervalHours;
+  if (!targetWatch) {
+    return createDiscoveryWatch(userId, input);
+  }
 
-  let calculatedNextScanAt = input.nextScanAt !== undefined ? input.nextScanAt : current.nextScanAt;
-  if (input.nextScanAt === undefined && (isIntervalChanged || !current.nextScanAt || current.nextScanAt < new Date())) {
-    const baseTime = current.lastScannedAt ? current.lastScannedAt.getTime() : Date.now();
+  const targetInterval = typeof input.scanIntervalHours === "number" ? input.scanIntervalHours : targetWatch.scanIntervalHours;
+  const isIntervalChanged = typeof input.scanIntervalHours === "number" && input.scanIntervalHours !== targetWatch.scanIntervalHours;
+
+  let calculatedNextScanAt = input.nextScanAt !== undefined ? input.nextScanAt : targetWatch.nextScanAt;
+  if (input.nextScanAt === undefined && (isIntervalChanged || !targetWatch.nextScanAt || targetWatch.nextScanAt < new Date())) {
+    const baseTime = targetWatch.lastScannedAt ? targetWatch.lastScannedAt.getTime() : Date.now();
     const potentialNext = new Date(baseTime + targetInterval * 3600 * 1000);
     calculatedNextScanAt = potentialNext > new Date() ? potentialNext : new Date(Date.now() + targetInterval * 3600 * 1000);
   }
 
-  const updated = await prisma.discoveryWatch.upsert({
-    where: { userId },
-    create: {
-      userId,
-      enabled: input.enabled ?? current.enabled,
-      roles: JSON.stringify(input.roles ?? current.roles),
-      skills: JSON.stringify(input.skills ?? current.skills),
-      locations: JSON.stringify(input.locations ?? current.locations),
-      companies: JSON.stringify(input.companies ?? current.companies),
-      workModes: JSON.stringify(input.workModes ?? current.workModes),
-      experienceLevels: JSON.stringify(input.experienceLevels ?? current.experienceLevels),
-      opportunityTypes: JSON.stringify(input.opportunityTypes ?? current.opportunityTypes),
-      preferredSources: JSON.stringify(input.preferredSources ?? current.preferredSources),
-      minimumMatchScore: input.minimumMatchScore ?? current.minimumMatchScore,
-      latestOnly: input.latestOnly ?? current.latestOnly,
-      freshnessWindowHours: input.freshnessWindowHours ?? current.freshnessWindowHours,
-      scanIntervalHours: targetInterval,
-      lastScannedAt: input.lastScannedAt ?? current.lastScannedAt,
-      nextScanAt: calculatedNextScanAt,
-      lockedAt: input.lockedAt ?? current.lockedAt,
-      lockOwner: input.lockOwner ?? current.lockOwner,
-    },
-    update: {
+  const updated = await prisma.discoveryWatch.update({
+    where: { id: targetWatch.id },
+    data: {
+      ...(input.name ? { name: input.name } : {}),
       ...(typeof input.enabled === "boolean" ? { enabled: input.enabled } : {}),
       ...(input.roles ? { roles: JSON.stringify(input.roles) } : {}),
       ...(input.skills ? { skills: JSON.stringify(input.skills) } : {}),
@@ -1019,6 +1121,8 @@ export async function upsertDiscoveryWatch(
   });
 
   return {
+    id: updated.id,
+    name: (updated as any).name || "Autonomous Watch",
     enabled: updated.enabled,
     roles: JSON.parse(updated.roles),
     skills: JSON.parse(updated.skills),
