@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { InfoBadge } from "@/components/ui/info-badge";
 import { ADMIN_API_ROUTES } from "@/lib/admin/adminRoutes";
 
 interface AdminRunItem {
@@ -98,9 +99,22 @@ export default function AdminRunsPage() {
             <Layers className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
-              Discovery Runs
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold tracking-tight text-foreground">
+                Discovery Runs
+              </h1>
+              <InfoBadge
+                title="Discovery Run Lifecycle"
+                description="Audited execution traces of automated scheduled scans and user-triggered search jobs."
+                details={{
+                  "Trigger Modes": "SCHEDULED (Cron), MANUAL (Interactive)",
+                  "Statuses": "SUCCESS, PARTIAL_SUCCESS, FAILED",
+                  "Telemetry Captured": "Duration ms, candidates found, new vs duplicate, notifications",
+                  "Deduplication": "Hash-based fingerprinting against canonical repository",
+                }}
+                side="bottom"
+              />
+            </div>
             <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
               <span className="text-emerald-400 font-semibold">{totalCount} total runs</span>
               <span>•</span>

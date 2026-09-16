@@ -306,7 +306,7 @@ export default function AdminTaxonomyPage() {
           <Button
             size="sm"
             onClick={() => setShowAddCategoryModal(true)}
-            className="h-8 text-xs bg-[#1F3D2E] hover:bg-[#162d22] text-white gap-1.5"
+            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
           >
             <Plus className="h-3.5 w-3.5" />
             Add Category
@@ -348,7 +348,7 @@ export default function AdminTaxonomyPage() {
               onClick={() => setSelectedDeptId(dept.id)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
                 selectedDeptId === dept.id
-                  ? "bg-[#1F3D2E] text-white shadow-xs font-semibold"
+                  ? "bg-emerald-600 text-white shadow-xs font-semibold"
                   : "bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary"
               }`}
             >
@@ -471,7 +471,7 @@ export default function AdminTaxonomyPage() {
                       <Button
                         size="sm"
                         onClick={() => handleCreateRole(cat.id)}
-                        className="h-7 text-xs bg-[#1F3D2E] hover:bg-[#162d22] text-white"
+                        className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
                         Save Role
                       </Button>
@@ -622,7 +622,7 @@ export default function AdminTaxonomyPage() {
                 <Button
                   type="submit"
                   size="sm"
-                  className="text-xs bg-[#1F3D2E] hover:bg-[#162d22] text-white"
+                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   Create Category
                 </Button>

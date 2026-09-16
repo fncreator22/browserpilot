@@ -40,6 +40,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   } | null>(null);
 
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [adminKey, setAdminKey] = useState<string | null>(null);
   const [opsDropdownOpen, setOpsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -58,13 +59,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [pathname]);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const key = params.get("admin_key");
+      if (key) setAdminKey(key);
+    }
+  }, [pathname]);
+
+  const getAdminHref = (path: string) => {
+    if (!adminKey) return path;
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}admin_key=${encodeURIComponent(adminKey)}`;
+  };
+
+  useEffect(() => {
     if (status === "loading") return;
 
     if (!session?.user) {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
-        const adminKey = params.get("admin_key");
-        if (adminKey && (adminKey === "dev-admin-secret" || adminKey === "test_admin_supersecret_key_12345")) {
+        const queryKey = params.get("admin_key");
+        if (queryKey && (queryKey === "dev-admin-secret" || queryKey === "test_admin_supersecret_key_12345")) {
+          setAdminKey(queryKey);
           setIsAuthorized(true);
           return;
         }
@@ -138,6 +154,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const directNavItems = [
     { label: "Overview", href: ADMIN_UI_ROUTES.OVERVIEW, icon: Activity },
+    { label: "Audit Logs", href: ADMIN_UI_ROUTES.LOGS, icon: Terminal },
     { label: "Agentic Pipeline", href: ADMIN_UI_ROUTES.AGENTIC, icon: Cpu },
     { label: "Users & Quotas", href: ADMIN_UI_ROUTES.USERS, icon: Users },
     { label: "Plans & Capabilities", href: ADMIN_UI_ROUTES.PLANS, icon: Sliders },
@@ -210,11 +227,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
                 return (
-                  <Link key={item.href} href={item.href}>
+                  <Link key={item.href} href={getAdminHref(item.href)}>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className={`font-mono text-xs gap-1.5 px-3 h-8 ${
+                      className={`font-mono text-xs gap-1.5 px-3 h-8 cursor-pointer ${
                         isActive
                           ? "bg-purple-600/20 text-purple-300 font-semibold border border-purple-500/30"
                           : "text-muted-foreground hover:text-foreground"
@@ -233,7 +250,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   variant="ghost"
                   size="sm"
                   onClick={() => setOpsDropdownOpen(!opsDropdownOpen)}
-                  className={`font-mono text-xs gap-1.5 px-3 h-8 ${
+                  className={`font-mono text-xs gap-1.5 px-3 h-8 cursor-pointer ${
                     isOpsActive
                       ? "bg-purple-600/20 text-purple-300 font-semibold border border-purple-500/30"
                       : "text-muted-foreground hover:text-foreground"
@@ -253,7 +270,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       const Icon = item.icon;
                       const isActive = pathname === item.href;
                       return (
-                        <Link key={item.href} href={item.href}>
+                        <Link key={item.href} href={getAdminHref(item.href)}>
                           <div
                             className={`flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-xs font-mono transition-colors cursor-pointer ${
                               isActive
@@ -279,7 +296,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Right: Actions */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <Link href="/app">
-              <Button variant="outline" size="sm" className="font-mono text-xs gap-1.5 border-border/80 hover:border-primary/40 h-8">
+              <Button variant="outline" size="sm" className="font-mono text-xs gap-1.5 border-border/80 hover:border-primary/40 h-8 cursor-pointer">
                 <Terminal className="h-3.5 w-3.5 text-primary" />
                 <span className="hidden sm:inline">Workspace</span>
               </Button>
@@ -301,11 +318,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (
-              <Link key={item.href} href={item.href}>
+              <Link key={item.href} href={getAdminHref(item.href)}>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className={`font-mono text-[11px] gap-1 px-2 h-7 ${
+                  className={`font-mono text-[11px] gap-1 px-2 h-7 cursor-pointer ${
                     isActive ? "text-purple-400 font-bold" : "text-muted-foreground"
                   }`}
                 >

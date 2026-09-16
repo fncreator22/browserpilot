@@ -25,6 +25,7 @@ import {
   Power,
   Eye,
   EyeOff,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -746,8 +747,9 @@ export default function AdminConnectorsPage() {
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="text-muted-foreground hover:text-foreground text-sm p-1 rounded-md"
+                aria-label="Close modal"
               >
-                ✕
+                <X className="h-4 w-4" />
               </button>
             </div>
 

@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { ADMIN_API_ROUTES, ADMIN_UI_ROUTES } from "@/lib/admin/adminRoutes";
-import { UserCheck, Layers, CreditCard, Plus, Check } from "lucide-react";
+import { UserCheck, Layers, CreditCard, Plus, Check, X } from "lucide-react";
 
 export default function AdminUserDetailPage() {
   const params = useParams();
@@ -42,6 +42,20 @@ export default function AdminUserDetailPage() {
   const [subProvider, setSubProvider] = useState("MANUAL_ADMIN");
   const [subNotes, setSubNotes] = useState("");
   const [savingSub, setSavingSub] = useState(false);
+  const [adminKey, setAdminKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const key = new URLSearchParams(window.location.search).get("admin_key");
+      if (key) setAdminKey(key);
+    }
+  }, []);
+
+  const getAdminHref = (path: string) => {
+    if (!adminKey) return path;
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}admin_key=${encodeURIComponent(adminKey)}`;
+  };
 
   const fetchUserDetail = async (isManual = false) => {
     if (!userId) return;
@@ -132,7 +146,7 @@ export default function AdminUserDetailPage() {
         <AlertCircle className="h-10 w-10 text-destructive mx-auto" />
         <h2 className="text-lg font-bold text-foreground">User Not Found</h2>
         <p className="text-sm text-muted-foreground font-mono">The requested tenant ID could not be located in the database.</p>
-        <Link href={ADMIN_UI_ROUTES.USERS}>
+        <Link href={getAdminHref(ADMIN_UI_ROUTES.USERS)}>
           <Button variant="outline" size="sm" className="font-mono text-xs gap-1.5">
             <ArrowLeft className="h-3.5 w-3.5" /> Back to Users List
           </Button>
@@ -146,7 +160,7 @@ export default function AdminUserDetailPage() {
       {/* Top Navigation & Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-border/60">
         <div className="flex items-center gap-3">
-          <Link href={ADMIN_UI_ROUTES.USERS}>
+          <Link href={getAdminHref(ADMIN_UI_ROUTES.USERS)}>
             <Button variant="outline" size="sm" className="h-8 font-mono text-xs gap-1.5">
               <ArrowLeft className="h-3.5 w-3.5" />
               Users
@@ -219,12 +233,14 @@ export default function AdminUserDetailPage() {
               1. PUTER CONNECTION STATUS
             </h2>
             {detail.puterConnection.isConnected ? (
-              <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px] font-mono">
-                ✓ Connected
+              <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px] font-mono flex items-center gap-1">
+                <Check className="h-3 w-3 shrink-0" />
+                <span>Connected</span>
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-muted-foreground text-[10px] font-mono">
-                ✕ Not Connected
+              <Badge variant="outline" className="text-muted-foreground text-[10px] font-mono flex items-center gap-1">
+                <X className="h-3 w-3 shrink-0" />
+                <span>Not Connected</span>
               </Badge>
             )}
           </div>

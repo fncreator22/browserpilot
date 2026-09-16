@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
     // 2. Compute engine stress & token analytics
     let puterTokensToday = 0;
     let geminiTokensToday = 0;
+    let deepseekTokensToday = 0;
     let totalDurationMs = 0;
     let successCount = 0;
     let failureCount = 0;
@@ -58,6 +59,8 @@ export async function GET(request: NextRequest) {
     for (const ev of todayUsageEvents) {
       if (ev.provider.toUpperCase().includes("PUTER")) {
         puterTokensToday += ev.totalTokens;
+      } else if (ev.provider.toUpperCase().includes("DEEPSEEK")) {
+        deepseekTokensToday += ev.totalTokens;
       } else {
         geminiTokensToday += ev.totalTokens;
       }
@@ -232,7 +235,8 @@ export async function GET(request: NextRequest) {
         puterDailyLimit,
         puterHeadroom,
         geminiTokensToday,
-        totalTokensToday: puterTokensToday + geminiTokensToday,
+        deepseekTokensToday,
+        totalTokensToday: puterTokensToday + geminiTokensToday + deepseekTokensToday,
         avgLatencyMs,
         successRate,
         totalOperationsToday: totalEvents,

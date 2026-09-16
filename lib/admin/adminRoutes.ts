@@ -25,6 +25,7 @@ export const ADMIN_UI_ROUTES = {
   SCHEDULER: `/${ADMIN_ROUTE_SEGMENT}/scheduler`,
   TAXONOMY: `/${ADMIN_ROUTE_SEGMENT}/taxonomy`,
   AGENTIC: `/${ADMIN_ROUTE_SEGMENT}/agentic`,
+  LOGS: `/${ADMIN_ROUTE_SEGMENT}/logs`,
 } as const;
 
 export const ADMIN_API_ROUTES = {
@@ -43,4 +44,9 @@ export const ADMIN_API_ROUTES = {
   USER_SUBSCRIPTION: (id: string) => `/api/${ADMIN_ROUTE_SEGMENT}/users/${id}/subscription`,
   SEARCH_TELEMETRY: `/api/${ADMIN_ROUTE_SEGMENT}/search-telemetry`,
   TAXONOMY: `/api/${ADMIN_ROUTE_SEGMENT}/taxonomy`,
+  SWARMS_CONTROL: `/api/${ADMIN_ROUTE_SEGMENT}/swarms/control`,
+  DATA_EXPORT: `/api/${ADMIN_ROUTE_SEGMENT}/data/export`,
+  DATA_CLEAN: `/api/${ADMIN_ROUTE_SEGMENT}/data/clean`,
+  OBSERVABILITY: `/api/${ADMIN_ROUTE_SEGMENT}/observability`,
+  LOGS: `/api/${ADMIN_ROUTE_SEGMENT}/logs`,
 } as const;

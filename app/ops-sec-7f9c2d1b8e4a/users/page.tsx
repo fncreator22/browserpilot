@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { InfoBadge } from "@/components/ui/info-badge";
 import { ADMIN_API_ROUTES, ADMIN_UI_ROUTES } from "@/lib/admin/adminRoutes";
 
 interface PlanConfig {
@@ -98,6 +99,20 @@ export default function AdminUsersPage() {
 
   // Drill-down slideover
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [adminKey, setAdminKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const key = new URLSearchParams(window.location.search).get("admin_key");
+      if (key) setAdminKey(key);
+    }
+  }, []);
+
+  const getAdminHref = (path: string) => {
+    if (!adminKey) return path;
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}admin_key=${encodeURIComponent(adminKey)}`;
+  };
 
   const fetchUsers = async (isManual = false) => {
     if (isManual) setRefreshing(true);
@@ -159,9 +174,21 @@ export default function AdminUsersPage() {
             <Users className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
-              Users & AI Quotas
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold tracking-tight text-foreground">
+                Users & AI Quotas
+              </h1>
+              <InfoBadge
+                title="User Governance & Entitlements"
+                description="User profile management, token allocation enforcement, and anonymization tracking."
+                details={{
+                  "Soft Delete / Anonymization": "Persists activity as anonymous user on deletion",
+                  "Quotas": "Starter (30k), Pro (150k), Enterprise (Unlimited)",
+                  "Puter Integration": "1-click client-side / server Puter bridge",
+                }}
+                side="bottom"
+              />
+            </div>
             <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
               <span className="text-purple-400 font-semibold">{totalCount} registered users</span>
               <span>•</span>
@@ -170,7 +197,7 @@ export default function AdminUsersPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Link href={typeof window !== "undefined" && new URLSearchParams(window.location.search).get("admin_key") ? `${ADMIN_UI_ROUTES.PLANS}?admin_key=${new URLSearchParams(window.location.search).get("admin_key")}` : ADMIN_UI_ROUTES.PLANS}>
+          <Link href={getAdminHref(ADMIN_UI_ROUTES.PLANS)}>
             <Button
               variant="outline"
               size="sm"
@@ -360,14 +387,16 @@ export default function AdminUsersPage() {
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex items-center justify-center gap-2">
                           <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                            ✓ {u.puterConnection.sevenDaySuccessCalls}
+                            <Check className="h-3 w-3 shrink-0" />
+                            <span>{u.puterConnection.sevenDaySuccessCalls}</span>
                           </span>
                           <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
                             u.puterConnection.sevenDayFailedCalls > 0
                               ? "text-rose-400 bg-rose-500/10 border-rose-500/20"
                               : "text-muted-foreground/60 bg-muted/20 border-border/40"
                           }`}>
-                            ✕ {u.puterConnection.sevenDayFailedCalls}
+                            <X className="h-3 w-3 shrink-0" />
+                            <span>{u.puterConnection.sevenDayFailedCalls}</span>
                           </span>
                         </div>
                       </td>
@@ -383,7 +412,7 @@ export default function AdminUsersPage() {
                           >
                             Details
                           </Button>
-                          <Link href={ADMIN_UI_ROUTES.USER_DETAIL(u.id)}>
+                          <Link href={getAdminHref(ADMIN_UI_ROUTES.USER_DETAIL(u.id))}>
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground">
                               <ExternalLink className="h-3.5 w-3.5" />
                             </Button>
@@ -460,6 +489,13 @@ function UserDetailSlideover({
   const [detail, setDetail] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const getAdminHref = (path: string) => {
+    const adminKey = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("admin_key") : null;
+    if (!adminKey) return path;
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}admin_key=${encodeURIComponent(adminKey)}`;
+  };
+
   useEffect(() => {
     setLoading(true);
     const adminKey = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("admin_key") : null;
@@ -487,7 +523,7 @@ function UserDetailSlideover({
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            <Link href={ADMIN_UI_ROUTES.USER_DETAIL(userId)} target="_blank">
+            <Link href={getAdminHref(ADMIN_UI_ROUTES.USER_DETAIL(userId))} target="_blank">
               <Button size="sm" variant="outline" className="h-7 text-xs font-mono gap-1">
                 Full Page <ExternalLink className="h-3 w-3" />
               </Button>
@@ -552,12 +588,14 @@ function UserDetailSlideover({
                     1. PUTER CONNECTION STATUS
                   </h3>
                   {detail.puterConnection.isConnected ? (
-                    <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px] font-mono">
-                      ✓ Connected
+                    <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px] font-mono flex items-center gap-1">
+                      <Check className="h-3 w-3 shrink-0" />
+                      <span>Connected</span>
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="text-muted-foreground text-[10px] font-mono">
-                      ✕ Not Connected
+                    <Badge variant="outline" className="text-muted-foreground text-[10px] font-mono flex items-center gap-1">
+                      <X className="h-3 w-3 shrink-0" />
+                      <span>Not Connected</span>
                     </Badge>
                   )}
                 </div>
