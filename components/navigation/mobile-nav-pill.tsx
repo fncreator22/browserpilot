@@ -5,20 +5,25 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
   Compass, 
-  Eye, 
-  FileText, 
-  SlidersHorizontal
+  Radio, 
+  Bookmark, 
+  Settings,
+  Plus,
+  Search
 } from "lucide-react";
 import { useUIState } from "@/components/providers/ui-state-provider";
 
 export function MobileNavPill() {
   const pathname = usePathname();
-  const { openProfileModal, isProfileModalOpen } = useUIState();
+  const { openProfileModal, isProfileModalOpen, savedCount } = useUIState();
   const [isScrolled, setIsScrolled] = useState(false);
 
-  const isExcludedPath = pathname?.startsWith("/ops-sec-") || pathname?.startsWith("/login") || pathname?.startsWith("/register");
+  const isExcludedPath = 
+    pathname?.startsWith("/ops-sec-") || 
+    pathname?.startsWith("/login") || 
+    pathname?.startsWith("/signup") ||
+    pathname?.startsWith("/checkout");
 
-  // Monitor scroll for smooth elevation transition (must be called unconditionally before early returns)
   useEffect(() => {
     if (isExcludedPath) return;
     const handleScroll = () => {
@@ -28,7 +33,6 @@ export function MobileNavPill() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [isExcludedPath]);
 
-  // Do not render floating mobile nav pill on admin ops pages or auth pages
   if (isExcludedPath) {
     return null;
   }
@@ -36,34 +40,36 @@ export function MobileNavPill() {
   const navItems = [
     {
       href: "/app",
-      label: "Discover",
+      label: "Home",
       icon: Compass,
-      isActive: pathname === "/app" || pathname === "/app/discover",
+      isActive: pathname === "/app",
     },
     {
       href: "/app/watch",
-      label: "Watch",
-      icon: Eye,
+      label: "Radar",
+      icon: Radio,
       isActive: pathname === "/app/watch",
     },
     {
-      href: "/app/dossier",
-      label: "Dossier",
-      icon: FileText,
-      isActive: pathname === "/app/dossier",
+      href: "/app/saved",
+      label: "Saved",
+      icon: Bookmark,
+      badge: savedCount > 0 ? savedCount : undefined,
+      isActive: pathname === "/app/saved",
     },
   ];
 
   return (
     <nav 
-      aria-label="Mobile Navigation Dock"
-      className="fixed bottom-3 left-0 right-0 z-40 flex justify-center px-4 pointer-events-none md:hidden"
+      aria-label="Mobile Floating Dock"
+      className="fixed bottom-5 inset-x-0 mx-auto w-fit z-40 lg:hidden pointer-events-none flex items-center gap-2.5 px-4"
     >
+      {/* Black Main Pill Dock */}
       <div 
-        className={`pointer-events-auto flex items-center justify-around gap-1 sm:gap-2 px-3 py-1.5 rounded-full bg-[#1F3D2E]/95 dark:bg-[#1A2620]/95 text-white backdrop-blur-md border border-white/15 transition-all duration-300 min-w-[280px] max-w-[360px] w-full ${
+        className={`pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-full bg-slate-950/95 text-white backdrop-blur-xl border border-white/10 transition-all duration-300 ${
           isScrolled 
-            ? "shadow-2xl shadow-black/30 translate-y-0" 
-            : "shadow-lg shadow-black/15 translate-y-0"
+            ? "shadow-2xl shadow-black/60 scale-[0.98]" 
+            : "shadow-xl shadow-black/40"
         }`}
       >
         {navItems.map((item) => {
@@ -75,35 +81,57 @@ export function MobileNavPill() {
               key={item.href}
               href={item.href}
               prefetch={false}
-              className={`relative flex flex-col items-center justify-center flex-1 min-h-[44px] px-2 rounded-full transition-colors ${
+              className={`relative flex items-center justify-center transition-all duration-200 cursor-pointer ${
                 active 
-                  ? "bg-white/20 text-white font-semibold shadow-2xs" 
-                  : "text-white/75 hover:text-white hover:bg-white/10"
+                  ? "w-11 h-11 rounded-full bg-white text-black shadow-md font-bold scale-105" 
+                  : "w-10 h-10 rounded-full text-white/60 hover:text-white hover:bg-white/10"
               }`}
               aria-label={item.label}
               aria-current={active ? "page" : undefined}
             >
-              <Icon className="h-4 w-4 stroke-[1.75]" aria-hidden="true" />
-              <span className="text-[10px] mt-0.5 tracking-tight">{item.label}</span>
+              <Icon className={`${active ? "h-5 w-5 stroke-[2.2]" : "h-4 w-4 stroke-[1.75]"}`} />
+              {item.badge !== undefined && (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] font-mono font-bold px-1 ring-2 ring-slate-950">
+                  {item.badge > 99 ? "99+" : item.badge}
+                </span>
+              )}
             </Link>
           );
         })}
 
-        {/* Dedicated Settings & Profile Trigger Tab */}
+        {/* Settings / Account Trigger Button */}
         <button
           type="button"
           onClick={() => openProfileModal("ACCOUNT")}
-          className={`relative flex flex-col items-center justify-center flex-1 min-h-[44px] px-2 rounded-full transition-colors cursor-pointer ${
+          className={`relative flex items-center justify-center transition-all duration-200 cursor-pointer ${
             isProfileModalOpen 
-              ? "bg-white/20 text-white font-semibold shadow-2xs" 
-              : "text-white/75 hover:text-white hover:bg-white/10"
+              ? "w-11 h-11 rounded-full bg-white text-black shadow-md scale-105" 
+              : "w-10 h-10 rounded-full text-white/60 hover:text-white hover:bg-white/10"
           }`}
-          aria-label="Settings and Career Profile"
+          aria-label="Account Settings"
         >
-          <SlidersHorizontal className="h-4 w-4 stroke-[1.75]" aria-hidden="true" />
-          <span className="text-[10px] mt-0.5 tracking-tight">Settings</span>
+          <Settings className={`${isProfileModalOpen ? "h-5 w-5 stroke-[2.2]" : "h-4 w-4 stroke-[1.75]"}`} />
         </button>
       </div>
+
+      {/* Quick Search Circular Trigger Button (Matching TimoBots '+' elevated action) */}
+      <button
+        type="button"
+        onClick={() => {
+          if (pathname !== "/app") {
+            window.location.href = "/app";
+          } else {
+            const input = document.querySelector("textarea, input[type='text']") as HTMLElement | null;
+            input?.focus();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }
+        }}
+        className="pointer-events-auto flex items-center justify-center w-12 h-12 rounded-full bg-slate-900/90 text-white border border-white/20 shadow-xl shadow-black/50 hover:scale-105 active:scale-95 transition-all cursor-pointer group"
+        aria-label="New Search"
+        title="Quick Search"
+      >
+        <Search className="h-5 w-5 group-hover:rotate-12 transition-transform" />
+      </button>
     </nav>
   );
 }

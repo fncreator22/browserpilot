@@ -1,28 +1,21 @@
-"use client";
-
 import React from "react";
-import { AppSidebar, MobileAppHeader } from "@/components/navigation/app-sidebar";
-import { useUIState } from "@/components/providers/ui-state-provider";
+import { TopNavIsland } from "@/components/navigation/top-nav-island";
+import { MobileNavPill } from "@/components/navigation/mobile-nav-pill";
 
 export function AppLayoutShell({ children }: { children: React.ReactNode }) {
-  const { isSidebarCollapsed } = useUIState();
-
   return (
-    <div className="min-h-screen bg-[#F6F6F4] text-foreground flex flex-col md:flex-row antialiased">
-      {/* Dynamic Left Sidebar on Desktop (w-[216px] or w-[68px]) */}
-      <AppSidebar />
+    <div className="min-h-screen bg-background text-foreground flex flex-col antialiased">
+      {/* Top Floating Navigation Island */}
+      <TopNavIsland />
 
-      {/* Mobile Top Header (Hidden on Desktop) */}
-      <MobileAppHeader />
-
-      {/* Main Page Content with Animated Left Offset on Desktop */}
-      <div 
-        className={`flex-1 flex flex-col min-w-0 transition-[padding-left] duration-200 ease-in-out ${
-          isSidebarCollapsed ? "md:pl-[68px]" : "md:pl-[216px]"
-        }`}
-      >
+      {/* Main Content Viewport - Full Width Fluid Canvas */}
+      <main className="flex-1 flex flex-col min-w-0 pb-20 lg:pb-8">
         {children}
-      </div>
+      </main>
+
+      {/* Mobile Floating Bottom Navigation Dock (< 1024px, lg:hidden) */}
+      <MobileNavPill />
     </div>
   );
 }
+

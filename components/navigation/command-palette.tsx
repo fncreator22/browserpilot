@@ -7,7 +7,6 @@ import {
   Compass, 
   Bookmark, 
   Eye, 
-  Layers, 
   History, 
   Bell, 
   User, 
@@ -15,14 +14,12 @@ import {
   Brain, 
   CreditCard, 
   ArrowRight, 
-  X,
-  Sparkles,
-  Command as CommandIcon,
-  SlidersHorizontal,
-  HelpCircle
+  X, 
+  Command as CommandIcon, 
+  SlidersHorizontal, 
+  HelpCircle 
 } from "lucide-react";
 import { useUIState, type ProfileTab } from "@/components/providers/ui-state-provider";
-import { Badge } from "@/components/ui/badge";
 
 interface CommandItem {
   id: string;
@@ -82,33 +79,48 @@ export function CommandPalette() {
     {
       id: "nav-discover",
       label: "Discover Opportunities",
-      sublabel: "Autonomous search & verification engine",
+      sublabel: "Autonomous multi-source job search & verification engine",
       category: "PAGES",
       icon: Compass,
       action: () => handleNavigate("/app"),
     },
     {
-      id: "nav-saved",
-      label: "Saved Opportunities",
-      sublabel: "Verified bookmarked listings",
-      category: "PAGES",
-      icon: Bookmark,
-      badge: savedCount > 0 ? savedCount : undefined,
-      badgeVariant: "secondary",
-      action: () => handleNavigate("/app/saved"),
-    },
-    {
       id: "nav-watch",
-      label: "Autonomous Watches",
-      sublabel: "Continuous headless monitoring rules",
+      label: "Autonomous Watch",
+      sublabel: "Continuous background monitoring and alert rules",
       category: "PAGES",
       icon: Eye,
       action: () => handleNavigate("/app/watch"),
     },
     {
+      id: "nav-saved",
+      label: "Saved Opportunities",
+      sublabel: "Verified bookmarked roles in your workspace",
+      category: "PAGES",
+      icon: Bookmark,
+      badge: savedCount > 0 ? savedCount : undefined,
+      action: () => handleNavigate("/app/saved"),
+    },
+    {
+      id: "nav-history",
+      label: "Search History",
+      sublabel: "Past queries, execution sessions, and dossiers",
+      category: "PAGES",
+      icon: History,
+      action: () => handleNavigate("/app/history"),
+    },
+    {
+      id: "nav-plans",
+      label: "Subscription Plans & Quotas",
+      sublabel: "Manage tier capabilities, tokens, and upgrades",
+      category: "PAGES",
+      icon: CreditCard,
+      action: () => handleNavigate("/app/plans"),
+    },
+    {
       id: "nav-notifications",
       label: "Opportunity Alerts",
-      sublabel: "Live status changes and new matches",
+      sublabel: "Live status shifts, stale removals, and new matches",
       category: "PAGES",
       icon: Bell,
       badge: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined,
@@ -116,65 +128,65 @@ export function CommandPalette() {
       action: () => handleNavigate("/app/notifications"),
     },
     {
-      id: "nav-history",
-      label: "Search & Session History",
-      sublabel: "Past queries, runs, and artifacts",
+      id: "nav-memory-vault",
+      label: "User Memory Vault & Preferences",
+      sublabel: "Durable search preferences remembered by AI Brain",
       category: "PAGES",
-      icon: History,
-      action: () => handleNavigate("/app/history"),
-    },
-    {
-      id: "set-account",
-      label: "Account & Security",
-      sublabel: "Manage credentials, password, and profile",
-      category: "SETTINGS",
-      icon: User,
-      action: () => handleOpenSettings("ACCOUNT"),
+      icon: Brain,
+      action: () => handleNavigate("/app/settings/memory"),
     },
     {
       id: "set-providers",
       label: "AI Providers & Keys",
-      sublabel: "Configure Gemini API keys or Puter tokens",
+      sublabel: "Connect Puter AI or configure Gemini BYOK API keys",
       category: "SETTINGS",
       icon: KeyRound,
       action: () => handleOpenSettings("PROVIDERS"),
     },
     {
-      id: "set-connectors",
-      label: "Data Connectors",
-      sublabel: "Configure monitored ATS platforms and sources",
-      category: "SETTINGS",
-      icon: SlidersHorizontal,
-      action: () => handleOpenSettings("CONNECTORS"),
-    },
-    {
       id: "set-memory",
-      label: "Career Memory & Preferences",
-      sublabel: "Tune personalization, roles, and skill filters",
+      label: "Career Memory Vault",
+      sublabel: "Tune personalization, experience level, and skills",
       category: "SETTINGS",
       icon: Brain,
       action: () => handleOpenSettings("CAREER_MEMORY"),
     },
     {
+      id: "set-connectors",
+      label: "ATS Connectors & Sources",
+      sublabel: "Configure Greenhouse, Lever, Ashby, and LinkedIn sources",
+      category: "SETTINGS",
+      icon: SlidersHorizontal,
+      action: () => handleOpenSettings("CONNECTORS"),
+    },
+    {
       id: "set-billing",
-      label: "Billing & Plans",
-      sublabel: "Subscription tier, quotas, and coupon redemption",
+      label: "Billing & Coupons",
+      sublabel: "Active subscription, usage meters, and voucher codes",
       category: "SETTINGS",
       icon: CreditCard,
       action: () => handleOpenSettings("BILLING"),
     },
     {
+      id: "set-account",
+      label: "Account & Profile",
+      sublabel: "Manage account email, password, and security",
+      category: "SETTINGS",
+      icon: User,
+      action: () => handleOpenSettings("ACCOUNT"),
+    },
+    {
       id: "set-notifications",
       label: "Notification Preferences",
-      sublabel: "Alert frequency, digests, and toast preferences",
+      sublabel: "Configure email alerts and toast notifications",
       category: "SETTINGS",
       icon: Bell,
       action: () => handleOpenSettings("NOTIFICATIONS"),
     },
     {
       id: "set-help",
-      label: "Help & Learn More",
-      sublabel: "Architecture overview, shortcuts, and support",
+      label: "Help & Engine Details",
+      sublabel: "BrowserPilot architecture overview and keyboard shortcuts",
       category: "SETTINGS",
       icon: HelpCircle,
       action: () => handleOpenSettings("HELP"),
@@ -240,19 +252,19 @@ export function CommandPalette() {
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:p-6 sm:pt-20 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:p-6 sm:pt-20 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150"
       onClick={closeCommandPalette}
       role="dialog"
       aria-modal="true"
       aria-label="BrowserPilot Command Palette"
     >
       <div 
-        className="w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-card shadow-2xl transition-all duration-200"
+        className="w-full max-w-2xl overflow-hidden rounded-2xl border border-border/80 bg-card dark:bg-slate-900 shadow-2xl transition-all duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Search Header */}
-        <div className="flex items-center gap-3 border-b border-border/80 px-4 py-3 bg-[#F6F6F4]/50 dark:bg-[#121714]">
-          <Search className="h-5 w-5 text-[#1F3D2E] dark:text-emerald-400 shrink-0" />
+        {/* Search Input Bar */}
+        <div className="flex items-center gap-3 border-b border-border/80 px-4 py-3.5 bg-[#F6F6F4]/50 dark:bg-slate-950/60">
+          <Search className="h-5 w-5 text-emerald-600 dark:text-emerald-400 dark:text-emerald-400 shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -262,32 +274,33 @@ export function CommandPalette() {
               setSelectedIndex(0);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Type a search query or jump to page/settings..."
+            placeholder="Search opportunities or jump to pages and settings..."
             className="w-full bg-transparent text-sm sm:text-base font-sans text-foreground placeholder:text-muted-foreground focus:outline-none"
             aria-label="Search or enter command"
           />
           {query && (
             <button
+              type="button"
               onClick={() => setQuery("")}
-              className="p-1 text-muted-foreground hover:text-foreground rounded-md focus-visible:ring-2 focus-visible:ring-[#1F3D2E]"
+              className="p-1 text-muted-foreground hover:text-foreground rounded-md transition-colors cursor-pointer"
               aria-label="Clear input"
             >
               <X className="h-4 w-4" />
             </button>
           )}
-          <kbd className="hidden sm:inline-flex items-center gap-1 rounded border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-mono font-medium text-muted-foreground">
-            <span className="text-xs">ESC</span>
+          <kbd className="kbd kbd-xs font-mono px-2 py-0.5 rounded bg-muted/80 text-muted-foreground border border-border/60">
+            ESC
           </kbd>
         </div>
 
-        {/* Results List */}
+        {/* Results / Commands List */}
         <div 
           ref={listRef}
           className="max-h-[60vh] overflow-y-auto p-2 divide-y divide-border/30"
           role="listbox"
         >
           {filteredItems.length === 0 ? (
-            <div className="py-12 text-center text-sm text-muted-foreground">
+            <div className="py-12 text-center text-sm font-sans text-muted-foreground">
               No matching pages or actions found.
             </div>
           ) : (
@@ -303,38 +316,39 @@ export function CommandPalette() {
                   aria-selected={isSelected}
                   onClick={() => item.action()}
                   onMouseEnter={() => setSelectedIndex(idx)}
-                  className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                  className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${
                     isSelected 
                       ? isSearchDirect 
-                        ? "bg-[#1F3D2E] text-white"
-                        : "bg-[#1F3D2E]/10 dark:bg-emerald-950/40 text-foreground border border-[#1F3D2E]/20" 
+                        ? "bg-emerald-600 text-white"
+                        : "bg-emerald-600/10 dark:bg-slate-800 text-foreground border border-emerald-500/20 dark:border-slate-700" 
                       : "hover:bg-muted/50 text-foreground"
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={`p-2 rounded-md shrink-0 ${
+                    <div className={`p-2 rounded-lg shrink-0 ${
                       isSelected && isSearchDirect
                         ? "bg-white/20 text-white"
                         : isSelected
-                        ? "bg-[#1F3D2E] text-white dark:bg-emerald-500 dark:text-emerald-950"
+                        ? "bg-emerald-600 text-white dark:bg-white/10 dark:text-white"
                         : "bg-muted text-muted-foreground"
                     }`}>
-                      <Icon className="h-4 w-4" />
+                      <Icon className="h-4 w-4 stroke-[1.75]" />
                     </div>
                     <div className="min-w-0 truncate">
                       <div className="flex items-center gap-2 font-sans font-medium text-sm">
                         <span className="truncate">{item.label}</span>
                         {item.badge !== undefined && (
-                          <Badge 
-                            variant={item.badgeVariant || "secondary"}
-                            className="text-[10px] font-mono px-1.5 py-0 h-4"
+                          <span 
+                            className={`badge badge-sm font-mono text-[10px] ${
+                              item.badgeVariant === "destructive" ? "badge-error text-white" : "badge-neutral"
+                            }`}
                           >
                             {item.badge}
-                          </Badge>
+                          </span>
                         )}
                       </div>
                       {item.sublabel && (
-                        <p className={`text-xs truncate ${isSelected && isSearchDirect ? "text-white/80" : "text-muted-foreground"}`}>
+                        <p className={`text-xs truncate font-sans ${isSelected && isSearchDirect ? "text-white/80" : "text-muted-foreground"}`}>
                           {item.sublabel}
                         </p>
                       )}
@@ -347,7 +361,7 @@ export function CommandPalette() {
                         Enter <ArrowRight className="h-3 w-3" />
                       </span>
                     ) : (
-                      <span className="text-[11px] font-mono text-muted-foreground hidden sm:inline-block">
+                      <span className="text-[10px] font-mono uppercase text-muted-foreground hidden sm:inline-block px-1.5 py-0.5 rounded bg-muted/60">
                         {item.category}
                       </span>
                     )}
@@ -358,14 +372,14 @@ export function CommandPalette() {
           )}
         </div>
 
-        {/* Footer info */}
-        <div className="flex items-center justify-between border-t border-border/80 px-4 py-2 bg-[#F6F6F4]/50 dark:bg-[#121714] text-[11px] text-muted-foreground font-mono">
+        {/* Footer Info */}
+        <div className="flex items-center justify-between border-t border-border/80 px-4 py-2.5 bg-[#F6F6F4]/60 dark:bg-slate-950/80 text-[11px] text-muted-foreground font-mono">
           <div className="flex items-center gap-3">
-            <span>Use <kbd className="font-semibold text-foreground">↑</kbd> <kbd className="font-semibold text-foreground">↓</kbd> to navigate</span>
-            <span><kbd className="font-semibold text-foreground">Enter</kbd> to select</span>
+            <span>Use <kbd className="kbd kbd-xs">↑</kbd> <kbd className="kbd kbd-xs">↓</kbd> to navigate</span>
+            <span><kbd className="kbd kbd-xs">↵</kbd> to select</span>
           </div>
-          <div className="flex items-center gap-1 text-[#1F3D2E] dark:text-emerald-400 font-semibold">
-            <CommandIcon className="h-3 w-3" />
+          <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 dark:text-white font-semibold">
+            <CommandIcon className="h-3 w-3 stroke-[1.75]" />
             <span>BrowserPilot Hub</span>
           </div>
         </div>
@@ -373,3 +387,4 @@ export function CommandPalette() {
     </div>
   );
 }
+

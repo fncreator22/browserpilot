@@ -91,6 +91,47 @@ export function UIStateProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Auto-synchronize browser Puter authentication token to server DB if user is logged in
+  useEffect(() => {
+    if (!session?.user) return;
+
+    let syncInterval: NodeJS.Timeout;
+    const checkAndSyncPuter = async () => {
+      try {
+        if (typeof window === "undefined" || !window.puter?.auth) return;
+        if (window.puter.auth.isSignedIn()) {
+          const puterUser = await window.puter.auth.getUser().catch(() => null);
+          const token =
+            (window.puter as any).authToken ||
+            localStorage.getItem("puter.auth.token.v2") ||
+            undefined;
+
+          if (puterUser?.username && token) {
+            await fetch("/api/account/providers/puter", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                username: puterUser.username,
+                token,
+              }),
+            }).catch(() => {});
+          }
+        }
+      } catch {
+        // Non-blocking
+      }
+    };
+
+    // Initial check after short delay to let Puter.js load, then every 60s
+    const timer = setTimeout(checkAndSyncPuter, 1500);
+    syncInterval = setInterval(checkAndSyncPuter, 60000);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(syncInterval);
+    };
+  }, [session?.user]);
+
   const setIsSidebarCollapsed = useCallback((collapsed: boolean) => {
     setIsSidebarCollapsedState(collapsed);
     if (typeof window !== "undefined") {
