@@ -15,22 +15,45 @@ import {
   AlertTriangle,
   RotateCw,
   Search,
-  Globe
+  Radio,
+  Globe,
+  ShieldCheck,
+  ArrowRight,
+  MapPin
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TaskInput, type OpportunitySearchResultPayload } from "@/components/agent/task-input";
 import { JobDossierDeck } from "@/components/result/job-dossier-deck";
-import { AutonomousWatchCard } from "@/components/discovery/autonomous-watch-card";
 import { SearchProgress } from "@/components/discovery/search-progress";
-import { InterpretedIntentCard } from "@/components/discovery/interpreted-intent-card";
 import { SearchStatusBanner } from "@/components/discovery/search-status-banner";
 import { SearchRefinements } from "@/components/discovery/search-refinements";
-import { SearchDiagnosticsCard } from "@/components/discovery/search-diagnostics-card";
+import { CompactExecutionPill } from "@/components/discovery/compact-execution-pill";
 import { PersonalizationIndicator } from "@/components/discovery/personalization-indicator";
 import { useUIState } from "@/components/providers/ui-state-provider";
 import { usePuter } from "@/hooks/usePuter";
+
+function formatRelativeTime(dateString: string): string {
+  try {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHours = Math.floor(diffMin / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffSec < 60) return "Just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch {
+    return "Recently";
+  }
+}
 
 function DiscoverContent() {
   const searchParams = useSearchParams();
@@ -189,27 +212,24 @@ function DiscoverContent() {
     setActiveExecutionId(undefined);
   }, []);
 
-  const handleRefineSearch = (refinementText: string) => {
-    setActiveQuery(refinementText);
-  };
-
-  const handleRunFallbackScraper = async () => {
-    const q = opportunityData?.query || activeQuery;
-    if (!q) return;
+  const executeDiscoverySearch = useCallback(async (queryText: string, allowFallback: boolean = true) => {
+    if (!queryText || !queryText.trim()) return;
+    const cleanText = queryText.trim();
+    setActiveQuery(cleanText);
     setIsSearching(true);
     try {
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: q,
-          allowDeterministicFallback: true,
+          query: cleanText,
+          allowDeterministicFallback: allowFallback,
         }),
       });
       const data = await res.json();
       if (data.status === "QUEUED" && data.executionId) {
         setActiveExecutionId(data.executionId);
-        setActiveQuery(q);
+        setActiveQuery(cleanText);
         setIsSearching(true);
       } else {
         handleSearchResult(data);
@@ -217,367 +237,399 @@ function DiscoverContent() {
     } catch {
       setIsSearching(false);
     }
+  }, [handleSearchResult]);
+
+  const handleRefineSearch = (refinementText: string) => {
+    executeDiscoverySearch(refinementText, true);
+  };
+
+  const handleRunFallbackScraper = async () => {
+    const q = opportunityData?.query || activeQuery;
+    if (!q) return;
+    executeDiscoverySearch(q, true);
   };
 
   return (
-    <div className="flex-1 flex flex-col antialiased selection:bg-[#1F3D2E]/20 selection:text-[#1F3D2E]">
-      <main className="flex-1 container mx-auto max-w-6xl px-4 py-6 pb-32 md:pb-12 sm:px-6 space-y-6">
-        {/* Header Title Bar */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/60"
-        >
-          <div>
-            <div className="flex items-center gap-2.5 mb-1">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1F3D2E]/10 text-[#1F3D2E] dark:bg-emerald-950 dark:text-emerald-400">
-                <Compass className="h-4 w-4" />
-              </span>
-              <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-foreground">
-                Discover Opportunities
-              </h1>
-            </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              <span className="hidden sm:inline">
-                Autonomous opportunity search powered by the Intelligence Harness. Enter any natural-language role, location, or freshness request.
-              </span>
-              <span className="sm:hidden">
-                Autonomous multi-source job search.
-              </span>
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {opportunityData && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleResetDiscovery}
-                className="h-8 px-3 font-sans font-medium text-xs gap-1.5 border-border/70 hover:bg-muted/40 cursor-pointer"
-              >
-                <RotateCw className="h-3.5 w-3.5" />
-                New Discovery
-              </Button>
-            )}
-            <Link href="/app/watch">
-              <Button variant="outline" size="sm" className="h-8 px-3 font-sans font-medium text-xs gap-1.5 border-border/70 hover:bg-muted/40 cursor-pointer">
-                <Eye className="h-3.5 w-3.5 text-primary" />
-                Configure Watch
-              </Button>
-            </Link>
-          </div>
-        </motion.div>
-
-        {/* Primary Natural Language Discovery Input */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="max-w-4xl mx-auto space-y-4"
-        >
-          <TaskInput
-            key="unified-task-input"
-            initialPrompt={activeQuery}
-            hasSearchHistory={searchHistory.length > 0}
-            onOpportunitySearchResult={handleSearchResult}
-            onSearchingChange={(searching) => setIsSearching(searching)}
-            onExecutionQueued={(execId, q) => {
-              setActiveExecutionId(execId);
-              setActiveQuery(q);
-              setIsSearching(true);
-            }}
-          />
-        </motion.div>
-
-        {/* SEARCHING State: Dynamic Execution Stage & Skeletons */}
-        {isSearching && (
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.3 }}
-          >
-            <SearchProgress
-              executionId={activeExecutionId}
-              query={activeQuery || initialQuery || "Searching opportunities..."}
-              onComplete={handleSearchResult}
-              onError={handleSearchError}
-            />
-          </motion.div>
-        )}
-
-        {/* RESULTS Deck (COMPLETE, PARTIAL, NO_RESULTS, FAILED) */}
-        <AnimatePresence mode="wait">
-          {!isSearching && opportunityData && (
+    <div className="flex-1 flex flex-col antialiased selection:bg-emerald-500/20 selection:text-emerald-400">
+      <main className="flex-1 container mx-auto max-w-7xl px-4 py-6 pb-32 md:pb-12 sm:px-6 space-y-6">
+        {/* CASE 1: INITIAL STATE (Claude / ChatGPT / Nothing OS Pristine First Impressions) */}
+        {!opportunityData && !isSearching ? (
+          <div className="min-h-[calc(100vh-14rem)] flex flex-col justify-center items-center text-center max-w-3xl mx-auto px-4 py-8">
             <motion.div
-              key={opportunityData.searchId || "results-view"}
-              initial={{ opacity: 0, y: 25 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.4 }}
-              className="max-w-5xl mx-auto space-y-6 pt-2"
+              className="space-y-6 w-full"
             >
-              {/* Top Header Summary */}
-              <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-border/60">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary shadow-inner">
-                    <Briefcase className="h-4 w-4" />
-                  </span>
-                  <div>
-                    <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
-                      Opportunity Results
-                      <Badge variant="secondary" className="font-mono text-xs">
-                        {opportunityData.verifiedCount ?? opportunityData.results?.length ?? 0} Verified
-                      </Badge>
-                      {opportunityData.status === "COMPLETE" && (
-                        <Badge variant="outline" className="font-mono text-xs text-emerald-500 border-emerald-500/30 bg-emerald-500/10 flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Complete
-                        </Badge>
-                      )}
-                      {opportunityData.status === "PARTIAL" && (
-                        <Badge variant="outline" className="font-mono text-xs text-amber-500 border-amber-500/30 bg-amber-500/10 flex items-center gap-1">
-                          <AlertTriangle className="h-3 w-3" />
-                          Partial
-                        </Badge>
-                      )}
-                    </h2>
-                    <p className="text-xs text-muted-foreground font-mono">
-                      Query: &ldquo;{opportunityData.query}&rdquo;
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleResetDiscovery}
-                    className="h-8 px-3 font-mono text-xs text-muted-foreground hover:text-foreground gap-1.5 cursor-pointer"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                    Clear Results
-                  </Button>
-                </div>
+              {/* Radar Aperture Badge */}
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-muted/70 border border-border/80 text-xs font-medium text-muted-foreground shadow-2xs">
+                <Radio className="h-3.5 w-3.5 text-foreground" />
+                <span className="font-sans font-semibold text-foreground">Radar</span>
+                <span className="text-muted-foreground/50">•</span>
+                <span className="font-sans">Autonomous Opportunity Intelligence</span>
               </div>
 
-              {/* Status Banner: Explains COMPLETE, PARTIAL, NO_RESULTS, UNAUTHORIZED, or MODEL_CONFIGURATION_REQUIRED */}
-              <SearchStatusBanner
-                status={opportunityData.status}
-                requestedCount={opportunityData.requestedCount || opportunityData.canonicalIntent?.requestedCount || 10}
-                verifiedCount={opportunityData.verifiedCount ?? opportunityData.results?.length ?? 0}
-                explanation={opportunityData.explanation}
-                stoppingReason={opportunityData.diagnostics?.stoppingReason}
-                errorCode={opportunityData.errorCode}
-                onOpenProviders={() => openProfileModal("PROVIDERS")}
-                onConnectPuter={puterSignIn}
-                onRunFallbackScraper={handleRunFallbackScraper}
-                isPuterAuthenticating={isPuterAuthenticating}
-              />
+              {/* Centered Typography */}
+              <div className="space-y-2.5 max-w-xl mx-auto">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-sans font-bold tracking-tight text-foreground">
+                  Where should your career go next?
+                </h1>
+                <p className="text-xs sm:text-sm text-muted-foreground font-sans leading-relaxed">
+                  Search any role, company, or tech stack. Autonomous agents verify authenticity, salary bands, and live recruiter contacts across verified sources.
+                </p>
+              </div>
 
-              {/* Personalization Indicator (when active user memory applied) */}
-              {opportunityData.personalization?.applied && (
-                <PersonalizationIndicator personalization={opportunityData.personalization} />
-              )}
-
-              {/* Section 8: Interpreted Search Transparency Card */}
-              {(opportunityData.canonicalIntent || opportunityData.intent) && (
-                <InterpretedIntentCard
-                  intent={opportunityData.intent}
-                  canonicalIntent={opportunityData.canonicalIntent}
-                  requestedCount={opportunityData.requestedCount}
+              {/* Central AI Search Capsule */}
+              <div className="w-full pt-2 text-left">
+                <TaskInput
+                  key="unified-task-input"
+                  initialPrompt={activeQuery}
+                  hasSearchHistory={searchHistory.length > 0}
+                  isSearching={isSearching}
+                  onOpportunitySearchResult={handleSearchResult}
+                  onSearchingChange={(searching) => setIsSearching(searching)}
+                  onExecutionQueued={(execId, q) => {
+                    setActiveExecutionId(execId);
+                    setActiveQuery(q);
+                    setIsSearching(true);
+                  }}
                 />
-              )}
+              </div>
 
-              {/* Quality Gate & Search Execution Diagnostics */}
-              <SearchDiagnosticsCard
-                diagnostics={opportunityData.diagnostics}
-                correctionState={opportunityData.correctionState}
-                sourceSummary={opportunityData.sourceSummary}
-                metadata={opportunityData.metadata}
-              />
-
-              {/* Section 13: Search Refinement Chips */}
-              <SearchRefinements
-                currentQuery={opportunityData.query || activeQuery}
-                onSelectRefinement={handleRefineSearch}
-              />
-
-              {/* 1-Click Autonomous Watch Conversion Banner */}
-              <AutonomousWatchCard
-                intent={opportunityData.canonicalIntent || opportunityData.intent || { role: "Software Engineer" }}
-                query={opportunityData.query}
-              />
-
-              {/* Ranked Dossier Deck (when results > 0) or Smart Recovery Empty Deck */}
-              {opportunityData.results?.length > 0 ? (
-                <JobDossierDeck
-                  jobs={opportunityData.results}
-                  jobId={opportunityData.searchId}
-                  onBookmarkChange={handleBookmarkChange}
-                />
-              ) : (
-                <div className="rounded-2xl border border-dashed border-border bg-muted/10 p-6 sm:p-8 text-center space-y-4">
-                  <div className="flex justify-center">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-foreground">
-                      <Search className="h-6 w-6 text-muted-foreground" />
-                    </span>
-                  </div>
-                  <div className="space-y-1.5 max-w-md mx-auto">
-                    <h3 className="text-base font-serif font-bold text-foreground">
-                      No matching verified opportunities right now
-                    </h3>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      We searched {
-                        (opportunityData as any).sourceStatusSummary?.attemptedSources?.length
-                          ? (opportunityData as any).sourceStatusSummary.attemptedSources.join(", ")
-                          : ((opportunityData as any).sources?.length
-                              ? (opportunityData as any).sources.join(", ")
-                              : "our verified multi-source networks and ATS connectors")
-                      }, but found 0 verified listings meeting your exact criteria in this time window. Try expanding your search parameters below.
-                    </p>
-                  </div>
-
-                  <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRefineSearch(`${opportunityData.query} remote`)}
-                      className="text-xs h-8 cursor-pointer"
+              {/* Subtle Minimalist Recent Searches */}
+              {searchHistory.length > 0 && (
+                <div className="pt-2 flex items-center justify-center flex-wrap gap-2 text-xs font-sans text-muted-foreground">
+                  <span className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground/80">
+                    <Clock className="h-3 w-3" />
+                    Recent:
+                  </span>
+                  {searchHistory.slice(0, 3).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveQuery(item.rawQuery);
+                        executeDiscoverySearch(item.rawQuery, true);
+                      }}
+                      className="px-2.5 py-1 rounded-full bg-muted/50 hover:bg-muted border border-border/60 hover:border-border text-foreground text-[11px] transition-colors cursor-pointer max-w-[200px] truncate"
+                      title={item.rawQuery}
                     >
-                      <Globe className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                      Try Remote Roles
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRefineSearch(`${opportunityData.query.replace(/in last \d+ days?/i, "").trim()} in last 60 days`)}
-                      className="text-xs h-8 cursor-pointer"
-                    >
-                      <Clock className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                      Expand to Last 60 Days
-                    </Button>
-                  </div>
+                      {item.rawQuery}
+                    </button>
+                  ))}
+                  <Link
+                    href="/app/history"
+                    className="text-[11px] text-muted-foreground hover:text-foreground hover:underline ml-1"
+                  >
+                    View history →
+                  </Link>
                 </div>
               )}
             </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Loading Skeleton: Rendered while search history is loading to prevent blank flash */}
-        {!isSearching && !opportunityData && !hasCheckedHistory && (
-          <div className="space-y-3.5 pt-2 animate-pulse">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 rounded bg-muted/60" />
-                <div className="h-4 w-36 rounded bg-muted/60" />
+          </div>
+        ) : (
+          /* CASE 2: ACTIVE SEARCHING OR RESULTS DECK (Notion Dashboard Style) */
+          <div className="space-y-6">
+            {/* Header Title Bar - Minimal Notion/Claude Breadcrumb */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="flex items-center justify-between gap-3 pb-3 border-b border-border/60"
+            >
+              <div className="flex items-center gap-2 text-xs font-sans text-muted-foreground min-w-0">
+                <span className="flex h-5 w-5 items-center justify-center rounded-md bg-foreground text-background shrink-0 font-bold text-[10px]">
+                  <Radio className="h-3 w-3" />
+                </span>
+                <span className="font-semibold text-foreground">Radar</span>
+                <span>/</span>
+                <span className="truncate max-w-[220px] sm:max-w-md text-foreground/80 font-mono text-[11px]">&ldquo;{activeQuery || "Search"}&rdquo;</span>
               </div>
-              <div className="h-3 w-20 rounded bg-muted/40" />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="rounded-xl border border-border/60 bg-white/60 p-4 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="h-3 w-12 rounded bg-muted/60" />
-                    <div className="h-4 w-14 rounded bg-muted/50" />
-                  </div>
-                  <div className="h-3.5 w-4/5 rounded bg-muted/70" />
+
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetDiscovery}
+                  className="h-7 px-2.5 font-sans font-medium text-xs gap-1 border-border/70 hover:bg-muted/40 cursor-pointer"
+                >
+                  <RotateCw className="h-3 w-3" />
+                  <span className="hidden sm:inline">New Discovery</span>
+                  <span className="sm:hidden">New</span>
+                </Button>
+                <Link href="/app/watch">
+                  <Button variant="outline" size="sm" className="h-7 px-2.5 font-sans font-medium text-xs gap-1 border-border/70 hover:bg-muted/40 cursor-pointer">
+                    <Eye className="h-3 w-3 text-foreground" />
+                    <span className="hidden sm:inline">Watch</span>
+                  </Button>
+                </Link>
+              </div>
+            </motion.div>
+
+            {/* Natural Language Discovery Input */}
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.05 }}
+              className="max-w-3xl mx-auto space-y-4"
+            >
+              <TaskInput
+                key="unified-task-input-active"
+                initialPrompt={activeQuery}
+                hasSearchHistory={searchHistory.length > 0}
+                isSearching={isSearching}
+                onOpportunitySearchResult={handleSearchResult}
+                onSearchingChange={(searching) => setIsSearching(searching)}
+                onExecutionQueued={(execId, q) => {
+                  setActiveExecutionId(execId);
+                  setActiveQuery(q);
+                  setIsSearching(true);
+                }}
+              />
+            </motion.div>
+
+            {/* SEARCHING State: Quiet Execution Pill (No Noise) */}
+            {isSearching && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="flex flex-col items-center justify-center py-4 space-y-3"
+              >
+                <div className="flex items-center gap-2">
+                  <CompactExecutionPill isSearching={true} />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsSearching(false)}
+                    className="h-7 px-2.5 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer"
+                  >
+                    Cancel
+                  </Button>
                 </div>
-              ))}
-            </div>
+                {/* Background SSE Dispatcher for Streamed Completion */}
+                <div className="hidden" aria-hidden="true">
+                  <SearchProgress
+                    executionId={activeExecutionId}
+                    query={activeQuery || initialQuery || "Searching opportunities..."}
+                    onComplete={handleSearchResult}
+                    onError={handleSearchError}
+                    onCancel={() => setIsSearching(false)}
+                  />
+                </div>
+              </motion.div>
+            )}
+
+            {/* RESULTS Deck (COMPLETE, PARTIAL, NO_RESULTS, FAILED) */}
+            <AnimatePresence mode="wait">
+              {!isSearching && opportunityData && (
+                <motion.div
+                  key={opportunityData.searchId || "results-view"}
+                  initial={{ opacity: 0, y: 25 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -15 }}
+                  transition={{ duration: 0.4 }}
+                  className="max-w-5xl mx-auto space-y-6 pt-2"
+                >
+                  {/* Top Header Summary with Compact Execution Pill */}
+                  <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-border/60">
+                    <div className="flex items-center gap-3">
+                      <CompactExecutionPill isSearching={isSearching} searchResult={opportunityData} />
+                      <span className="text-xs text-muted-foreground font-mono truncate max-w-sm hidden sm:inline">
+                        &ldquo;{opportunityData.query}&rdquo;
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleResetDiscovery}
+                        className="h-8 px-3 font-mono text-xs text-muted-foreground hover:text-foreground gap-1.5 cursor-pointer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Status Banner */}
+                  <SearchStatusBanner
+                    status={opportunityData.status}
+                    requestedCount={opportunityData.requestedCount || opportunityData.canonicalIntent?.requestedCount || 10}
+                    verifiedCount={opportunityData.verifiedCount ?? opportunityData.results?.length ?? 0}
+                    explanation={opportunityData.explanation}
+                    stoppingReason={opportunityData.diagnostics?.stoppingReason}
+                    errorCode={opportunityData.errorCode}
+                    onOpenProviders={() => openProfileModal("PROVIDERS")}
+                    onConnectPuter={puterSignIn}
+                    onRunFallbackScraper={handleRunFallbackScraper}
+                    isPuterAuthenticating={isPuterAuthenticating}
+                  />
+
+                  {/* Personalization Indicator (when active user memory applied) */}
+                  {opportunityData.personalization?.applied && (
+                    <PersonalizationIndicator personalization={opportunityData.personalization} />
+                  )}
+
+                  {/* Case 1: Results > 0 - Show Results Deck Immediately */}
+                  {opportunityData.results?.length > 0 ? (
+                    <div className="space-y-6">
+                      <JobDossierDeck
+                        jobs={opportunityData.results}
+                        jobId={opportunityData.searchId}
+                        onBookmarkChange={handleBookmarkChange}
+                      />
+
+                      {/* Section 13: Search Refinement Chips */}
+                      <div className="pt-2">
+                        <SearchRefinements
+                          currentQuery={opportunityData.query || activeQuery}
+                          onSelectRefinement={handleRefineSearch}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    /* Case 2: Zero Results - Smart Broadening & Assisted Recovery Deck */
+                    <div className="space-y-5">
+                      {(() => {
+                        const rawQ = opportunityData.query || activeQuery || "";
+                        const strippedTimeQ = rawQ
+                          .replace(/\b(?:posted\s+)?(?:in|within|for|past)\s+(?:the\s+)?(?:last|past)\s+\d+\s*(?:hours?|hrs?|days?|d|weeks?|w|months?|m)\b/gi, "")
+                          .replace(/\b(?:posted\s+)?(?:today|yesterday|this week|this month)\b/gi, "")
+                          .replace(/\s+/g, " ")
+                          .trim();
+
+                        const isRemoteQuery = /\bremote\b/i.test(rawQ);
+                        const strippedLocationQ = strippedTimeQ
+                          .replace(/\b(?:in|near|around|at)\s+[A-Za-z\s,]+(?=\s+posted|\s+in last|$)/i, "")
+                          .replace(/\s+/g, " ")
+                          .trim();
+
+                        const query7Days = `${strippedTimeQ} in the last 7 days`;
+                        const query30Days = `${strippedTimeQ} in the last 30 days`;
+                        const queryRemote = isRemoteQuery ? strippedTimeQ : `${strippedTimeQ} remote`;
+                        const queryAllLocations = strippedLocationQ.length > 3 ? `${strippedLocationQ} in the last 7 days` : null;
+
+                        return (
+                          <div className="rounded-2xl border border-border/80 bg-card p-6 sm:p-8 shadow-xs space-y-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-4 text-left">
+                              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-foreground shrink-0 border border-border/70">
+                                <Search className="h-6 w-6" />
+                              </span>
+                              <div className="space-y-1">
+                                <h3 className="text-base sm:text-lg font-sans font-bold text-foreground">
+                                  0 Verified Results for Exact Window
+                                </h3>
+                                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed font-sans">
+                                  {opportunityData.explanation || `No verified listings matched your exact criteria in this immediate time window across searched sources.`}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Smart Broadening Recommendations */}
+                            <div className="p-4 rounded-xl bg-muted/40 border border-border/60 space-y-3">
+                              <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                                <Sparkles className="h-3.5 w-3.5 text-foreground" />
+                                <span>Recommended Smart Broadening (1-Click Search):</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => handleRefineSearch(query7Days)}
+                                  className="h-auto p-3 text-left justify-start flex-col items-start border-border/80 hover:border-foreground/40 hover:bg-card transition-all cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                                    <Clock className="h-3.5 w-3.5 text-foreground" />
+                                    <span>Widen to Last 7 Days</span>
+                                  </div>
+                                  <span className="text-[11px] text-muted-foreground font-sans mt-0.5 line-clamp-1">
+                                    Search: {query7Days}
+                                  </span>
+                                </Button>
+
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => handleRefineSearch(query30Days)}
+                                  className="h-auto p-3 text-left justify-start flex-col items-start border-border/80 hover:border-foreground/40 hover:bg-card transition-all cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                                    <Clock className="h-3.5 w-3.5 text-foreground" />
+                                    <span>Widen to Last 30 Days</span>
+                                  </div>
+                                  <span className="text-[11px] text-muted-foreground font-sans mt-0.5 line-clamp-1">
+                                    Search: {query30Days}
+                                  </span>
+                                </Button>
+
+                                {!isRemoteQuery && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => handleRefineSearch(queryRemote)}
+                                    className="h-auto p-3 text-left justify-start flex-col items-start border-border/80 hover:border-foreground/40 hover:bg-card transition-all cursor-pointer"
+                                  >
+                                    <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                                      <Globe className="h-3.5 w-3.5 text-foreground" />
+                                      <span>Include Remote Roles</span>
+                                    </div>
+                                    <span className="text-[11px] text-muted-foreground font-sans mt-0.5 line-clamp-1">
+                                      Search: {queryRemote}
+                                    </span>
+                                  </Button>
+                                )}
+
+                                {queryAllLocations && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => handleRefineSearch(queryAllLocations)}
+                                    className="h-auto p-3 text-left justify-start flex-col items-start border-border/80 hover:border-foreground/40 hover:bg-card transition-all cursor-pointer"
+                                  >
+                                    <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                                      <MapPin className="h-3.5 w-3.5 text-foreground" />
+                                      <span>Search All Locations</span>
+                                    </div>
+                                    <span className="text-[11px] text-muted-foreground font-sans mt-0.5 line-clamp-1">
+                                      Search: {queryAllLocations}
+                                    </span>
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* 1-Click Clean Watch Link */}
+                            <div className="pt-2 flex items-center justify-between flex-wrap gap-2 border-t border-border/40 text-xs">
+                              <span className="text-muted-foreground font-sans">Want automated alerts when new roles match this query?</span>
+                              <Link href={`/app/watch?q=${encodeURIComponent(opportunityData.query || activeQuery)}`}>
+                                <Button variant="outline" size="sm" className="text-xs h-8 gap-1.5 cursor-pointer">
+                                  <Eye className="h-3.5 w-3.5 text-foreground" />
+                                  <span>Set Up Alert in Radar</span>
+                                </Button>
+                              </Link>
+                            </div>
+
+                            {/* Search Refinements */}
+                            <SearchRefinements
+                              currentQuery={opportunityData.query || activeQuery}
+                              onSelectRefinement={handleRefineSearch}
+                            />
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
-        {/* Returning User State: Recent Discovery Activity & Quick Re-run */}
-        {!isSearching && !opportunityData && searchHistory.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.15 }}
-            className="space-y-3.5 pt-2"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 stroke-[1.75] text-[#1F3D2E]" />
-                <h3 className="text-sm sm:text-base font-serif font-bold text-foreground">
-                  Recent discovery activity
-                </h3>
-              </div>
-              <Link 
-                href="/app/history" 
-                className="text-xs font-sans text-muted-foreground hover:text-foreground hover:underline"
-              >
-                View full history →
-              </Link>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {searchHistory.slice(0, 3).map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    setActiveQuery(item.rawQuery);
-                  }}
-                  className="rounded-xl border border-border/80 bg-white p-4 text-left hover:border-[#1F3D2E]/50 hover:shadow-xs transition-all cursor-pointer group space-y-2"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-sans font-medium text-muted-foreground">
-                      {new Date(item.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                    </span>
-                    <span className="text-[10px] font-mono text-[#1F3D2E] font-medium bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                      {item.totalFound} found
-                    </span>
-                  </div>
-                  <p className="text-xs font-sans font-semibold text-foreground group-hover:text-[#1F3D2E] transition-colors line-clamp-2">
-                    {item.rawQuery}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {/* First-Time User State: Feature Overview Grid (Shown ONLY when 0 searches ever) */}
-        {!isSearching && !opportunityData && searchHistory.length === 0 && hasCheckedHistory && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4"
-          >
-            <div className="rounded-2xl border border-border/80 bg-card p-5 space-y-2 shadow-xs">
-              <div className="flex items-center gap-2 text-[#1F3D2E] font-sans text-xs font-semibold">
-                <Briefcase className="h-4 w-4 stroke-[1.75]" />
-                Natural-Language Search
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed font-sans">
-                Describe the role, location, target companies, and date boundaries. The Intelligence Harness interprets constraints and targets exact counts.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-border/80 bg-card p-5 space-y-2 shadow-xs">
-              <div className="flex items-center gap-2 text-[#1F3D2E] font-sans text-xs font-semibold">
-                <Layers className="h-4 w-4 stroke-[1.75]" />
-                Evidence Verification
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed font-sans">
-                Every opportunity is verified against live ATS pages and Quality Gates. Stale, expired, or closed listings are rejected before ranking.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-border/80 bg-card p-5 space-y-2 shadow-xs">
-              <div className="flex items-center gap-2 text-[#1F3D2E] font-sans text-xs font-semibold">
-                <Clock className="h-4 w-4 stroke-[1.75]" />
-                Deterministic Freshness
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed font-sans">
-                Strict time-bound search filters guarantee that opportunities are actively posted within your requested timeframe (e.g. last 15 days).
-              </p>
-            </div>
-          </motion.div>
-        )}
       </main>
     </div>
   );

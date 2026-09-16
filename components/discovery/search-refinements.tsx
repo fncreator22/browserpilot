@@ -9,12 +9,21 @@ interface SearchRefinementsProps {
   className?: string;
 }
 
+function stripFreshness(query: string): string {
+  return query
+    .replace(/\b(?:posted\s+)?(?:in|within|for|past)\s+(?:the\s+)?(?:last|past)\s+\d+\s*(?:hours?|hrs?|days?|d|weeks?|w|months?|m)\b/gi, "")
+    .replace(/\b(?:posted\s+)?(?:today|yesterday|this week|this month)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function SearchRefinements({
   currentQuery,
   onSelectRefinement,
   className = "",
 }: SearchRefinementsProps) {
   const queryLower = currentQuery.toLowerCase();
+  const cleanedQuery = stripFreshness(currentQuery);
 
   const refinements: Array<{ label: string; text: string; icon: typeof Sparkles }> = [];
 
@@ -26,19 +35,40 @@ export function SearchRefinements({
     });
   }
 
+  // Broaden / Adjust Freshness Window intelligently
+  const hasShortWindow = /\b(24\s*h|today|yesterday|1\s*day|2\s*days|3\s*days|48\s*hours)\b/i.test(queryLower);
+  const hasWeekWindow = /\b(7\s*days?|week)\b/i.test(queryLower);
+
+  if (hasShortWindow) {
+    refinements.push({
+      label: "+ Expand to 7 days",
+      text: `${cleanedQuery} posted in the last 7 days`,
+      icon: Clock,
+    });
+    refinements.push({
+      label: "+ Expand to 30 days",
+      text: `${cleanedQuery} posted in the last 30 days`,
+      icon: Clock,
+    });
+  } else if (hasWeekWindow) {
+    refinements.push({
+      label: "+ Expand to 30 days",
+      text: `${cleanedQuery} posted in the last 30 days`,
+      icon: Clock,
+    });
+  } else if (!queryLower.includes("days") && !queryLower.includes("month") && !queryLower.includes("week")) {
+    refinements.push({
+      label: "+ Past 7 days only",
+      text: `${cleanedQuery} posted in the last 7 days`,
+      icon: Clock,
+    });
+  }
+
   if (!queryLower.includes("10") && !queryLower.includes("20")) {
     refinements.push({
       label: "+ Target 10 jobs",
       text: `${currentQuery.trim().replace(/\b\d+\b/, "10")}${!/\b\d+\b/.test(currentQuery) ? " - Find 10 opportunities" : ""}`,
       icon: Target,
-    });
-  }
-
-  if (!queryLower.includes("7 days") && !queryLower.includes("week") && !queryLower.includes("24 hours")) {
-    refinements.push({
-      label: "+ Past 7 days only",
-      text: `${currentQuery.trim()} posted in the last 7 days`,
-      icon: Clock,
     });
   }
 
@@ -69,8 +99,8 @@ export function SearchRefinements({
 
   if (refinements.length === 0) {
     refinements.push({
-      label: "+ Expand to 15 days",
-      text: `${currentQuery.trim()} posted in the last 15 days`,
+      label: "+ Expand to 30 days",
+      text: `${cleanedQuery} posted in the last 30 days`,
       icon: Clock,
     });
   }

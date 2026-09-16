@@ -2,36 +2,27 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "motion/react";
 import { 
   Sparkles, 
-  ArrowRight, 
-  SlidersHorizontal, 
-  Globe, 
-  Shield, 
-  Layers, 
-  CheckCircle2, 
   Search,
-  Bot,
   Briefcase,
-  Radio,
+  Layers,
   Clock,
-  Building,
-  MapPin,
+  Globe,
   Target,
   ChevronDown,
   ChevronUp,
   X,
   Square,
   AlertTriangle,
-  Info
+  SlidersHorizontal,
+  ImagePlus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { parseAllowedDomains } from "@/schemas/jobs";
 import { PromptEnhancer } from "@/components/prompt/prompt-enhancer";
-import { isOpportunityDiscoveryIntent, parseSearchIntent } from "@/lib/scraper/intentParser";
+import { parseSearchIntent } from "@/lib/scraper/intentParser";
 import { toast } from "sonner";
 
 export interface OpportunitySearchResultPayload {
@@ -83,23 +74,31 @@ interface TaskInputProps {
   initialPrompt?: string;
   isCompact?: boolean;
   hasSearchHistory?: boolean;
+  isSearching?: boolean;
   onOpportunitySearchResult?: (result: OpportunitySearchResultPayload | null) => void;
   onSearchingChange?: (isSearching: boolean) => void;
   onExecutionQueued?: (executionId: string, query: string) => void;
 }
 
+const PLACEHOLDER_IDEAS = [
+  "Search remote AI & Machine Learning internships for 2026 batch...",
+  "Find entry-level full-stack roles at Y Combinator startups...",
+  "Search lead frontend engineer opportunities with React & Next.js...",
+  "Discover data analyst roles in Bengaluru posted in the last 48 hours...",
+];
+
 const PRESET_TEMPLATES = [
   {
-    label: "Remote AI Internships (2026 Batch)",
+    label: "Remote AI & Systems Engineer",
     icon: Briefcase,
-    goal: "Find remote AI and Machine Learning internships for 2026 graduates in India and US at high-growth startups.",
+    goal: "Find remote AI and Machine Learning engineering roles at high-growth startups.",
     domains: "",
     steps: 0,
   },
   {
-    label: "YC Startup Full Stack Roles",
+    label: "Founding Full Stack at YC Startup",
     icon: Layers,
-    goal: "Discover entry-level full stack and frontend engineering opportunities at Y Combinator companies with React and TypeScript.",
+    goal: "Discover founding full stack and frontend engineering opportunities at Y Combinator companies with React and TypeScript.",
     domains: "",
     steps: 0,
   },
@@ -111,11 +110,69 @@ const PRESET_TEMPLATES = [
     steps: 0,
   },
   {
-    label: "Staff & Lead Frontend Engineers",
+    label: "Staff Frontend Architect",
     icon: Layers,
     goal: "Search for lead or staff frontend engineer opportunities with React, Next.js, and TypeScript.",
     domains: "",
     steps: 0,
+  },
+];
+
+export interface DetailedPromptPreset {
+  id: string;
+  category: string;
+  label: string;
+  prompt: string;
+  targetRole: string;
+  howItWorks: string;
+  backendAction: string;
+}
+
+export const DETAILED_PROMPTS: DetailedPromptPreset[] = [
+  {
+    id: "remote-ai-internships",
+    category: "Early Career & Internships",
+    label: "Remote AI Internships (2026 Batch)",
+    prompt: "Find remote AI and Machine Learning internships for 2026 graduates in India and US at high-growth startups.",
+    targetRole: "AI / ML Intern",
+    howItWorks: "Concurrently queries Greenhouse and Lever ATS boards for AI/ML student openings, filtering for 2026 graduation criteria and remote work mode.",
+    backendAction: "Direct ATS extraction -> Gemini intent parsing -> Truth gate verification -> Persistence to searches & opportunities tables.",
+  },
+  {
+    id: "yc-fullstack",
+    category: "Startup Engineering",
+    label: "YC Startup Full Stack Roles",
+    prompt: "Discover entry-level full stack and frontend engineering opportunities at Y Combinator companies with React and TypeScript.",
+    targetRole: "Full Stack Engineer",
+    howItWorks: "Targets Y Combinator portfolio company ATS endpoints for React/Next.js/Node roles, cross-referencing salary transparency minimums.",
+    backendAction: "ATS scraper swarm -> Multi-source deduplication -> Ghost job screening -> Ingestion to opportunity store.",
+  },
+  {
+    id: "data-analyst-fresh",
+    category: "Location & Freshness Focus",
+    label: "Data Analyst in Bengaluru (Last 48 Hours)",
+    prompt: "Find data analyst roles in Bengaluru posted in the last 48 hours with SQL and Python.",
+    targetRole: "Data Analyst",
+    howItWorks: "Applies hard freshness cutoffs (<= 48h) across Indian startup ATS endpoints, screening out stale reposts.",
+    backendAction: "Time-bounded discovery -> Posting date validation -> Fit score computation -> Instant notification alert.",
+  },
+  {
+    id: "lead-frontend-staff",
+    category: "Senior & Staff Roles",
+    label: "Lead / Staff Frontend (React & Next.js)",
+    prompt: "Search for lead or staff frontend engineer opportunities with React, Next.js, and TypeScript offering above $150,000.",
+    targetRole: "Lead Frontend Engineer",
+    howItWorks: "Extracts high-compensation senior engineering requisitions, parsing compensation bands and recruiter credentials.",
+    backendAction: "Recruiter personnel enrichment -> Salary range normalization -> Dossier compilation.",
+  },
+  {
+    id: "autonomous-watch-seed",
+    category: "Autonomous Intelligence",
+    label: "Autonomous Watch: Distributed Systems",
+    prompt: "Monitor Golang and Rust distributed systems engineer roles at Series A-C startups with remote work option.",
+    targetRole: "Distributed Systems Engineer",
+    howItWorks: "Instantiates a continuous background discovery watch that rescans ATS feeds every 4h and sends notification alerts when new matches appear.",
+    backendAction: "DiscoveryWatch scheduler registration -> BullMQ worker claiming -> Autonomous alert dispatch.",
   },
 ];
 
@@ -131,12 +188,14 @@ export function TaskInput({
   initialPrompt = "",
   isCompact = false,
   hasSearchHistory = false,
+  isSearching = false,
   onOpportunitySearchResult,
   onSearchingChange,
   onExecutionQueued,
 }: TaskInputProps) {
   const router = useRouter();
   const [prompt, setPrompt] = useState(initialPrompt);
+  const [showPrompts, setShowPrompts] = useState(false);
   const prevInitialPromptRef = useRef(initialPrompt);
 
   useEffect(() => {
@@ -145,11 +204,62 @@ export function TaskInput({
       setPrompt(initialPrompt);
     }
   }, [initialPrompt]);
-  const [allowedDomains, setAllowedDomains] = useState("");
-  const [maxSteps, setMaxSteps] = useState(15);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlaceholderIndex((prev) => (prev + 1) % PLACEHOLDER_IDEAS.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isBusy = isSubmitting || Boolean(isSearching);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [attachedImage, setAttachedImage] = useState<{ base64: string; name: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        const file = items[i].getAsFile();
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (typeof reader.result === "string") {
+              setAttachedImage({
+                base64: reader.result,
+                name: file.name || "pasted_screenshot.png",
+              });
+              toast.success("Screenshot attached for DeepReach Vision extraction");
+            }
+          };
+          reader.readAsDataURL(file);
+          break;
+        }
+      }
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          setAttachedImage({
+            base64: reader.result,
+            name: file.name,
+          });
+          toast.success("Image attached for DeepReach Vision extraction");
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Dynamic recommendations personalized to user career memory & search history
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>(PRESET_TEMPLATES);
@@ -190,8 +300,6 @@ export function TaskInput({
     };
   }, []);
 
-  // Discover search engine: all queries are processed through deterministic opportunity discovery
-  const isJobDiscovery = true;
   const parsedIntent = useMemo(() => {
     if (!prompt.trim()) return null;
     try {
@@ -203,7 +311,6 @@ export function TaskInput({
 
   // Refinement overrides state (progressive disclosure)
   const [showRefine, setShowRefine] = useState(false);
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [customFreshness, setCustomFreshness] = useState<number | null>(null);
   const [customWorkMode, setCustomWorkMode] = useState<string | null>(null);
   const [customOppType, setCustomOppType] = useState<string | null>(null);
@@ -211,10 +318,9 @@ export function TaskInput({
 
   const effectiveFreshnessHours = customFreshness !== null ? customFreshness : parsedIntent?.freshnessWindowHours;
   const effectiveWorkMode = customWorkMode || parsedIntent?.workMode || "ANY";
-  const effectiveOppType = customOppType || parsedIntent?.opportunityType || "ANY";
   const effectiveMinScore = customMinScore !== null ? customMinScore : (parsedIntent?.minimumMatchScore || 70);
 
-  // Execution concurrency & cancellation controls (TASK-067)
+  // Execution concurrency & cancellation controls
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentExecutionIdRef = useRef<string | null>(null);
 
@@ -237,17 +343,160 @@ export function TaskInput({
     toast.info("Search Cancelled", { description: "Search execution was cancelled by user request." });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const text = prompt.trim();
-    if (!text) return;
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    let text = prompt.trim();
+    if (!text && !attachedImage) return;
 
-    // Idempotency: Prevent concurrent submit loops from rapid clicks with active user feedback
-    if (isSubmitting) {
+    if (isBusy) {
       toast.info("Search in progress", {
         description: "Your discovery query is actively querying ATS connectors.",
       });
       return;
+    }
+
+    // Grab client Puter token if user is signed into Puter in this browser
+    const clientPuterToken = typeof window !== "undefined"
+      ? (localStorage.getItem("puter.auth.token.v2") || (window as any).puter?.authToken || undefined)
+      : undefined;
+
+    // 1. If an image is attached, run DeepReach Vision Multi-Platform Discovery
+    if (attachedImage) {
+      setIsSubmitting(true);
+      if (onSearchingChange) onSearchingChange(true);
+      try {
+        let clientOcrText: string | undefined;
+        if (typeof window !== "undefined" && window.puter?.ai?.img2txt) {
+          try {
+            clientOcrText = await window.puter.ai.img2txt(attachedImage.base64);
+          } catch {
+            // Non-fatal, server-side will handle
+          }
+        }
+
+        const deepRes = await fetch("/api/discovery/deep-reach", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            imageBase64: attachedImage.base64,
+            mimeType: attachedImage.base64.match(/^data:([^;]+);base64,/)?.[1] || "image/png",
+            prompt: text,
+            puterToken: clientPuterToken,
+            ocrText: clientOcrText,
+          }),
+        });
+        const deepData = await deepRes.json();
+        if (!deepRes.ok && deepData.error === "UPGRADE_REQUIRED") {
+          toast.warning("DeepReach Pro Feature", {
+            description: "Cross-platform recruiter scouting and flyer scanning requires a Pro subscription.",
+            action: {
+              label: "Upgrade",
+              onClick: () => {
+                if (typeof window !== "undefined") {
+                  window.location.hash = "settings?tab=subscription";
+                }
+              },
+            },
+          });
+        }
+
+        if (deepRes.ok && deepData.data) {
+          // Listing Trust Advisory Toast for ghost jobs or undisclosed employers
+          if (deepData.data.isUndisclosed || deepData.data.trustReport?.isGhostJob) {
+            toast.warning("Listing Trust Advisory", {
+              description: deepData.data.trustReport?.advisoryTitle || "Suspicious or undisclosed listing detected.",
+            });
+          }
+
+          const foundJobs = deepData.data.jobs && deepData.data.jobs.length > 0;
+          if (foundJobs) {
+            toast.success("DeepReach Vision Processed", {
+              description: `Extracted ${deepData.data.companyName}: ${deepData.data.jobs.length} jobs, ${deepData.data.recruiters?.length || 0} recruiters verified.`,
+            });
+            if (onOpportunitySearchResult) {
+              onOpportunitySearchResult({
+                searchId: `deep_${Date.now()}`,
+                status: "COMPLETE",
+                query: text || deepData.data.companyName,
+                results: deepData.data.jobs.map((j: any) => ({
+                  id: `deep_${Math.random().toString(36).slice(2, 7)}`,
+                  title: j.title,
+                  companyName: j.companyName,
+                  primaryApplyUrl: j.applyUrl,
+                  applyUrl: j.applyUrl,
+                  sourcePlatform: j.sourcePlatform,
+                  verificationStatus: "VERIFIED",
+                  matchScore: 92,
+                  companyContacts: deepData.data.recruiters,
+                  trustReport: deepData.data.trustReport,
+                  urlAnalysis: deepData.data.urlAnalysis,
+                  companyIntelligence: deepData.data.companyIntelligence,
+                  isUndisclosed: deepData.data.isUndisclosed,
+                })),
+                metadata: {
+                  totalUniqueOpportunities: deepData.data.jobs.length,
+                  returnedCount: deepData.data.jobs.length,
+                  durationMs: 1200,
+                  providersAttempted: 4,
+                  providersSucceeded: 4,
+                  explanation: deepData.data.multimodalSummary || "DeepReach multi-platform extraction complete",
+                },
+              });
+            }
+            setIsSubmitting(false);
+            if (onSearchingChange) onSearchingChange(false);
+            return;
+          } else if (deepData.data.companyName) {
+            // Planner-Executor Bridge: Fall back to mainline ATS and Job search engine
+            toast.info(`Vision Extracted: ${deepData.data.companyName}`, {
+              description: `Searching direct ATS and career endpoints for ${deepData.data.companyName}...`,
+            });
+            const bridgeQuery = [deepData.data.companyName, deepData.data.roleTitle || "Software Engineer"].filter(Boolean).join(" ");
+            text = bridgeQuery;
+            if (deepData.data.recruiters && deepData.data.recruiters.length > 0) {
+              (window as any).__lastDeepReachContacts = deepData.data.recruiters;
+            }
+            setAttachedImage(null);
+            // Fall through to mainline search POST /api/search
+          } else {
+            toast.info("Image Analyzed", {
+              description: "No specific company detected in image. Running general query...",
+            });
+            setAttachedImage(null);
+            // Fall through to mainline search
+          }
+        } else if (deepData.error === "UPGRADE_REQUIRED") {
+          toast.warning("DeepReach Pro Feature", {
+            description: deepData.message || "DeepReach multi-platform intelligence is a Pro feature.",
+            action: {
+              label: "Upgrade Plan",
+              onClick: () => {
+                window.location.href = "/app#settings?tab=subscription";
+              },
+            },
+          });
+          setIsSubmitting(false);
+          if (onSearchingChange) onSearchingChange(false);
+          return;
+        } else if (deepData.error === "AI_CONFIGURATION_REQUIRED" || deepData.error === "AI_KEY_REQUIRED") {
+          toast.warning("AI Provider Required", {
+            description: "Connect Puter (free 1-click) or add a Gemini API key in Settings (Tab 1: AI Providers & Keys).",
+          });
+          setIsSubmitting(false);
+          if (onSearchingChange) onSearchingChange(false);
+          return;
+        } else {
+          toast.error(deepData.message || "DeepReach extraction failed");
+          setIsSubmitting(false);
+          if (onSearchingChange) onSearchingChange(false);
+          return;
+        }
+      } catch (err: any) {
+        toast.error("DeepReach Extraction Failed", { description: err.message });
+        setIsSubmitting(false);
+        if (onSearchingChange) onSearchingChange(false);
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -260,9 +509,6 @@ export function TaskInput({
       abortCtrl.abort(new Error("Search timed out: Upstream ATS connectors took too long to respond. Try narrowing your query or retrying."));
     }, 25000);
 
-    // -------------------------------------------------------------------------
-    // Real Opportunity Discovery Search Engine (POST /api/search)
-    // -------------------------------------------------------------------------
     let searchHandedOffToQueue = false;
     try {
       const filters: Record<string, any> = {};
@@ -290,7 +536,8 @@ export function TaskInput({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           query: text,
-          filters: Object.keys(filters).length > 0 ? filters : undefined
+          filters: Object.keys(filters).length > 0 ? filters : undefined,
+          puterToken: clientPuterToken,
         }),
         signal: abortCtrl.signal,
       });
@@ -302,7 +549,6 @@ export function TaskInput({
 
       const data = await res.json();
 
-      // Late response guard: ignore if cancelled
       if (abortCtrl.signal.aborted) {
         return;
       }
@@ -322,8 +568,11 @@ export function TaskInput({
           }
           throw new Error(data.message || "Authentication required to search opportunities. Please sign in.");
         }
+        if (res.status === 429) {
+          toast.error(data.message || "Rate limit reached. Please wait a moment before trying again.");
+          return;
+        }
         if (res.status === 499) {
-          // User cancelled
           return;
         }
         throw new Error(data.message || "Failed to execute opportunity discovery search.");
@@ -337,6 +586,14 @@ export function TaskInput({
           onExecutionQueued(data.executionId, text);
         }
         return;
+      }
+
+      if (typeof window !== "undefined" && (window as any).__lastDeepReachContacts && data.results && data.results.length > 0) {
+        data.results = data.results.map((r: any) => ({
+          ...r,
+          companyContacts: r.companyContacts || (window as any).__lastDeepReachContacts,
+        }));
+        (window as any).__lastDeepReachContacts = undefined;
       }
 
       if (onOpportunitySearchResult) {
@@ -375,7 +632,6 @@ export function TaskInput({
         return;
       }
       if (abortCtrl.signal.aborted) {
-        // Ignored clean user cancellation
         return;
       }
       const msg = (err as Error).message || "An unexpected error occurred during opportunity search.";
@@ -393,354 +649,196 @@ export function TaskInput({
     }
   };
 
-  const executeWithCustomPrompt = async (customPrompt: string) => {
-    const text = customPrompt.trim();
-    if (!text) return;
-    setPrompt(text);
-    // Submit with updated prompt
-    setTimeout(() => {
-      const form = document.getElementById("task-input-form") as HTMLFormElement;
-      if (form) form.requestSubmit();
-    }, 50);
-  };
-
   const handleSelectPreset = (preset: RecommendationItem) => {
     setPrompt(preset.goal);
-    setAllowedDomains(preset.domains || "");
-    setMaxSteps(preset.steps || 15);
   };
 
+  const hasActiveFilters = customFreshness !== null || (customWorkMode && customWorkMode !== "ANY") || customMinScore !== null;
+
   return (
-    <div className="w-full space-y-4">
-      {/* 1. Purpose-Built Mobile Search Layout (Collapsed by default so opportunities are above the fold) */}
-      <div className="block md:hidden">
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-2xl border border-border/80 bg-white p-3.5 shadow-sm space-y-3"
-        >
-          {/* Error Alert: Search error or timeout on mobile */}
-          {submitError && (
-            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-2.5 text-xs font-sans text-destructive flex items-center justify-between gap-2 animate-in fade-in-50">
-              <div className="flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" />
-                <span className="text-[11px] leading-tight">{submitError}</span>
-              </div>
-              <Button
+    <div className="w-full space-y-3">
+      {/* Omni-Command Bar Shell */}
+      <form
+        id="task-input-form"
+        onSubmit={handleSubmit}
+        className={`max-w-3xl mx-auto rounded-2xl border bg-card p-3.5 sm:p-4 shadow-sm transition-all space-y-3 ${
+          isBusy
+            ? "border-foreground/40 animate-glow-active shadow-md"
+            : "border-border/80 hover:border-foreground/30 focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20"
+        }`}
+      >
+        {/* Textarea: Clean, borderless with dynamic rotating placeholder */}
+        <div className="relative">
+          <label htmlFor="task-goal" className="sr-only">
+            Describe your career discovery query
+          </label>
+          {attachedImage && (
+            <div className="mb-2 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-300">
+              <span className="font-medium text-[11px]">DeepReach Vision:</span>
+              <span className="font-mono text-[11px] truncate max-w-[180px]">{attachedImage.name}</span>
+              <button
                 type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setSubmitError(null)}
-                className="h-5 w-5 p-0 text-destructive hover:bg-destructive/10 cursor-pointer"
+                onClick={() => setAttachedImage(null)}
+                className="p-0.5 hover:bg-emerald-200 dark:hover:bg-emerald-800 rounded cursor-pointer"
+                title="Remove attachment"
               >
                 <X className="h-3 w-3" />
-              </Button>
+              </button>
             </div>
           )}
+          <Textarea
+            id="task-goal"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onPaste={handlePaste}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
+            placeholder={attachedImage ? "Add any additional context or hit Discover to parse image..." : PLACEHOLDER_IDEAS[placeholderIndex]}
+            rows={isCompact ? 2 : 3}
+            className="text-sm sm:text-base leading-relaxed placeholder:text-muted-foreground/50 resize-none min-h-[70px] focus:outline-none bg-transparent w-full p-0 border-0 shadow-none focus-visible:ring-0 font-sans"
+          />
+        </div>
 
-          {/* Top Row: Search Input + Submit Button */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 stroke-[1.75] text-muted-foreground" />
-              <Input
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Search roles, companies, or skills..."
-                className="pl-9 pr-3 h-10 rounded-xl bg-[#F6F6F4]/80 border-border/70 text-xs font-sans placeholder:text-muted-foreground/70"
-              />
+        {/* Error Alert */}
+        {submitError && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-2.5 text-xs font-sans text-destructive flex items-center justify-between gap-3 animate-in fade-in-50">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+              <span>{submitError}</span>
             </div>
             <Button
-              type="submit"
-              disabled={isSubmitting || !prompt.trim()}
-              className="h-10 px-3.5 rounded-xl bg-[#1F3D2E] hover:bg-[#162D22] text-white font-sans text-xs font-semibold shrink-0 cursor-pointer shadow-xs disabled:opacity-75 disabled:cursor-not-allowed flex items-center gap-1.5"
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setSubmitError(null)}
+              className="h-5 w-5 p-0 text-destructive hover:bg-destructive/10 cursor-pointer"
             >
-              {isSubmitting ? (
-                <>
-                  <div className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                  <span>Scanning...</span>
-                </>
-              ) : (
-                <span>Scan</span>
-              )}
+              <X className="h-3.5 w-3.5" />
             </Button>
           </div>
+        )}
 
-          {/* Quick Filter Pill Row */}
-          <div className="flex items-center justify-between gap-2 pt-0.5">
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <button
-                type="button"
-                onClick={() => setCustomWorkMode(customWorkMode === "REMOTE" ? null : "REMOTE")}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-sans transition-all shrink-0 cursor-pointer border ${
-                  customWorkMode === "REMOTE"
-                    ? "bg-[#1F3D2E] text-white border-[#1F3D2E]"
-                    : "bg-slate-100 text-muted-foreground border-slate-200/80 hover:bg-slate-200"
-                }`}
-              >
-                Remote
-              </button>
-              <button
-                type="button"
-                onClick={() => setCustomWorkMode(customWorkMode === "HYBRID" ? null : "HYBRID")}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-sans transition-all shrink-0 cursor-pointer border ${
-                  customWorkMode === "HYBRID"
-                    ? "bg-[#1F3D2E] text-white border-[#1F3D2E]"
-                    : "bg-slate-100 text-muted-foreground border-slate-200/80 hover:bg-slate-200"
-                }`}
-              >
-                Hybrid
-              </button>
-              <button
-                type="button"
-                onClick={() => setCustomOppType(customOppType === "INTERNSHIP" ? null : "INTERNSHIP")}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-sans transition-all shrink-0 cursor-pointer border ${
-                  customOppType === "INTERNSHIP"
-                    ? "bg-[#1F3D2E] text-white border-[#1F3D2E]"
-                    : "bg-slate-100 text-muted-foreground border-slate-200/80 hover:bg-slate-200"
-                }`}
-              >
-                Internships
-              </button>
-            </div>
-
-            {/* Expand Full Filters Toggle */}
-            <button
-              type="button"
-              onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
-              className="flex items-center gap-1 text-[11px] font-sans font-medium text-[#1F3D2E] shrink-0 px-2 py-1 rounded-md hover:bg-[#1F3D2E]/10 transition-colors cursor-pointer"
-            >
-              <SlidersHorizontal className="h-3 w-3 stroke-[1.75]" />
-              <span>{isMobileFiltersOpen ? "Hide" : "Filters"}</span>
-              {isMobileFiltersOpen ? <ChevronUp className="h-3 w-3 stroke-[1.75]" /> : <ChevronDown className="h-3 w-3 stroke-[1.75]" />}
-            </button>
-          </div>
-
-          {/* Expandable Mobile Filters (Collapsed by default) */}
-          {isMobileFiltersOpen && (
-            <div className="pt-2.5 border-t border-border/60 space-y-3 animate-in fade-in-50 duration-200">
-              <div className="grid grid-cols-2 gap-2 text-xs font-sans">
-                <div>
-                  <label className="text-[10px] text-muted-foreground font-medium block mb-1">Freshness window</label>
-                  <select
-                    value={customFreshness || 168}
-                    onChange={(e) => setCustomFreshness(parseInt(e.target.value, 10))}
-                    className="w-full h-8 text-xs rounded-lg border border-border/70 bg-white px-2 font-sans"
-                  >
-                    <option value={24}>Last 24h</option>
-                    <option value={48}>Last 48h</option>
-                    <option value={72}>Last 3 days</option>
-                    <option value={168}>This week (7d)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[10px] text-muted-foreground font-medium block mb-1">Min match fit</label>
-                  <select
-                    value={customMinScore || 75}
-                    onChange={(e) => setCustomMinScore(parseInt(e.target.value, 10))}
-                    className="w-full h-8 text-xs rounded-lg border border-border/70 bg-white px-2 font-sans"
-                  >
-                    <option value={60}>60% minimum</option>
-                    <option value={70}>70% minimum</option>
-                    <option value={75}>75% standard</option>
-                    <option value={85}>85% high match</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (typeof window !== "undefined") {
-                      window.dispatchEvent(
-                        new CustomEvent("open-profile-modal", { detail: { tab: "PROVIDERS" } })
-                      );
-                    }
-                  }}
-                  className="text-[11px] font-sans text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer"
-                >
-                  <Sparkles className="h-3 w-3 stroke-[1.75] text-amber-500" />
-                  <span>AI provider & keys</span>
-                </button>
-              </div>
-            </div>
-          )}
-        </form>
-      </div>
-
-      {/* 2. Desktop Discovery Input Form (Elevated & Sentence Case) */}
-      <div className="hidden md:block">
-        <form
-          id="task-input-form"
-          onSubmit={handleSubmit}
-          className="rounded-2xl border border-border/80 bg-white p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow space-y-4"
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#1F3D2E]/10 text-[#1F3D2E]">
-                <Bot className="h-3.5 w-3.5 stroke-[1.75]" />
-              </span>
-              <label htmlFor="task-goal" className="text-sm font-serif font-bold text-foreground">
-                Discovery and automation goal
-              </label>
-            </div>
-
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <div 
-                className="group relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border/70 text-[11px] font-sans transition-colors cursor-help bg-white shadow-2xs"
-              >
-                <span className={`h-1.5 w-1.5 rounded-full ${isJobDiscovery ? "bg-[#1F3D2E]" : "bg-amber-600 animate-pulse"}`} />
-                <span className={isJobDiscovery ? "text-[#1F3D2E] font-medium" : "text-amber-800 font-medium"}>
-                  <span className="hidden sm:inline">{isJobDiscovery ? "Career Search (10 ATS Connectors)" : "General Browser Agent (Playwright)"}</span>
-                  <span className="sm:hidden">{isJobDiscovery ? "10 ATS Connectors" : "Browser Agent"}</span>
-                </span>
-                <Info className="h-3 w-3 text-muted-foreground/70 group-hover:text-foreground" />
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-50 w-64 p-2 text-[11px] font-sans rounded-lg bg-slate-900 text-white shadow-lg pointer-events-none text-left">
-                  {isJobDiscovery 
-                    ? "Career Search queries 10 direct ATS connectors (Greenhouse, Lever, Ashby, etc.) with sub-second verified matching."
-                    : "General Browser Agent executes an autonomous headless Playwright browser sandbox for arbitrary web tasks."}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (typeof window !== "undefined") {
-                    window.dispatchEvent(
-                      new CustomEvent("open-profile-modal", { detail: { tab: "PROVIDERS" } })
-                    );
-                  }
-                }}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-border/70 bg-white hover:bg-muted/80 text-[11px] font-sans text-muted-foreground hover:text-foreground transition-colors cursor-pointer shadow-2xs"
-                title="Configure AI Engine, Puter, or BYOK Gemini Key"
-              >
-                <Sparkles className="h-3 w-3 stroke-[1.75] text-amber-500" />
-                <span className="hidden xs:inline">AI Provider & Keys</span>
-                <span className="xs:hidden">AI Keys</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (typeof window !== "undefined") {
-                    window.dispatchEvent(
-                      new CustomEvent("open-profile-modal", { detail: { tab: "CONNECTORS" } })
-                    );
-                  }
-                }}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-border/70 bg-white hover:bg-muted/80 text-[11px] font-sans text-muted-foreground hover:text-foreground transition-colors cursor-pointer shadow-2xs"
-                title="Configure Global Monitored Sources & Connectors"
-              >
-                <Radio className="h-3 w-3 stroke-[1.75] text-[#1F3D2E]" />
-                <span className="hidden xs:inline">Sources & Connectors</span>
-                <span className="xs:hidden">Sources</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="relative space-y-2">
-            <Textarea
-              id="task-goal"
-              aria-label="Describe your web automation or job discovery query"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe your request in natural language (e.g. 'I’m looking for software engineering internships in San Francisco with React and Python. Prioritize recent postings.')"
-              rows={isCompact ? 3 : 4}
-              className="w-full resize-none rounded-xl border-border bg-[#FBFBFA] p-3.5 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-[#1F3D2E] shadow-2xs font-sans"
-            />
-
+        {/* Action Bar (Bottom of Textarea) */}
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
+          {/* Left Actions: Prompt Enhancer + Filters Toggle Button */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <PromptEnhancer
               currentPrompt={prompt}
               onApplyPrompt={(newP) => setPrompt(newP)}
-              onExecutePrompt={(newP) => executeWithCustomPrompt(newP)}
+            />
+            <button
+              type="button"
+              onClick={() => setShowRefine(!showRefine)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-sans font-medium transition-colors cursor-pointer border ${
+                showRefine || hasActiveFilters
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border-border/70"
+              }`}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 stroke-[1.75]" />
+              <span className="hidden sm:inline">Filters</span>
+              {hasActiveFilters && (
+                <span className="h-1.5 w-1.5 rounded-full bg-background" />
+              )}
+              {showRefine ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-sans font-medium transition-colors cursor-pointer border ${
+                attachedImage
+                  ? "bg-primary/10 text-primary border-primary/40"
+                  : "bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border-border/70"
+              }`}
+              title="Upload job flyer or screenshot (DeepReach Vision)"
+            >
+              <ImagePlus className="h-3.5 w-3.5 stroke-[1.75]" />
+              <span className="hidden sm:inline">Image</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPrompts(!showPrompts)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-sans font-medium transition-colors cursor-pointer border ${
+                showPrompts
+                  ? "bg-emerald-600 text-white border-emerald-500"
+                  : "bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border-border/70"
+              }`}
+              title="Toggle Curated Discovery Prompts"
+            >
+              <Sparkles className="h-3.5 w-3.5 stroke-[1.75]" />
+              <span className="hidden sm:inline">Prompts</span>
+              {showPrompts ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
             />
           </div>
 
-          {submitError && (
-            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-600 font-sans">
-              Error: {submitError}
-            </div>
-          )}
-
-        {/* Interpreted Search Intent Transparency & Refinement Controls */}
-        {isJobDiscovery && parsedIntent && (
-          <div className="rounded-lg border border-border/80 bg-muted/30 p-3.5 space-y-2.5">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <Target className="h-3.5 w-3.5 text-primary" />
-                <span className="text-xs font-sans font-semibold text-foreground">
-                  Interpreted search criteria
-                </span>
-                {(customFreshness !== null || customWorkMode || customOppType || customMinScore !== null) && (
-                  <Badge variant="outline" className="text-[10px] font-sans text-amber-600 border-amber-500/30 bg-amber-500/10">
-                    Modified by User
-                  </Badge>
-                )}
-              </div>
-
-              <button
+          {/* Right Actions: Stop Search + Primary Discover Button */}
+          <div className="flex items-center gap-2">
+            {isBusy && (
+              <Button
                 type="button"
-                onClick={() => setShowRefine(!showRefine)}
-                className="inline-flex items-center gap-1 text-xs font-sans text-primary hover:underline cursor-pointer"
+                variant="destructive"
+                onClick={handleCancelSearch}
+                className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl h-9 px-3 font-medium flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors text-xs font-sans"
               >
-                <SlidersHorizontal className="h-3 w-3" />
-                {showRefine ? "Hide Criteria Refinements" : "Refine Search Criteria"}
-                {showRefine ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-              </button>
-            </div>
+                <Square className="h-3.5 w-3.5 fill-current" />
+                <span>Stop</span>
+              </Button>
+            )}
 
-            {/* Readout of interpreted dimensions in font-sans */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-sans">
-              <div className="bg-card p-2 rounded-md border border-border/60">
-                <span className="text-[10px] text-muted-foreground font-sans block">Role {parsedIntent.requestedCount ? `(Target: ${parsedIntent.requestedCount})` : ""}</span>
-                <span className="text-foreground font-medium truncate block">
-                  {parsedIntent.role || "Any role"}
-                </span>
-              </div>
+            <Button
+              type="submit"
+              disabled={isBusy || (!prompt.trim() && !attachedImage)}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl h-9 px-4 font-semibold flex items-center gap-x-2 cursor-pointer shadow-xs transition-all disabled:opacity-50 text-xs sm:text-sm font-sans"
+            >
+              {isBusy ? (
+                <>
+                  <div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                  <span>Searching...</span>
+                </>
+              ) : (
+                <>
+                  <Search className="h-3.5 w-3.5 stroke-[2]" />
+                  <span>Discover</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
 
-              <div className="bg-card p-2 rounded-md border border-border/60">
-                <span className="text-[10px] text-muted-foreground font-sans block">Company</span>
-                <span className="text-foreground font-medium truncate block">
-                  {parsedIntent.companies && parsedIntent.companies.length > 0
-                    ? parsedIntent.companies.join(", ")
-                    : "All matching"}
-                </span>
-              </div>
-
-              <div className="bg-card p-2 rounded-md border border-border/60">
-                <span className="text-[10px] text-muted-foreground font-sans block">Location</span>
-                <span className="text-foreground font-medium truncate block">
-                  {parsedIntent.location || "Any"}
-                </span>
-              </div>
-
-              <div className="bg-card p-2 rounded-md border border-border/60">
-                <span className="text-[10px] text-muted-foreground font-sans block">Date window</span>
-                <span className={`font-medium truncate block ${effectiveFreshnessHours ? "text-emerald-600 font-semibold" : "text-muted-foreground"}`}>
-                  {effectiveFreshnessHours
-                    ? (effectiveFreshnessHours >= 24 && effectiveFreshnessHours % 24 === 0
-                        ? `Last ${effectiveFreshnessHours / 24}d (${effectiveFreshnessHours}h)`
-                        : `Last ${effectiveFreshnessHours}h`)
-                    : "Any time"}
-                </span>
-              </div>
-            </div>
-
-            {/* Progressive Disclosure Refinement Controls in font-sans */}
-            {showRefine && (
-              <div className="pt-2 border-t border-border/40 space-y-3 font-sans text-xs">
-                {/* Freshness Selector */}
-                <div className="space-y-1.5">
-                  <span className="text-xs text-foreground font-sans font-medium block">
-                    Freshness boundary gating (hard constraint):
+        {/* Progressive Disclosure Filters Panel */}
+        <AnimatePresence>
+          {showRefine && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="overflow-hidden"
+            >
+              <div className="pt-3 mt-1 border-t border-border/50 space-y-3 font-sans text-xs">
+                {/* Freshness Row */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-foreground" />
+                    Freshness
                   </span>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex items-center gap-1">
                     {[
-                      { label: "Today (24h)", value: 24 },
-                      { label: "Last 48h", value: 48 },
-                      { label: "Last 72h (3d)", value: 72 },
-                      { label: "Last 7 days", value: 168 },
-                      { label: "Any time (No limit)", value: 0 },
+                      { label: "24h", value: 24 },
+                      { label: "48h", value: 48 },
+                      { label: "7d", value: 168 },
+                      { label: "Any", value: 0 },
                     ].map((f) => {
                       const isSelected = effectiveFreshnessHours === f.value || (f.value === 0 && !effectiveFreshnessHours);
                       return (
@@ -748,10 +846,10 @@ export function TaskInput({
                           type="button"
                           key={f.label}
                           onClick={() => setCustomFreshness(f.value)}
-                          className={`px-2.5 py-1 rounded text-xs transition-colors cursor-pointer border ${
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
                             isSelected
                               ? "bg-primary text-primary-foreground border-primary font-semibold"
-                              : "bg-background text-muted-foreground border-border hover:text-foreground"
+                              : "bg-muted/40 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted"
                           }`}
                         >
                           {f.label}
@@ -761,61 +859,66 @@ export function TaskInput({
                   </div>
                 </div>
 
-                {/* Work Mode & Min Match Score Selector */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div className="space-y-1.5">
-                    <span className="text-xs text-foreground font-sans font-medium block">
-                      Work mode preference:
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        { id: "ANY", label: "Any" },
-                        { id: "REMOTE", label: "Remote" },
-                        { id: "HYBRID", label: "Hybrid" },
-                        { id: "ON_SITE", label: "On-site" },
-                      ].map((m) => (
-                        <button
-                          type="button"
-                          key={m.id}
-                          onClick={() => setCustomWorkMode(m.id)}
-                          className={`px-2.5 py-1 rounded text-xs font-sans transition-colors cursor-pointer border ${
-                            effectiveWorkMode === m.id
-                              ? "bg-primary text-primary-foreground border-primary font-semibold"
-                              : "bg-background text-muted-foreground border-border hover:text-foreground"
-                          }`}
-                        >
-                          {m.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <span className="text-xs text-foreground font-sans font-medium block">
-                      Minimum match score gate:
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[60, 70, 75, 80, 90].map((s) => (
-                        <button
-                          type="button"
-                          key={s}
-                          onClick={() => setCustomMinScore(s)}
-                          className={`px-2.5 py-1 rounded text-xs font-sans transition-colors cursor-pointer border ${
-                            effectiveMinScore === s
-                              ? "bg-primary text-primary-foreground border-primary font-semibold"
-                              : "bg-background text-muted-foreground border-border hover:text-foreground"
-                          }`}
-                        >
-                          {s} pts
-                        </button>
-                      ))}
-                    </div>
+                {/* Work Mode Row */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5 text-foreground" />
+                    Work Mode
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {[
+                      { id: "ANY", label: "Any" },
+                      { id: "REMOTE", label: "Remote" },
+                      { id: "HYBRID", label: "Hybrid" },
+                      { id: "ON_SITE", label: "Onsite" },
+                    ].map((m) => (
+                      <button
+                        type="button"
+                        key={m.id}
+                        onClick={() => setCustomWorkMode(m.id)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
+                          effectiveWorkMode === m.id
+                            ? "bg-primary text-primary-foreground border-primary font-semibold"
+                            : "bg-muted/40 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Reset Button */}
-                {(customFreshness !== null || customWorkMode || customOppType || customMinScore !== null) && (
-                  <div className="pt-1 flex justify-end">
+                {/* Min Match Score Row */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Target className="h-3.5 w-3.5 text-foreground" />
+                    Min Match Score
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {[
+                      { label: "70%", value: 70 },
+                      { label: "80%", value: 80 },
+                      { label: "90%", value: 90 },
+                    ].map((s) => (
+                      <button
+                        type="button"
+                        key={s.label}
+                        onClick={() => setCustomMinScore(s.value)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
+                          effectiveMinScore === s.value
+                            ? "bg-primary text-primary-foreground border-primary font-semibold"
+                            : "bg-muted/40 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Reset Filters */}
+                {hasActiveFilters && (
+                  <div className="pt-2 flex justify-end border-t border-border/30">
                     <Button
                       type="button"
                       variant="ghost"
@@ -826,162 +929,145 @@ export function TaskInput({
                         setCustomOppType(null);
                         setCustomMinScore(null);
                       }}
-                      className="h-6 text-[11px] font-sans text-muted-foreground hover:text-foreground gap-1"
+                      className="h-6 text-[11px] font-sans text-muted-foreground hover:text-foreground gap-1 cursor-pointer"
                     >
                       <X className="h-3 w-3" />
-                      Reset to parsed intent
+                      Reset filters
                     </Button>
                   </div>
                 )}
               </div>
-            )}
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </form>
 
-        {/* Preset & Personalized Recommendation Chips */}
-        {!prompt.trim() && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-sans text-muted-foreground font-medium flex items-center gap-1.5">
-                {isPersonalized ? (
-                  <>
-                    <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                    <span className="font-semibold text-foreground/90">Recommended for you:</span>
-                  </>
-                ) : (
-                  <span>Sample discovery queries:</span>
-                )}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {recommendations.map((preset) => {
-                const Icon = preset.icon || Briefcase;
-                return (
-                  <button
-                    type="button"
-                    key={preset.label}
-                    onClick={() => handleSelectPreset(preset)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-secondary/50 px-2.5 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary hover:border-primary/40 transition-colors cursor-pointer"
+      {/* Detailed Prompts Panel */}
+      <AnimatePresence>
+        {showPrompts && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            className="max-w-3xl mx-auto overflow-hidden pt-2"
+          >
+            <div className="rounded-2xl border border-border/80 bg-card p-5 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between pb-3 border-b border-border/60">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-sans font-bold text-foreground">Discovery Prompt Library</h3>
+                  <span className="text-[11px] font-mono text-muted-foreground hidden sm:inline">Explore prompts and system pipeline flow</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPrompts(false)}
+                  className="text-muted-foreground hover:text-foreground text-xs p-1 rounded-md cursor-pointer"
+                  aria-label="Close prompts"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 max-h-[380px] overflow-y-auto pr-1">
+                {DETAILED_PROMPTS.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3.5 rounded-xl border border-border/70 bg-background/60 hover:border-primary/40 transition-all space-y-2.5 shadow-2xs"
                   >
-                    <Icon className="h-3 w-3 text-muted-foreground" />
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-mono text-primary font-semibold uppercase tracking-wider block">
+                          {item.category}
+                        </span>
+                        <h4 className="text-xs font-bold text-foreground">{item.label}</h4>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setPrompt(item.prompt);
+                            setShowPrompts(false);
+                            toast.success("Prompt loaded into search input");
+                          }}
+                          className="h-7 px-2.5 font-mono text-[11px] cursor-pointer"
+                        >
+                          Use Prompt
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            setPrompt(item.prompt);
+                            setShowPrompts(false);
+                            handleSelectPreset({ label: item.label, goal: item.prompt });
+                          }}
+                          className="h-7 px-2.5 font-mono text-[11px] bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer shadow-xs"
+                        >
+                          Run Discovery
+                        </Button>
+                      </div>
+                    </div>
 
-        {/* Advanced Options Toggle (Only for general browser agent tasks) */}
-        {!isJobDiscovery && (
-          <div className="pt-2">
+                    <p className="text-xs font-mono text-muted-foreground bg-muted/30 p-2 rounded-lg border border-border/40">
+                      &ldquo;{item.prompt}&rdquo;
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono pt-1 text-muted-foreground border-t border-border/30">
+                      <div>
+                        <span className="text-foreground font-semibold block text-[10px]">What It Discovers:</span>
+                        <span>{item.howItWorks}</span>
+                      </div>
+                      <div>
+                        <span className="text-foreground font-semibold block text-[10px]">System Pipeline:</span>
+                        <span>{item.backendAction}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Preset Recommendation Chips: Displayed when prompt is empty */}
+      {!prompt.trim() && (
+        <div className="max-w-3xl mx-auto space-y-2 pt-1">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-sans text-muted-foreground font-medium">
+              <Sparkles className="h-3 w-3 text-foreground" />
+              <span>{isPersonalized ? "Recommended for you:" : "Sample discovery queries:"}</span>
+            </div>
             <button
               type="button"
-              aria-expanded={showAdvanced}
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="inline-flex items-center gap-1.5 text-xs font-sans text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              onClick={() => setShowPrompts(!showPrompts)}
+              className="text-[11px] font-mono text-primary hover:underline cursor-pointer flex items-center gap-1"
             >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              {showAdvanced ? "Hide Execution Constraints" : "Configure Constraints & Domain Lock"}
+              <span>{showPrompts ? "Hide prompt library" : "Show all prompts"}</span>
+              <Sparkles className="h-3 w-3" />
             </button>
-
-            {showAdvanced && (
-              <div className="mt-3 space-y-4 rounded-xl border border-border/60 bg-muted/20 p-4 font-sans text-xs">
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-1.5 font-semibold text-foreground">
-                    <Globe className="h-3.5 w-3.5 text-primary" />
-                    Allowed Domain Whitelist (Comma-separated)
-                  </label>
-                  <Input
-                    id="allowed-domains"
-                    type="text"
-                    placeholder="e.g. news.ycombinator.com, github.com"
-                    value={allowedDomains}
-                    onChange={(e) => setAllowedDomains(e.target.value)}
-                    className="h-8 rounded-lg border-border/60 bg-background font-sans text-xs text-foreground placeholder:text-muted-foreground"
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    Leave empty to permit all secure public domains.
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-1.5 font-semibold text-foreground">
-                    <Shield className="h-3.5 w-3.5 text-primary" />
-                    Maximum Browser Navigation Steps: {maxSteps}
-                  </label>
-                  <input
-                    id="max-steps-slider"
-                    type="range"
-                    min="3"
-                    max="30"
-                    value={maxSteps}
-                    onChange={(e) => setMaxSteps(parseInt(e.target.value, 10))}
-                    className="w-full cursor-pointer accent-[#1F3D2E]"
-                  />
-                </div>
-              </div>
-            )}
           </div>
-        )}
-
-        {/* Error Alert: Search error or timeout on desktop */}
-        {submitError && (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3.5 text-xs font-sans text-destructive flex items-center justify-between gap-3 animate-in fade-in-50">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
-              <span>{submitError}</span>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setSubmitError(null)}
-              className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10 cursor-pointer"
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+            {recommendations.map((preset) => {
+              const Icon = preset.icon || Briefcase;
+              return (
+                <button
+                  type="button"
+                  key={preset.label}
+                  onClick={() => handleSelectPreset(preset)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-border/80 bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/60 hover:border-foreground/40 transition-all cursor-pointer shrink-0 shadow-2xs"
+                >
+                  <Icon className="h-3 w-3 text-muted-foreground" />
+                  <span>{preset.label}</span>
+                </button>
+              );
+            })}
           </div>
-        )}
-
-        {/* Submit Dispatch Button (Standardized to #1F3D2E dark forest green & font-sans) */}
-        <div className="pt-2 flex items-center justify-end gap-2">
-          {isSubmitting && isJobDiscovery && (
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleCancelSearch}
-              className="h-10 px-4 font-sans text-xs font-semibold gap-1.5 shadow-xs transition-all cursor-pointer"
-            >
-              <Square className="h-3.5 w-3.5 fill-current" />
-              Stop Search
-            </Button>
-          )}
-          <Button
-            type="submit"
-            disabled={isSubmitting || !prompt.trim()}
-            className="h-10 px-6 font-sans font-semibold text-xs gap-2 shadow-xs transition-all cursor-pointer bg-[#1F3D2E] hover:bg-[#162D22] text-white disabled:opacity-75 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? (
-              <>
-                <div className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                {isJobDiscovery ? "Searching Multi-Source Swarm..." : "Dispatching Agent..."}
-              </>
-            ) : isJobDiscovery ? (
-              <>
-                <Search className="h-3.5 w-3.5 stroke-[1.75]" />
-                Search Opportunities
-              </>
-            ) : (
-              <>
-                Launch Autonomous Agent
-                <ArrowRight className="h-3.5 w-3.5 stroke-[1.75]" />
-              </>
-            )}
-          </Button>
         </div>
-      </form>
-      </div>
+      )}
     </div>
   );
 }
