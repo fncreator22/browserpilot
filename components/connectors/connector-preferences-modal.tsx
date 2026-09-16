@@ -118,7 +118,7 @@ export function ConnectorPreferencesPanel({
     <div className="space-y-4 font-sans">
       {isLoading ? (
         <div className="py-16 text-center text-muted-foreground">
-          <RotateCw className="h-5 w-5 animate-spin mx-auto mb-2 text-[#1F3D2E]" />
+          <RotateCw className="h-5 w-5 animate-spin mx-auto mb-2 text-emerald-600 dark:text-emerald-400" />
           <p className="text-xs">Loading available connectors...</p>
         </div>
       ) : connectors.length === 0 ? (
@@ -157,7 +157,7 @@ export function ConnectorPreferencesPanel({
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => handleToggleSource(conn.name)}
-                      className="h-4 w-4 rounded border-border text-[#1F3D2E] focus:ring-[#1F3D2E] cursor-pointer shrink-0"
+                      className="h-4 w-4 rounded border-border text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 cursor-pointer shrink-0"
                       title={isSelected ? "Disable source" : "Enable source"}
                     />
 
@@ -165,7 +165,7 @@ export function ConnectorPreferencesPanel({
                       {conn.iconUrl ? (
                         <img src={conn.iconUrl} alt="" className="h-4 w-4 object-contain" />
                       ) : (
-                        <Plug className="h-4 w-4 text-[#1F3D2E]" />
+                        <Plug className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                       )}
                     </div>
 
@@ -212,7 +212,7 @@ export function ConnectorPreferencesPanel({
               size="sm"
               onClick={handleSavePreferences}
               disabled={isSaving || isLoading}
-              className="bg-[#1F3D2E] hover:bg-[#162D22] text-white font-sans font-semibold text-xs gap-1.5 cursor-pointer shadow-xs"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-sans font-semibold text-xs gap-1.5 cursor-pointer shadow-xs"
             >
               {isSaving ? (
                 <>
@@ -275,7 +275,7 @@ export function ConnectorPreferencesModal({
             <div className="p-5 pb-4 border-b border-border/60 bg-muted/20 flex items-center justify-between">
               <div>
                 <div className="text-base font-semibold text-foreground flex items-center gap-2">
-                  <Plug className="h-4 w-4 text-[#1F3D2E]" />
+                  <Plug className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   <span>Global Connector Preferences</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
