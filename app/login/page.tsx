@@ -6,21 +6,24 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { 
-  Bot, 
+  Compass, 
   Mail, 
   KeyRound, 
   ArrowRight, 
   ShieldCheck,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { usePuter } from "@/hooks/usePuter";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/app";
 
+  const { signIn: puterSignIn, isAuthenticating: isPuterAuthenticating } = usePuter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -56,16 +59,41 @@ function LoginForm() {
 
   return (
     <div className="rounded-2xl border border-border/80 bg-card p-6 sm:p-8 shadow-xl backdrop-blur-xl space-y-5">
+      {/* 1-Click Puter Auth */}
+      <div>
+        <Button
+          type="button"
+          onClick={async () => {
+            try {
+              await puterSignIn();
+              router.push(callbackUrl);
+            } catch {}
+          }}
+          disabled={isPuterAuthenticating}
+          className="w-full h-11 font-sans text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white gap-2 shadow-xs cursor-pointer"
+        >
+          <Sparkles className="h-4 w-4" />
+          <span>{isPuterAuthenticating ? "Connecting to Puter..." : "Sign in with Puter"}</span>
+        </Button>
+      </div>
+
+      <div className="relative flex items-center justify-center">
+        <div className="border-t border-border/60 w-full" />
+        <span className="bg-card px-3 text-[11px] font-mono text-muted-foreground uppercase tracking-wider shrink-0">
+          or email
+        </span>
+      </div>
+
       {/* Credentials Form */}
       <form onSubmit={handleCredentialsSubmit} className="space-y-4">
         {errorMsg && (
-          <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-400 font-mono">
+          <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400 font-mono">
             {errorMsg}
           </div>
         )}
 
         <div className="space-y-1.5">
-          <label htmlFor="email" className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
+          <label htmlFor="email" className="text-xs font-semibold text-foreground flex items-center gap-1.5 font-sans">
             <Mail className="h-3.5 w-3.5 text-muted-foreground" />
             Email Address
           </label>
@@ -75,14 +103,14 @@ function LoginForm() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="developer@example.com"
-            className="h-10 text-xs font-mono"
+            placeholder="name@company.com"
+            className="h-11 text-xs font-sans bg-slate-50/50 dark:bg-slate-800/50"
           />
         </div>
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label htmlFor="password" className="text-xs font-medium text-foreground flex items-center gap-1.5 font-mono">
+            <label htmlFor="password" className="text-xs font-semibold text-foreground flex items-center gap-1.5 font-sans">
               <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
               Password
             </label>
@@ -94,14 +122,14 @@ function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••••••"
-            className="h-10 text-xs font-mono"
+            className="h-11 text-xs font-sans bg-slate-50/50 dark:bg-slate-800/50"
           />
         </div>
 
         <Button
           type="submit"
           disabled={isLoading || !email.trim() || !password.trim()}
-          className="w-full h-10 font-semibold gap-2 shadow-md mt-2"
+          className="w-full h-11 font-sans text-xs font-semibold gap-2 shadow-xs cursor-pointer mt-2"
         >
           {isLoading ? (
             <>
@@ -116,10 +144,10 @@ function LoginForm() {
           )}
         </Button>
 
-        <div className="pt-2 text-center text-xs text-muted-foreground">
+        <div className="pt-2 text-center text-xs text-muted-foreground font-sans">
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="font-semibold text-primary hover:underline">
-            Create an account
+          <Link href="/signup" className="font-semibold text-emerald-600 dark:text-emerald-400 hover:underline">
+            Create account
           </Link>
         </div>
       </form>
@@ -129,35 +157,35 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4 selection:bg-primary/20 selection:text-primary">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4 selection:bg-emerald-500/20">
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45 }}
+        transition={{ duration: 0.35 }}
         className="w-full max-w-md space-y-6"
       >
         {/* Brand Header */}
         <div className="text-center space-y-2">
           <Link href="/" className="inline-flex items-center gap-2.5 group">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md transition-transform group-hover:scale-105">
-              <Bot className="h-5 w-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-xs transition-transform group-hover:scale-105">
+              <Compass className="h-5 w-5 stroke-[1.75]" />
             </div>
-            <span className="text-xl font-bold tracking-tight text-foreground font-mono">
+            <span className="text-xl font-sans font-bold tracking-tight text-foreground">
               BrowserPilot
             </span>
           </Link>
-          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
-            Sign in to your account
+          <h1 className="text-2xl font-sans font-bold tracking-tight text-foreground">
+            Sign In
           </h1>
-          <p className="text-xs text-muted-foreground">
-            Access your career discovery workspace, autonomous watches, and verified opportunities
+          <p className="text-xs text-muted-foreground font-sans">
+            Enter your credentials to continue to your workspace.
           </p>
         </div>
 
         {/* Suspense Wrapper for Next.js searchParams */}
         <Suspense fallback={
           <div className="rounded-2xl border border-border/80 bg-card p-12 text-center">
-            <RefreshCw className="h-6 w-6 text-primary animate-spin mx-auto" />
+            <RefreshCw className="h-6 w-6 text-emerald-500 animate-spin mx-auto" />
           </div>
         }>
           <LoginForm />
@@ -165,7 +193,7 @@ export default function LoginPage() {
 
         {/* Security Footer Notice */}
         <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground font-mono">
-          <ShieldCheck className="h-4 w-4 text-emerald-500" />
+          <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           JWT Sessions • Sandboxed Isolations
         </div>
       </motion.div>

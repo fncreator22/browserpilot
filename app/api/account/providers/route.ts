@@ -16,7 +16,7 @@ import {
 import { z } from "zod";
 
 const ConnectApiKeySchema = z.object({
-  provider: z.enum(["GEMINI_BYOK", "OPENAI_BYOK", "ANTHROPIC_BYOK"]),
+  provider: z.enum(["GEMINI_BYOK", "DEEPSEEK_BYOK", "OPENAI_BYOK", "ANTHROPIC_BYOK"]),
   apiKey: z.string().min(8, "API Key must be at least 8 characters").max(500, "API Key too long"),
 });
 

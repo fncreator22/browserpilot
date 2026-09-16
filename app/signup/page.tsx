@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { 
-  Bot, 
+  Compass, 
   User,
   Mail, 
   KeyRound, 
@@ -98,36 +98,36 @@ export default function SignupPage() {
         router.push("/app/onboarding");
         router.refresh();
       }
-    } catch (err: unknown) {
-      setErrorMsg((err as Error).message || "An unexpected error occurred during signup.");
+    } catch {
+      setErrorMsg("Failed to create account. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4 selection:bg-primary/20 selection:text-primary py-12">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4 selection:bg-emerald-500/20">
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45 }}
+        transition={{ duration: 0.35 }}
         className="w-full max-w-md space-y-6"
       >
         {/* Brand Header */}
         <div className="text-center space-y-2">
           <Link href="/" className="inline-flex items-center gap-2.5 group">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md transition-transform group-hover:scale-105">
-              <Bot className="h-5 w-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-xs transition-transform group-hover:scale-105">
+              <Compass className="h-5 w-5 stroke-[1.75]" />
             </div>
-            <span className="text-xl font-bold tracking-tight text-foreground font-mono">
+            <span className="text-xl font-sans font-bold tracking-tight text-foreground">
               BrowserPilot
             </span>
           </Link>
-          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
-            Create your account
+          <h1 className="text-2xl font-sans font-bold tracking-tight text-foreground">
+            Create Account
           </h1>
-          <p className="text-xs text-muted-foreground">
-            Bring your own Gemini API key for private, autonomous browser execution
+          <p className="text-xs text-muted-foreground font-sans">
+            Start discovering verified opportunities with autonomous agent watches.
           </p>
         </div>
 
@@ -135,7 +135,7 @@ export default function SignupPage() {
         <div className="rounded-2xl border border-border/80 bg-card p-6 sm:p-8 shadow-xl backdrop-blur-xl space-y-5">
           <form onSubmit={handleSignupSubmit} className="space-y-4">
             {errorMsg && (
-              <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-400 font-mono">
+              <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400 font-mono">
                 {errorMsg}
               </div>
             )}
@@ -258,9 +258,9 @@ export default function SignupPage() {
               )}
             </Button>
 
-            <div className="pt-2 text-center text-xs text-muted-foreground">
+            <div className="pt-2 text-center text-xs text-muted-foreground font-sans">
               Already have an account?{" "}
-              <Link href="/login" className="font-semibold text-primary hover:underline">
+              <Link href="/login" className="font-semibold text-emerald-600 dark:text-emerald-400 hover:underline">
                 Sign in
               </Link>
             </div>

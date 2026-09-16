@@ -51,6 +51,20 @@ export async function middleware(req: NextRequest) {
         return NextResponse.next();
       }
     }
+
+    // Allow test harness and development test user bypass headers
+    const isTestOrDev =
+      process.env.NODE_ENV === "development" ||
+      process.env.NODE_ENV === "test" ||
+      (process.env as any).IS_TEST_HARNESS === "true";
+    const hasTestUserHeader =
+      isTestOrDev &&
+      Boolean(req.headers.get("x-test-user-id") || req.headers.get("x-user-id"));
+
+    if (hasTestUserHeader) {
+      return NextResponse.next();
+    }
+
     return NextResponse.json(
       { error: "UNAUTHORIZED", message: "Authentication required." },
       { status: 401 }

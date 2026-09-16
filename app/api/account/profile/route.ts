@@ -24,6 +24,8 @@ const UpdateAccountProfileSchema = z.object({
   targetSkills: z.array(z.string().trim().max(50)).max(20).optional(),
   organizationName: z.string().trim().max(100).optional(),
   organizationSize: z.enum(ORGANIZATION_SIZES).or(z.string().max(50)).optional(),
+  graduationYear: z.string().trim().max(20).optional(),
+  autoPersonalize: z.boolean().optional(),
 });
 
 /**
@@ -223,3 +225,50 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+
+/**
+ * DELETE /api/account/profile
+ * Permanently scrubs PII and credentials, converting to an anonymous tombstone record.
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    const sessionUser = session?.user as { id?: string; email?: string | null } | undefined;
+    const userId = sessionUser?.id;
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "UNAUTHORIZED", message: "Authentication required to request account deletion." },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const confirmation = body.confirmation;
+
+    if (confirmation !== "DELETE MY ACCOUNT") {
+      return NextResponse.json(
+        { 
+          error: "CONFIRMATION_REQUIRED", 
+          message: "Please type 'DELETE MY ACCOUNT' to confirm permanent credential scrubbing." 
+        },
+        { status: 400 }
+      );
+    }
+
+    const { AnonymizedAccountService } = await import("@/lib/account/anonymizedAccountService");
+    const result = await AnonymizedAccountService.anonymizeUser(userId);
+
+    return NextResponse.json({
+      success: true,
+      message: result.message,
+      tombstoneId: result.tombstoneId,
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: "DELETION_FAILED", message: err.message },
+      { status: 500 }
+    );
+  }
+}
+
