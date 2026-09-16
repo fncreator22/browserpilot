@@ -102,7 +102,7 @@ export async function POST(
     const maxStepsBudget = job.maxStepsBudget || 15;
 
     // 4. Run autonomous pipeline directly within this active request
-    console.log(`[ExecuteRoute] 🚀 Executing active pipeline for job ${jobId}...`);
+    console.log(`[ExecuteRoute] [DISPATCH] Executing active pipeline for job ${jobId}...`);
     const pipelineResult = await executeJobPipeline({
       jobId,
       prompt: job.prompt,
@@ -121,7 +121,7 @@ export async function POST(
       elapsedMs: Date.now() - startTime,
     });
   } catch (err: unknown) {
-    console.error(`[ExecuteRoute] ❌ Fatal error executing job ${jobId}:`, err);
+    console.error(`[ExecuteRoute] [ERROR] Fatal error executing job ${jobId}:`, err);
     return NextResponse.json(
       {
         error: "EXECUTION_ERROR",
