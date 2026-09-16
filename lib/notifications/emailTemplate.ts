@@ -20,6 +20,8 @@ export function formatLifecycleAlertEmail(payload: Omit<OutboundEmailPayload, "t
     NEW_OPPORTUNITY: "NEW OPPORTUNITY",
     REPOSTED: "REPOSTED OPENING",
     NEW_SOURCE: "NEW APPLY SOURCE",
+    NEW_RECRUITER_CONTACT: "NEW RECRUITER CONTACT",
+    UNANNOUNCED_ROLE: "UNANNOUNCED ROLE",
   };
 
   const badgeText = classificationLabels[payload.alertType] || payload.alertType;

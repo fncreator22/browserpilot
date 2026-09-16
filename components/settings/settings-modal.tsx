@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { motion, AnimatePresence } from "motion/react";
@@ -9,6 +10,7 @@ import {
   KeyRound, 
   Radio, 
   Sparkles, 
+  Brain,
   CreditCard, 
   Bell, 
   HelpCircle, 
@@ -35,6 +37,9 @@ import {
   FileText,
   MessageSquare,
   Trash2,
+  Hash,
+  MessageCircle,
+  Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +48,10 @@ import { toast } from "sonner";
 import { usePuter } from "@/hooks/usePuter";
 import { useUIState, type ProfileTab } from "@/components/providers/ui-state-provider";
 import { ConnectorPreferencesPanel } from "@/components/connectors/connector-preferences-modal";
+import { 
+  DEFAULT_DEEPREACH_CHANNELS, 
+  type DeepReachChannelsPreferences 
+} from "@/lib/discovery/deepreach/channels";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -65,33 +74,29 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const { isLoaded: isPuterLoaded, isSignedIn: isPuterSignedIn, user: puterUser, signIn: puterSignIn, signOut: puterSignOut } = usePuter();
   const { unreadNotificationsCount, refreshNotifications } = useUIState();
 
-  // Active Category Selection
+  // Active Category Selection (defaults to AI Providers)
   const [activeCategory, setActiveCategory] = useState<ProfileTab>(() => {
     if (initialTab === "PERSONALIZATION") return "CAREER_MEMORY";
-    return initialTab || "ACCOUNT";
+    return initialTab || "PROVIDERS";
   });
 
   // Mobile Drilldown Navigation State (null = menu view, string = detail view)
-  const [mobileDetailView, setMobileDetailView] = useState<ProfileTab | null>(() => {
-    if (initialTab && initialTab !== "ACCOUNT") {
-      return initialTab === "PERSONALIZATION" ? "CAREER_MEMORY" : initialTab;
-    }
-    return null;
-  });
+  const [mobileDetailView, setMobileDetailView] = useState<ProfileTab | null>(null);
 
   // Sync initialTab when opening modal
   useEffect(() => {
-    if (isOpen && initialTab) {
-      const target = initialTab === "PERSONALIZATION" ? "CAREER_MEMORY" : initialTab;
-      setActiveCategory(target);
-      // On mobile, if a specific deep-link tab is requested (not default ACCOUNT), open detail directly
-      if (initialTab !== "ACCOUNT") {
-        setMobileDetailView(target);
+    if (isOpen) {
+      if (initialTab) {
+        const target = initialTab === "PERSONALIZATION" ? "CAREER_MEMORY" : initialTab;
+        setActiveCategory(target);
+        if (initialTab === "CAREER_MEMORY" || initialTab === "PERSONALIZATION" || initialTab === "BILLING") {
+          setMobileDetailView(target);
+        } else {
+          setMobileDetailView(null);
+        }
       } else {
         setMobileDetailView(null);
       }
-    } else if (isOpen) {
-      setMobileDetailView(null);
     }
   }, [isOpen, initialTab]);
 
@@ -108,6 +113,13 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const [isSavingGeminiKey, setIsSavingGeminiKey] = useState(false);
   const [isRemovingGeminiKey, setIsRemovingGeminiKey] = useState(false);
   const [isReplacingKey, setIsReplacingKey] = useState(false);
+  const [deepseekApiKey, setDeepseekApiKey] = useState("");
+  const [maskedDeepseekKey, setMaskedDeepseekKey] = useState<string | null>(null);
+  const [hasDeepseekKey, setHasDeepseekKey] = useState(false);
+  const [showDeepseekApiKey, setShowDeepseekApiKey] = useState(false);
+  const [isSavingDeepseekKey, setIsSavingDeepseekKey] = useState(false);
+  const [isRemovingDeepseekKey, setIsRemovingDeepseekKey] = useState(false);
+  const [isReplacingDeepseekKey, setIsReplacingDeepseekKey] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
   // Providers & Usage State
@@ -124,6 +136,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const [userCategory, setUserCategory] = useState("");
   const [usageContext, setUsageContext] = useState("");
   const [experienceLevel, setExperienceLevel] = useState("ENTRY_LEVEL");
+  const [graduationYear, setGraduationYear] = useState("2026");
+  const [autoPersonalize, setAutoPersonalize] = useState(true);
   const [organizationName, setOrganizationName] = useState("");
   const [organizationSize, setOrganizationSize] = useState("");
   const [preferredRoles, setPreferredRoles] = useState<string[]>([]);
@@ -140,11 +154,47 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const [inAppToastsEnabled, setInAppToastsEnabled] = useState(true);
   const [dailyDigestEnabled, setDailyDigestEnabled] = useState(false);
 
+  // Pro DeepReach Channels State (Persisted in localStorage)
+  const [deepReachChannels, setDeepReachChannels] = useState<DeepReachChannelsPreferences>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("browserpilot_deepreach_channels");
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return DEFAULT_DEEPREACH_CHANNELS;
+  });
+
+  const handleToggleDeepReachChannel = (channel: keyof DeepReachChannelsPreferences) => {
+    setDeepReachChannels((prev) => {
+      const next = { ...prev, [channel]: !prev[channel] };
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("browserpilot_deepreach_channels", JSON.stringify(next));
+        } catch {}
+      }
+      toast.success(`${channel.toUpperCase()} DeepReach scanner ${next[channel] ? "enabled" : "disabled"}`);
+      return next;
+    });
+  };
+
   const loadProvidersAndUsage = () => {
     fetch("/api/account/providers")
       .then((res) => res.json())
       .then((data) => {
-        if (data?.providers) setConnectedProviders(data.providers);
+        if (data?.providers) {
+          setConnectedProviders(data.providers);
+          const deepseekConn = data.providers.find(
+            (p: any) => p.provider === "DEEPSEEK_BYOK" && p.status === "CONNECTED"
+          );
+          if (deepseekConn) {
+            setHasDeepseekKey(true);
+            setMaskedDeepseekKey(deepseekConn.maskedCredential);
+          } else {
+            setHasDeepseekKey(false);
+            setMaskedDeepseekKey(null);
+          }
+        }
       })
       .catch(() => {});
 
@@ -197,6 +247,12 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               setPreferredLocations(data.personalization.preferredLocations || []);
               setPreferredWorkModes(data.personalization.preferredWorkModes || ["REMOTE"]);
               setTargetSkills(data.personalization.targetSkills || []);
+              if (data.personalization.graduationYear) {
+                setGraduationYear(String(data.personalization.graduationYear));
+              }
+              if (typeof data.personalization.autoPersonalize === "boolean") {
+                setAutoPersonalize(data.personalization.autoPersonalize);
+              }
             }
           }
         })
@@ -248,14 +304,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const isEffectivePuterConnected = isPuterSignedIn || !!puterProvider;
   const effectivePuterUsername = puterUser?.username || puterProvider?.accountUsername || "Puter User";
 
-  // Categories Definition
+  // Categories Definition (Primary tabs front-and-center, unified plugins)
   const categories: CategoryNavDef[] = [
-    {
-      id: "ACCOUNT",
-      label: "Account & Security",
-      shortDesc: "Profile, credentials, and password",
-      icon: User,
-    },
     {
       id: "PROVIDERS",
       label: "AI Providers & Keys",
@@ -264,23 +314,23 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
       badge: isEffectivePuterConnected ? "Puter Active" : hasKey ? "BYOK Active" : undefined,
     },
     {
-      id: "CONNECTORS",
-      label: "Data Connectors",
-      shortDesc: "Monitored ATS boards & guest search",
-      icon: Radio,
-    },
-    {
       id: "CAREER_MEMORY",
-      label: "Career Memory & Preferences",
+      label: "Career Memory & Vault",
       shortDesc: "Target roles, skills, and work modes",
       icon: Briefcase,
     },
     {
       id: "BILLING",
-      label: "Billing & Plans",
+      label: "Subscription & Quotas",
       shortDesc: "Subscription tier, quotas, coupons",
       icon: CreditCard,
       badge: billingData?.plan?.code === "ENTERPRISE" ? "ENTERPRISE" : (billingData?.plan?.code || "FREE"),
+    },
+    {
+      id: "ACCOUNT",
+      label: "Account & Security",
+      shortDesc: "Profile, credentials, and password",
+      icon: User,
     },
     {
       id: "NOTIFICATIONS",
@@ -415,6 +465,75 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
     }
   };
 
+  const handleSaveDeepseekKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanKey = deepseekApiKey.trim();
+    if (!cleanKey) {
+      toast.error("Please enter a valid DeepSeek API Key.");
+      return;
+    }
+    if (cleanKey.length < 8) {
+      toast.error("DeepSeek API Key must be at least 8 characters.");
+      return;
+    }
+
+    setIsSavingDeepseekKey(true);
+    try {
+      const res = await fetch("/api/account/providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "DEEPSEEK_BYOK",
+          apiKey: cleanKey,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error("Failed to save DeepSeek key", { description: data.message || "Unknown error" });
+        return;
+      }
+
+      toast.success("DeepSeek API Key saved and activated successfully!");
+      setDeepseekApiKey("");
+      setIsReplacingDeepseekKey(false);
+      setHasDeepseekKey(true);
+      if (data.provider?.maskedCredential) {
+        setMaskedDeepseekKey(data.provider.maskedCredential);
+      }
+      loadProvidersAndUsage();
+    } catch (err: unknown) {
+      toast.error("Error saving DeepSeek key", { description: (err as Error).message });
+    } finally {
+      setIsSavingDeepseekKey(false);
+    }
+  };
+
+  const handleRemoveDeepseekKey = async () => {
+    setIsRemovingDeepseekKey(true);
+    try {
+      const res = await fetch("/api/account/providers?provider=DEEPSEEK_BYOK", {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error("Failed to remove API key", { description: data.message || "Unknown error" });
+        return;
+      }
+
+      toast.success("DeepSeek API Key removed from your account.");
+      setHasDeepseekKey(false);
+      setMaskedDeepseekKey(null);
+      setDeepseekApiKey("");
+      setIsReplacingDeepseekKey(false);
+      loadProvidersAndUsage();
+    } catch (err: unknown) {
+      toast.error("Error removing DeepSeek key", { description: (err as Error).message });
+    } finally {
+      setIsRemovingDeepseekKey(false);
+    }
+  };
+
   // Account Save Handler
   const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -475,6 +594,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
           userCategory: userCategory || undefined,
           usageContext: usageContext || undefined,
           experienceLevel: experienceLevel || undefined,
+          graduationYear: graduationYear || undefined,
+          autoPersonalize,
           organizationName: organizationName || undefined,
           organizationSize: organizationSize || undefined,
           preferredRoles,
@@ -598,7 +719,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-lg font-serif font-bold text-foreground">Account & Security</h2>
+              <h2 className="text-lg font-sans font-bold text-foreground">Account & Security</h2>
               <p className="text-xs text-muted-foreground font-sans mt-0.5">
                 Manage your credentials, name, email address, and authentication security.
               </p>
@@ -618,31 +739,31 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Your Name"
-                  className="font-sans text-xs bg-slate-50/50"
+                  className="font-sans text-xs bg-background border-border/80 text-foreground"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground font-sans">Email Address</label>
-                <div className="relative">
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@domain.com"
-                    className="font-sans text-xs bg-slate-50/50 pr-20"
-                  />
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-muted-foreground font-sans">Email Address</label>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                     <CheckCircle2 className="h-3 w-3" />
                     Verified
-                  </div>
+                  </span>
                 </div>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@domain.com"
+                  className="font-sans text-xs bg-background border-border/80 text-foreground"
+                />
               </div>
 
               <div className="pt-3 border-t border-border/50 space-y-3">
                 <div>
                   <h3 className="text-xs font-semibold font-sans text-foreground">Security & Password</h3>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-[11px] text-muted-foreground font-sans">
                     To modify your email or change your password, provide your current password.
                   </p>
                 </div>
@@ -657,7 +778,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
                       placeholder="Required to save"
-                      className="font-sans text-xs bg-slate-50/50"
+                      className="font-sans text-xs bg-background border-border/80 text-foreground"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -667,7 +788,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Leave blank to keep current"
-                      className="font-sans text-xs bg-slate-50/50"
+                      className="font-sans text-xs bg-background border-border/80 text-foreground"
                     />
                   </div>
                 </div>
@@ -677,7 +798,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 <Button
                   type="submit"
                   disabled={isSavingProfile}
-                  className="h-9 font-sans text-xs font-semibold bg-[#1F3D2E] hover:bg-[#162d22] text-white cursor-pointer shadow-xs gap-1.5"
+                  className="h-9 font-sans text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs gap-1.5"
                 >
                   {isSavingProfile ? (
                     <>
@@ -711,14 +832,14 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-lg font-serif font-bold text-foreground">AI Providers & Keys</h2>
+              <h2 className="text-lg font-sans font-bold text-foreground">AI Providers & Keys</h2>
               <p className="text-xs text-muted-foreground font-sans mt-0.5">
                 Configure execution backends: Connect Puter for free unlimited cloud AI or bring your own Gemini API key.
               </p>
             </div>
 
             {/* Puter Card */}
-            <div className="rounded-2xl border border-border/70 bg-white p-5 space-y-4 shadow-sm">
+            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
@@ -760,7 +881,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   <Button
                     size="sm"
                     onClick={handlePuterConnect}
-                    className="h-8 font-sans text-xs bg-[#1F3D2E] hover:bg-[#162d22] text-white cursor-pointer shadow-xs gap-1.5"
+                    className="h-8 font-sans text-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs gap-1.5"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     Connect Puter Account
@@ -770,7 +891,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             </div>
 
             {/* BYOK Gemini Key */}
-            <div className="rounded-2xl border border-border/70 bg-white p-5 space-y-4 shadow-sm">
+            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 border border-amber-200">
@@ -854,7 +975,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         value={geminiApiKey}
                         onChange={(e) => setGeminiApiKey(e.target.value)}
                         placeholder="AIzaSy... (min 8 characters)"
-                        className="font-mono text-xs pr-10 bg-slate-50/50"
+                        className="font-mono text-xs pr-10 bg-background border-border/80 text-foreground"
                       />
                       <button
                         type="button"
@@ -886,7 +1007,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       size="sm"
                       disabled={isSavingGeminiKey || !geminiApiKey.trim()}
                       onClick={handleSaveGeminiKey}
-                      className="h-8 font-sans text-xs bg-[#1F3D2E] hover:bg-[#162d22] text-white cursor-pointer shadow-xs gap-1.5"
+                      className="h-8 font-sans text-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs gap-1.5"
                     >
                       {isSavingGeminiKey ? (
                         <>
@@ -897,6 +1018,158 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         <>
                           <Check className="h-3.5 w-3.5" />
                           <span>{isReplacingKey ? "Update API Key" : "Save Gemini Key"}</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* BYOK DeepSeek Key */}
+            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-sans font-bold text-foreground">DeepSeek API (BYOK / Harness)</h3>
+                    <p className="text-xs text-muted-foreground font-sans">
+                      DeepSeek-V3 & DeepSeek-R1 reasoning models via direct API or Puter
+                    </p>
+                  </div>
+                </div>
+
+                <Badge
+                  variant={hasDeepseekKey ? "default" : isEffectivePuterConnected ? "secondary" : "outline"}
+                  className={`font-mono text-xs ${
+                    hasDeepseekKey
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : isEffectivePuterConnected
+                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {hasDeepseekKey ? "Configured" : isEffectivePuterConnected ? "Active via Puter" : "None"}
+                </Badge>
+              </div>
+
+              {hasDeepseekKey && maskedDeepseekKey && (
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-border/70 flex items-center justify-between gap-3 text-xs font-mono flex-wrap">
+                  <div className="space-y-0.5 min-w-[140px]">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider block font-sans">Active Key</span>
+                    <span className="font-bold text-foreground tracking-widest">{maskedDeepseekKey}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsReplacingDeepseekKey(!isReplacingDeepseekKey);
+                        setDeepseekApiKey("");
+                      }}
+                      className="h-8 text-xs font-sans border-border/80 hover:bg-muted/50 cursor-pointer"
+                    >
+                      {isReplacingDeepseekKey ? "Cancel" : "Replace Key"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isRemovingDeepseekKey}
+                      onClick={handleRemoveDeepseekKey}
+                      className="h-8 text-xs font-sans text-rose-600 border-rose-200/80 hover:bg-rose-50 hover:text-rose-700 cursor-pointer gap-1.5"
+                    >
+                      {isRemovingDeepseekKey ? (
+                        <RotateCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                      <span>Remove Key</span>
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {(!hasDeepseekKey || isReplacingDeepseekKey) && (
+                <div className="space-y-3 pt-2 border-t border-border/50">
+                  {isEffectivePuterConnected && !hasDeepseekKey && (
+                    <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200/60 flex items-start gap-2.5 text-xs text-blue-900 font-sans">
+                      <Sparkles className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-blue-950">DeepSeek Active via Puter Cloud AI</p>
+                        <p className="text-[11px] text-blue-800/90 mt-0.5 leading-relaxed">
+                          Your connected Puter account {effectivePuterUsername ? `(@${effectivePuterUsername})` : ""} provides free model access for DeepSeek-V3 and DeepSeek-R1 reasoning. A direct DeepSeek API key is optional and only needed if you wish to use your personal DeepSeek quota.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-muted-foreground font-sans">
+                        {isReplacingDeepseekKey ? "Enter New DeepSeek API Key" : "Enter DeepSeek API Key"}
+                      </label>
+                      <a
+                        href="https://platform.deepseek.com/api_keys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-primary hover:underline flex items-center gap-1 font-mono"
+                      >
+                        Get DeepSeek key <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        type={showDeepseekApiKey ? "text" : "password"}
+                        value={deepseekApiKey}
+                        onChange={(e) => setDeepseekApiKey(e.target.value)}
+                        placeholder="sk-... (min 8 characters)"
+                        className="font-mono text-xs pr-10 bg-background border-border/80 text-foreground"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowDeepseekApiKey(!showDeepseekApiKey)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer p-1"
+                      >
+                        {showDeepseekApiKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    {isReplacingDeepseekKey && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setIsReplacingDeepseekKey(false);
+                          setDeepseekApiKey("");
+                        }}
+                        className="h-8 text-xs font-sans cursor-pointer"
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isSavingDeepseekKey || !deepseekApiKey.trim()}
+                      onClick={handleSaveDeepseekKey}
+                      className="h-8 font-sans text-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs gap-1.5"
+                    >
+                      {isSavingDeepseekKey ? (
+                        <>
+                          <RotateCw className="h-3.5 w-3.5 animate-spin" />
+                          <span>Saving Key...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-3.5 w-3.5" />
+                          <span>{isReplacingDeepseekKey ? "Update API Key" : "Save DeepSeek Key"}</span>
                         </>
                       )}
                     </Button>
@@ -949,13 +1222,116 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-lg font-serif font-bold text-foreground">Data Connectors</h2>
+              <h2 className="text-lg font-sans font-bold text-foreground">Data Connectors</h2>
               <p className="text-xs text-muted-foreground font-sans mt-0.5">
                 Manage all registered job board aggregators, direct ATS platforms, and autonomous guest search channels.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-white p-5 space-y-4 shadow-sm">
+            {/* Pro DeepReach Multi-Platform Channels */}
+            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between pb-3 border-b border-border/60">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold font-sans text-foreground">Pro DeepReach Channels</h3>
+                    <Badge variant="outline" className="text-[10px] uppercase font-mono px-2 py-0.5 bg-emerald-50 text-emerald-700 border-emerald-200">
+                      Zero-Fee Intelligence
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-sans">
+                    Autonomous cross-scanners extracting hidden hiring posts, tech talks, and talent acquisition contacts via Jina Reader.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* LinkedIn Channel */}
+                <div className="p-3.5 rounded-xl border border-border/70 bg-muted/40 flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 shrink-0 mt-0.5">
+                      <Briefcase className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-foreground font-sans">LinkedIn Intelligence</div>
+                      <div className="text-[11px] text-muted-foreground font-sans leading-snug mt-0.5">
+                        Scrapes company recruiters (site:linkedin.com/in) and public postings.
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={deepReachChannels.linkedIn}
+                    onChange={() => handleToggleDeepReachChannel("linkedIn")}
+                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 cursor-pointer shrink-0"
+                  />
+                </div>
+
+                {/* Twitter / X Channel */}
+                <div className="p-3.5 rounded-xl border border-border/70 bg-muted/40 flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-sky-50 text-sky-600 border border-sky-100 shrink-0 mt-0.5">
+                      <Hash className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-foreground font-sans">Twitter / X Radar</div>
+                      <div className="text-[11px] text-muted-foreground font-sans leading-snug mt-0.5">
+                        Scouts founder threads, engineering leads, and unlisted hiring announcements.
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={deepReachChannels.twitter}
+                    onChange={() => handleToggleDeepReachChannel("twitter")}
+                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 cursor-pointer shrink-0"
+                  />
+                </div>
+
+                {/* Reddit Channel */}
+                <div className="p-3.5 rounded-xl border border-border/70 bg-muted/40 flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-orange-50 text-orange-600 border border-orange-100 shrink-0 mt-0.5">
+                      <MessageCircle className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-foreground font-sans">Reddit Referral Network</div>
+                      <div className="text-[11px] text-muted-foreground font-sans leading-snug mt-0.5">
+                        Queries /r/forhire, /r/cscareerquestions, and community referral posts.
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={deepReachChannels.reddit}
+                    onChange={() => handleToggleDeepReachChannel("reddit")}
+                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 cursor-pointer shrink-0"
+                  />
+                </div>
+
+                {/* YouTube Channel */}
+                <div className="p-3.5 rounded-xl border border-border/70 bg-muted/40 flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-red-50 text-red-600 border border-red-100 shrink-0 mt-0.5">
+                      <Video className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-foreground font-sans">YouTube Tech Talks</div>
+                      <div className="text-[11px] text-muted-foreground font-sans leading-snug mt-0.5">
+                        Identifies engineering speakers, team culture spotlights, and career descriptions.
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={deepReachChannels.youtube}
+                    onChange={() => handleToggleDeepReachChannel("youtube")}
+                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 cursor-pointer shrink-0"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
               <ConnectorPreferencesPanel onPreferencesSaved={() => {}} />
             </div>
           </div>
@@ -965,226 +1341,75 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-lg font-serif font-bold text-foreground">Career Memory & Preferences</h2>
+              <h2 className="text-lg font-sans font-bold text-foreground">Career Memory & Preferences</h2>
               <p className="text-xs text-muted-foreground font-sans mt-0.5">
-                Personalized context that informs all autonomous watch and discovery scoring algorithms.
+                Your personal preferences and background context that inform autonomous watch and opportunity fit scoring.
               </p>
             </div>
 
-            <form onSubmit={handleSaveCareerMemory} className="space-y-5">
-              {/* Experience Level & User Category */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground font-sans">Experience Level</label>
-                  <select
-                    value={experienceLevel}
-                    onChange={(e) => setExperienceLevel(e.target.value)}
-                    className="w-full h-9 rounded-lg border border-border/70 bg-slate-50/50 px-3 text-xs font-sans focus:outline-none focus:ring-1 focus:ring-[#1F3D2E]"
-                  >
-                    <option value="INTERN">Intern / Student</option>
-                    <option value="ENTRY_LEVEL">Entry Level (0-2 years)</option>
-                    <option value="MID">Mid Level (3-5 years)</option>
-                    <option value="SENIOR">Senior (5-8 years)</option>
-                    <option value="LEAD">Lead / Staff / Principal (8+ years)</option>
-                  </select>
+            {/* Central Memory Vault Hub Card */}
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs shrink-0">
+                    <Brain className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold font-sans text-foreground">Central Memory Vault</h3>
+                    <p className="text-xs text-muted-foreground font-sans mt-0.5">
+                      Target roles, locations, skills, and ranking parameters are centrally managed in your dedicated Memory Vault.
+                    </p>
+                  </div>
                 </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground font-sans">Primary User Category</label>
-                  <Input
-                    value={userCategory}
-                    onChange={(e) => setUserCategory(e.target.value)}
-                    placeholder="e.g. Software Engineer, Data Scientist"
-                    className="font-sans text-xs bg-slate-50/50"
-                  />
-                </div>
-              </div>
-
-              {/* Target Roles */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground font-sans">Target Roles</label>
-                <div className="flex gap-2">
-                  <Input
-                    value={newRoleInput}
-                    onChange={(e) => setNewRoleInput(e.target.value)}
-                    placeholder="e.g. Full Stack Engineer, Frontend Developer..."
-                    className="font-sans text-xs bg-slate-50/50"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      if (newRoleInput.trim() && !preferredRoles.includes(newRoleInput.trim())) {
-                        setPreferredRoles([...preferredRoles, newRoleInput.trim()]);
-                        setNewRoleInput("");
-                      }
-                    }}
-                    className="font-sans text-xs cursor-pointer bg-slate-100 hover:bg-slate-200"
-                  >
-                    Add
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {preferredRoles.map((role) => (
-                    <Badge key={role} variant="secondary" className="font-sans text-xs py-1 px-2.5 gap-1.5 bg-[#1F3D2E]/10 text-[#1F3D2E]">
-                      <span>{role}</span>
-                      <button
-                        type="button"
-                        onClick={() => setPreferredRoles(preferredRoles.filter((r) => r !== role))}
-                        className="hover:text-rose-500 cursor-pointer"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                  {preferredRoles.length === 0 && (
-                    <span className="text-xs text-muted-foreground italic font-sans">No target roles specified yet.</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Target Locations */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground font-sans">Preferred Locations</label>
-                <div className="flex gap-2">
-                  <Input
-                    value={newLocationInput}
-                    onChange={(e) => setNewLocationInput(e.target.value)}
-                    placeholder="e.g. Hyderabad, Bengaluru, Remote, San Francisco..."
-                    className="font-sans text-xs bg-slate-50/50"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      if (newLocationInput.trim() && !preferredLocations.includes(newLocationInput.trim())) {
-                        setPreferredLocations([...preferredLocations, newLocationInput.trim()]);
-                        setNewLocationInput("");
-                      }
-                    }}
-                    className="font-sans text-xs cursor-pointer bg-slate-100 hover:bg-slate-200"
-                  >
-                    Add
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {preferredLocations.map((loc) => (
-                    <Badge key={loc} variant="secondary" className="font-sans text-xs py-1 px-2.5 gap-1.5 bg-blue-50 text-blue-800 border-blue-200">
-                      <span>{loc}</span>
-                      <button
-                        type="button"
-                        onClick={() => setPreferredLocations(preferredLocations.filter((l) => l !== loc))}
-                        className="hover:text-rose-500 cursor-pointer"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                  {preferredLocations.length === 0 && (
-                    <span className="text-xs text-muted-foreground italic font-sans">No target locations specified yet.</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Target Skills */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground font-sans">Target Skills & Tech Stack</label>
-                <div className="flex gap-2">
-                  <Input
-                    value={newSkillInput}
-                    onChange={(e) => setNewSkillInput(e.target.value)}
-                    placeholder="e.g. React, TypeScript, Next.js, Node.js..."
-                    className="font-sans text-xs bg-slate-50/50"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      if (newSkillInput.trim() && !targetSkills.includes(newSkillInput.trim())) {
-                        setTargetSkills([...targetSkills, newSkillInput.trim()]);
-                        setNewSkillInput("");
-                      }
-                    }}
-                    className="font-sans text-xs cursor-pointer bg-slate-100 hover:bg-slate-200"
-                  >
-                    Add
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {targetSkills.map((skill) => (
-                    <Badge key={skill} variant="outline" className="font-sans text-xs py-1 px-2.5 gap-1.5 border-border/70">
-                      <span>{skill}</span>
-                      <button
-                        type="button"
-                        onClick={() => setTargetSkills(targetSkills.filter((s) => s !== skill))}
-                        className="hover:text-rose-500 cursor-pointer"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                  {targetSkills.length === 0 && (
-                    <span className="text-xs text-muted-foreground italic font-sans">No skills added yet.</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Work Mode Preferences */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground font-sans">Work Mode Preferences</label>
-                <div className="flex flex-wrap gap-2">
-                  {["REMOTE", "HYBRID", "ON_SITE"].map((mode) => {
-                    const isSelected = preferredWorkModes.includes(mode);
-                    return (
-                      <Button
-                        key={mode}
-                        type="button"
-                        variant={isSelected ? "secondary" : "outline"}
-                        size="sm"
-                        onClick={() => {
-                          if (isSelected) {
-                            setPreferredWorkModes(preferredWorkModes.filter((m) => m !== mode));
-                          } else {
-                            setPreferredWorkModes([...preferredWorkModes, mode]);
-                          }
-                        }}
-                        className={`h-8 font-sans text-xs cursor-pointer ${
-                          isSelected ? "bg-[#1F3D2E]/10 text-[#1F3D2E] border-[#1F3D2E]/30 font-semibold" : "text-muted-foreground"
-                        }`}
-                      >
-                        {mode === "ON_SITE" ? "On-Site" : mode.charAt(0) + mode.slice(1).toLowerCase()}
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <Button
-                  type="submit"
-                  disabled={isSavingCareerMemory}
-                  className="h-9 font-sans text-xs font-semibold bg-[#1F3D2E] hover:bg-[#162d22] text-white cursor-pointer shadow-xs gap-1.5"
+                <Link
+                  href="/app/settings/memory"
+                  onClick={onClose}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-sans font-semibold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shrink-0 shadow-xs cursor-pointer"
                 >
-                  {isSavingCareerMemory ? (
-                    <>
-                      <RotateCw className="h-3.5 w-3.5 animate-spin" />
-                      <span>Saving Preferences...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Check className="h-3.5 w-3.5" />
-                      <span>Save Career Memory</span>
-                    </>
-                  )}
-                </Button>
+                  <span>Open Memory Vault</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
               </div>
-            </form>
+
+              {/* Active Preferences Snapshot */}
+              <div className="pt-3 border-t border-emerald-500/15 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-border/50">
+                  <span className="text-[11px] font-mono text-muted-foreground block mb-1.5 uppercase tracking-wider">Target Roles</span>
+                  <div className="flex flex-wrap gap-1">
+                    {preferredRoles.length > 0 ? (
+                      preferredRoles.slice(0, 4).map((role) => (
+                        <span key={role} className="inline-flex px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium text-[11px]">
+                          {role}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground italic text-[11px]">None configured</span>
+                    )}
+                    {preferredRoles.length > 4 && (
+                      <span className="text-[11px] text-muted-foreground">+{preferredRoles.length - 4} more</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-border/50">
+                  <span className="text-[11px] font-mono text-muted-foreground block mb-1.5 uppercase tracking-wider">Preferred Locations</span>
+                  <div className="flex flex-wrap gap-1">
+                    {preferredLocations.length > 0 ? (
+                      preferredLocations.slice(0, 4).map((loc) => (
+                        <span key={loc} className="inline-flex px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 font-medium text-[11px]">
+                          {loc}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground italic text-[11px]">Global / Remote</span>
+                    )}
+                    {preferredLocations.length > 4 && (
+                      <span className="text-[11px] text-muted-foreground">+{preferredLocations.length - 4} more</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         );
 
@@ -1192,18 +1417,18 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-lg font-serif font-bold text-foreground">Billing & Plans</h2>
+              <h2 className="text-lg font-sans font-bold text-foreground">Billing & Plans</h2>
               <p className="text-xs text-muted-foreground font-sans mt-0.5">
                 Review your current subscription tier, quota limits, and apply promotional access coupons.
               </p>
             </div>
 
             {/* Current Plan Card */}
-            <div className="rounded-2xl border border-border/70 bg-white p-5 space-y-4 shadow-sm">
+            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-[10px] font-mono text-muted-foreground uppercase block">Active Subscription</span>
-                  <h3 className="text-base font-serif font-bold text-foreground">
+                  <h3 className="text-base font-sans font-bold text-foreground">
                     {billingData?.plan?.name || "Community Starter (FREE)"}
                   </h3>
                 </div>
@@ -1219,32 +1444,76 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 </Badge>
               </div>
 
-              <div className="space-y-2 pt-2 border-t border-border/40 text-xs font-mono">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Autonomous Watches:</span>
-                  <span className="font-semibold text-foreground">
-                    {typeof billingData?.usage?.activeWatches === "object"
-                      ? (billingData.usage.activeWatches as any)?.used ?? 0
-                      : (billingData?.usage?.activeWatches ?? (billingData?.quota?.activeWatches?.used ?? 1))} / {billingData?.plan?.maxWatches || 1} limit
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Daily Discovery Searches:</span>
-                  <span className="font-semibold text-foreground">
-                    {typeof billingData?.usage?.todayDiscoveries === "object"
-                      ? (billingData.usage.todayDiscoveries as any)?.used ?? 0
-                      : (billingData?.usage?.todayDiscoveries ?? (billingData?.quota?.dailyDiscoveries?.used ?? 0))} / {billingData?.plan?.maxDailyDiscoveries || 10} daily
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Monthly AI Operations:</span>
-                  <span className="font-semibold text-foreground">
-                    {typeof billingData?.usage?.monthlyAIOperations === "object"
-                      ? (billingData.usage.monthlyAIOperations as any)?.used ?? 0
-                      : (billingData?.usage?.monthlyAIOperations ?? (billingData?.quota?.monthlyAIOperations?.used ?? 0))} / {billingData?.plan?.maxMonthlyAIOperations || 100} monthly
-                  </span>
-                </div>
-              </div>
+              {(() => {
+                const todayDiscoveries = typeof billingData?.usage?.todayDiscoveries === "object"
+                  ? (billingData.usage.todayDiscoveries as any)?.used ?? 0
+                  : (billingData?.usage?.todayDiscoveries ?? (billingData?.quota?.dailyDiscoveries?.used ?? 0));
+                const maxDailyDiscoveries = billingData?.plan?.maxDailyDiscoveries || 10;
+                const activeWatches = typeof billingData?.usage?.activeWatches === "object"
+                  ? (billingData.usage.activeWatches as any)?.used ?? 0
+                  : (billingData?.usage?.activeWatches ?? (billingData?.quota?.activeWatches?.used ?? 1));
+                const maxWatches = billingData?.plan?.maxWatches || 1;
+                const monthlyAIOps = typeof billingData?.usage?.monthlyAIOperations === "object"
+                  ? (billingData.usage.monthlyAIOperations as any)?.used ?? 0
+                  : (billingData?.usage?.monthlyAIOperations ?? (billingData?.quota?.monthlyAIOperations?.used ?? 0));
+                const maxMonthlyAIOps = billingData?.plan?.maxMonthlyAIOperations || 100;
+
+                const discoveriesPercent = Math.min(100, Math.round((todayDiscoveries / Math.max(1, maxDailyDiscoveries)) * 100));
+                const watchesPercent = Math.min(100, Math.round((activeWatches / Math.max(1, maxWatches)) * 100));
+                const aiOpsPercent = Math.min(100, Math.round((monthlyAIOps / Math.max(1, maxMonthlyAIOps)) * 100));
+
+                return (
+                  <div className="space-y-3.5 pt-3 border-t border-border/40 font-sans">
+                    {/* Daily Discovery Searches Meter */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-foreground">Daily Discovery Meter</span>
+                        <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                          {todayDiscoveries} / {maxDailyDiscoveries} today ({discoveriesPercent}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-border/40">
+                        <div 
+                          className="bg-emerald-600 h-full rounded-full transition-all duration-500" 
+                          style={{ width: `${discoveriesPercent}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Autonomous Watches Meter */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-foreground">Active Autonomous Watches</span>
+                        <span className="font-mono font-semibold text-foreground">
+                          {activeWatches} / {maxWatches} active ({watchesPercent}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-border/40">
+                        <div 
+                          className="bg-emerald-600 h-full rounded-full transition-all duration-500" 
+                          style={{ width: `${watchesPercent}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Monthly AI Operations Meter */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-foreground">Monthly AI Operations</span>
+                        <span className="font-mono font-semibold text-foreground">
+                          {monthlyAIOps.toLocaleString()} / {maxMonthlyAIOps.toLocaleString()} ops ({aiOpsPercent}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-border/40">
+                        <div 
+                          className="bg-amber-600 h-full rounded-full transition-all duration-500" 
+                          style={{ width: `${aiOpsPercent}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="pt-3 border-t border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div className="text-xs text-muted-foreground font-sans">
@@ -1265,7 +1534,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     onClose();
                     router.push("/app/plans");
                   }}
-                  className="font-sans text-xs font-semibold gap-1.5 border-[#1F3D2E]/25 text-[#1F3D2E] hover:bg-[#1F3D2E]/5 cursor-pointer shrink-0"
+                  className="font-sans text-xs font-semibold gap-1.5 border-emerald-500/25 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5 cursor-pointer shrink-0"
                 >
                   <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                   View All Plans & Subscriptions
@@ -1275,21 +1544,21 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             </div>
 
             {/* Coupon Code Input */}
-            <div className="rounded-2xl border border-border/70 bg-white p-5 space-y-3 shadow-sm">
+            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-3 shadow-sm">
               <h3 className="text-xs font-semibold font-sans text-foreground">Redeem Access Coupon</h3>
               <div className="flex gap-2">
                 <Input
                   value={couponCodeInput}
                   onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
                   placeholder="e.g. LAUNCH2026, STUDENT50"
-                  className="font-mono text-xs bg-slate-50/50 uppercase"
+                  className="font-mono text-xs bg-background border-border/80 text-foreground uppercase"
                 />
                 <Button
                   type="button"
                   size="sm"
                   onClick={handleRedeemCoupon}
                   disabled={isRedeemingCoupon}
-                  className="font-sans text-xs font-semibold bg-[#1F3D2E] hover:bg-[#162d22] text-white cursor-pointer shrink-0"
+                  className="font-sans text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shrink-0"
                 >
                   {isRedeemingCoupon ? "Applying..." : "Apply Coupon"}
                 </Button>
@@ -1346,13 +1615,13 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-lg font-serif font-bold text-foreground">Notification Preferences</h2>
+              <h2 className="text-lg font-sans font-bold text-foreground">Notification Preferences</h2>
               <p className="text-xs text-muted-foreground font-sans mt-0.5">
                 Customize when and how BrowserPilot alerts you about new discovered roles and status updates.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-white p-5 space-y-4 shadow-sm">
+            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
               <div className="space-y-3 divide-y divide-border/40">
                 <div className="flex items-center justify-between pb-3">
                   <div>
@@ -1368,7 +1637,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       setEmailAlertsEnabled(e.target.checked);
                       toast.success(e.target.checked ? "Opportunity match alerts enabled" : "Opportunity match alerts muted");
                     }}
-                    className="h-4 w-4 rounded border-gray-300 text-[#1F3D2E] focus:ring-[#1F3D2E] cursor-pointer"
+                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 cursor-pointer"
                   />
                 </div>
 
@@ -1386,7 +1655,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       setInAppToastsEnabled(e.target.checked);
                       toast.success(e.target.checked ? "In-app toasts enabled" : "In-app toasts muted");
                     }}
-                    className="h-4 w-4 rounded border-gray-300 text-[#1F3D2E] focus:ring-[#1F3D2E] cursor-pointer"
+                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 cursor-pointer"
                   />
                 </div>
 
@@ -1404,7 +1673,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       setDailyDigestEnabled(e.target.checked);
                       toast.success(e.target.checked ? "Daily digest enabled" : "Daily digest disabled");
                     }}
-                    className="h-4 w-4 rounded border-gray-300 text-[#1F3D2E] focus:ring-[#1F3D2E] cursor-pointer"
+                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 cursor-pointer"
                   />
                 </div>
               </div>
@@ -1440,16 +1709,16 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-lg font-serif font-bold text-foreground">Help & Learn More</h2>
+              <h2 className="text-lg font-sans font-bold text-foreground">Help & Learn More</h2>
               <p className="text-xs text-muted-foreground font-sans mt-0.5">
                 Product architecture, keyboard shortcuts, and direct feedback channels.
               </p>
             </div>
 
             {/* Architecture Overview */}
-            <div className="rounded-2xl border border-border/70 bg-white p-5 space-y-3 shadow-sm">
+            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-3 shadow-sm">
               <div className="flex items-center gap-2 pb-2 border-b border-border/40">
-                <ShieldCheck className="h-4 w-4 text-[#1F3D2E]" />
+                <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 <h3 className="text-xs font-semibold font-sans text-foreground uppercase tracking-wide">
                   BrowserPilot Intelligence Harness
                 </h3>
@@ -1460,9 +1729,9 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             </div>
 
             {/* Keyboard Shortcuts */}
-            <div className="rounded-2xl border border-border/70 bg-white p-5 space-y-3 shadow-sm">
+            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-3 shadow-sm">
               <div className="flex items-center gap-2 pb-2 border-b border-border/40">
-                <CommandIcon className="h-4 w-4 text-[#1F3D2E]" />
+                <CommandIcon className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 <h3 className="text-xs font-semibold font-sans text-foreground uppercase tracking-wide">
                   Keyboard Navigation Shortcuts
                 </h3>
@@ -1484,9 +1753,9 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             </div>
 
             {/* Honest Support & Feedback Links */}
-            <div className="rounded-2xl border border-border/70 bg-white p-5 space-y-3 shadow-sm">
+            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-3 shadow-sm">
               <div className="flex items-center gap-2 pb-2 border-b border-border/40">
-                <MessageSquare className="h-4 w-4 text-[#1F3D2E]" />
+                <MessageSquare className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 <h3 className="text-xs font-semibold font-sans text-foreground uppercase tracking-wide">
                   Support & Community Feedback
                 </h3>
@@ -1499,7 +1768,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   href="https://github.com/fncreator22/browserpilot"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/70 bg-slate-50 hover:bg-slate-100 text-xs font-sans font-medium text-foreground transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/70 bg-muted/50 hover:bg-muted text-xs font-sans font-medium text-foreground transition-colors"
                 >
                   <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                   <span>GitHub Repository</span>
@@ -1508,17 +1777,17 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   href="https://github.com/fncreator22/browserpilot/issues"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/70 bg-slate-50 hover:bg-slate-100 text-xs font-sans font-medium text-foreground transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/70 bg-muted/50 hover:bg-muted text-xs font-sans font-medium text-foreground transition-colors"
                 >
                   <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
                   <span>Report an Issue</span>
                 </a>
                 <a
-                  href="mailto:support@browserpilot.internal"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/70 bg-slate-50 hover:bg-slate-100 text-xs font-sans font-medium text-foreground transition-colors"
+                  href="mailto:support@radar.internal"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/70 bg-muted/50 hover:bg-muted text-xs font-sans font-medium text-foreground transition-colors"
                 >
                   <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span>support@browserpilot.internal</span>
+                  <span>support@radar.internal</span>
                 </a>
               </div>
             </div>
@@ -1543,19 +1812,19 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             className="fixed inset-0 bg-black/50 backdrop-blur-xs"
           />
 
-          {/* DESKTOP MODAL (Two-Pane Claude/Slack/VS Code Pattern) */}
+          {/* DESKTOP MODAL (Two-Pane Claude/Slack/Notion Pattern) */}
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="hidden md:flex relative w-full max-w-4xl h-[640px] rounded-2xl border border-border/80 bg-white text-foreground shadow-2xl z-10 overflow-hidden"
+            className="hidden md:flex relative w-full max-w-4xl h-[680px] rounded-2xl border border-border/80 bg-card text-foreground shadow-2xl z-10 overflow-hidden"
           >
-            {/* LEFT SIDEBAR (Fixed ~230px) */}
-            <aside className="w-[230px] shrink-0 border-r border-[#E6E6E3] bg-[#FBFBFA] flex flex-col select-none">
+            {/* LEFT SIDEBAR (Fixed ~220px) */}
+            <aside className="w-[220px] shrink-0 border-r border-border/70 bg-muted/30 flex flex-col select-none">
               {/* Sidebar Header */}
-              <div className="p-4 border-b border-[#E6E6E3]">
-                <h1 className="text-sm font-serif font-bold text-foreground tracking-tight">Settings</h1>
+              <div className="p-4 border-b border-border/60">
+                <h1 className="text-sm font-sans font-bold text-foreground tracking-tight">Settings</h1>
                 <p className="text-[11px] text-muted-foreground font-sans">Configuration & Preferences</p>
               </div>
 
@@ -1574,12 +1843,12 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         onClick={() => setActiveCategory(cat.id)}
                         className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-sans transition-colors cursor-pointer text-left ${
                           isSelected
-                            ? "bg-[#1F3D2E]/10 text-[#1F3D2E] font-semibold"
-                            : "text-muted-foreground hover:text-foreground hover:bg-slate-200/50"
+                            ? "bg-muted text-foreground font-semibold shadow-2xs border border-border/70"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                         }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <Icon className={`h-4 w-4 shrink-0 ${isSelected ? "text-[#1F3D2E]" : "text-muted-foreground"}`} />
+                          <Icon className={`h-4 w-4 shrink-0 ${isSelected ? "text-foreground" : "text-muted-foreground"}`} />
                           <span className="truncate">{cat.label}</span>
                         </div>
                         {cat.badge && (
@@ -1593,7 +1862,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               </nav>
 
               {/* Bottom Pinned Category (Help & Learn More) */}
-              <div className="p-2 border-t border-[#E6E6E3] bg-[#F9F9F7]">
+              <div className="p-2 border-t border-border/60 bg-muted/20">
                 {categories
                   .filter((cat) => cat.isBottom)
                   .map((cat) => {
@@ -1607,11 +1876,11 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         onClick={() => setActiveCategory(cat.id)}
                         className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-sans transition-colors cursor-pointer text-left ${
                           isSelected
-                            ? "bg-[#1F3D2E]/10 text-[#1F3D2E] font-semibold"
-                            : "text-muted-foreground hover:text-foreground hover:bg-slate-200/50"
+                            ? "bg-muted text-foreground font-semibold shadow-2xs border border-border/70"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                         }`}
                       >
-                        <Icon className={`h-4 w-4 shrink-0 ${isSelected ? "text-[#1F3D2E]" : "text-muted-foreground"}`} />
+                        <Icon className={`h-4 w-4 shrink-0 ${isSelected ? "text-foreground" : "text-muted-foreground"}`} />
                         <span>{cat.label}</span>
                       </button>
                     );
@@ -1620,11 +1889,11 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             </aside>
 
             {/* RIGHT CONTENT PANE */}
-            <section className="flex-1 flex flex-col min-w-0 bg-white" aria-label="Settings Details">
+            <section className="flex-1 flex flex-col min-w-0 bg-card" aria-label="Settings Details">
               {/* Pane Top Bar with Close Button */}
               <div className="flex items-center justify-between px-6 py-3 border-b border-border/50">
                 <span className="text-xs font-mono text-muted-foreground">
-                  BrowserPilot / {categories.find((c) => c.id === activeCategory)?.label}
+                  Radar / {categories.find((c) => c.id === activeCategory)?.label}
                 </span>
                 <button
                   type="button"
@@ -1649,21 +1918,21 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: "100%" }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="md:hidden fixed inset-0 z-50 bg-[#FBFBFA] flex flex-col text-foreground overflow-hidden"
+            className="md:hidden fixed inset-0 z-50 bg-background flex flex-col text-foreground overflow-hidden"
           >
             {mobileDetailView === null ? (
               /* VIEW 1: Mobile Category Menu List */
               <div className="flex-1 flex flex-col">
                 {/* Mobile Menu Header */}
-                <div className="flex items-center justify-between px-4 py-3.5 border-b border-border/60 bg-white">
+                <div className="flex items-center justify-between px-4 py-3.5 border-b border-border/60 bg-card">
                   <div>
-                    <h1 className="text-base font-serif font-bold text-foreground">Settings</h1>
+                    <h1 className="text-base font-sans font-bold text-foreground">Settings</h1>
                     <p className="text-[11px] text-muted-foreground font-sans">Select a category to view or edit</p>
                   </div>
                   <button
                     type="button"
                     onClick={onClose}
-                    className="p-1.5 rounded-full text-muted-foreground hover:bg-slate-100 hover:text-foreground cursor-pointer"
+                    className="p-1.5 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
                     aria-label="Close settings"
                   >
                     <X className="h-5 w-5" />
@@ -1679,10 +1948,10 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         key={cat.id}
                         type="button"
                         onClick={() => handleSelectCategory(cat.id)}
-                        className="w-full flex items-center justify-between p-3.5 rounded-xl border border-border/60 bg-white hover:bg-slate-50 transition-colors cursor-pointer text-left shadow-2xs"
+                        className="w-full flex items-center justify-between p-3.5 rounded-xl border border-border/60 bg-card hover:bg-muted/40 transition-colors cursor-pointer text-left shadow-2xs"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1F3D2E]/10 text-[#1F3D2E]">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-foreground/10 text-foreground">
                             <Icon className="h-4 w-4" />
                           </div>
                           <div className="min-w-0">
@@ -1710,13 +1979,13 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               </div>
             ) : (
               /* VIEW 2: Mobile Category Detail View with Back Button */
-              <div className="flex-1 flex flex-col bg-white">
+              <div className="flex-1 flex flex-col bg-card">
                 {/* Detail Top Bar */}
-                <div className="flex items-center justify-between px-3 py-3 border-b border-border/60 bg-[#FBFBFA]">
+                <div className="flex items-center justify-between px-3 py-3 border-b border-border/60 bg-muted/30">
                   <button
                     type="button"
                     onClick={handleMobileBack}
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-sans font-medium text-[#1F3D2E] hover:bg-[#1F3D2E]/10 transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-sans font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     <span>Back to Settings</span>
@@ -1725,7 +1994,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   <button
                     type="button"
                     onClick={onClose}
-                    className="p-1.5 rounded-full text-muted-foreground hover:bg-slate-100 hover:text-foreground cursor-pointer"
+                    className="p-1.5 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
                     aria-label="Close settings"
                   >
                     <X className="h-5 w-5" />

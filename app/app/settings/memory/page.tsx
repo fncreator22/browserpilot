@@ -174,7 +174,7 @@ export default function UserMemoryPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col antialiased selection:bg-[#1F3D2E]/20 selection:text-[#1F3D2E]">
+    <div className="flex-1 flex flex-col antialiased selection:bg-emerald-500/20 selection:text-emerald-600">
       <main className="flex-1 container mx-auto max-w-5xl px-4 sm:px-6 py-6 pb-32 space-y-6">
         {/* Header Title */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
@@ -183,7 +183,7 @@ export default function UserMemoryPage() {
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <Brain className="h-4 w-4" />
               </span>
-              <h1 className="text-xl font-bold tracking-tight text-foreground font-serif">
+              <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
                 User Memory Vault & Personalization
               </h1>
             </div>

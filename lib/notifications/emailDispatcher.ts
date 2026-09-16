@@ -80,9 +80,15 @@ export class OutboundEmailDispatcher {
     const provider = options.customProvider || this.defaultProvider;
 
     // 1. Classification Eligibility Gate
-    // Supported types: NEW_OPPORTUNITY, REPOSTED, NEW_SOURCE
+    // Supported types: NEW_OPPORTUNITY, REPOSTED, NEW_SOURCE, NEW_RECRUITER_CONTACT, UNANNOUNCED_ROLE
     // ALREADY_KNOWN must never generate an email
-    const eligibleTypes = ["NEW_OPPORTUNITY", "REPOSTED", "NEW_SOURCE"];
+    const eligibleTypes = [
+      "NEW_OPPORTUNITY",
+      "REPOSTED",
+      "NEW_SOURCE",
+      "NEW_RECRUITER_CONTACT",
+      "UNANNOUNCED_ROLE",
+    ];
     if (!eligibleTypes.includes(alert.transitionType)) {
       return {
         success: true,

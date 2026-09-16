@@ -51,10 +51,51 @@ interface SavedOpportunityRecord {
   };
 }
 
+export type PipelineStage = "SAVED" | "APPLIED" | "INTERVIEWING" | "OFFER";
+
+export const STAGE_CONFIG: Record<PipelineStage, { label: string; activeClass: string; inactiveClass: string }> = {
+  SAVED: {
+    label: "Saved",
+    activeClass: "bg-slate-200 text-slate-900 border-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600",
+    inactiveClass: "bg-muted/40 text-muted-foreground border-border/60 hover:text-foreground",
+  },
+  APPLIED: {
+    label: "Applied",
+    activeClass: "bg-blue-100 text-blue-900 border-blue-400 dark:bg-blue-950/70 dark:text-blue-200 dark:border-blue-700",
+    inactiveClass: "bg-muted/40 text-muted-foreground border-border/60 hover:text-blue-600",
+  },
+  INTERVIEWING: {
+    label: "Interviewing",
+    activeClass: "bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-700",
+    inactiveClass: "bg-muted/40 text-muted-foreground border-border/60 hover:text-amber-600",
+  },
+  OFFER: {
+    label: "Offer",
+    activeClass: "bg-emerald-100 text-emerald-900 border-emerald-400 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-700",
+    inactiveClass: "bg-muted/40 text-muted-foreground border-border/60 hover:text-emerald-600",
+  },
+};
+
+export function getRecordStage(notes?: string | null): PipelineStage {
+  if (!notes) return "SAVED";
+  try {
+    const parsed = JSON.parse(notes);
+    if (parsed && parsed.stage && ["SAVED", "APPLIED", "INTERVIEWING", "OFFER"].includes(parsed.stage)) {
+      return parsed.stage;
+    }
+  } catch {
+    if (["SAVED", "APPLIED", "INTERVIEWING", "OFFER"].includes(notes)) {
+      return notes as PipelineStage;
+    }
+  }
+  return "SAVED";
+}
+
 export default function SavedOpportunitiesPage() {
   const [savedRecords, setSavedRecords] = useState<SavedOpportunityRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStageTab, setSelectedStageTab] = useState<string>("ALL");
   const { setSavedCount } = useUIState();
 
   const fetchSavedOpportunities = async () => {
@@ -63,7 +104,7 @@ export default function SavedOpportunitiesPage() {
       const res = await fetch("/api/opportunities/saved");
       if (res.ok) {
         const data = await res.json();
-        const records = data.saved || [];
+        const records = data.savedOpportunities || data.saved || [];
         setSavedRecords(records);
         setSavedCount(records.length);
       }
@@ -78,12 +119,41 @@ export default function SavedOpportunitiesPage() {
     fetchSavedOpportunities();
   }, []);
 
-  const handleRemoveBookmark = async (oppId: string, companyName: string, title: string) => {
+  const handleUpdateStage = async (oppId: string, companyName: string, title: string, nextStage: PipelineStage) => {
     try {
       const res = await fetch(`/api/opportunities/${oppId}/save`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "UNSAVE" }),
+        body: JSON.stringify({ notes: JSON.stringify({ stage: nextStage }) }),
+      });
+
+      if (res.ok) {
+        setSavedRecords(prev =>
+          prev.map(r => {
+            if (r.opportunity.id === oppId) {
+              return {
+                ...r,
+                notes: JSON.stringify({ stage: nextStage }),
+              };
+            }
+            return r;
+          })
+        );
+        toast.success(`Pipeline Stage: ${STAGE_CONFIG[nextStage].label}`, {
+          description: `Updated status for ${title} at ${companyName}`,
+        });
+      } else {
+        throw new Error("Failed to update stage");
+      }
+    } catch (err: unknown) {
+      toast.error("Error", { description: (err as Error).message });
+    }
+  };
+
+  const handleRemoveBookmark = async (oppId: string, companyName: string, title: string) => {
+    try {
+      const res = await fetch(`/api/opportunities/${oppId}/save`, {
+        method: "DELETE",
       });
 
       if (res.ok) {
@@ -103,7 +173,19 @@ export default function SavedOpportunitiesPage() {
     }
   };
 
+  const stageCounts = {
+    ALL: savedRecords.length,
+    SAVED: savedRecords.filter(r => getRecordStage(r.notes) === "SAVED").length,
+    APPLIED: savedRecords.filter(r => getRecordStage(r.notes) === "APPLIED").length,
+    INTERVIEWING: savedRecords.filter(r => getRecordStage(r.notes) === "INTERVIEWING").length,
+    OFFER: savedRecords.filter(r => getRecordStage(r.notes) === "OFFER").length,
+  };
+
   const filteredRecords = savedRecords.filter(r => {
+    const stage = getRecordStage(r.notes);
+    if (selectedStageTab !== "ALL" && stage !== selectedStageTab) {
+      return false;
+    }
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     const title = r.opportunity.title?.toLowerCase() || "";
@@ -114,16 +196,16 @@ export default function SavedOpportunitiesPage() {
   });
 
   return (
-    <div className="flex-1 flex flex-col antialiased selection:bg-[#1F3D2E]/20 selection:text-[#1F3D2E]">
+    <div className="flex-1 flex flex-col antialiased selection:bg-emerald-500/20 selection:text-emerald-600">
       <main className="flex-1 container mx-auto max-w-7xl px-4 py-8 pb-32 sm:px-6 space-y-8">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/60">
           <div>
             <div className="flex items-center gap-2.5 mb-1">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1F3D2E]/10 text-[#1F3D2E] dark:bg-emerald-950 dark:text-emerald-400">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 dark:bg-emerald-950 dark:text-emerald-400">
                 <Bookmark className="h-4 w-4" />
               </span>
-              <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-foreground">
+              <h1 className="text-2xl sm:text-3xl font-sans font-bold tracking-tight text-foreground">
                 Saved Opportunities
               </h1>
               <Badge variant="secondary" className="font-mono text-xs">
@@ -142,12 +224,41 @@ export default function SavedOpportunitiesPage() {
 
           <div className="flex items-center gap-2">
             <Link href="/app">
-              <Button size="sm" className="h-9 min-h-[44px] sm:min-h-[36px] px-3.5 font-sans font-medium text-xs gap-1.5 bg-[#1F3D2E] text-white hover:bg-[#162D22] cursor-pointer shadow-xs focus-visible:ring-2 focus-visible:ring-[#1F3D2E]">
+              <Button size="sm" className="h-9 min-h-[44px] sm:min-h-[36px] px-3.5 font-sans font-medium text-xs gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer shadow-xs focus-visible:ring-2 focus-visible:ring-emerald-500">
                 <Compass className="h-3.5 w-3.5" />
                 Find More Opportunities
               </Button>
             </Link>
           </div>
+        </div>
+
+        {/* Pipeline Stage Filter Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 border-b border-border/40">
+          {[
+            { id: "ALL", label: "All Opportunities", count: stageCounts.ALL },
+            { id: "SAVED", label: "Saved", count: stageCounts.SAVED },
+            { id: "APPLIED", label: "Applied", count: stageCounts.APPLIED },
+            { id: "INTERVIEWING", label: "Interviewing", count: stageCounts.INTERVIEWING },
+            { id: "OFFER", label: "Offer", count: stageCounts.OFFER },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setSelectedStageTab(tab.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer border ${
+                selectedStageTab === tab.id
+                  ? "bg-emerald-600 text-white border-emerald-500 shadow-2xs font-semibold"
+                  : "bg-card text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/40"
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                selectedStageTab === tab.id ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
         </div>
 
         {/* Filter / Search Bar */}
@@ -160,7 +271,7 @@ export default function SavedOpportunitiesPage() {
                 placeholder="Filter saved roles, companies, skills..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full h-10 pl-9 pr-3 text-xs font-mono rounded-lg border border-border/70 bg-card text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:border-[#1F3D2E]/50 focus:ring-2 focus:ring-[#1F3D2E]/20"
+                className="w-full h-10 pl-9 pr-3 text-xs font-mono rounded-lg border border-border/70 bg-card text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20"
               />
             </div>
           </div>
@@ -169,18 +280,18 @@ export default function SavedOpportunitiesPage() {
         {/* Opportunities List */}
         {isLoading ? (
           <div className="py-16 text-center space-y-3">
-            <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[#1F3D2E] border-t-transparent" />
+            <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
             <p className="text-xs font-mono text-muted-foreground">Loading saved opportunities...</p>
           </div>
         ) : filteredRecords.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredRecords.map(({ savedId, savedAt, opportunity: opp }) => {
+            {filteredRecords.map(({ savedId, savedAt, notes, opportunity: opp }) => {
               const ats = getAtsSourceInfo(opp.sourceListings?.[0]?.sourcePlatform, opp.primaryApplyUrl, opp.sourceListings);
 
               return (
                 <div
                   key={savedId}
-                  className="rounded-xl border border-border/70 bg-card p-5 space-y-3.5 hover:border-[#1F3D2E]/40 transition-all flex flex-col justify-between shadow-xs"
+                  className="rounded-xl border border-border/70 bg-card p-5 space-y-3.5 hover:border-emerald-500/40 transition-all flex flex-col justify-between shadow-xs"
                 >
                   <div className="space-y-3">
                     {/* Top Row: ATS Chip + Verification Badge + Remove Action */}
@@ -196,7 +307,7 @@ export default function SavedOpportunitiesPage() {
                       <button
                         type="button"
                         onClick={() => handleRemoveBookmark(opp.id, opp.companyName, opp.title)}
-                        className="text-muted-foreground hover:text-rose-600 transition-colors p-1.5 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer rounded-md focus-visible:ring-2 focus-visible:ring-[#1F3D2E]"
+                        className="text-muted-foreground hover:text-rose-600 transition-colors p-1.5 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer rounded-md focus-visible:ring-2 focus-visible:ring-emerald-500"
                         title="Remove from saved"
                         aria-label="Remove bookmark"
                       >
@@ -207,12 +318,12 @@ export default function SavedOpportunitiesPage() {
                     {/* Title & Company */}
                     <div className="space-y-1">
                       <Link href={`/app/opportunities/${opp.id}`} className="group">
-                        <h3 className="font-serif text-base font-bold text-foreground line-clamp-2 leading-snug group-hover:text-[#1F3D2E] dark:group-hover:text-emerald-400 transition-colors">
+                        <h3 className="font-sans text-base font-bold text-foreground line-clamp-2 leading-snug group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                           {opp.title}
                         </h3>
                       </Link>
                       <p className="text-xs font-semibold text-foreground/80 font-sans flex items-center gap-1.5">
-                        <Building className="h-3 w-3 text-[#1F3D2E] dark:text-emerald-400 shrink-0" aria-hidden="true" />
+                        <Building className="h-3 w-3 text-emerald-600 dark:text-emerald-400 dark:text-emerald-400 shrink-0" aria-hidden="true" />
                         {opp.companyName}
                       </p>
                     </div>
@@ -246,6 +357,34 @@ export default function SavedOpportunitiesPage() {
                         ))}
                       </div>
                     )}
+                    {/* Pipeline Stage Progression Selector */}
+                    <div className="pt-2.5 mt-2 border-t border-border/40 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] font-mono text-muted-foreground">
+                        <span>Application Stage</span>
+                        <span className="font-semibold text-foreground">{STAGE_CONFIG[getRecordStage(notes)].label}</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1">
+                        {(["SAVED", "APPLIED", "INTERVIEWING", "OFFER"] as PipelineStage[]).map((stage) => {
+                          const currentStage = getRecordStage(notes);
+                          const isCurrent = currentStage === stage;
+                          return (
+                            <button
+                              key={stage}
+                              type="button"
+                              onClick={() => handleUpdateStage(opp.id, opp.companyName, opp.title, stage)}
+                              className={`py-1 text-[10px] font-mono font-medium rounded-md border transition-all text-center cursor-pointer ${
+                                isCurrent
+                                  ? STAGE_CONFIG[stage].activeClass + " shadow-2xs font-bold ring-1 ring-emerald-500/30"
+                                  : STAGE_CONFIG[stage].inactiveClass
+                              }`}
+                              title={`Move to ${STAGE_CONFIG[stage].label}`}
+                            >
+                              {STAGE_CONFIG[stage].label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Card Footer Actions: Strict Hierarchy */}
@@ -257,8 +396,8 @@ export default function SavedOpportunitiesPage() {
 
                     <div className="flex items-center gap-2">
                       <Link href={`/app/opportunities/${opp.id}`}>
-                        <Button variant="outline" size="sm" className="h-9 min-h-[44px] sm:min-h-[32px] px-2.5 font-mono text-xs text-muted-foreground hover:text-foreground cursor-pointer focus-visible:ring-2 focus-visible:ring-[#1F3D2E]">
-                          Details
+                        <Button variant="outline" size="sm" className="h-9 min-h-[44px] sm:min-h-[32px] px-2.5 font-mono text-xs text-muted-foreground hover:text-foreground cursor-pointer focus-visible:ring-2 focus-visible:ring-emerald-500">
+                          Dossier
                         </Button>
                       </Link>
 
@@ -269,7 +408,7 @@ export default function SavedOpportunitiesPage() {
                           rel="noopener noreferrer"
                           className="inline-flex"
                         >
-                          <Button size="sm" className="h-9 min-h-[44px] sm:min-h-[32px] px-3 font-mono text-xs gap-1 bg-[#1F3D2E] text-white hover:bg-[#162D22] cursor-pointer shadow-xs focus-visible:ring-2 focus-visible:ring-[#1F3D2E]">
+                          <Button size="sm" className="h-9 min-h-[44px] sm:min-h-[32px] px-3 font-mono text-xs gap-1 bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer shadow-xs focus-visible:ring-2 focus-visible:ring-emerald-500">
                             <span>Apply</span>
                             <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
                           </Button>
@@ -294,7 +433,7 @@ export default function SavedOpportunitiesPage() {
               </p>
             </div>
             <Link href="/app">
-              <Button size="sm" className="font-sans font-semibold text-xs gap-1.5 bg-[#1F3D2E] hover:bg-[#162D22] text-white cursor-pointer shadow-xs">
+              <Button size="sm" className="font-sans font-semibold text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs">
                 <Compass className="h-3.5 w-3.5" />
                 Start Opportunity Discovery
               </Button>
