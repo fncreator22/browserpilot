@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
 import { getOpportunityWithSourceListings, isOpportunitySaved } from "@/lib/db/opportunities";
+import { enrichOpportunityData } from "@/lib/discovery/enrichment/opportunityEnrichmentService";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,15 @@ export async function GET(
       }
     }
 
+    // Enrich with HR contacts, company employees count, and canonical share URL
+    const enrichment = await enrichOpportunityData({
+      opportunityId: opp.id,
+      canonicalHash: opp.canonicalHash,
+      companyName: opp.companyName,
+      title: opp.title,
+      primaryApplyUrl: opp.primaryApplyUrl,
+    });
+
     return NextResponse.json({
       opportunity: {
         id: opp.id,
@@ -81,6 +91,11 @@ export async function GET(
         firstSeenAt: opp.firstSeenAt,
         lastVerifiedAt: opp.lastVerifiedAt,
         saved: isSaved,
+        companyContacts: enrichment.companyContacts,
+        companyEmployeesCount: enrichment.companyEmployeesCount,
+        shareUrl: enrichment.shareUrl,
+        socialShareUrls: enrichment.socialShareUrls,
+        companyProfile: enrichment.companyProfile,
         sourceListings: opp.sourceListings.map((l) => ({
           id: l.id,
           sourcePlatform: l.sourcePlatform,

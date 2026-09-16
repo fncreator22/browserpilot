@@ -8,6 +8,7 @@ import {
   getOpportunityById,
   getOpportunityByCanonicalHash
 } from "@/lib/db/opportunities";
+import { fastButtonCache } from "@/lib/cache/buttonCache";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +17,22 @@ interface RouteParams {
 }
 
 async function resolveOpportunityId(idOrHash: string): Promise<string | null> {
+  const cached = fastButtonCache.getResolvedOpportunityId(idOrHash);
+  if (cached) return cached;
+
   // Check if it's already an opportunity ID
   const oppById = await getOpportunityById(idOrHash);
-  if (oppById) return oppById.id;
+  if (oppById) {
+    fastButtonCache.setResolvedOpportunityId(idOrHash, oppById.id);
+    return oppById.id;
+  }
 
   // Otherwise check if it's a canonical hash
   const oppByHash = await getOpportunityByCanonicalHash(idOrHash);
-  if (oppByHash) return oppByHash.id;
+  if (oppByHash) {
+    fastButtonCache.setResolvedOpportunityId(idOrHash, oppByHash.id);
+    return oppByHash.id;
+  }
 
   return null;
 }
@@ -56,6 +66,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const body = await request.json().catch(() => ({}));
     const savedRecord = await saveOpportunity(userId, opportunityId, body.notes);
+    fastButtonCache.setSavedStatus(userId, opportunityId, true);
 
     return NextResponse.json({
       saved: true,
@@ -99,6 +110,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     }
 
     const result = await unsaveOpportunity(userId, opportunityId);
+    fastButtonCache.setSavedStatus(userId, opportunityId, false);
 
     return NextResponse.json({
       saved: false,
@@ -134,7 +146,13 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ saved: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
+    const cachedStatus = await fastButtonCache.getSavedStatus(userId, opportunityId);
+    if (cachedStatus !== null) {
+      return NextResponse.json({ saved: cachedStatus, opportunityId, cached: true });
+    }
+
     const saved = await isOpportunitySaved(userId, opportunityId);
+    fastButtonCache.setSavedStatus(userId, opportunityId, saved);
     return NextResponse.json({ saved, opportunityId });
   } catch (err: unknown) {
     return NextResponse.json(

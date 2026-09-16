@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   Briefcase, 
-  Building, 
+  Building2, 
   MapPin, 
   DollarSign, 
   ExternalLink, 
@@ -19,7 +19,10 @@ import {
   ShieldAlert, 
   Calendar,
   ArrowRight,
-  ArrowUpRight
+  ArrowUpRight,
+  AlertTriangle,
+  UserCheck,
+  Users
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +30,12 @@ import { toast } from "sonner";
 import { useUIState } from "@/components/providers/ui-state-provider";
 import type { NormalizedJobItem } from "@/lib/scraper/normalizer";
 import { JobDetailSlideOver } from "@/components/result/job-detail-slideover";
+import { PersonnelConnectDrawer } from "@/components/result/personnel-connect-drawer";
+import { TrustScoreBadge } from "@/components/result/trust-score-badge";
+import { GhostJobBanner } from "@/components/result/ghost-job-banner";
+import { CompanyIntelligencePill } from "@/components/result/company-intelligence-pill";
+import type { TrustScoreReport, UrlAnalysisResult } from "@/lib/verification/midwayVerifier";
+import type { CompanyIntelligenceRecord } from "@/lib/discovery/company/companyIntelligence";
 import { 
   humanizeStatus, 
   humanizeConnectorType, 
@@ -34,6 +43,7 @@ import {
   humanizeWorkMode, 
   humanizeClassification 
 } from "@/lib/utils/display-mappings";
+import { InfoBadge } from "@/components/ui/info-badge";
 
 export function getAtsSourceInfo(
   sourcePlatform?: string,
@@ -67,8 +77,8 @@ export function getAtsSourceInfo(
   }
   return {
     name: primarySource ? humanizeConnectorType(primarySource) : "Direct Web",
-    className: "bg-[#E8EFEA] text-[#1F3D2E] border-[#C3D5CA]",
-    dotColor: "bg-[#1F3D2E]",
+    className: "bg-[#E8EFEA] text-emerald-600 dark:text-emerald-400 border-[#C3D5CA]",
+    dotColor: "bg-emerald-600",
   };
 }
 
@@ -176,6 +186,27 @@ export interface DossierJobItem {
   postedAgoText?: string | null;
   freshnessClass?: string | null;
   lastVerifiedAt?: Date | string | null;
+  companyContacts?: Array<{
+    id?: string;
+    fullName: string;
+    roleTitle: string;
+    profileUrl?: string | null;
+    email?: string | null;
+    personalEmail?: string | null;
+    phone?: string | null;
+    whatsappUrl?: string | null;
+    twitterUrl?: string | null;
+    githubUrl?: string | null;
+    portfolioUrl?: string | null;
+    department?: string | null;
+    contactType?: string | null;
+    isVerified?: boolean;
+    sourcePlatform?: string | null;
+  }>;
+  trustReport?: TrustScoreReport;
+  urlAnalysis?: UrlAnalysisResult;
+  companyIntelligence?: CompanyIntelligenceRecord | null;
+  isUndisclosed?: boolean;
 }
 
 export interface SwarmSummaryStats {
@@ -204,6 +235,7 @@ export function JobDossierDeck({
 }: JobDossierDeckProps) {
   const { getConnectorMeta } = useUIState();
   const [selectedJob, setSelectedJob] = useState<DossierJobItem | null>(null);
+  const [personnelDrawerJob, setPersonnelDrawerJob] = useState<DossierJobItem | null>(null);
   const [filterType, setFilterType] = useState<string>("ALL");
   const [savedStates, setSavedStates] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
@@ -254,6 +286,11 @@ export function JobDossierDeck({
       postedAgoText: (job as any).postedAgoText,
       freshnessClass: (job as any).freshnessClass,
       lastVerifiedAt: (job as any).lastVerifiedAt,
+      companyContacts: (job as any).companyContacts,
+      trustReport: (job as any).trustReport,
+      urlAnalysis: (job as any).urlAnalysis,
+      companyIntelligence: (job as any).companyIntelligence,
+      isUndisclosed: (job as any).isUndisclosed,
     };
   });
 
@@ -273,8 +310,14 @@ export function JobDossierDeck({
   const handleToggleSave = async (oppId: string, currentSaved: boolean, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const nextSaved = !currentSaved;
-    setSavingIds((prev) => ({ ...prev, [oppId]: true }));
+
+    // Instant optimistic update
     setSavedStates((prev) => ({ ...prev, [oppId]: nextSaved }));
+    setSavingIds((prev) => ({ ...prev, [oppId]: true }));
+    toast.success(nextSaved ? "Opportunity saved to workspace" : "Removed from saved opportunities");
+    if (onBookmarkChange) {
+      onBookmarkChange(oppId, nextSaved);
+    }
 
     try {
       const method = nextSaved ? "POST" : "DELETE";
@@ -285,14 +328,13 @@ export function JobDossierDeck({
       if (!res.ok) {
         throw new Error("Failed to update bookmark state");
       }
-
-      toast.success(nextSaved ? "Opportunity saved to workspace" : "Removed from saved opportunities");
-      if (onBookmarkChange) {
-        onBookmarkChange(oppId, nextSaved);
-      }
     } catch (err) {
+      // Rollback on network failure
       toast.error((err as Error).message || "Could not save bookmark");
       setSavedStates((prev) => ({ ...prev, [oppId]: currentSaved }));
+      if (onBookmarkChange) {
+        onBookmarkChange(oppId, currentSaved);
+      }
     } finally {
       setSavingIds((prev) => ({ ...prev, [oppId]: false }));
     }
@@ -323,13 +365,13 @@ export function JobDossierDeck({
   };
 
   return (
-    <div className={`rounded-2xl border border-border/80 bg-white p-4 sm:p-6 space-y-6 shadow-sm ${className}`}>
+    <div className={`rounded-2xl border border-border/80 bg-white dark:bg-slate-900 p-4 sm:p-6 space-y-6 shadow-sm ${className}`}>
       {/* Header & Controls in calm sentence-case */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/60">
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <Briefcase className="h-4 w-4 stroke-[1.75] text-[#1F3D2E]" />
-            <h3 className="text-base sm:text-lg font-serif font-bold text-foreground">
+            <Briefcase className="h-4 w-4 stroke-[1.75] text-emerald-600 dark:text-emerald-400" />
+            <h3 className="text-base sm:text-lg font-sans font-bold text-foreground">
               Verified opportunity dossiers
             </h3>
             <Badge variant="outline" className="font-mono text-xs text-muted-foreground">
@@ -356,7 +398,7 @@ export function JobDossierDeck({
               onClick={() => setFilterType(f.id)}
               className={`h-7 text-xs font-sans font-medium px-2.5 cursor-pointer ${
                 filterType === f.id
-                  ? "bg-[#1F3D2E]/10 text-[#1F3D2E] border-[#1F3D2E]/30 font-semibold"
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-semibold"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -373,10 +415,10 @@ export function JobDossierDeck({
         </div>
       </div>
 
-      {/* Opportunities List with Slide-Over Trigger */}
-      <div className="space-y-3">
+      {/* Opportunities List with Slide-Over Trigger (Responsive 1, 2, or 3-column grid) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredJobs.length === 0 ? (
-          <div className="p-8 text-center rounded-xl border border-dashed border-border/70 bg-slate-50/50 space-y-2">
+          <div className="col-span-full p-8 text-center rounded-xl border border-dashed border-border/70 bg-slate-50/50 space-y-2">
             <p className="text-xs font-sans text-muted-foreground">
               No opportunities match the selected &ldquo;{filterType.toLowerCase()}&rdquo; filter.
             </p>
@@ -395,125 +437,213 @@ export function JobDossierDeck({
             const isSaving = savingIds[job.id!] || false;
             const effectivePlatform = job.sourcePlatform || job.sourceListings?.[0]?.sourcePlatform;
             const effectiveUrl = job.applyUrl || job.primaryApplyUrl || job.sourceListings?.[0]?.applyUrl;
-            const conn = getConnectorMeta(effectivePlatform, effectiveUrl);
+            const atsInfo = getAtsSourceInfo(effectivePlatform, effectiveUrl, job.sourceListings);
 
             return (
               <div
                 key={job.id}
                 onClick={() => setSelectedJob(job)}
-                className="group rounded-2xl border border-border/70 bg-white hover:border-[#1F3D2E]/40 shadow-xs hover:shadow-md transition-all p-4 sm:p-5 flex flex-col gap-3.5 cursor-pointer select-none"
+                className="group rounded-2xl border border-border/70 bg-white dark:bg-slate-900 hover:border-emerald-500/40 dark:hover:border-emerald-500/40 shadow-xs hover:shadow-md transition-all p-4 sm:p-5 flex flex-col justify-between gap-3 cursor-pointer select-none"
               >
-                {/* Top Row: Rank + Company + Connector + Corner Verification Badge */}
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-[#1F3D2E]/10 text-[#1F3D2E] font-mono text-[10px] font-bold">
-                      #{job.rankPosition || idx + 1}
-                    </span>
-                    <span className="flex items-center gap-1.5 font-sans font-semibold text-xs sm:text-sm text-foreground">
-                      <Building className="h-3.5 w-3.5 stroke-[1.75] text-[#1F3D2E] shrink-0" />
-                      {job.companyName}
-                    </span>
-
-                    {/* Live Connector Pill */}
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-sans font-medium bg-[#E8EFEA] text-[#1F3D2E] border border-[#C3D5CA]">
-                      {conn.displayName}
-                    </span>
-
-                    {/* Recommendation vs Exact Match Badge */}
-                    {job.matchBadge?.label === "Recommendation" || job.matchType?.startsWith("RECOMMENDED") ? (
-                      <Badge variant="outline" className="text-[10px] font-sans font-medium px-2 py-0 text-amber-800 border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 flex items-center gap-1">
-                        <Sparkles className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
-                        <span>Recommendation</span>
-                      </Badge>
-                    ) : job.matchBadge?.label === "Exact Match" || job.matchType === "EXACT_MATCH" ? (
-                      <Badge variant="outline" className="text-[10px] font-sans font-medium px-2 py-0 text-emerald-800 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1">
-                        <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
-                        <span>Exact Match</span>
-                      </Badge>
-                    ) : null}
-
-                    {job.classification === "NEW_OPPORTUNITY" && (
-                      <Badge variant="outline" className="text-[10px] font-sans px-1.5 py-0 text-emerald-700 border-emerald-300 bg-emerald-50 flex items-center gap-1">
-                        <Sparkles className="h-2.5 w-2.5 stroke-[1.75]" />
-                        {humanizeClassification(job.classification)}
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {typeof job.matchScore === "number" && (
-                      <span className="text-[11px] font-mono font-bold text-[#1F3D2E] bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                        {Math.round(job.matchScore)}% fit
+                {/* Top Row: Rank + Company + ATS Badge + Match Fit + Corner Verification Badge */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-bold">
+                        #{job.rankPosition || idx + 1}
                       </span>
-                    )}
-                    {getVerificationCornerBadge(job.verificationStatus)}
-                  </div>
-                </div>
+                      <span className="flex items-center gap-1.5 font-sans font-semibold text-xs sm:text-sm text-foreground truncate max-w-[140px] sm:max-w-[160px]">
+                        <Building2 className="h-3.5 w-3.5 stroke-[1.75] text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span className="truncate">{job.companyName}</span>
+                      </span>
 
-                {/* Job Title in Source Serif 4 */}
-                <div className="flex items-start justify-between gap-3">
-                  <h4 className="font-serif text-base sm:text-lg font-bold text-foreground group-hover:text-[#1F3D2E] transition-colors leading-snug">
+                      {/* Color-coded ATS Platform Badge */}
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-sans font-medium border ${atsInfo.className}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${atsInfo.dotColor}`} />
+                        {atsInfo.name}
+                      </span>
+
+                      {/* Multi-Source Deduplication Indicator */}
+                      {job.sourceListings && job.sourceListings.length > 1 && (
+                        <span
+                          className="badge badge-xs badge-outline text-[9px] font-sans font-medium px-1.5 py-0.5 border-slate-300 text-slate-600 bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:bg-slate-800"
+                          title={`Also verified across ${job.sourceListings.slice(1).map(s => s.sourcePlatform || "Web").join(", ")}`}
+                        >
+                          +{job.sourceListings.length - 1} sources
+                        </span>
+                      )}
+
+                      {/* Trust Score Badge */}
+                      {job.trustReport && (
+                        <TrustScoreBadge
+                          score={job.trustReport.trustScore}
+                          tier={job.trustReport.trustTier}
+                          isGhostJob={job.trustReport.isGhostJob}
+                        />
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      {typeof job.matchScore === "number" && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 px-1.5 py-0.5 rounded">
+                            {Math.round(job.matchScore)}% fit
+                          </span>
+                          <InfoBadge
+                            title="Relevance & Fit Score"
+                            description={job.matchReason || job.matchBadge?.tagline || "Calculated using semantic role similarity, required technical skills, experience tier, and location constraints."}
+                            details={{
+                              "Fit Score": `${Math.round(job.matchScore)}%`,
+                              "Match Type": job.matchType || job.matchBadge?.label || "SEMANTIC_SIMILARITY",
+                              "Verification": humanizeStatus(job.verificationStatus || "VERIFIED"),
+                              "Company": job.companyName,
+                            }}
+                          />
+                        </div>
+                      )}
+                      {getVerificationCornerBadge(job.verificationStatus)}
+                    </div>
+                  </div>
+
+                  {/* Company Intelligence Metadata Pill */}
+                  {(job.companyIntelligence || job.isUndisclosed) && (
+                    <div className="pt-0.5">
+                      <CompanyIntelligencePill
+                        companyName={job.companyName}
+                        employeeHeadcountBracket={job.companyIntelligence?.employeeHeadcountBracket}
+                        headquarters={job.companyIntelligence?.headquarters}
+                        officialDomain={job.companyIntelligence?.officialDomain}
+                        isUndisclosed={job.isUndisclosed || job.companyIntelligence?.isUndisclosed}
+                        employerType={job.companyIntelligence?.employerType}
+                      />
+                    </div>
+                  )}
+
+                  {/* Ghost Job & Affiliate Warning Banner */}
+                  {(job.trustReport?.isGhostJob || job.trustReport?.trustTier === "GHOST_JOB_AFFILIATE") && (
+                    <GhostJobBanner
+                      advisoryTitle={job.trustReport?.advisoryTitle}
+                      advisoryMessage={job.trustReport?.advisoryMessage}
+                      actionRecommendation={job.trustReport?.actionRecommendation}
+                      reasons={job.trustReport?.reasons}
+                      affiliateWarning={job.urlAnalysis?.affiliateWarning}
+                    />
+                  )}
+
+                  {/* Recommendation vs Exact Match Badge if present */}
+                  {(job.matchBadge?.label === "Recommendation" || job.matchType?.startsWith("RECOMMENDED")) ? (
+                    <Badge variant="outline" className="text-[10px] font-sans font-medium px-2 py-0 text-amber-800 border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 flex items-center gap-1 w-fit">
+                      <Sparkles className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
+                      <span>Recommendation</span>
+                    </Badge>
+                  ) : (job.matchBadge?.label === "Exact Match" || job.matchType === "EXACT_MATCH") ? (
+                    <Badge variant="outline" className="text-[10px] font-sans font-medium px-2 py-0 text-emerald-800 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1 w-fit">
+                      <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
+                      <span>Exact Match</span>
+                    </Badge>
+                  ) : job.classification === "NEW_OPPORTUNITY" ? (
+                    <Badge variant="outline" className="text-[10px] font-sans px-1.5 py-0 text-emerald-700 border-emerald-300 bg-emerald-50 flex items-center gap-1 w-fit">
+                      <Sparkles className="h-2.5 w-2.5 stroke-[1.75]" />
+                      <span>{humanizeClassification(job.classification)}</span>
+                    </Badge>
+                  ) : null}
+
+                  {/* Job Title in Source Serif 4 */}
+                  <h4 className="font-sans text-base sm:text-lg font-bold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-snug line-clamp-2">
                     {job.title}
                   </h4>
-                </div>
 
-                {/* Recommendation Tagline / Relevance explanation */}
-                {job.matchBadge?.tagline && (
-                  <div className="flex items-center gap-1.5 text-[11px] font-sans text-muted-foreground -mt-1">
-                    {job.matchBadge.label === "Recommendation" ? (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800/40">
-                        <Sparkles className="h-2.5 w-2.5 text-amber-600 shrink-0" />
-                        {job.matchBadge.tagline}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800/40">
-                        <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
-                        {job.matchBadge.tagline}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Location & Metadata Row in calm Inter */}
-                <div className="flex items-center gap-4 text-xs text-muted-foreground font-sans flex-wrap pt-0.5">
-                  <div className="flex items-center gap-1">
-                    <MapPin className="h-3 w-3 stroke-[1.75] text-muted-foreground shrink-0" />
-                    <span>{job.location || "Location Unspecified"}</span>
-                  </div>
-                  {job.workMode && (
-                    <div className="flex items-center gap-1">
-                      <Briefcase className="h-3 w-3 stroke-[1.75] text-muted-foreground shrink-0" />
-                      <span>{humanizeWorkMode(job.workMode)}</span>
-                    </div>
+                  {/* AI Match Reason / Tagline */}
+                  {(job.matchBadge?.tagline || job.matchReason) && (
+                    <p className="text-xs font-sans text-muted-foreground line-clamp-2 leading-relaxed">
+                      {job.matchBadge?.tagline || job.matchReason}
+                    </p>
                   )}
-                  {job.postedAgoText && (
-                    <div className="flex items-center gap-1 ml-auto text-muted-foreground text-[11px]">
-                      <Calendar className="h-3 w-3 stroke-[1.75]" />
-                      <span>{job.postedAgoText}</span>
-                    </div>
+
+                  {/* Recruiter / Hiring Team Chip */}
+                  {job.companyContacts && job.companyContacts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPersonnelDrawerJob(job);
+                      }}
+                      className="flex items-center gap-1.5 text-[11px] font-sans text-muted-foreground bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 px-2 py-1 rounded-md w-fit mt-1 cursor-pointer transition-colors text-left"
+                      title="Click to view verified recruiter & employee contact channels"
+                    >
+                      <UserCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span className="font-medium text-foreground truncate max-w-[130px]">
+                        {job.companyContacts[0].fullName}
+                      </span>
+                      <span className="text-muted-foreground text-[10px]">
+                        ({job.companyContacts[0].roleTitle || "Recruiter"})
+                      </span>
+                      <span className="text-[10px] font-mono font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-1">
+                        Outreach ({job.companyContacts.length}) →
+                      </span>
+                    </button>
                   )}
                 </div>
 
-                {/* Bottom Card Bar: View Details Prompt & Bookmark Button */}
-                <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs font-sans">
-                  <span className="text-[#1F3D2E] font-medium inline-flex items-center gap-1 group-hover:underline">
-                    <span>View full dossier & apply</span>
-                    <ArrowRight className="h-3 w-3 stroke-[1.75] transition-transform group-hover:translate-x-0.5" />
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={(e) => handleToggleSave(job.id!, isSaved, e)}
-                    disabled={isSaving}
-                    className="flex items-center gap-1 text-muted-foreground hover:text-foreground p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
-                    aria-label={isSaved ? "Remove bookmark" : "Save opportunity"}
-                  >
-                    {isSaved ? (
-                      <BookmarkCheck className="h-4 w-4 stroke-[1.75] text-[#1F3D2E]" />
-                    ) : (
-                      <Bookmark className="h-4 w-4 stroke-[1.75]" />
+                {/* Card Footer Section */}
+                <div className="space-y-3 pt-2">
+                  {/* Location & Metadata Row in calm Inter */}
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground font-sans flex-wrap">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <MapPin className="h-3 w-3 stroke-[1.75] text-muted-foreground shrink-0" />
+                      <span className="truncate max-w-[130px]">{job.location || "Location Unspecified"}</span>
+                    </div>
+                    {job.workMode && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Briefcase className="h-3 w-3 stroke-[1.75] text-muted-foreground shrink-0" />
+                        <span>{humanizeWorkMode(job.workMode)}</span>
+                      </div>
                     )}
-                  </button>
+                    {job.companyIntelligence?.employeeHeadcountBracket && (
+                      <div className="flex items-center gap-1 shrink-0" title="Company Headcount">
+                        <Users className="h-3 w-3 stroke-[1.75] text-muted-foreground shrink-0" />
+                        <span className="truncate max-w-[100px]">{job.companyIntelligence.employeeHeadcountBracket}</span>
+                      </div>
+                    )}
+                    {job.postedAgoText && (
+                      <div className="flex items-center gap-1 ml-auto text-muted-foreground text-[11px] shrink-0">
+                        <Calendar className="h-3 w-3 stroke-[1.75]" />
+                        <span>{job.postedAgoText}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bottom Action Bar: View Details Prompt & Optimistic Bookmark Button */}
+                  <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs font-sans">
+                    {job.urlAnalysis?.isAffiliateTrap ? (
+                      <span 
+                        className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-medium px-2 py-0.5 rounded border border-amber-400/50 bg-amber-50 dark:bg-amber-950/40"
+                        title="Redirects to third-party registration"
+                      >
+                        <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0 stroke-[2]" />
+                        <span>Redirects to 3rd-party registration</span>
+                      </span>
+                    ) : (
+                      <span className="text-foreground font-semibold inline-flex items-center gap-1 group-hover:underline">
+                        <span>View full dossier & apply</span>
+                        <ArrowRight className="h-3 w-3 stroke-[1.75] transition-transform group-hover:translate-x-0.5" />
+                      </span>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleSave(job.id!, isSaved, e)}
+                      disabled={isSaving}
+                      className="flex items-center gap-1 text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition-colors cursor-pointer"
+                      aria-label={isSaved ? "Remove bookmark" : "Save opportunity"}
+                    >
+                      {isSaved ? (
+                        <BookmarkCheck className="h-4 w-4 stroke-[1.75] text-primary" />
+                      ) : (
+                        <Bookmark className="h-4 w-4 stroke-[1.75]" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -531,6 +661,16 @@ export function JobDossierDeck({
         onToggleSave={() => selectedJob && handleToggleSave(selectedJob.id!, savedStates[selectedJob.id!] ?? selectedJob.saved ?? false)}
         onRevalidate={() => selectedJob && handleRevalidate(selectedJob.id!)}
         isRevalidating={selectedJob ? (revalidatingIds[selectedJob.id!] || false) : false}
+      />
+
+      {/* Direct Personnel & Recruiter Outreach Drawer */}
+      <PersonnelConnectDrawer
+        isOpen={Boolean(personnelDrawerJob)}
+        onClose={() => setPersonnelDrawerJob(null)}
+        companyName={personnelDrawerJob?.companyName || "Company"}
+        jobTitle={personnelDrawerJob?.title || "Role"}
+        location={personnelDrawerJob?.location}
+        contacts={personnelDrawerJob?.companyContacts}
       />
     </div>
   );

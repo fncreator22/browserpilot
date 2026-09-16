@@ -24,6 +24,22 @@ export async function GET(_request: NextRequest) {
 
     const savedRecords = await getSavedOpportunities(userId);
 
+    function safeParseList(raw: unknown): string[] {
+      if (Array.isArray(raw)) return raw.filter((s): s is string => typeof s === "string");
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed.filter((s): s is string => typeof s === "string");
+          if (typeof parsed === "string" && parsed.trim().length > 0) return [parsed.trim()];
+        } catch {
+          if (raw.trim().length > 0) {
+            return raw.split(",").map((s) => s.trim()).filter(Boolean);
+          }
+        }
+      }
+      return [];
+    }
+
     const formatted = savedRecords.map((rec) => {
       const opp = rec.opportunity;
       return {
@@ -43,8 +59,8 @@ export async function GET(_request: NextRequest) {
           salaryMax: opp.salaryMax,
           salaryCurrency: opp.salaryCurrency,
           description: opp.description,
-          requirements: opp.requirements ? JSON.parse(opp.requirements) : [],
-          skills: opp.skills ? JSON.parse(opp.skills) : [],
+          requirements: safeParseList(opp.requirements),
+          skills: safeParseList(opp.skills),
           primaryApplyUrl: opp.primaryApplyUrl,
           status: opp.status,
           firstSeenAt: opp.firstSeenAt,

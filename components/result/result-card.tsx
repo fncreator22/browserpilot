@@ -151,7 +151,7 @@ export function ResultCard({
                 <AlertTriangle className="h-4 w-4" aria-hidden="true" />
               </span>
             )}
-            <h3 className="font-serif text-base sm:text-lg font-bold tracking-tight text-foreground">
+            <h3 className="font-sans text-base sm:text-lg font-bold tracking-tight text-foreground">
               {title}
             </h3>
             {isHighConfidence ? (
@@ -184,7 +184,7 @@ export function ResultCard({
             variant="outline"
             size="sm"
             onClick={handleCopyJson}
-            className="font-mono text-xs gap-1.5 h-9 min-h-[44px] sm:min-h-[36px] border-border/80 text-muted-foreground hover:text-foreground cursor-pointer focus-visible:ring-2 focus-visible:ring-[#1F3D2E]"
+            className="font-mono text-xs gap-1.5 h-9 min-h-[44px] sm:min-h-[36px] border-border/80 text-muted-foreground hover:text-foreground cursor-pointer focus-visible:ring-2 focus-visible:ring-emerald-500"
           >
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "Copied" : "Copy Payload"}
@@ -193,7 +193,7 @@ export function ResultCard({
             <Button
               size="sm"
               onClick={handleExportCsv}
-              className="font-mono text-xs gap-1.5 h-9 min-h-[44px] sm:min-h-[36px] px-3.5 bg-[#1F3D2E] hover:bg-[#162D22] text-white shadow-xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#1F3D2E]"
+              className="font-mono text-xs gap-1.5 h-9 min-h-[44px] sm:min-h-[36px] px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer focus-visible:ring-2 focus-visible:ring-emerald-500"
             >
               <Download className="h-3.5 w-3.5" />
               Export CSV
