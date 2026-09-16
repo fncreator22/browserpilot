@@ -34,6 +34,10 @@ class JobEventBus extends EventEmitter {
         this.redisPublisher = createRedisConnection();
         this.redisSubscriber = createRedisConnection();
 
+        // Trigger connection immediately so status transitions from "wait" to "ready"
+        this.redisPublisher?.connect().catch(() => {});
+        this.redisSubscriber?.connect().catch(() => {});
+
         const sub = this.redisSubscriber;
         const pub = this.redisPublisher;
 
@@ -73,8 +77,14 @@ class JobEventBus extends EventEmitter {
 
     // 2. Publish to Redis channel for multi-instance subscribers
     const { pub } = this.getRedisClients();
-    if (pub && pub.status === "ready") {
-      pub.publish(`bp:events:${jobId}`, JSON.stringify(payload)).catch(() => {});
+    if (pub) {
+      if (pub.status === "wait") {
+        pub.connect().then(() => {
+          pub.publish(`bp:events:${jobId}`, JSON.stringify(payload)).catch(() => {});
+        }).catch(() => {});
+      } else {
+        pub.publish(`bp:events:${jobId}`, JSON.stringify(payload)).catch(() => {});
+      }
     }
   }
 
@@ -83,8 +93,14 @@ class JobEventBus extends EventEmitter {
     this.on(channel, listener);
 
     const { sub } = this.getRedisClients();
-    if (sub && sub.status === "ready") {
-      sub.subscribe(`bp:events:${jobId}`).catch(() => {});
+    if (sub) {
+      if (sub.status === "wait") {
+        sub.connect().then(() => {
+          sub.subscribe(`bp:events:${jobId}`).catch(() => {});
+        }).catch(() => {});
+      } else {
+        sub.subscribe(`bp:events:${jobId}`).catch(() => {});
+      }
     }
 
     return () => {

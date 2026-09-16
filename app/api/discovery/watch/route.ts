@@ -25,7 +25,11 @@ async function resolveAuthUserId(request?: NextRequest): Promise<string | null> 
   const sessionUserId = (session?.user as { id?: string })?.id;
   if (sessionUserId) return sessionUserId;
 
-  if (process.env.IS_TEST_HARNESS === "true" || process.env.NODE_ENV === "test") {
+  if (
+    process.env.IS_TEST_HARNESS === "true" ||
+    process.env.NODE_ENV === "test" ||
+    process.env.NODE_ENV === "development"
+  ) {
     return (
       request?.headers.get("x-user-id") ||
       request?.headers.get("x-test-user-id") ||

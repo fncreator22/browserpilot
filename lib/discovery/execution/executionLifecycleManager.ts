@@ -26,6 +26,7 @@ export type ExecutionLifecycleState =
   | "RUNNING"
   | "CANCELLING"
   | "COMPLETED"
+  | "PARTIAL"
   | "STOPPED"
   | "FAILED"
   | "RECOVERABLE";
@@ -33,10 +34,11 @@ export type ExecutionLifecycleState =
 export const ALLOWED_TRANSITIONS: Record<ExecutionLifecycleState, ExecutionLifecycleState[]> = {
   CREATED: ["QUEUED", "RUNNING", "STOPPED", "FAILED"],
   QUEUED: ["RUNNING", "CANCELLING", "STOPPED", "FAILED"],
-  RUNNING: ["CANCELLING", "COMPLETED", "STOPPED", "FAILED", "RECOVERABLE"],
+  RUNNING: ["CANCELLING", "COMPLETED", "PARTIAL", "STOPPED", "FAILED", "RECOVERABLE"],
   CANCELLING: ["STOPPED", "FAILED"],
   RECOVERABLE: ["RUNNING", "FAILED"],
   COMPLETED: [], // Terminal state
+  PARTIAL: [],   // Terminal state
   STOPPED: [],   // Terminal state
   FAILED: ["RECOVERABLE"], // Terminal unless explicit recovery action
 };
@@ -230,6 +232,14 @@ export class ExecutionLifecycleManager {
   }
 
   /**
+   * Returns all currently active registered executions
+   */
+  public getAllActiveExecutions(): ActiveExecutionHandle[] {
+    return Array.from(this.activeExecutions.values());
+  }
+
+
+  /**
    * Registers a newly started execution in the active registry and initiates heartbeats.
    */
   public registerExecution(
@@ -384,13 +394,13 @@ export class ExecutionLifecycleManager {
         totalFound: metadata.totalFound,
         isRecoverable: metadata.isRecoverable ?? false,
         cancellationRequested: metadata.cancellationRequested ?? (targetState === "CANCELLING" || targetState === "STOPPED"),
-        completedAt: targetState === "COMPLETED" || targetState === "STOPPED" || targetState === "FAILED"
+        completedAt: targetState === "COMPLETED" || targetState === "PARTIAL" || targetState === "STOPPED" || targetState === "FAILED"
           ? new Date()
           : null,
       }
     );
 
-    if (updated && (targetState === "COMPLETED" || targetState === "STOPPED" || targetState === "FAILED")) {
+    if (updated && (targetState === "COMPLETED" || targetState === "PARTIAL" || targetState === "STOPPED" || targetState === "FAILED")) {
       this.unregisterExecution(executionId);
     }
 
@@ -539,7 +549,7 @@ export class ExecutionLifecycleManager {
       ? parseInt(process.env.STALE_RECOVERY_INTERVAL_MS, 10)
       : intervalMs;
 
-    console.log(`[ExecutionLifecycleManager] 🕒 Initialized Independent Stale Execution Recovery Scheduler (interval: ${interval / 1000}s)`);
+    console.log(`[ExecutionLifecycleManager] [SCHEDULER] Initialized Independent Stale Execution Recovery Scheduler (interval: ${interval / 1000}s)`);
 
     // Run initial sweep on startup to catch anything left over from previous process crash
     this.recoverStaleExecutions(thresholdMs).catch((err) => {
@@ -657,7 +667,7 @@ export class ExecutionLifecycleManager {
 
     if (staleExecutionIds.length > 0) {
       console.warn(
-        `[ExecutionLifecycleManager] ⚠️ Recovered ${staleExecutionIds.length} orphaned/stale execution(s): [${staleExecutionIds.join(", ")}]`
+        `[ExecutionLifecycleManager] [WARN] Recovered ${staleExecutionIds.length} orphaned/stale execution(s): [${staleExecutionIds.join(", ")}]`
       );
     }
 

@@ -35,6 +35,10 @@ class SearchEventBus extends EventEmitter {
       this.redisPublisher = createRedisConnection();
       this.redisSubscriber = createRedisConnection();
 
+      // Trigger connection immediately so status transitions from "wait" to "ready"
+      this.redisPublisher?.connect().catch(() => {});
+      this.redisSubscriber?.connect().catch(() => {});
+
       const sub = this.redisSubscriber;
       const pub = this.redisPublisher;
 
@@ -75,8 +79,14 @@ class SearchEventBus extends EventEmitter {
     // 2. Publish to Redis channel for multi-instance subscribers
     try {
       const { pub } = this.getRedisClients();
-      if (pub && pub.status === "ready") {
-        pub.publish(`browserpilot:search:events:${executionId}`, JSON.stringify(payload)).catch(() => {});
+      if (pub) {
+        if (pub.status === "wait") {
+          pub.connect().then(() => {
+            pub.publish(`browserpilot:search:events:${executionId}`, JSON.stringify(payload)).catch(() => {});
+          }).catch(() => {});
+        } else {
+          pub.publish(`browserpilot:search:events:${executionId}`, JSON.stringify(payload)).catch(() => {});
+        }
       }
     } catch {}
   }
@@ -87,8 +97,14 @@ class SearchEventBus extends EventEmitter {
 
     try {
       const { sub } = this.getRedisClients();
-      if (sub && sub.status === "ready") {
-        sub.subscribe(`browserpilot:search:events:${executionId}`).catch(() => {});
+      if (sub) {
+        if (sub.status === "wait") {
+          sub.connect().then(() => {
+            sub.subscribe(`browserpilot:search:events:${executionId}`).catch(() => {});
+          }).catch(() => {});
+        } else {
+          sub.subscribe(`browserpilot:search:events:${executionId}`).catch(() => {});
+        }
       }
     } catch {}
 
