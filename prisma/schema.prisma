@@ -89,6 +89,7 @@ model Opportunity {
   status          String             @default("ACTIVE")
 
   sourceListings  SourceListing[]
+  companyContacts CompanyContact[]
   searchResults   SearchResult[]
   savedByUsers    SavedOpportunity[]
   alerts          LifecycleAlert[]
@@ -98,6 +99,36 @@ model Opportunity {
   @@index([experienceLevel])
   @@index([lastVerifiedAt])
   @@map("opportunities")
+}
+
+model CompanyContact {
+  id             String   @id @default(cuid())
+  companyName    String
+  normalizedName String
+  fullName       String
+  roleTitle      String   // e.g. "Technical Recruiter", "Staff Engineer", "Engineering Manager"
+  department     String?  // e.g. "Talent Acquisition", "Engineering"
+  contactType    String   @default("RECRUITER") // "RECRUITER" | "EMPLOYEE"
+  profileUrl     String   // LinkedIn, X, or public bio URL
+  email          String?  // Inferred or verified professional work email
+  personalEmail  String?  // Direct personal email
+  phone          String?  // Contact phone number
+  whatsappUrl    String?  // Direct 1-click WhatsApp reach link
+  twitterUrl     String?  // X / Twitter profile or handle
+  githubUrl      String?  // GitHub profile
+  portfolioUrl   String?  // Personal website or blog
+  isVerified     Boolean  @default(false)
+  sourcePlatform String   // "LINKEDIN", "X", "WEB", "REDDIT", "GITHUB"
+  opportunityId  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  @@index([normalizedName])
+  @@index([opportunityId])
+  @@index([contactType])
+  @@map("company_contacts")
 }
 
 model SourceListing {

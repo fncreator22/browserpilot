@@ -866,6 +866,40 @@ export interface DiscoveryWatchConfig {
 }
 
 /**
+ * Robust utility to parse string arrays from Prisma JSON strings, double-encoded strings,
+ * or native arrays, guaranteeing an array of strings is returned.
+ */
+export function safeParseStringArray(val: unknown, fallback: string[] = []): string[] {
+  if (Array.isArray(val)) {
+    return val.map((item) => (typeof item === "string" ? item : String(item))).filter(Boolean);
+  }
+  if (typeof val !== "string") return fallback;
+  const trimmed = val.trim();
+  if (!trimmed || trimmed === "[]") return fallback;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => (typeof item === "string" ? item : String(item))).filter(Boolean);
+    }
+    if (typeof parsed === "string") {
+      try {
+        const nested = JSON.parse(parsed);
+        if (Array.isArray(nested)) {
+          return nested.map((item) => (typeof item === "string" ? item : String(item))).filter(Boolean);
+        }
+      } catch {}
+      return parsed ? [parsed] : fallback;
+    }
+  } catch {
+    if (trimmed.includes(",")) {
+      return trimmed.split(",").map((s) => s.trim()).filter(Boolean);
+    }
+    return [trimmed];
+  }
+  return fallback;
+}
+
+/**
  * Gets or creates the default discovery watch configuration for a user.
  */
 export async function getDiscoveryWatch(userId: string, watchId?: string): Promise<DiscoveryWatchConfig> {
@@ -896,16 +930,16 @@ export async function getDiscoveryWatch(userId: string, watchId?: string): Promi
     : await prisma.discoveryWatch.findFirst({ where: { userId }, orderBy: { createdAt: "desc" } });
 
   const profile = await prisma.userProfile.findUnique({ where: { userId } }).catch(() => null);
-  const profileRoles = profile?.preferredRoles || [];
-  const profileSkills = profile?.targetSkills || [];
-  const profileLocations = profile?.preferredLocations || [];
-  const profileWorkModes = profile?.preferredWorkModes?.length ? profile.preferredWorkModes : ["REMOTE", "HYBRID"];
+  const profileRoles = safeParseStringArray(profile?.preferredRoles);
+  const profileSkills = safeParseStringArray(profile?.targetSkills);
+  const profileLocations = safeParseStringArray(profile?.preferredLocations);
+  const profileWorkModes = safeParseStringArray(profile?.preferredWorkModes, ["REMOTE", "HYBRID"]);
 
   if (existing) {
-    const parsedRoles = JSON.parse(existing.roles || "[]");
-    const parsedSkills = JSON.parse(existing.skills || "[]");
-    const parsedLocations = JSON.parse(existing.locations || "[]");
-    const parsedWorkModes = JSON.parse(existing.workModes || "[]");
+    const parsedRoles = safeParseStringArray(existing.roles);
+    const parsedSkills = safeParseStringArray(existing.skills);
+    const parsedLocations = safeParseStringArray(existing.locations);
+    const parsedWorkModes = safeParseStringArray(existing.workModes);
 
     const effectiveRoles = parsedRoles.length > 0 ? parsedRoles : profileRoles;
     const effectiveSkills = parsedSkills.length > 0 ? parsedSkills : profileSkills;
@@ -919,11 +953,11 @@ export async function getDiscoveryWatch(userId: string, watchId?: string): Promi
       roles: effectiveRoles,
       skills: effectiveSkills,
       locations: effectiveLocations,
-      companies: JSON.parse((existing as any).companies || "[]"),
+      companies: safeParseStringArray((existing as any).companies),
       workModes: effectiveWorkModes,
-      experienceLevels: JSON.parse(existing.experienceLevels || "[]"),
-      opportunityTypes: JSON.parse(existing.opportunityTypes || "[]"),
-      preferredSources: JSON.parse(existing.preferredSources || "[]"),
+      experienceLevels: safeParseStringArray(existing.experienceLevels),
+      opportunityTypes: safeParseStringArray(existing.opportunityTypes),
+      preferredSources: safeParseStringArray(existing.preferredSources, ["Ashby", "Greenhouse", "Lever", "LinkedIn"]),
       minimumMatchScore: existing.minimumMatchScore,
       latestOnly: existing.latestOnly,
       freshnessWindowHours: existing.freshnessWindowHours,
@@ -960,14 +994,14 @@ export async function getDiscoveryWatch(userId: string, watchId?: string): Promi
     id: created.id,
     name: (created as any).name || "Autonomous Watch",
     enabled: created.enabled,
-    roles: JSON.parse(created.roles),
-    skills: JSON.parse(created.skills),
-    locations: JSON.parse(created.locations),
-    companies: JSON.parse((created as any).companies || "[]"),
-    workModes: JSON.parse(created.workModes),
-    experienceLevels: JSON.parse(created.experienceLevels),
-    opportunityTypes: JSON.parse(created.opportunityTypes),
-    preferredSources: JSON.parse(created.preferredSources),
+    roles: safeParseStringArray(created.roles),
+    skills: safeParseStringArray(created.skills),
+    locations: safeParseStringArray(created.locations),
+    companies: safeParseStringArray((created as any).companies),
+    workModes: safeParseStringArray(created.workModes),
+    experienceLevels: safeParseStringArray(created.experienceLevels),
+    opportunityTypes: safeParseStringArray(created.opportunityTypes),
+    preferredSources: safeParseStringArray(created.preferredSources),
     minimumMatchScore: created.minimumMatchScore,
     latestOnly: created.latestOnly,
     freshnessWindowHours: created.freshnessWindowHours,
@@ -993,14 +1027,14 @@ export async function getUserDiscoveryWatches(userId: string): Promise<Discovery
     id: w.id,
     name: (w as any).name || "Autonomous Watch",
     enabled: w.enabled,
-    roles: JSON.parse(w.roles || "[]"),
-    skills: JSON.parse(w.skills || "[]"),
-    locations: JSON.parse(w.locations || "[]"),
-    companies: JSON.parse((w as any).companies || "[]"),
-    workModes: JSON.parse(w.workModes || "[]"),
-    experienceLevels: JSON.parse(w.experienceLevels || "[]"),
-    opportunityTypes: JSON.parse(w.opportunityTypes || "[]"),
-    preferredSources: JSON.parse(w.preferredSources || "[]"),
+    roles: safeParseStringArray(w.roles),
+    skills: safeParseStringArray(w.skills),
+    locations: safeParseStringArray(w.locations),
+    companies: safeParseStringArray((w as any).companies),
+    workModes: safeParseStringArray(w.workModes),
+    experienceLevels: safeParseStringArray(w.experienceLevels),
+    opportunityTypes: safeParseStringArray(w.opportunityTypes),
+    preferredSources: safeParseStringArray(w.preferredSources),
     minimumMatchScore: w.minimumMatchScore,
     latestOnly: w.latestOnly,
     freshnessWindowHours: w.freshnessWindowHours,
@@ -1027,14 +1061,14 @@ export async function createDiscoveryWatch(
       userId,
       name: input.name || "Autonomous Watch",
       enabled: input.enabled ?? true,
-      roles: JSON.stringify(input.roles ?? []),
-      skills: JSON.stringify(input.skills ?? []),
-      locations: JSON.stringify(input.locations ?? []),
-      companies: JSON.stringify(input.companies ?? []),
-      workModes: JSON.stringify(input.workModes ?? ["REMOTE", "HYBRID"]),
-      experienceLevels: JSON.stringify(input.experienceLevels ?? ["ENTRY_LEVEL"]),
-      opportunityTypes: JSON.stringify(input.opportunityTypes ?? ["FULL_TIME"]),
-      preferredSources: JSON.stringify(input.preferredSources ?? ["LinkedIn", "Y Combinator", "Indeed"]),
+      roles: JSON.stringify(safeParseStringArray(input.roles ?? [])),
+      skills: JSON.stringify(safeParseStringArray(input.skills ?? [])),
+      locations: JSON.stringify(safeParseStringArray(input.locations ?? [])),
+      companies: JSON.stringify(safeParseStringArray(input.companies ?? [])),
+      workModes: JSON.stringify(safeParseStringArray(input.workModes ?? ["REMOTE", "HYBRID"])),
+      experienceLevels: JSON.stringify(safeParseStringArray(input.experienceLevels ?? ["ENTRY_LEVEL"])),
+      opportunityTypes: JSON.stringify(safeParseStringArray(input.opportunityTypes ?? ["FULL_TIME"])),
+      preferredSources: JSON.stringify(safeParseStringArray(input.preferredSources ?? ["LinkedIn", "Y Combinator", "Indeed"])),
       minimumMatchScore: input.minimumMatchScore ?? 70,
       latestOnly: input.latestOnly ?? false,
       freshnessWindowHours: input.freshnessWindowHours ?? 48,
@@ -1050,14 +1084,14 @@ export async function createDiscoveryWatch(
     id: created.id,
     name: (created as any).name || "Autonomous Watch",
     enabled: created.enabled,
-    roles: JSON.parse(created.roles),
-    skills: JSON.parse(created.skills),
-    locations: JSON.parse(created.locations),
-    companies: JSON.parse((created as any).companies || "[]"),
-    workModes: JSON.parse(created.workModes),
-    experienceLevels: JSON.parse(created.experienceLevels),
-    opportunityTypes: JSON.parse(created.opportunityTypes),
-    preferredSources: JSON.parse(created.preferredSources),
+    roles: safeParseStringArray(created.roles),
+    skills: safeParseStringArray(created.skills),
+    locations: safeParseStringArray(created.locations),
+    companies: safeParseStringArray((created as any).companies),
+    workModes: safeParseStringArray(created.workModes),
+    experienceLevels: safeParseStringArray(created.experienceLevels),
+    opportunityTypes: safeParseStringArray(created.opportunityTypes),
+    preferredSources: safeParseStringArray(created.preferredSources),
     minimumMatchScore: created.minimumMatchScore,
     latestOnly: created.latestOnly,
     freshnessWindowHours: created.freshnessWindowHours,
@@ -1101,14 +1135,14 @@ export async function upsertDiscoveryWatch(
     data: {
       ...(input.name ? { name: input.name } : {}),
       ...(typeof input.enabled === "boolean" ? { enabled: input.enabled } : {}),
-      ...(input.roles ? { roles: JSON.stringify(input.roles) } : {}),
-      ...(input.skills ? { skills: JSON.stringify(input.skills) } : {}),
-      ...(input.locations ? { locations: JSON.stringify(input.locations) } : {}),
-      ...(input.companies ? { companies: JSON.stringify(input.companies) } : {}),
-      ...(input.workModes ? { workModes: JSON.stringify(input.workModes) } : {}),
-      ...(input.experienceLevels ? { experienceLevels: JSON.stringify(input.experienceLevels) } : {}),
-      ...(input.opportunityTypes ? { opportunityTypes: JSON.stringify(input.opportunityTypes) } : {}),
-      ...(input.preferredSources ? { preferredSources: JSON.stringify(input.preferredSources) } : {}),
+      ...(input.roles ? { roles: JSON.stringify(safeParseStringArray(input.roles)) } : {}),
+      ...(input.skills ? { skills: JSON.stringify(safeParseStringArray(input.skills)) } : {}),
+      ...(input.locations ? { locations: JSON.stringify(safeParseStringArray(input.locations)) } : {}),
+      ...(input.companies ? { companies: JSON.stringify(safeParseStringArray(input.companies)) } : {}),
+      ...(input.workModes ? { workModes: JSON.stringify(safeParseStringArray(input.workModes)) } : {}),
+      ...(input.experienceLevels ? { experienceLevels: JSON.stringify(safeParseStringArray(input.experienceLevels)) } : {}),
+      ...(input.opportunityTypes ? { opportunityTypes: JSON.stringify(safeParseStringArray(input.opportunityTypes)) } : {}),
+      ...(input.preferredSources ? { preferredSources: JSON.stringify(safeParseStringArray(input.preferredSources)) } : {}),
       ...(typeof input.minimumMatchScore === "number" ? { minimumMatchScore: input.minimumMatchScore } : {}),
       ...(typeof input.latestOnly === "boolean" ? { latestOnly: input.latestOnly } : {}),
       ...(typeof input.freshnessWindowHours === "number" ? { freshnessWindowHours: input.freshnessWindowHours } : {}),
@@ -1124,14 +1158,14 @@ export async function upsertDiscoveryWatch(
     id: updated.id,
     name: (updated as any).name || "Autonomous Watch",
     enabled: updated.enabled,
-    roles: JSON.parse(updated.roles),
-    skills: JSON.parse(updated.skills),
-    locations: JSON.parse(updated.locations),
-    companies: JSON.parse((updated as any).companies || "[]"),
-    workModes: JSON.parse(updated.workModes),
-    experienceLevels: JSON.parse(updated.experienceLevels),
-    opportunityTypes: JSON.parse(updated.opportunityTypes),
-    preferredSources: JSON.parse(updated.preferredSources),
+    roles: safeParseStringArray(updated.roles),
+    skills: safeParseStringArray(updated.skills),
+    locations: safeParseStringArray(updated.locations),
+    companies: safeParseStringArray((updated as any).companies),
+    workModes: safeParseStringArray(updated.workModes),
+    experienceLevels: safeParseStringArray(updated.experienceLevels),
+    opportunityTypes: safeParseStringArray(updated.opportunityTypes),
+    preferredSources: safeParseStringArray(updated.preferredSources),
     minimumMatchScore: updated.minimumMatchScore,
     latestOnly: updated.latestOnly,
     freshnessWindowHours: updated.freshnessWindowHours,
@@ -1181,14 +1215,14 @@ export async function getDueDiscoveryWatches(
     userId: w.userId,
     watch: {
       enabled: w.enabled,
-      roles: JSON.parse(w.roles || "[]"),
-      skills: JSON.parse(w.skills || "[]"),
-      locations: JSON.parse(w.locations || "[]"),
-      companies: JSON.parse((w as any).companies || "[]"),
-      workModes: JSON.parse(w.workModes || "[]"),
-      experienceLevels: JSON.parse(w.experienceLevels || "[]"),
-      opportunityTypes: JSON.parse(w.opportunityTypes || "[]"),
-      preferredSources: JSON.parse(w.preferredSources || "[]"),
+      roles: safeParseStringArray(w.roles),
+      skills: safeParseStringArray(w.skills),
+      locations: safeParseStringArray(w.locations),
+      companies: safeParseStringArray((w as any).companies),
+      workModes: safeParseStringArray(w.workModes),
+      experienceLevels: safeParseStringArray(w.experienceLevels),
+      opportunityTypes: safeParseStringArray(w.opportunityTypes),
+      preferredSources: safeParseStringArray(w.preferredSources),
       minimumMatchScore: w.minimumMatchScore,
       latestOnly: w.latestOnly,
       freshnessWindowHours: w.freshnessWindowHours,
