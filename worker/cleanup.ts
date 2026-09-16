@@ -30,7 +30,7 @@ export async function runPurgeCycle(retentionMs?: number): Promise<{ purgedCount
   const result = await purgeExpiredTerminalJobs(effectiveRetention);
 
   if (result.purgedCount > 0) {
-    console.log(`[Auto-Purge] 🧹 Purged ${result.purgedCount} expired job(s) and filesystem artifacts older than ${effectiveRetention / 3600000}h.`);
+    console.log(`[Auto-Purge] [PURGE] Purged ${result.purgedCount} expired job(s) and filesystem artifacts older than ${effectiveRetention / 3600000}h.`);
   }
 
   return result;
@@ -45,7 +45,7 @@ export function startAutoPurgeScheduler(): NodeJS.Timeout {
   const intervalMs = getCleanupIntervalMs();
   const retentionMs = getRetentionPeriodMs();
 
-  console.log(`[Auto-Purge] 🕒 Initialized 24h Data Purge Scheduler (Interval: ${intervalMs / 60000}m, Retention: ${retentionMs / 3600000}h)`);
+  console.log(`[Auto-Purge] [INIT] Initialized 24h Data Purge Scheduler (Interval: ${intervalMs / 60000}m, Retention: ${retentionMs / 3600000}h)`);
 
   // Run initial pass on startup
   runPurgeCycle(retentionMs).catch((err) => {

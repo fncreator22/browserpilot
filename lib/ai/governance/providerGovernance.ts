@@ -20,6 +20,7 @@ import {
 export const SUPPORTED_PROVIDERS = [
   "PUTER",
   "GEMINI_BYOK",
+  "DEEPSEEK_BYOK",
   "OPENAI_BYOK",
   "ANTHROPIC_BYOK",
   "SERVER_MANAGED",
@@ -255,7 +256,7 @@ export async function getUserPuterToken(userId: string): Promise<string | null> 
 export async function upsertApiKeyConnection(
   userId: string,
   input: {
-    provider: "GEMINI_BYOK" | "OPENAI_BYOK" | "ANTHROPIC_BYOK";
+    provider: "GEMINI_BYOK" | "DEEPSEEK_BYOK" | "OPENAI_BYOK" | "ANTHROPIC_BYOK";
     apiKey: string;
   }
 ): Promise<SafeProviderConnection> {
@@ -320,6 +321,35 @@ export async function upsertApiKeyConnection(
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
+}
+
+/**
+ * Retrieves the decrypted DeepSeek API key for a given user.
+ */
+export async function getUserDeepSeekApiKey(userId: string): Promise<string | null> {
+  try {
+    const connection = await prisma.providerConnection.findUnique({
+      where: {
+        userId_provider: {
+          userId,
+          provider: "DEEPSEEK_BYOK",
+        },
+      },
+      select: {
+        status: true,
+        encryptedCredential: true,
+      },
+    });
+
+    if (!connection || connection.status !== "CONNECTED" || !connection.encryptedCredential) {
+      return null;
+    }
+
+    return decryptCredential(connection.encryptedCredential);
+  } catch (err) {
+    console.error(`[ProviderGovernance] Failed to get DeepSeek key for user ${userId}:`, err);
+    return null;
+  }
 }
 
 /**

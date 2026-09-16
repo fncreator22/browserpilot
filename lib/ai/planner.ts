@@ -114,6 +114,48 @@ export async function generateActionPlan(
   const effectiveKey = await resolveGeminiApiKey(options.apiKey, options.userId);
   const hasValidKey = !!effectiveKey;
 
+  // If Gemini key is absent, check for DeepSeek BYOK or Puter account credentials
+  let effectiveDeepSeekKey: string | null = null;
+  let effectivePuterToken: string | null = null;
+  if (!hasValidKey && typeof window === "undefined") {
+    try {
+      const { resolveDeepSeekApiKey } = await import("./deepseek/deepseekClient");
+      effectiveDeepSeekKey = await resolveDeepSeekApiKey(options.apiKey, options.userId);
+      if (!effectiveDeepSeekKey && options.userId) {
+        const { getUserPuterToken } = await import("./governance/providerGovernance");
+        effectivePuterToken = await getUserPuterToken(options.userId);
+      }
+    } catch {}
+  }
+
+  if (!isTest && (effectiveDeepSeekKey || effectivePuterToken)) {
+    try {
+      const { callDeepSeekChatCompletion } = await import("./deepseek/deepseekClient");
+      const dsRes = await callDeepSeekChatCompletion({
+        apiKey: effectiveDeepSeekKey,
+        puterToken: effectivePuterToken,
+        userId: options.userId,
+        operation: "ACTION_PLANNING",
+        messages: [
+          {
+            role: "system",
+            content: `${PLANNER_SYSTEM_INSTRUCTION}\nReturn strictly JSON adhering to the ActionPlan schema: { goal: string, targetDomains: string[], rationale: string, maxStepsBudget: number, steps: [{ stepNumber: number, rationale: string, isOptional: boolean, checkpointScreenshot: boolean, action: { tool: string, parameters: object } }] }`,
+          },
+          {
+            role: "user",
+            content: `User Goal: "${prompt}"\nConstraints: Allowed Domains = ${JSON.stringify(options.allowedDomains || [])}, Max Steps = ${options.maxStepsBudget || 15}`,
+          },
+        ],
+      });
+
+      const cleanJson = dsRes.content.replace(/```(?:json)?|```/gi, "").trim();
+      const parsed = JSON.parse(cleanJson);
+      return ActionPlanSchema.parse(parsed);
+    } catch (dsErr) {
+      console.warn("[Planner] DeepSeek/Puter action planning error:", dsErr);
+    }
+  }
+
   // In test harness mode or when key is missing in test mode, use deterministic test fallback
   if (isTest || !hasValidKey) {
     if (!isTest && !hasValidKey) {

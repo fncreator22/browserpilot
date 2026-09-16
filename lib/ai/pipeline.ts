@@ -52,13 +52,39 @@ export async function runAutonomousPipeline(
   const jobId = options.jobId || `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
   try {
+    // Step 0: Fast Pre-Flight Heuristic Capability Guard (<5ms, prevents remote network/token waste)
+    const promptGuard = validateCapabilityPreflight(undefined, prompt);
+    if (promptGuard.classification === "BLOCKED" || promptGuard.classification === "REQUIRES_AUTH") {
+      await options.onGuardEvaluated?.(promptGuard);
+      return {
+        jobId,
+        prompt,
+        intent: {
+          classification: promptGuard.classification,
+          confidence: 1.0,
+          rationale: promptGuard.technicalDetail || "Pre-flight heuristic capability guard triggered.",
+          targetDomains: [],
+          requiredCapabilities: promptGuard.blockedCapabilities,
+        },
+        guard: promptGuard,
+        plannerCalled: false,
+        success: false,
+        durationMs: Date.now() - startTime,
+        error: {
+          code: promptGuard.errorCode || (promptGuard.classification === "REQUIRES_AUTH" ? "REQUIRES_AUTHENTICATION" : "SECURITY_POLICY_VIOLATION"),
+          message: promptGuard.technicalDetail || promptGuard.userMessage,
+          userMessage: promptGuard.userMessage,
+        },
+      };
+    }
+
     // Step 1: Classify Intent
     const intent = await classifyIntent(prompt, { apiKey: options.apiKey });
-    options.onIntentClassified?.(intent);
+    await options.onIntentClassified?.(intent);
 
-    // Step 2: PRE-FLIGHT CAPABILITY GUARD (Runs BEFORE Planner per §8 / Prompt 09)
+    // Step 2: Full Capability Guard with Intent Classification
     const guard = validateCapabilityPreflight(intent, prompt);
-    options.onGuardEvaluated?.(guard);
+    await options.onGuardEvaluated?.(guard);
 
     if (guard.classification === "BLOCKED" || guard.classification === "REQUIRES_AUTH") {
       return {
@@ -86,14 +112,14 @@ export async function runAutonomousPipeline(
       maxStepsBudget,
       apiKey: options.apiKey,
     });
-    options.onPlanGenerated?.(rawPlan);
+    await options.onPlanGenerated?.(rawPlan);
 
     // Step 4: PRE-EXECUTION PLAN VALIDATOR (Runs BEFORE Executor per §10 / Prompt 10)
     const planValidation = validateActionPlan(rawPlan, {
       allowedDomains,
       maxStepsBudget,
     });
-    options.onPlanValidated?.(planValidation);
+    await options.onPlanValidated?.(planValidation);
 
     // Reject-by-default: If plan validation fails, halt immediately before touching executor
     if (!planValidation.valid || !planValidation.validatedPlan) {
@@ -133,7 +159,7 @@ export async function runAutonomousPipeline(
       } catch (browserLaunchErr) {
         const reason = (browserLaunchErr as Error).message || "unknown";
         console.warn(
-          `[Pipeline] ⚠️  Chromium unavailable — falling back to serverless fetch executor.\n` +
+          `[Pipeline] [WARN] Chromium unavailable — falling back to serverless fetch executor.\n` +
           `  Reason: ${reason}\n` +
           `  Impact: browser.screenshot steps will return null (no Playwright binaries on Vercel Lambda).\n` +
           `  Fix: Deploy worker container on Fly.io/Railway or use Vercel Puppeteer layer.`

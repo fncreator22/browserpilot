@@ -26,7 +26,7 @@ const HEURISTIC_PATTERNS: Array<{
   errorCode: string;
 }> = [
   {
-    pattern: /(bypass\s*(captcha|turnstile|cloudflare|anti-?bot)|solve\s*(recaptcha|hcaptcha|turnstile)|break\s*captcha)/i,
+    pattern: /\b(?:bypass|solve|break|circumvent)\b.*?\b(?:captcha|recaptcha|hcaptcha|turnstile|cloudflare|anti-?bot)\b/i,
     capabilityId: "CAP_CAPTCHA_BYPASS",
     classification: "BLOCKED",
     errorCode: "VERIFICATION_BLOCKED",
@@ -71,7 +71,7 @@ const HEURISTIC_PATTERNS: Array<{
  * or planning for unsupported/blocked automation intents.
  */
 export function validateCapabilityPreflight(
-  intent: IntentClassification,
+  intent: IntentClassification | undefined,
   userPrompt: string
 ): CapabilityGuardResult {
   const matchedCaps: CapabilityId[] = [];
@@ -94,6 +94,16 @@ export function validateCapabilityPreflight(
         blockedCapabilities: blockedCaps,
       };
     }
+  }
+
+  if (!intent) {
+    return {
+      allowed: true,
+      classification: "SUPPORTED",
+      userMessage: "Pre-flight heuristic pattern checks passed.",
+      matchedCapabilities: [],
+      blockedCapabilities: [],
+    };
   }
 
   // 2. Evaluate Gemini Intent Classification

@@ -240,7 +240,7 @@ export class InteractionGuard {
           // Re-inspect to verify overlay disappeared
           const afterState = await this.inspect(page);
           if (afterState.state === "NORMAL") {
-            console.log(`[InteractionGuard] ✓ Overlay dismissed successfully.`);
+            console.log(`[InteractionGuard] [OK] Overlay dismissed successfully.`);
             return { dismissed: true, selectorUsed: selector };
           }
         }
@@ -261,7 +261,7 @@ export class InteractionGuard {
       });
 
       if (removedCount > 0) {
-        console.log(`[InteractionGuard] ✓ Purged ${removedCount} modal overlay(s) from DOM.`);
+        console.log(`[InteractionGuard] [OK] Purged ${removedCount} modal overlay(s) from DOM.`);
         return { dismissed: true, selectorUsed: "DOM_MODAL_PURGE" };
       }
     } catch {}

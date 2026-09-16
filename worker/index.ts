@@ -57,15 +57,15 @@ export async function startWorker() {
   // Verify Gemini API credentials presence outside test harness
   const geminiCheck = validateGeminiCredentialsOnStartup();
   if (!geminiCheck.valid) {
-    console.error("\n❌ CRITICAL CONFIGURATION ERROR: GEMINI_API_KEY is missing or invalid!");
-    console.error("BrowserPilot worker requires a valid GEMINI_API_KEY in .env to plan and execute tasks.\n");
-    throw new Error("MISSING_GEMINI_API_KEY: Gemini API Key is required to start worker.");
+    console.error("\n[ERROR] CRITICAL CONFIGURATION ERROR: GEMINI_API_KEY is missing or invalid!");
+    console.error("   A valid Gemini API key is mandatory for the autonomous browser engine.\n");
+    process.exit(1);
   }
 
   // Check Redis Connection
   const health = await checkRedisHealth();
   if (!health.connected) {
-    console.error("\n❌ CRITICAL ERROR: Redis is unreachable!");
+    console.error("\n[ERROR] CRITICAL ERROR: Redis is unreachable!");
     console.error(health.troubleshooting);
     console.error(`Original Error: ${health.error}\n`);
     throw new Error(`Redis connection failed: ${health.troubleshooting}`);

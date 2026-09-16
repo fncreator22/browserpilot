@@ -92,7 +92,7 @@ export async function startBrowserScreencast(
       everyNthFrame,
     });
 
-    console.log(`[Screencast] ✓ High-efficiency CDP stream started for Job: ${jobId}`);
+    console.log(`[Screencast] [OK] High-efficiency CDP stream started for Job: ${jobId}`);
   } catch (err) {
     console.warn(`[Screencast] CDP Screencast initialization notice:`, err);
   }

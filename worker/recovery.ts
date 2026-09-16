@@ -51,7 +51,7 @@ export async function executeRecoveryLoop(
   while (evaluation.status === "RECOVER" && recoveryAttempt < MAX_RECOVERY_ATTEMPTS) {
     recoveryAttempt++;
     console.log(
-      `\n[Recovery Loop] 🔄 Initiating Recovery Attempt ${recoveryAttempt}/${MAX_RECOVERY_ATTEMPTS} for Job ${options.jobId}...`
+      `\n[Recovery Loop] [ATTEMPT] Initiating Recovery Attempt ${recoveryAttempt}/${MAX_RECOVERY_ATTEMPTS} for Job ${options.jobId}...`
     );
     console.log(`[Recovery Loop] Trigger Reason: ${evaluation.reason}`);
 
