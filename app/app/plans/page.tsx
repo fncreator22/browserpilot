@@ -117,14 +117,14 @@ export default function PlansPage() {
       return;
     }
 
-    setIsUpgradingCode(targetPlan.code);
-    try {
-      // If a full access coupon is active for this plan, redeem directly
-      if (
-        appliedCoupon &&
-        (appliedCoupon.discountType === "PLAN_ACCESS" || appliedCoupon.discountValue >= 100) &&
-        (!appliedCoupon.targetPlanCode || appliedCoupon.targetPlanCode === "ALL" || appliedCoupon.targetPlanCode === targetPlan.code)
-      ) {
+    // If a full access coupon is active for this plan, redeem directly
+    if (
+      appliedCoupon &&
+      (appliedCoupon.discountType === "PLAN_ACCESS" || appliedCoupon.discountValue >= 100) &&
+      (!appliedCoupon.targetPlanCode || appliedCoupon.targetPlanCode === "ALL" || appliedCoupon.targetPlanCode === targetPlan.code)
+    ) {
+      setIsUpgradingCode(targetPlan.code);
+      try {
         const redeemRes = await fetch("/api/account/coupons/redeem", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -140,73 +140,46 @@ export default function PlansPage() {
         setAppliedCoupon(null);
         await fetchBillingData();
         return;
-      }
-
-      // 1. Initialize checkout order
-      const checkoutRes = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          planCode: targetPlan.code,
-          billingInterval,
-          couponCode: appliedCoupon?.code || undefined,
-        }),
-      });
-
-      const checkoutData = await checkoutRes.json().catch(() => ({}));
-      if (!checkoutRes.ok) {
-        throw new Error(checkoutData.message || "Failed to initialize plan checkout.");
-      }
-
-      // If checkout granted 100% free upgrade via discount or coupon
-      if (checkoutData.freeUpgrade) {
-        toast.success("Plan Activated!", {
-          description: checkoutData.message || `Upgraded to ${targetPlan.name} at 100% discount!`,
-        });
-        setAppliedCoupon(null);
-        await fetchBillingData();
+      } catch (err: unknown) {
+        toast.error("Coupon Activation Failed", { description: (err as Error).message });
         return;
+      } finally {
+        setIsUpgradingCode(null);
       }
+    }
 
-      // 2. Complete payment verification & plan assignment
-      const verifyRes = await fetch("/api/billing/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderId: checkoutData.order?.orderId || `order_${Date.now()}`,
-          paymentId: `pay_${Date.now()}_mock`,
-          planCode: targetPlan.code,
-          billingInterval,
-          couponCode: appliedCoupon?.code || undefined,
-        }),
-      });
-
-      const verifyData = await verifyRes.json().catch(() => ({}));
-      if (!verifyRes.ok) {
-        throw new Error(verifyData.message || "Payment verification failed.");
-      }
-
-      // If a percentage coupon was active, redeem it too
-      if (appliedCoupon) {
-        await fetch("/api/account/coupons/redeem", {
+    // Free tier downgrade
+    if (targetPlan.code === "FREE") {
+      setIsUpgradingCode(targetPlan.code);
+      try {
+        const res = await fetch("/api/billing/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: appliedCoupon.code }),
-        }).catch(() => {});
-        setAppliedCoupon(null);
+          body: JSON.stringify({ planCode: "FREE", billingInterval: "MONTHLY" }),
+        });
+        if (res.ok) {
+          toast.success("Switched to Starter Plan", {
+            description: "Your subscription has been updated to the free tier.",
+          });
+          await fetchBillingData();
+        }
+      } catch (err: unknown) {
+        toast.error("Downgrade Failed", { description: (err as Error).message });
+      } finally {
+        setIsUpgradingCode(null);
       }
-
-      toast.success("Subscription Updated!", {
-        description: `Upgraded to ${targetPlan.name} (${billingInterval.toLowerCase()} interval).`,
-      });
-
-      // Refresh real-time billing state from backend
-      await fetchBillingData();
-    } catch (err: unknown) {
-      toast.error("Upgrade Failed", { description: (err as Error).message });
-    } finally {
-      setIsUpgradingCode(null);
+      return;
     }
+
+    // Strict Redirection Pipeline: Route directly to secure multi-gateway checkout
+    const params = new URLSearchParams({
+      plan: targetPlan.code,
+      interval: billingInterval,
+    });
+    if (appliedCoupon?.code) {
+      params.set("coupon", appliedCoupon.code);
+    }
+    router.push(`/app/checkout?${params.toString()}`);
   };
 
   // Handle promotional coupon redemption
@@ -279,7 +252,7 @@ export default function PlansPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-[#F6F6F4]">
       {/* Top Header Bar */}
-      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-[#E6E6E3] px-4 sm:px-8 py-4 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-[#E6E6E3] dark:border-slate-800 px-4 sm:px-8 py-4 flex items-center justify-between gap-4 shadow-2xs">
         <div className="flex items-center gap-3">
           <Link
             href="/app"
@@ -290,10 +263,10 @@ export default function PlansPage() {
           </Link>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-serif font-bold text-foreground">
+              <h1 className="text-base sm:text-lg font-sans font-bold text-foreground">
                 Subscription Plans & Limits
               </h1>
-              <Badge variant="outline" className="text-[10px] font-mono text-[#1F3D2E] border-[#1F3D2E]/20 bg-[#1F3D2E]/5">
+              <Badge variant="outline" className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 border-emerald-500/20 bg-emerald-500/5">
                 Server Verified
               </Badge>
             </div>
@@ -318,7 +291,7 @@ export default function PlansPage() {
             variant="ghost"
             size="sm"
             onClick={() => openProfileModal("BILLING")}
-            className="text-xs font-sans text-[#1F3D2E] hover:bg-[#1F3D2E]/5"
+            className="text-xs font-sans text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5"
           >
             Settings Modal
           </Button>
@@ -339,7 +312,7 @@ export default function PlansPage() {
                 <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               </div>
               <div className="flex items-center gap-3 mt-1">
-                <h2 className="text-xl sm:text-2xl font-serif font-bold text-foreground">
+                <h2 className="text-xl sm:text-2xl font-sans font-bold text-foreground">
                   {currentPlan?.name || "Starter / Community"}
                 </h2>
                 <Badge
@@ -439,7 +412,7 @@ export default function PlansPage() {
               onClick={() => setBillingInterval("YEARLY")}
               className={`px-5 py-2 text-xs font-sans font-semibold rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
                 billingInterval === "YEARLY"
-                  ? "bg-[#1F3D2E] text-white shadow-xs"
+                  ? "bg-emerald-600 text-white shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -460,12 +433,12 @@ export default function PlansPage() {
         {appliedCoupon && (
           <section className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
             <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-[#1F3D2E] text-white flex items-center justify-center shrink-0">
+              <div className="h-8 w-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
                 <Tag className="h-4 w-4" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-serif font-bold text-[#1F3D2E]">
+                  <span className="text-xs font-sans font-bold text-emerald-600 dark:text-emerald-400">
                     Coupon Applied: {appliedCoupon.code}
                   </span>
                   <Badge className="text-[10px] font-mono bg-emerald-700 text-white border-none">
@@ -553,7 +526,7 @@ export default function PlansPage() {
                 key={p.id || p.code}
                 className={`relative rounded-2xl bg-white border flex flex-col justify-between transition-all duration-200 shadow-xs ${
                   isCurrent
-                    ? "border-[#1F3D2E] ring-2 ring-[#1F3D2E]/20"
+                    ? "border-emerald-500 ring-2 ring-emerald-500/20"
                     : isPro
                     ? "border-emerald-300 ring-1 ring-emerald-300"
                     : "border-border/70 hover:border-border"
@@ -561,7 +534,7 @@ export default function PlansPage() {
               >
                 {/* Popular / Current Ribbon */}
                 {isCurrent ? (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#1F3D2E] text-white px-3 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider font-semibold shadow-xs flex items-center gap-1">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-3 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider font-semibold shadow-xs flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3 text-emerald-300" />
                     Current Plan
                   </div>
@@ -575,7 +548,7 @@ export default function PlansPage() {
                 <div className="p-6 space-y-5">
                   <div>
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-serif font-bold text-foreground">
+                      <h3 className="text-lg font-sans font-bold text-foreground">
                         {p.name}
                       </h3>
                       <Badge variant="outline" className="font-mono text-[10px]">
@@ -591,11 +564,11 @@ export default function PlansPage() {
                   <div className="pt-2 border-t border-border/40">
                     <div className="flex items-baseline gap-2 flex-wrap">
                       {cutPrice !== null && (
-                        <span className="text-xl sm:text-2xl font-serif font-bold text-muted-foreground line-through decoration-rose-500/80 decoration-2">
+                        <span className="text-xl sm:text-2xl font-sans font-bold text-muted-foreground line-through decoration-rose-500/80 decoration-2">
                           ${cutPrice}
                         </span>
                       )}
-                      <span className={`text-3xl sm:text-4xl font-serif font-bold ${cutPrice !== null ? "text-emerald-700" : "text-foreground"}`}>
+                      <span className={`text-3xl sm:text-4xl font-sans font-bold ${cutPrice !== null ? "text-emerald-700" : "text-foreground"}`}>
                         ${finalPrice % 1 === 0 ? finalPrice : finalPrice.toFixed(2)}
                       </span>
                       <span className="text-xs font-mono text-muted-foreground">
@@ -651,7 +624,7 @@ export default function PlansPage() {
                         "Standard Monitoring Intervals",
                       ]).map((feat, idx) => (
                         <li key={idx} className="flex items-start gap-2">
-                          <Check className="h-4 w-4 text-[#1F3D2E] shrink-0 mt-0.5 stroke-[2.5]" />
+                          <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5 stroke-[2.5]" />
                           <span>{feat}</span>
                         </li>
                       ))}
@@ -673,7 +646,7 @@ export default function PlansPage() {
                       variant="outline"
                       disabled={isUpgradingCode !== null}
                       onClick={() => handleSelectPlan(p)}
-                      className="w-full font-sans text-xs font-semibold border-[#1F3D2E]/30 text-[#1F3D2E] hover:bg-[#1F3D2E]/5 cursor-pointer"
+                      className="w-full font-sans text-xs font-semibold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5 cursor-pointer"
                     >
                       Switch to Starter
                     </Button>
@@ -684,7 +657,7 @@ export default function PlansPage() {
                       className={`w-full font-sans text-xs font-semibold text-white shadow-xs cursor-pointer ${
                         isEnterprise
                           ? "bg-purple-900 hover:bg-purple-950"
-                          : "bg-[#1F3D2E] hover:bg-[#162d22]"
+                          : "bg-emerald-600 hover:bg-emerald-700"
                       }`}
                     >
                       {isUpgradingCode === p.code ? (
@@ -712,8 +685,8 @@ export default function PlansPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
-                <Tag className="h-4 w-4 text-[#1F3D2E]" />
-                <h3 className="text-sm font-serif font-bold text-foreground">
+                <Tag className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="text-sm font-sans font-bold text-foreground">
                   Redeem Promotional Coupon or Scholarship Code
                 </h3>
               </div>
@@ -738,7 +711,7 @@ export default function PlansPage() {
             <Button
               type="submit"
               disabled={isRedeemingCoupon || !couponCode.trim()}
-              className="bg-[#1F3D2E] hover:bg-[#162d22] text-white font-sans text-xs font-semibold px-6 cursor-pointer shrink-0"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-sans text-xs font-semibold px-6 cursor-pointer shrink-0"
             >
               {isRedeemingCoupon ? (
                 <span className="flex items-center gap-1.5">
@@ -752,11 +725,38 @@ export default function PlansPage() {
           </form>
         </section>
 
+        {/* Delegated Billing Portal & Past Invoices Section */}
+        <section className="bg-white dark:bg-slate-900 rounded-2xl border border-[#E6E6E3] dark:border-slate-800 p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-emerald-600 dark:text-emerald-400 dark:text-emerald-400" />
+              <h3 className="text-sm font-sans font-bold text-foreground">
+                Invoices, Receipts & Card Management
+              </h3>
+            </div>
+            <p className="text-xs text-muted-foreground font-sans">
+              Need official tax receipts, past PDF invoices, or to update your payment card? Access the secure payment gateway billing portal.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              toast.info("Connecting to secure Stripe / Razorpay Customer Billing Portal...");
+              window.open("https://billing.stripe.com/p/login/test", "_blank");
+            }}
+            className="font-sans text-xs font-semibold shrink-0 cursor-pointer border-border hover:bg-muted/50"
+          >
+            Manage via Customer Portal
+          </Button>
+        </section>
+
         {/* Monthly vs Yearly Limits Explanatory FAQ */}
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
           <div className="bg-white rounded-xl p-4 border border-[#E6E6E3] space-y-1.5">
-            <div className="flex items-center gap-2 text-foreground font-serif font-bold text-xs">
-              <Calendar className="h-4 w-4 text-[#1F3D2E]" />
+            <div className="flex items-center gap-2 text-foreground font-sans font-bold text-xs">
+              <Calendar className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               Monthly vs. Yearly Quotas
             </div>
             <p className="text-[11px] text-muted-foreground font-sans leading-relaxed">
@@ -765,7 +765,7 @@ export default function PlansPage() {
           </div>
 
           <div className="bg-white rounded-xl p-4 border border-[#E6E6E3] space-y-1.5">
-            <div className="flex items-center gap-2 text-foreground font-serif font-bold text-xs">
+            <div className="flex items-center gap-2 text-foreground font-sans font-bold text-xs">
               <ShieldCheck className="h-4 w-4 text-emerald-700" />
               Server-Authoritative Enforcement
             </div>
@@ -775,7 +775,7 @@ export default function PlansPage() {
           </div>
 
           <div className="bg-white rounded-xl p-4 border border-[#E6E6E3] space-y-1.5">
-            <div className="flex items-center gap-2 text-foreground font-serif font-bold text-xs">
+            <div className="flex items-center gap-2 text-foreground font-sans font-bold text-xs">
               <Sparkles className="h-4 w-4 text-amber-600" />
               Admin Telemetry & Visibility
             </div>

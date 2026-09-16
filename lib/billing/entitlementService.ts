@@ -14,6 +14,8 @@ export const LEGACY_PLAN_CAPABILITY_MAP: Record<string, keyof Plan> = {
   supportsPuterPremium: "supportsPuterPremium",
   PRIORITY_EXECUTION: "supportsPriorityExecution",
   supportsPriorityExecution: "supportsPriorityExecution",
+  PREMIUM_DEEP_REACH: "supportsCompanyTargeting",
+  DEEP_REACH: "supportsCompanyTargeting",
 };
 
 export interface CapabilityEntitlementResult {

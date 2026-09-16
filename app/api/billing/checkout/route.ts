@@ -18,6 +18,10 @@ const CheckoutSchema = z.object({
   planCode: z.enum(["PREMIUM", "ENTERPRISE"]),
   billingInterval: z.enum(["MONTHLY", "YEARLY"]).default("MONTHLY"),
   couponCode: z.string().optional(),
+  provider: z.enum(["RAZORPAY", "STRIPE"]).optional().default("RAZORPAY"),
+  paymentMethod: z.enum(["CARD", "UPI", "NETBANKING"]).optional().default("CARD"),
+  upiVpa: z.string().optional(),
+  returnUrl: z.string().optional(),
 });
 
 export async function POST(req: Request) {
@@ -167,6 +171,10 @@ export async function POST(req: Request) {
       amount: discountedAmount,
       currency: plan.currency,
       planCode: plan.code,
+      provider: parseResult.data.provider,
+      paymentMethod: parseResult.data.paymentMethod,
+      upiVpa: parseResult.data.upiVpa,
+      returnUrl: parseResult.data.returnUrl,
     });
 
     return NextResponse.json({

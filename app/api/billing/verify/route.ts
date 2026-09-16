@@ -17,6 +17,8 @@ const VerifyPaymentSchema = z.object({
   planCode: z.enum(["PREMIUM", "ENTERPRISE"]),
   billingInterval: z.enum(["MONTHLY", "YEARLY"]).optional().default("MONTHLY"),
   couponCode: z.string().optional(),
+  provider: z.enum(["RAZORPAY", "STRIPE"]).optional().default("RAZORPAY"),
+  paymentMethod: z.enum(["CARD", "UPI", "NETBANKING"]).optional().default("CARD"),
 });
 
 export async function POST(req: Request) {
@@ -59,6 +61,8 @@ export async function POST(req: Request) {
       signature: parseResult.data.signature,
       planCode: parseResult.data.planCode,
       billingInterval: parseResult.data.billingInterval,
+      provider: parseResult.data.provider,
+      paymentMethod: parseResult.data.paymentMethod,
     });
 
     if (!result.verified) {
