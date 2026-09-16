@@ -81,10 +81,58 @@ const DOMAIN_TAXONOMIES: Record<string, Array<{ name: string; url: string; categ
     { name: "Linear", url: "https://jobs.ashbyhq.com/linear", category: "EMPLOYER" },
     { name: "Vercel", url: "https://jobs.ashbyhq.com/vercel", category: "EMPLOYER" },
   ],
+  mechanical: [
+    { name: "Honeywell", url: "https://boards.greenhouse.io/honeywell", category: "EMPLOYER" },
+    { name: "Rivian", url: "https://boards.greenhouse.io/rivian", category: "EMPLOYER" },
+    { name: "General Electric", url: "https://boards.greenhouse.io/ge", category: "EMPLOYER" },
+    { name: "Siemens", url: "https://boards.greenhouse.io/siemens", category: "EMPLOYER" },
+    { name: "Tata Motors", url: "https://careers.tatamotors.com", category: "EMPLOYER" },
+    { name: "Maruti Suzuki", url: "https://www.marutisuzuki.com/corporate/careers", category: "EMPLOYER" },
+  ],
+  civil: [
+    { name: "Larsen & Toubro", url: "https://www.larsentoubro.com/corporate/careers/", category: "EMPLOYER" },
+    { name: "AECOM", url: "https://aecom.com/careers", category: "EMPLOYER" },
+    { name: "Bechtel", url: "https://jobs.bechtel.com", category: "EMPLOYER" },
+    { name: "Jacobs", url: "https://www.jacobs.com/careers", category: "EMPLOYER" },
+  ],
+  electrical: [
+    { name: "Schneider Electric", url: "https://boards.greenhouse.io/schneiderelectric", category: "EMPLOYER" },
+    { name: "Siemens", url: "https://boards.greenhouse.io/siemens", category: "EMPLOYER" },
+    { name: "ABB", url: "https://careers.abb", category: "EMPLOYER" },
+    { name: "Texas Instruments", url: "https://careers.ti.com", category: "EMPLOYER" },
+  ],
+  finance: [
+    { name: "Ramp", url: "https://jobs.ashbyhq.com/ramp", category: "EMPLOYER" },
+    { name: "Brex", url: "https://boards.greenhouse.io/brex", category: "EMPLOYER" },
+    { name: "Stripe", url: "https://boards.greenhouse.io/stripe", category: "EMPLOYER" },
+    { name: "Goldman Sachs", url: "https://www.goldmansachs.com/careers", category: "EMPLOYER" },
+    { name: "JPMorgan Chase", url: "https://careers.jpmorgan.com", category: "EMPLOYER" },
+  ],
+  healthcare: [
+    { name: "Oscar Health", url: "https://boards.greenhouse.io/oscar", category: "EMPLOYER" },
+    { name: "Ro", url: "https://boards.greenhouse.io/ro", category: "EMPLOYER" },
+    { name: "Apollo Hospitals", url: "https://careers.apollohospitals.com", category: "HEALTHCARE" },
+    { name: "Max Healthcare", url: "https://www.maxhealthcare.in/careers", category: "HEALTHCARE" },
+  ],
 };
 
 function matchDomainTaxonomy(roleOrQuery: string): Array<{ name: string; url: string; category: CandidateDiscoveredTarget["category"] }> {
   const lower = roleOrQuery.toLowerCase();
+  if (/\b(m[ea]chanic(?:al)?|cad|solidworks|hvac|automotive|manufacturing|thermal)\b/i.test(lower)) {
+    return DOMAIN_TAXONOMIES.mechanical;
+  }
+  if (/\b(civil|construction|structural|site engineer|infrastructure)\b/i.test(lower)) {
+    return DOMAIN_TAXONOMIES.civil;
+  }
+  if (/\b(electrical|electronics|hardware|vlsi|embedded|circuit)\b/i.test(lower)) {
+    return DOMAIN_TAXONOMIES.electrical;
+  }
+  if (/\b(finance|banking|accounting|investment|fintech|audit)\b/i.test(lower)) {
+    return DOMAIN_TAXONOMIES.finance;
+  }
+  if (/\b(healthcare|hospital|nurse|nursing|doctor|medical|clinic)\b/i.test(lower)) {
+    return DOMAIN_TAXONOMIES.healthcare;
+  }
   if (/\b(cancer|oncology|biomed|biology|pathology|genomics|lab tech|clinical research)\b/i.test(lower)) {
     return DOMAIN_TAXONOMIES.cancer;
   }

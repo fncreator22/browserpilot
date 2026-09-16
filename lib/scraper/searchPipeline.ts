@@ -26,6 +26,7 @@ import {
   hasUserSeenOpportunity,
   getOpportunityByCanonicalHash,
 } from "@/lib/db/opportunities";
+import { prisma } from "@/lib/db/prisma";
 
 export interface SearchDiagnostics {
   requestedCount: number;
@@ -38,6 +39,14 @@ export interface SearchDiagnostics {
   sourceCount: number;
   sourceFailures: number;
   searchDurationMs: number;
+  rejectedLocationCount?: number;
+  broadeningSuggestions?: Array<{
+    type: string;
+    label: string;
+    description: string;
+    query: string;
+    potentialCount?: number;
+  }>;
 }
 
 export interface DiscoveryResult {
@@ -241,6 +250,7 @@ export async function executeSearchPipeline(
   let unknownDateCount = 0;
   let invalidUrlCount = 0;
   let rejectedRoleCount = 0;
+  let rejectedLocationCount = 0;
   const eligibleCandidates: typeof cleanCandidates = [];
 
   for (const candidate of cleanCandidates) {
@@ -274,12 +284,14 @@ export async function executeSearchPipeline(
       if (!gateEval.roleMatch) {
         rejectedRoleCount++;
       }
+      if (!gateEval.locationMatch || gateEval.rejectionReasons.some((r) => r.toLowerCase().includes("location") || r.toLowerCase().includes("geographically disjoint"))) {
+        rejectedLocationCount++;
+      }
     }
   }
 
   // 4. 3-Tier Multi-Source Deduplication (TASK-004)
-  const deduplicatedOpps = deduplicateCandidates(eligibleCandidates as any);
-
+  let deduplicatedOpps = deduplicateCandidates(eligibleCandidates as any);
   // Self-Expanding Career Brain: Learn novel roles, co-occurring skills, and portal frequencies
   if (deduplicatedOpps.length > 0) {
     careerBrainService.learnFromDiscoveredJobs(
@@ -303,6 +315,104 @@ export async function executeSearchPipeline(
   const minScore = plan.minimumMatchScore;
   if (typeof minScore === "number" && minScore > 0) {
     allRanked = allRanked.filter((item) => item.totalScore >= minScore);
+  }
+
+  // Fallback to verified database opportunities if live aggregator yielded 0 eligible results
+  if (allRanked.length === 0) {
+    try {
+      const searchRole = intent.role || intent.roles?.[0] || "";
+      const searchLoc = intent.location || intent.locations?.[0] || "";
+      const whereClauses: any[] = [];
+      if (searchRole) {
+        whereClauses.push({ title: { contains: searchRole, mode: "insensitive" } });
+        whereClauses.push({ description: { contains: searchRole, mode: "insensitive" } });
+        const tokens = searchRole.split(/\s+/).filter((t) => t.length > 3 && !["engineer", "engineering", "jobs", "role", "roles"].includes(t.toLowerCase()));
+        for (const tok of tokens) {
+          whereClauses.push({ title: { contains: tok, mode: "insensitive" } });
+        }
+      }
+      if (intent.roles && intent.roles.length > 0) {
+        for (const r of intent.roles) {
+          whereClauses.push({ title: { contains: r, mode: "insensitive" } });
+        }
+      }
+      if (searchLoc) {
+        whereClauses.push({ location: { contains: searchLoc, mode: "insensitive" } });
+      }
+      if (intent.skills && intent.skills.length > 0) {
+        for (const s of intent.skills) {
+          whereClauses.push({ skills: { contains: s, mode: "insensitive" } });
+        }
+      }
+
+      if (whereClauses.length > 0) {
+        const dbMatches = await prisma.opportunity.findMany({
+          where: {
+            OR: whereClauses,
+            status: "ACTIVE",
+          },
+          include: {
+            sourceListings: true,
+            companyContacts: true,
+          },
+          take: 20,
+        });
+
+        const fallbackOpps: DeduplicatedOpportunity[] = [];
+        for (const dbOpp of dbMatches) {
+          if (intent.isExplicitLocation && searchLoc) {
+            const locLower = dbOpp.location.toLowerCase();
+            const qLocLower = searchLoc.toLowerCase();
+            const isMatch = locLower.includes(qLocLower) || (intent.workMode === "REMOTE" && locLower.includes("remote"));
+            if (!isMatch) continue;
+          }
+
+          let reqs: string[] = [];
+          let sks: string[] = [];
+          try { reqs = JSON.parse(dbOpp.requirements); } catch {}
+          try { sks = JSON.parse(dbOpp.skills); } catch {}
+
+          fallbackOpps.push({
+            canonicalHash: dbOpp.canonicalHash,
+            title: dbOpp.title,
+            companyName: dbOpp.companyName,
+            location: dbOpp.location,
+            workMode: dbOpp.workMode as any,
+            experienceLevel: dbOpp.experienceLevel as any,
+            opportunityType: dbOpp.opportunityType as any,
+            salaryMin: dbOpp.salaryMin,
+            salaryMax: dbOpp.salaryMax,
+            salaryCurrency: dbOpp.salaryCurrency,
+            description: dbOpp.description,
+            requirements: reqs,
+            skills: sks,
+            primaryApplyUrl: dbOpp.primaryApplyUrl,
+            sourceListings: dbOpp.sourceListings.map((s) => ({
+              sourcePlatform: s.sourcePlatform,
+              sourceUrl: s.sourceUrl,
+              applyUrl: s.applyUrl,
+              seenAt: s.seenAt,
+              verificationStatus: s.verificationStatus,
+            })),
+            firstSeenAt: dbOpp.firstSeenAt,
+            lastVerifiedAt: dbOpp.lastVerifiedAt,
+            postedAt: dbOpp.lastVerifiedAt,
+            status: dbOpp.status,
+          });
+        }
+
+        if (fallbackOpps.length > 0) {
+          const rankedFallback = rankOpportunities(fallbackOpps, intent, {
+            sortMode: plan.sortMode,
+          });
+          allRanked = typeof minScore === "number" && minScore > 0
+            ? rankedFallback.filter((item) => item.totalScore >= minScore)
+            : rankedFallback;
+        }
+      }
+    } catch (dbFallbackErr) {
+      console.warn("[SearchPipeline] Database fallback search non-fatal:", dbFallbackErr);
+    }
   }
 
   // Filter out known/seen opportunities if requested
@@ -421,11 +531,43 @@ export async function executeSearchPipeline(
     searchExplanation = `Found ${ranked.length} verified ${plan.roles[0] || "job"} opportunities matching your criteria. ${shortfall} additional opportunities could not be verified within the requested ${daysWindow}-day window.`;
   } else if (totalSources > 0 && failedSources === totalSources) {
     searchExplanation = `All discovery sources were temporarily unreachable. Please retry your search shortly.`;
+  } else if (staleCount > 0) {
+    searchExplanation = `0 verified ${plan.roles[0] || "job"} opportunities found posted within the last ${daysWindow} day${daysWindow === 1 ? "" : "s"} (${staleCount} listing${staleCount > 1 ? "s were" : " was"} excluded by the strict time window). Try widening your search to the last 7 or 30 days.`;
   } else if (failedSources > 0) {
     searchExplanation = `No verified ${plan.roles[0] || "job"} opportunities found posted within the last ${daysWindow} days (${failedSources} source${failedSources > 1 ? "s" : ""} were unavailable).`;
   } else {
     searchExplanation = `No verified ${plan.roles[0] || "job"} opportunities found posted within the last ${daysWindow} days across searched sources.`;
   }
+
+  // Generate broadening suggestions if 0 results were found
+  const rawQ = options.rawQuery || plan.rawQuery || plan.roles[0] || "jobs";
+  const strippedQ = rawQ
+    .replace(/\b(?:posted\s+)?(?:in|within|for|past)\s+(?:the\s+)?(?:last|past)\s+\d+\s*(?:hours?|hrs?|days?|d|weeks?|w|months?|m)\b/gi, "")
+    .replace(/\b(?:posted\s+)?(?:today|yesterday|this week|this month)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const broadeningSuggestions = ranked.length === 0 ? [
+    {
+      type: "FRESHNESS_7D",
+      label: "Widen to Last 7 Days",
+      description: `Search for ${plan.roles[0] || "roles"} posted within the last 7 days`,
+      query: `${strippedQ} in the last 7 days`,
+      potentialCount: staleCount > 0 ? staleCount : undefined,
+    },
+    {
+      type: "FRESHNESS_30D",
+      label: "Widen to Last 30 Days",
+      description: `Search for ${plan.roles[0] || "roles"} posted within the last 30 days`,
+      query: `${strippedQ} in the last 30 days`,
+    },
+    {
+      type: "REMOTE",
+      label: "Include Remote Roles",
+      description: `Search for remote ${plan.roles[0] || "roles"}`,
+      query: `${strippedQ} remote`,
+    },
+  ] : undefined;
 
   const searchDiagnostics: SearchDiagnostics = {
     requestedCount,
@@ -438,6 +580,8 @@ export async function executeSearchPipeline(
     sourceCount: totalSources,
     sourceFailures: failedSources,
     searchDurationMs: durationMs,
+    rejectedLocationCount,
+    broadeningSuggestions,
   };
 
   const discoveryResult: DiscoveryResult = {

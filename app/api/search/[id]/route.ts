@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
 import { prisma } from "@/lib/db/prisma";
+import { enrichOpportunityData } from "@/lib/discovery/enrichment/opportunityEnrichmentService";
 
 export const dynamic = "force-dynamic";
 
@@ -69,44 +70,60 @@ export async function GET(
       } catch {}
     }
 
-    // 4. Format Structured Results Deck
-    const structuredResults = searchRecord.results.map((sr) => {
-      const opp = sr.opportunity;
-      const isSaved = userSavedOpportunityIds.has(opp.id);
-      return {
-        id: opp.id,
-        canonicalHash: opp.canonicalHash,
-        title: opp.title,
-        companyName: opp.companyName,
-        location: opp.location,
-        workMode: opp.workMode,
-        experienceLevel: opp.experienceLevel,
-        opportunityType: opp.opportunityType,
-        salaryMin: opp.salaryMin,
-        salaryMax: opp.salaryMax,
-        salaryCurrency: opp.salaryCurrency,
-        description: opp.description,
-        requirements: opp.requirements,
-        skills: opp.skills,
-        primaryApplyUrl: opp.primaryApplyUrl,
-        status: opp.status,
-        firstSeenAt: opp.firstSeenAt,
-        lastVerifiedAt: opp.lastVerifiedAt,
-        matchScore: sr.matchScore,
-        rankPosition: sr.rankPosition,
-        saved: isSaved,
-        sourceListings: opp.sourceListings.map((l) => ({
-          sourcePlatform: l.sourcePlatform,
-          sourceUrl: l.sourceUrl,
-          applyUrl: l.applyUrl,
-          externalJobId: l.externalJobId,
-          verificationStatus: l.verificationStatus,
-          rawSnippet: l.rawSnippet,
-          screenshotPath: l.screenshotPath,
-          seenAt: l.seenAt,
-        })),
-      };
-    });
+    // 4. Format Structured Results Deck with Enrichment
+    const structuredResults = await Promise.all(
+      searchRecord.results.map(async (sr) => {
+        const opp = sr.opportunity;
+        const isSaved = userSavedOpportunityIds.has(opp.id);
+
+        const enrichment = await enrichOpportunityData({
+          opportunityId: opp.id,
+          canonicalHash: opp.canonicalHash,
+          companyName: opp.companyName,
+          title: opp.title,
+          primaryApplyUrl: opp.primaryApplyUrl,
+        });
+
+        return {
+          id: opp.id,
+          canonicalHash: opp.canonicalHash,
+          title: opp.title,
+          companyName: opp.companyName,
+          location: opp.location,
+          workMode: opp.workMode,
+          experienceLevel: opp.experienceLevel,
+          opportunityType: opp.opportunityType,
+          salaryMin: opp.salaryMin,
+          salaryMax: opp.salaryMax,
+          salaryCurrency: opp.salaryCurrency,
+          description: opp.description,
+          requirements: opp.requirements,
+          skills: opp.skills,
+          primaryApplyUrl: opp.primaryApplyUrl,
+          status: opp.status,
+          firstSeenAt: opp.firstSeenAt,
+          lastVerifiedAt: opp.lastVerifiedAt,
+          matchScore: sr.matchScore,
+          rankPosition: sr.rankPosition,
+          saved: isSaved,
+          companyContacts: enrichment.companyContacts,
+          companyEmployeesCount: enrichment.companyEmployeesCount,
+          shareUrl: enrichment.shareUrl,
+          socialShareUrls: enrichment.socialShareUrls,
+          companyProfile: enrichment.companyProfile,
+          sourceListings: opp.sourceListings.map((l) => ({
+            sourcePlatform: l.sourcePlatform,
+            sourceUrl: l.sourceUrl,
+            applyUrl: l.applyUrl,
+            externalJobId: l.externalJobId,
+            verificationStatus: l.verificationStatus,
+            rawSnippet: l.rawSnippet,
+            screenshotPath: l.screenshotPath,
+            seenAt: l.seenAt,
+          })),
+        };
+      })
+    );
 
     let canonicalIntent: any = {};
     if (searchRecord.canonicalIntent) {

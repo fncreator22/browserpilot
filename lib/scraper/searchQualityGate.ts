@@ -32,6 +32,7 @@ export interface QualityGateEvaluation {
   ageHours?: number;
   roleMatch: boolean;
   seniorityMatch: boolean;
+  locationMatch: boolean;
 }
 
 const INVALID_TITLE_PATTERNS = [
@@ -144,6 +145,393 @@ function isDisjointRole(candidateTitle: string, targetRoles: string[]): boolean 
   return false;
 }
 
+export interface GeoLocationInfo {
+  city?: string;
+  state?: string;
+  country: string;
+  continent: string;
+  synonyms: string[];
+}
+
+export const KNOWN_GEO_REGIONS: Record<string, GeoLocationInfo> = {
+  // Indian Tech Hubs & Major Cities
+  bengaluru: {
+    city: "Bengaluru",
+    state: "Karnataka",
+    country: "India",
+    continent: "Asia",
+    synonyms: ["bengaluru", "bangalore", "blr", "electronic city", "whitefield", "bellandur", "marathahalli", "koramangala", "indiranagar", "karnataka"],
+  },
+  hyderabad: {
+    city: "Hyderabad",
+    state: "Telangana",
+    country: "India",
+    continent: "Asia",
+    synonyms: ["hyderabad", "hyd", "cyberabad", "hitec city", "gachibowli", "telangana", "secunderabad"],
+  },
+  pune: {
+    city: "Pune",
+    state: "Maharashtra",
+    country: "India",
+    continent: "Asia",
+    synonyms: ["pune", "hinjawadi", "magarpatta", "maharashtra"],
+  },
+  mumbai: {
+    city: "Mumbai",
+    state: "Maharashtra",
+    country: "India",
+    continent: "Asia",
+    synonyms: ["mumbai", "bombay", "navi mumbai", "thane", "maharashtra"],
+  },
+  delhi: {
+    city: "Delhi",
+    state: "Delhi NCR",
+    country: "India",
+    continent: "Asia",
+    synonyms: ["delhi", "new delhi", "ncr", "noida", "gurgaon", "gurugram", "faridabad", "ghaziabad"],
+  },
+  chennai: {
+    city: "Chennai",
+    state: "Tamil Nadu",
+    country: "India",
+    continent: "Asia",
+    synonyms: ["chennai", "madras", "tamil nadu", "tamilnadu"],
+  },
+  kolkata: {
+    city: "Kolkata",
+    state: "West Bengal",
+    country: "India",
+    continent: "Asia",
+    synonyms: ["kolkata", "calcutta", "west bengal"],
+  },
+  ahmedabad: {
+    city: "Ahmedabad",
+    state: "Gujarat",
+    country: "India",
+    continent: "Asia",
+    synonyms: ["ahmedabad", "gandhinagar", "gujarat"],
+  },
+  kochi: {
+    city: "Kochi",
+    state: "Kerala",
+    country: "India",
+    continent: "Asia",
+    synonyms: ["kochi", "cochin", "kerala", "infopark", "kakkanad"],
+  },
+  chandigarh: {
+    city: "Chandigarh",
+    state: "Punjab/Haryana",
+    country: "India",
+    continent: "Asia",
+    synonyms: ["chandigarh", "mohali", "panchkula"],
+  },
+  jaipur: {
+    city: "Jaipur",
+    state: "Rajasthan",
+    country: "India",
+    continent: "Asia",
+    synonyms: ["jaipur", "rajasthan"],
+  },
+  lucknow: {
+    city: "Lucknow",
+    state: "Uttar Pradesh",
+    country: "India",
+    continent: "Asia",
+    synonyms: ["lucknow", "uttar pradesh", "up"],
+  },
+  // Entire Country India
+  india: {
+    country: "India",
+    continent: "Asia",
+    synonyms: ["india", "in", "pan-india", "all india", "bharat"],
+  },
+
+  // Egypt Hubs
+  egypt: {
+    country: "Egypt",
+    continent: "Africa",
+    synonyms: ["egypt", "cairo", "new cairo", "alexandria", "giza", "shubra", "6th of october", "suez", "mansoura"],
+  },
+  cairo: {
+    city: "Cairo",
+    country: "Egypt",
+    continent: "Africa",
+    synonyms: ["cairo", "new cairo", "egypt", "giza"],
+  },
+
+  // USA Major Hubs
+  "san francisco": {
+    city: "San Francisco",
+    state: "CA",
+    country: "United States",
+    continent: "North America",
+    synonyms: ["san francisco", "sf", "bay area", "silicon valley", "palo alto", "mountain view", "sunnyvale", "san jose", "menlo park"],
+  },
+  "new york": {
+    city: "New York",
+    state: "NY",
+    country: "United States",
+    continent: "North America",
+    synonyms: ["new york", "nyc", "ny", "manhattan", "brooklyn"],
+  },
+  seattle: {
+    city: "Seattle",
+    state: "WA",
+    country: "United States",
+    continent: "North America",
+    synonyms: ["seattle", "bellevue", "redmond", "wa"],
+  },
+  austin: {
+    city: "Austin",
+    state: "TX",
+    country: "United States",
+    continent: "North America",
+    synonyms: ["austin", "tx", "texas"],
+  },
+  boston: {
+    city: "Boston",
+    state: "MA",
+    country: "United States",
+    continent: "North America",
+    synonyms: ["boston", "cambridge ma", "ma", "massachusetts"],
+  },
+  chicago: {
+    city: "Chicago",
+    state: "IL",
+    country: "United States",
+    continent: "North America",
+    synonyms: ["chicago", "il", "illinois"],
+  },
+  "los angeles": {
+    city: "Los Angeles",
+    state: "CA",
+    country: "United States",
+    continent: "North America",
+    synonyms: ["los angeles", "la", "santa monica", "culver city"],
+  },
+  usa: {
+    country: "United States",
+    continent: "North America",
+    synonyms: ["usa", "united states", "us", "u.s.", "u.s.a."],
+  },
+
+  // UK Hubs
+  london: {
+    city: "London",
+    country: "United Kingdom",
+    continent: "Europe",
+    synonyms: ["london", "uk", "greater london"],
+  },
+  uk: {
+    country: "United Kingdom",
+    continent: "Europe",
+    synonyms: ["uk", "united kingdom", "great britain", "england", "scotland", "wales"],
+  },
+
+  // Germany Hubs
+  berlin: {
+    city: "Berlin",
+    country: "Germany",
+    continent: "Europe",
+    synonyms: ["berlin", "germany", "deutschland"],
+  },
+  germany: {
+    country: "Germany",
+    continent: "Europe",
+    synonyms: ["germany", "deutschland", "de"],
+  },
+
+  // Canada Hubs
+  toronto: {
+    city: "Toronto",
+    state: "Ontario",
+    country: "Canada",
+    continent: "North America",
+    synonyms: ["toronto", "gta", "ontario", "waterloo", "canada"],
+  },
+  canada: {
+    country: "Canada",
+    continent: "North America",
+    synonyms: ["canada", "ca"],
+  },
+
+  // Singapore
+  singapore: {
+    city: "Singapore",
+    country: "Singapore",
+    continent: "Asia",
+    synonyms: ["singapore", "sg"],
+  },
+
+  // UAE Hubs
+  dubai: {
+    city: "Dubai",
+    country: "UAE",
+    continent: "Middle East",
+    synonyms: ["dubai", "uae", "abu dhabi"],
+  },
+};
+
+export function resolveLocationGeo(locationStr?: string | null): {
+  normalized: string;
+  country?: string;
+  continent?: string;
+  city?: string;
+  isRemoteOnly: boolean;
+} {
+  if (!locationStr || !locationStr.trim()) {
+    return { normalized: "", isRemoteOnly: false };
+  }
+  const clean = locationStr.trim().toLowerCase();
+  const isRemoteOnly = /^(remote|anywhere|work from home|wfh|telecommute|virtual)$/i.test(clean) ||
+    (/remote/i.test(clean) && !Object.values(KNOWN_GEO_REGIONS).some((g) => g.synonyms.some((syn) => clean.includes(syn))));
+
+  for (const [, info] of Object.entries(KNOWN_GEO_REGIONS)) {
+    if (info.synonyms.some((syn) => {
+      if (syn.length <= 3) {
+        return new RegExp(`\\b${syn}\\b`, "i").test(clean);
+      }
+      return clean.includes(syn);
+    })) {
+      return {
+        normalized: info.city || info.country,
+        country: info.country,
+        continent: info.continent,
+        city: info.city,
+        isRemoteOnly,
+      };
+    }
+  }
+
+  // Fallback heuristic detection for countries
+  if (/\b(india|bharat)\b/i.test(clean)) return { normalized: "India", country: "India", continent: "Asia", isRemoteOnly };
+  if (/\b(egypt|cairo|alexandria)\b/i.test(clean)) return { normalized: "Egypt", country: "Egypt", continent: "Africa", isRemoteOnly };
+  if (/\b(usa|united states|us\b)\b/i.test(clean)) return { normalized: "United States", country: "United States", continent: "North America", isRemoteOnly };
+  if (/\b(united kingdom|uk\b|london|great britain|england)\b/i.test(clean)) return { normalized: "United Kingdom", country: "United Kingdom", continent: "Europe", isRemoteOnly };
+  if (/\b(germany|deutschland)\b/i.test(clean)) return { normalized: "Germany", country: "Germany", continent: "Europe", isRemoteOnly };
+  if (/\b(canada)\b/i.test(clean)) return { normalized: "Canada", country: "Canada", continent: "North America", isRemoteOnly };
+  if (/\b(australia)\b/i.test(clean)) return { normalized: "Australia", country: "Australia", continent: "Oceania", isRemoteOnly };
+
+  return { normalized: clean, isRemoteOnly };
+}
+
+export function evaluateLocationCompatibility(
+  candidateLocation: string | undefined,
+  planLocations: string[],
+  candidateWorkMode?: string,
+  isExplicitLocation: boolean = false
+): { isMatch: boolean; rejectionReason?: string } {
+  if (!planLocations || planLocations.length === 0) {
+    return { isMatch: true };
+  }
+
+  const activeTargets = planLocations.filter(
+    (l) => l && !/^(any|all|worldwide|anywhere|global)$/i.test(l.trim())
+  );
+  if (activeTargets.length === 0) {
+    return { isMatch: true };
+  }
+
+  const candLoc = (candidateLocation || "").trim();
+  const candWorkMode = (candidateWorkMode || "").toUpperCase();
+  const isCandidateRemote = candWorkMode === "REMOTE" || /\bremote\b/i.test(candLoc);
+
+  if (!candLoc) {
+    if (isCandidateRemote) {
+      return { isMatch: true };
+    }
+    if (isExplicitLocation) {
+      return {
+        isMatch: false,
+        rejectionReason: `Job posting has no location metadata under explicit location search for "${activeTargets.join(", ")}"`,
+      };
+    }
+    return { isMatch: true };
+  }
+
+  const candGeo = resolveLocationGeo(candLoc);
+
+  let hasExactCityOrSynonymMatch = false;
+  let hasCountryMismatch = false;
+  let mismatchedCountryName = "";
+  let targetCountryName = "";
+  let hasDifferentCityInSameCountry = false;
+
+  for (const rawTarget of activeTargets) {
+    const targetGeo = resolveLocationGeo(rawTarget);
+    const targetNorm = rawTarget.toLowerCase().trim();
+    const candNorm = candLoc.toLowerCase().trim();
+
+    const targetDef = KNOWN_GEO_REGIONS[targetNorm] || Object.values(KNOWN_GEO_REGIONS).find((g) =>
+      g.synonyms.some((s) => s.toLowerCase() === targetNorm || targetNorm.includes(s))
+    );
+
+    if (targetDef) {
+      const matchesTargetSynonym = targetDef.synonyms.some((syn) => {
+        if (syn.length <= 3) return new RegExp(`\\b${syn}\\b`, "i").test(candNorm);
+        return candNorm.includes(syn);
+      });
+      if (matchesTargetSynonym) {
+        hasExactCityOrSynonymMatch = true;
+        break;
+      }
+    } else {
+      if (candNorm.includes(targetNorm) || targetNorm.includes(candNorm)) {
+        hasExactCityOrSynonymMatch = true;
+        break;
+      }
+    }
+
+    if (targetGeo.country && candGeo.country) {
+      if (targetGeo.country.toLowerCase() !== candGeo.country.toLowerCase()) {
+        hasCountryMismatch = true;
+        mismatchedCountryName = candGeo.country;
+        targetCountryName = targetGeo.country;
+      } else {
+        if (targetGeo.city && candGeo.city && targetGeo.city.toLowerCase() !== candGeo.city.toLowerCase()) {
+          hasDifferentCityInSameCountry = true;
+        }
+      }
+    }
+  }
+
+  if (hasExactCityOrSynonymMatch) {
+    return { isMatch: true };
+  }
+
+  // Cross-border / foreign country mismatch: Strictly REJECT even if tagged remote
+  if (hasCountryMismatch) {
+    return {
+      isMatch: false,
+      rejectionReason: `Location "${candLoc}" is geographically disjoint from requested location "${activeTargets.join(", ")}" (cross-border: ${mismatchedCountryName} vs ${targetCountryName})`,
+    };
+  }
+
+  // Different city in same country
+  if (hasDifferentCityInSameCountry) {
+    if (!isCandidateRemote) {
+      return {
+        isMatch: false,
+        rejectionReason: `Location "${candLoc}" is on-site in a different city than requested "${activeTargets.join(", ")}"`,
+      };
+    }
+    return { isMatch: true };
+  }
+
+  if (candGeo.isRemoteOnly || isCandidateRemote) {
+    return { isMatch: true };
+  }
+
+  if (isExplicitLocation) {
+    return {
+      isMatch: false,
+      rejectionReason: `Location "${candLoc}" does not match requested location "${activeTargets.join(", ")}"`,
+    };
+  }
+
+  return { isMatch: true };
+}
+
 /**
  * Single authoritative Quality Gate evaluation for a raw job candidate.
  */
@@ -243,7 +631,28 @@ export function evaluateCandidateQualityGate(
     }
   }
 
-  // 6. Metadata Confidence Evaluation
+  // 6. Location Compatibility & Strict Regional Gating
+  let locationMatch = true;
+  const activePlanLocations = plan.locations && plan.locations.length > 0
+    ? plan.locations
+    : (plan.location ? [plan.location] : []);
+
+  if (activePlanLocations.length > 0) {
+    const locCompat = evaluateLocationCompatibility(
+      candidate.location,
+      activePlanLocations,
+      candidate.workMode,
+      Boolean(plan.isExplicitLocation)
+    );
+    if (!locCompat.isMatch) {
+      locationMatch = false;
+      if (locCompat.rejectionReason) {
+        rejectionReasons.push(locCompat.rejectionReason);
+      }
+    }
+  }
+
+  // 7. Metadata Confidence Evaluation
   const metadataConfidence = evaluateMetadataConfidence({
     title: rawTitle,
     companyName: rawCompany,
@@ -264,5 +673,6 @@ export function evaluateCandidateQualityGate(
     ageHours,
     roleMatch,
     seniorityMatch,
+    locationMatch,
   };
 }

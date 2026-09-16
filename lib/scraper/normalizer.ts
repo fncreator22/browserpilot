@@ -84,7 +84,23 @@ export function normalizeLocation(location?: string | null): string {
     .replace(/\s+/g, " ")
     .trim();
 
-  if (/\b(remote|work from home|wfh|anywhere|telecommute)\b/i.test(clean)) {
+  if (/^(remote|work from home|wfh|anywhere|telecommute)(\s*(only|role|job|work|position))?$/i.test(clean)) {
+    return "Remote";
+  }
+
+  if (/\b(remote|work from home|wfh|telecommute)\b/i.test(clean)) {
+    const strippedCity = clean
+      .replace(/\b(remote|work from home|wfh|telecommute)\b/gi, "")
+      .replace(/^[,|\-–—/\\:\s]+/, "")
+      .replace(/^(in|at|for)\s+/i, "")
+      .replace(/[,|\-–—/\\:\s]+$/, "")
+      .trim();
+    if (
+      strippedCity.length >= 3 &&
+      !/^(in|at|for|all|any|india|us|usa|united states|uk|united kingdom|global|worldwide|nationwide|countrywide)$/i.test(strippedCity)
+    ) {
+      return `${strippedCity} (Remote)`;
+    }
     return "Remote";
   }
 

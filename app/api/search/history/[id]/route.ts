@@ -37,6 +37,22 @@ export async function GET(
       );
     }
 
+    function safeParseList(raw: unknown): string[] {
+      if (Array.isArray(raw)) return raw.filter((s): s is string => typeof s === "string");
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed.filter((s): s is string => typeof s === "string");
+          if (typeof parsed === "string" && parsed.trim().length > 0) return [parsed.trim()];
+        } catch {
+          if (raw.trim().length > 0) {
+            return raw.split(",").map((s) => s.trim()).filter(Boolean);
+          }
+        }
+      }
+      return [];
+    }
+
     // Format results with user's current saved bookmark status
     const results = await Promise.all(
       search.results.map(async (sr) => {
@@ -63,8 +79,8 @@ export async function GET(
           salaryMax: opp.salaryMax,
           salaryCurrency: opp.salaryCurrency,
           description: opp.description,
-          requirements: opp.requirements ? (typeof opp.requirements === "string" ? JSON.parse(opp.requirements) : opp.requirements) : [],
-          skills: opp.skills ? (typeof opp.skills === "string" ? JSON.parse(opp.skills) : opp.skills) : [],
+          requirements: safeParseList(opp.requirements),
+          skills: safeParseList(opp.skills),
           primaryApplyUrl: opp.primaryApplyUrl,
           status: opp.status,
           firstSeenAt: opp.firstSeenAt,
@@ -87,21 +103,7 @@ export async function GET(
       })
     );
 
-    function parseStoredSkills(raw: unknown): string[] {
-      if (Array.isArray(raw)) return raw.filter((s): s is string => typeof s === "string");
-      if (typeof raw === "string") {
-        try {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) return parsed.filter((s): s is string => typeof s === "string");
-          if (typeof parsed === "string" && parsed.trim().length > 0) return [parsed.trim()];
-        } catch {
-          if (raw.trim().length > 0) return [raw.trim()];
-        }
-      }
-      return [];
-    }
-
-    const parsedSkills = parseStoredSkills(search.parsedSkills);
+    const parsedSkills = safeParseList(search.parsedSkills);
     const canonicalIntent = {
       role: search.parsedRole || undefined,
       roles: search.parsedRole ? [search.parsedRole] : [],

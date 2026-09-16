@@ -31,7 +31,7 @@ export function isOpportunityDiscoveryIntent(rawPrompt?: string | null): boolean
 
   // 2. Clear Job, Career & Opportunity Keywords
   const hasJobKeywords =
-    /\b(jobs?|internships?|interns?|co-?op|coops?|openings?|hiring|vacanc(?:y|ies)|careers?|positions?|roles?|opportunities|job-search|job search|employment|entry-level|fresher|freshers|reposted|reposts?|job postings?)\b/i.test(lower);
+    /\b(jobs?|internships?|interns?|co-?op|coops?|openings?|hiring|vacanc(?:y|ies)|careers?|positions?|roles?|opportunities|fellowships?|fellows?|gigs?|freelance|contract(?:s)?|apprenticeship(?:s)?|job-search|job search|employment|entry-level|fresher|freshers|reposted|reposts?|job postings?)\b/i.test(lower);
 
   // 3. Job Monitoring / Watch Phrases
   const hasWatchJobKeywords =
@@ -98,6 +98,7 @@ export const KNOWN_SKILL_DEFINITIONS: KnownSkillDefinition[] = [
   { canonicalName: "flutter", regex: /\b(flutter|dart)\b/i },
   { canonicalName: "swift", regex: /\b(swift|ios)\b/i },
   { canonicalName: "kotlin", regex: /\b(kotlin|android)\b/i },
+  { canonicalName: "robotics", regex: /\b(robotics|ros|ros2|mechatronics)\b/i },
 ];
 
 export interface KnownCompanyDefinition {
@@ -136,6 +137,11 @@ export const KNOWN_COMPANY_DEFINITIONS: KnownCompanyDefinition[] = [
   { canonicalName: "GitLab", regex: /\b(gitlab)\b/i },
   { canonicalName: "Figma", regex: /\b(figma)\b/i },
   { canonicalName: "Y Combinator", regex: /\b(y\s*combinator|yc|workatastartup)\b/i },
+  { canonicalName: "Tesla", regex: /\b(tesla)\b/i },
+  { canonicalName: "SpaceX", regex: /\b(spacex)\b/i },
+  { canonicalName: "Rivian", regex: /\b(rivian)\b/i },
+  { canonicalName: "BBC", regex: /\b(bbc)\b/i },
+  { canonicalName: "Reuters", regex: /\b(reuters)\b/i },
 ];
 
 export interface KnownLocationDefinition {
@@ -243,6 +249,13 @@ export const KNOWN_LOCATION_DEFINITIONS: KnownLocationDefinition[] = [
   { canonicalName: "Ireland", isCity: false, regex: /\b(ireland)\b/i },
   { canonicalName: "Switzerland", isCity: false, regex: /\b(switzerland)\b/i },
   { canonicalName: "Australia", isCity: false, regex: /\b(australia)\b/i },
+  { canonicalName: "Europe", isCity: false, regex: /\b(europe|european\s*union|eu)\b/i },
+  { canonicalName: "Africa", isCity: false, regex: /\b(africa)\b/i },
+  { canonicalName: "Southeast Asia", isCity: false, regex: /\b(southeast\s*asia|se\s*asia|asean)\b/i },
+  { canonicalName: "Midwest", isCity: false, regex: /\b(midwest|midwestern(?:\s*us)?)\b/i },
+  { canonicalName: "Dubai", isCity: true, regex: /\b(dubai|uae|united\s*arab\s*emirates)\b/i },
+  { canonicalName: "Chicago", isCity: true, regex: /\b(chicago)\b/i },
+  { canonicalName: "Texas", isCity: false, regex: /\b(texas|tx)\b/i },
 ];
 
 export interface KnownRoleDefinition {
@@ -252,6 +265,16 @@ export interface KnownRoleDefinition {
 }
 
 export const KNOWN_ROLE_DEFINITIONS: KnownRoleDefinition[] = [
+  {
+    canonicalName: "Founding Engineer",
+    regex: /\b(founding\s*engineer|founding\s*developer|founding\s*member)\b/i,
+    related: ["Staff Software Engineer", "Lead Engineer", "Principal Engineer"],
+  },
+  {
+    canonicalName: "Robotics Engineer",
+    regex: /\b(robotics\s*(?:engineer(?:ing)?)?|roboticist|automation\s*robotics|ros|mechatronics)\b/i,
+    related: ["Robotics Software Engineer", "Mechatronics Engineer", "Autonomous Systems Engineer"],
+  },
   {
     canonicalName: "AI Engineer",
     regex: /\b(ai|artificial intelligence|machine learning|ml|deep learning|llm|nlp|genai)\b/i,
@@ -299,7 +322,7 @@ export const KNOWN_ROLE_DEFINITIONS: KnownRoleDefinition[] = [
   },
   {
     canonicalName: "Product Manager",
-    regex: /\b(product manager|pm|associate product manager|apm)\b/i,
+    regex: /\b(product\s*manag(?:er|ement)|pm|associate\s*product\s*manager|apm)\b/i,
     related: ["APM Intern", "Technical Product Manager", "Product Specialist"],
   },
   {
@@ -309,7 +332,7 @@ export const KNOWN_ROLE_DEFINITIONS: KnownRoleDefinition[] = [
   },
   {
     canonicalName: "Mechanical Engineer",
-    regex: /\b(mechanical\s*(?:engineering|engineer)?|mech\s*eng|cad\s*designer|solidworks|hvac\s*engineer)\b/i,
+    regex: /\b(m[ea]chanical\s*(?:engineering|engineer)?|mech\s*eng|cad\s*designer|solidworks|hvac\s*engineer)\b/i,
     related: ["Mechanical Design Engineer", "CAD Engineer", "HVAC Engineer", "Thermal Engineer"],
   },
   {
@@ -329,7 +352,7 @@ export const KNOWN_ROLE_DEFINITIONS: KnownRoleDefinition[] = [
   },
   {
     canonicalName: "Designer",
-    regex: /\b(ui\/ux|ux\s*designer|ui\s*designer|product\s*designer|graphic\s*designer)\b/i,
+    regex: /\b(ui\/ux|ux\s*design(?:er)?|ui\s*design(?:er)?|product\s*design(?:er)?|graphic\s*design(?:er)?)\b/i,
     related: ["UI Designer", "UX Designer", "Product Designer", "Graphic Designer"],
   },
   {
@@ -344,7 +367,7 @@ export const KNOWN_ROLE_DEFINITIONS: KnownRoleDefinition[] = [
   },
   {
     canonicalName: "Financial Analyst",
-    regex: /\b(financial\s*analyst|accountant|accounting|auditor|finance\s*manager|investment\s*banking)\b/i,
+    regex: /\b(financial\s*analyst|accountant|accounting|auditor|finance\s*manager|investment\s*banking|finance)\b/i,
     related: ["Accountant", "Finance Manager", "Auditor", "Investment Banking Analyst"],
   },
   {
@@ -357,6 +380,70 @@ export const KNOWN_ROLE_DEFINITIONS: KnownRoleDefinition[] = [
     regex: /\b(nurse|nursing|doctor|physician|pharmacist|medical\s*officer|clinical\s*researcher)\b/i,
     related: ["Nurse", "Registered Nurse", "Clinical Pharmacist", "Medical Doctor"],
   },
+  {
+    canonicalName: "Cybersecurity Engineer",
+    regex: /\b(cybersecurity|cyber\s*security|infosec|information\s*security|security\s*engineer|soc\s*analyst|penetration\s*tester)\b/i,
+    related: ["Security Engineer", "Information Security Analyst", "Cybersecurity Specialist"],
+  },
+  {
+    canonicalName: "Customer Support Specialist",
+    regex: /\b(customer\s*support|customer\s*service|client\s*support|support\s*specialist|customer\s*success)\b/i,
+    related: ["Customer Support Representative", "Customer Success Manager", "Client Services Associate"],
+  },
+  {
+    canonicalName: "Public Health Researcher",
+    regex: /\b(public\s*health|epidemiolog(?:y|ist)|health\s*policy|global\s*health)\b/i,
+    related: ["Public Health Analyst", "Epidemiologist", "Health Policy Fellow"],
+  },
+  {
+    canonicalName: "Journalist",
+    regex: /\b(journalis(?:m|t)|reporter|news\s*writer|investigative\s*reporter|editor)\b/i,
+    related: ["Staff Writer", "News Reporter", "Journalism Intern", "Editorial Assistant"],
+  },
+  {
+    canonicalName: "Teaching Fellow",
+    regex: /\b(teach(?:ing|er)?|instructor|lecturer|educator|faculty|professorship)\b/i,
+    related: ["Teaching Fellow", "Lecturer", "Instructor", "Education Specialist"],
+  },
+  {
+    canonicalName: "Legal Specialist",
+    regex: /\b(legal|law\s*firm|lawyer|attorney|paralegal|counsel|corporate\s*counsel)\b/i,
+    related: ["Legal Intern", "Paralegal", "Associate Counsel", "Law Clerk"],
+  },
+  {
+    canonicalName: "Climate Policy Analyst",
+    regex: /\b(climate\s*policy|environmental\s*policy|sustainability\s*specialist|climate\s*fellow(?:ship)?|esg\s*analyst)\b/i,
+    related: ["Climate Policy Fellow", "Sustainability Consultant", "Environmental Researcher"],
+  },
+  {
+    canonicalName: "Agricultural Scientist",
+    regex: /\b(agricultural\s*science|agronom(?:y|ist)|agritech|agriculture\s*specialist)\b/i,
+    related: ["Agronomist", "Agricultural Researcher", "Crop Scientist"],
+  },
+  {
+    canonicalName: "Physics Researcher",
+    regex: /\b(physic(?:s|ist)|theoretical\s*physic(?:s|ist)|condensed\s*matter|quantum\s*physic(?:s|ist))\b/i,
+    related: ["Research Fellow", "Postdoctoral Researcher", "Physics Fellow"],
+  },
+  {
+    canonicalName: "Hospitality Manager",
+    regex: /\b(hospitality|hotel\s*management|hotel\s*manager|resort\s*manager|guest\s*relations)\b/i,
+    related: ["Hotel General Manager", "Hospitality Operations Specialist", "Front Desk Manager"],
+  },
+];
+
+export const KNOWN_CURRENCY_CODES = new Set([
+  "usd", "eur", "gbp", "inr", "cad", "aud", "jpy", "chf", "sgd", "hkd", "nzd", "sek", "nok", "cny", "brl", "mxn",
+  "dollars", "dollar", "euros", "euro", "pounds", "pound", "rupees", "rupee", "rs", "lpa", "ctc", "k", "stipend"
+]);
+
+export const CONVERSATIONAL_PREAMBLES = [
+  /^i\s+(?:need|want|would\s+like)\s+to\s+(?:know|find|see|check|discover|get|search|look)\s+(?:what|which|if\s+there\s+are|about)?\s*/i,
+  /^(?:can|could|would)\s+you\s+(?:please\s+)?(?:tell|show|find|give|get|help)\s+(?:me\s+)?(?:what|which|about)?\s*/i,
+  /^(?:please\s+)?(?:tell|show|give|find|get)\s+me\s+(?:what|which|about)?\s*/i,
+  /^what\s+(?:are\s+the\s+)?(?:companies|startups|employers|places)\s+(?:that\s+are\s+|which\s+are\s+|are\s+)?/i,
+  /^(?:who\s+is|who's)\s+hiring\s+(?:for|in)?\s*/i,
+  /^(?:tell\s+me\s+about|looking\s+to\s+(?:know|find)|search\s+for|find\s+me)\s*/i,
 ];
 
 /**
@@ -366,6 +453,36 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   const cleanQuery = (rawQuery || "").trim();
   const lower = cleanQuery.toLowerCase();
   let workingQuery = cleanQuery;
+
+  // 0. Conversational Preamble & Inquiry Stripping
+  for (const preamble of CONVERSATIONAL_PREAMBLES) {
+    if (preamble.test(workingQuery)) {
+      workingQuery = workingQuery.replace(preamble, " ").trim();
+      break;
+    }
+  }
+
+  // Common Typo Normalization
+  workingQuery = workingQuery
+    .replace(/\bmachanic(?:al)?\b/gi, "mechanical")
+    .replace(/\bmecanic(?:al)?\b/gi, "mechanical")
+    .replace(/\benginer(?:ing)?\b/gi, "engineering")
+    .replace(/\benginering\b/gi, "engineering")
+    .replace(/\bsoftare\b/gi, "software")
+    .replace(/\bdevelopr\b/gi, "developer")
+    .replace(/\banalist\b/gi, "analyst")
+    .replace(/\binternhip\b/gi, "internship")
+    .replace(/\bintership\b/gi, "internship");
+
+  // Strip remuneration clauses early so "paying in USD" does not append "paying" to roles
+  workingQuery = workingQuery.replace(/\b(?:paying|paid|salary|salaries|compensation|comp|stipend|package)\s+(?:in|of|around|at)\s+[A-Za-z0-9$€£₹]+\b/gi, " ");
+  workingQuery = workingQuery.replace(/\b(?:in|of)\s+(?:usd|eur|gbp|inr|cad|aud|dollars?|euros?|pounds?|rupees?|lpa|ctc)\b/gi, " ");
+
+  // Strip conversational inquiry connectors (e.g. "what companies in India are working on robotics and hiring right now")
+  workingQuery = workingQuery.replace(/\b(?:what\s+)?companies\s+(?:in|at|near|around)\s+/gi, "in ");
+  workingQuery = workingQuery.replace(/\b(?:are\s+)?working\s+on\b/gi, " ");
+  workingQuery = workingQuery.replace(/\b(?:and\s+)?hiring(?:\s+right\s+now|\s+now)?\b/gi, " ");
+  workingQuery = workingQuery.replace(/\bright\s+now\b/gi, " ");
 
   // 1. Evidence Verification & Requested Evidence Requirements
   const requiresEvidenceVerification = /\b(verified|visual\s*(?:page\s*)?snapshots?|snapshots?|direct\s*application\s*links?)\b/i.test(lower);
@@ -407,13 +524,32 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   let dateConstraint: any = undefined;
   let sortMode: "LATEST" | "RELEVANCE_THEN_FRESHNESS" = "RELEVANCE_THEN_FRESHNESS";
 
-  // Check months (e.g. "last 2 months", "past 3 months", "2 months ago", "within 2 months")
-  const explicitMonthsMatch = workingQuery.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+|in\s+|within\s+|past\s+|last\s+)?(\d{1,2})\s*(?:months?|mo)\b/i) ||
+  // Check months (e.g. "last 2 months", "past 3 months", "2 months ago", "within 2 months", "this month", "more than a month ago")
+  const moreThanMonthMatch = workingQuery.match(/\b(?:posted\s+)?(?:more\s+than\s+(?:a|\d+)\s+months?\s+ago)\b/i);
+  if (moreThanMonthMatch) {
+    postedWithinDays = 60;
+    freshnessWindowHours = 60 * 24;
+    isExplicitFreshness = true;
+    sortMode = "RELEVANCE_THEN_FRESHNESS";
+    dateConstraint = {
+      type: "RELATIVE",
+      amount: 30,
+      unit: "MONTH",
+      cutoffDate: new Date(Date.now() - 30 * 24 * 3600 * 1000),
+      rawText: moreThanMonthMatch[0],
+    };
+    workingQuery = workingQuery.replace(moreThanMonthMatch[0], " ");
+  }
+
+  const explicitMonthsMatch = !moreThanMonthMatch && (
+    workingQuery.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+|in\s+|within\s+|past\s+|last\s+)?(\d{1,2})\s*(?:months?|mo)\b/i) ||
     workingQuery.match(/\b(\d{1,2})\s*(?:months?|mo)\s*ago\b/i) ||
-    workingQuery.match(/\b(?:two|past\s+two|last\s+two)\s+months\b/i);
+    workingQuery.match(/\b(?:two|past\s+two|last\s+two)\s+months\b/i) ||
+    workingQuery.match(/\b(?:posted\s+)?this\s+month\b/i)
+  );
 
   if (explicitMonthsMatch) {
-    const num = explicitMonthsMatch[1] ? parseInt(explicitMonthsMatch[1], 10) : 2;
+    const num = explicitMonthsMatch[1] ? parseInt(explicitMonthsMatch[1], 10) : 1;
     postedWithinDays = num * 30;
     freshnessWindowHours = num * 30 * 24;
     isExplicitFreshness = true;
@@ -600,30 +736,53 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
 
   // 6. Experience Level & Opportunity Type
   const isInternshipMentioned = /\b(intern|interns|internship|internships|trainee|trainees|co-op|coop|student|summer intern)\b/i.test(lower);
+  const isFellowshipMentioned = /\b(fellowship|fellowships|fellow|fellows)\b/i.test(lower);
+  const isContractMentioned = /\b(contract|contracts|contractor|freelance|freelancer|gigs?)\b/i.test(lower);
+  const isPartTimeMentioned = /\b(part-time|part time)\b/i.test(lower);
+  const isFullTimeMentioned = /\b(full-time|full time)\b/i.test(lower);
   const isEntryLevelMentioned = /\b(entry-level|entry level|entry|junior|jr|fresh|freshers?|graduates?|grads?|associate|new grad)\b/i.test(lower);
   const isSeniorMentioned = /\b(senior|sr|lead|principal|staff|director|architect|vp|mid-level|experienced)\b/i.test(lower);
 
   const matchedOppTypes: string[] = [];
   const matchedExpLevels: string[] = [];
 
+  if (isFellowshipMentioned) {
+    matchedOppTypes.push("FELLOWSHIP");
+  }
+  if (isContractMentioned) {
+    matchedOppTypes.push("CONTRACT");
+  }
+  if (isInternshipMentioned) {
+    matchedOppTypes.push("INTERNSHIP");
+  }
+  if (isPartTimeMentioned) {
+    matchedOppTypes.push("PART_TIME");
+  }
+  if (isFullTimeMentioned || matchedOppTypes.length === 0 || (isInternshipMentioned && isEntryLevelMentioned)) {
+    matchedOppTypes.push("FULL_TIME");
+  }
+
   if (isInternshipMentioned && isEntryLevelMentioned) {
-    matchedOppTypes.push("INTERNSHIP", "FULL_TIME");
     matchedExpLevels.push("INTERN", "ENTRY_LEVEL");
   } else if (isInternshipMentioned) {
-    matchedOppTypes.push("INTERNSHIP");
     matchedExpLevels.push("INTERN");
   } else if (isEntryLevelMentioned) {
-    matchedOppTypes.push("FULL_TIME");
     matchedExpLevels.push("ENTRY_LEVEL");
   } else if (isSeniorMentioned) {
-    matchedOppTypes.push("FULL_TIME");
     matchedExpLevels.push("MID", "SENIOR");
   } else {
-    matchedOppTypes.push("FULL_TIME", "INTERNSHIP");
     matchedExpLevels.push("ANY");
   }
 
-  const primaryOpportunityType = isInternshipMentioned ? "INTERNSHIP" : (matchedOppTypes[0] || "FULL_TIME");
+  const primaryOpportunityType = isFellowshipMentioned
+    ? "FELLOWSHIP"
+    : isContractMentioned
+    ? "CONTRACT"
+    : isInternshipMentioned
+    ? "INTERNSHIP"
+    : isPartTimeMentioned
+    ? "PART_TIME"
+    : (matchedOppTypes[0] || "FULL_TIME");
   const primaryExperienceLevel = isInternshipMentioned ? "INTERN" : isEntryLevelMentioned ? "ENTRY_LEVEL" : isSeniorMentioned ? "SENIOR" : "ANY";
 
   // Target Graduation Year
@@ -667,22 +826,53 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   if (matchedLocations.length === 0) {
     // Strip temporal phrases starting with in/within/past/last so "in last 3 days" is never misidentified as a location
     const temporalCleaned = workingQuery
-      .replace(/\b(?:in|at|within|past|last|for)\s+(?:the\s+)?(?:\d{1,2}\s+)?(?:days?|hours?|hrs?|d|h|weeks?|w|months?|mo|few\s+days|today|yesterday)\b/gi, " ")
-      .replace(/\b(?:in|within)\s+(?:recent|new|latest)\b/gi, " ");
+      .replace(/\b(?:in|at|within|past|last|for)\s+(?:the\s+)?(?:last\s+|past\s+)?(?:\d{1,2}\s+)?(?:days?|hours?|hrs?|d|h|weeks?|w|months?|mo|few\s+days|today|yesterday)\b/gi, " ")
+      .replace(/\b(?:in|within)\s+(?:recent|new|latest)\b/gi, " ")
+      .replace(/\b(?:on|across)\s+(?:any|all|every|multiple)?\s*(?:platforms?|job\s*boards?|sites?|portals?|web)\b/gi, " ")
+      .replace(/\b(?:paying|paid|salary|salaries|compensation|comp|stipend|package)\s+(?:in|of|around|at)\s+[A-Za-z0-9$€£₹]+\b/gi, " ")
+      .replace(/\b(?:in|of)\s+(?:usd|eur|gbp|inr|cad|aud|dollars?|euros?|pounds?|rupees?|lpa|ctc)\b/gi, " ");
 
     const locMatch = temporalCleaned.match(
       /\b(?:in|at|near|around)\s+([A-Za-z\s,.-]+?)(?=\s+(?:jobs?|roles?|positions?|openings?|internships?|remote|hybrid|last|past|within|companies?|startups?|accelerators?|enterprises?|firms?|studios?|with|using|having|where|posted)|$)/i
     );
     if (locMatch && locMatch[1]) {
-      const candLoc = locMatch[1].trim();
+      let candLoc = locMatch[1].trim();
+      candLoc = candLoc.replace(/[.,;]+$/g, "").trim();
+      candLoc = candLoc.replace(/\s+(that\s*(?:were|are|was)|posted|funded\s*by|within|more\s*than|last|past|on\s+any|across).*$/i, "").trim();
+      candLoc = candLoc.replace(/^[.,;]+|[.,;]+$/g, "").trim();
+
+      const isWorldwideOrAnywhere =
+        /^(the\s+)?(world|globe|nation|country|market|industry)$/i.test(candLoc) ||
+        /^(anywhere|worldwide|global|globally|abroad)$/i.test(candLoc);
+
+      if (isWorldwideOrAnywhere && !matchedModes.includes("REMOTE")) {
+        matchedModes.push("REMOTE");
+      }
+
+      const isCurrency =
+        KNOWN_CURRENCY_CODES.has(candLoc.toLowerCase()) ||
+        /^(usd|eur|gbp|inr|cad|aud|dollars?|euros?|pounds?|rupees?|lpa|ctc|cash|equity|hourly|stipend)$/i.test(candLoc);
+
+      const isRoleOrCompanyDescriptor =
+        /\b(news\s*outlets?|mid-sized|non-profit|ngos?|universities|law\s*firms?|startups?|companies?|firms?|management|engineering|policy|science|research|fellowships?)\b/i.test(candLoc) ||
+        KNOWN_ROLE_DEFINITIONS.some((r) => r.regex.test(candLoc));
+
+      const isPlatformDescriptor =
+        /\b(platforms?|job\s*boards?|sites?|websites?|portals?|web|internet)\b/i.test(candLoc);
+
       const isBlacklisted =
+        isCurrency ||
+        isRoleOrCompanyDescriptor ||
+        isPlatformDescriptor ||
+        isWorldwideOrAnywhere ||
         /^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|mechanical|software|civil|electrical|chemical|process|nurse|financial|marketing|data|frontend|backend|fullstack|engineering|developer|intern|internship|entry|senior|junior|y\s*combinator|yc|techstars|startups?|companies?|firms?|enterprises?|faang|big\s*tech|fortune\s*500)$/i.test(candLoc) ||
-        /\b(with|using|having|where|startup|startups|company|companies|accelerator|accelerators|y\s*combinator|yc)\b/i.test(candLoc) ||
+        /\b(with|using|having|where|startup|startups|company|companies|accelerator|accelerators|y\s*combinator|yc|on\s+any|any\s+platform)\b/i.test(candLoc) ||
         KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(candLoc)) ||
         KNOWN_COMPANY_DEFINITIONS.some((c) => c.regex.test(candLoc)) ||
-        candLoc.length > 40;
+        candLoc.length > 40 ||
+        candLoc.length <= 2;
 
-      if (candLoc.length >= 2 && !isBlacklisted) {
+      if (candLoc.length >= 3 && !isBlacklisted) {
         const canonicalLoc = candLoc.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
         matchedLocations.push(canonicalLoc);
         workingQuery = workingQuery.replace(locMatch[0], " ");
@@ -720,7 +910,18 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   );
   if (explicitRoleClauseMatch && explicitRoleClauseMatch[1]) {
     const rawCand = explicitRoleClauseMatch[1].trim();
-    if (rawCand.length >= 3 && !/^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|fresh|remote|hybrid|the\s+memory|memory|saved\s+role|my\s+saved\s+role|memory\s+vault|profile)$/i.test(rawCand)) {
+    const isCohortOrGrad =
+      /\b(202[0-9]|203[0-9])\s*(?:graduates?|grads?|students?|cohort|batch|passouts?)\b/i.test(rawCand) ||
+      /^(?:graduates?|grads?|students?|freshers?|interns?|anybody|everyone)$/i.test(rawCand);
+    const isLocationOrModifier =
+      /\b(rural\s*areas?|urban\s*areas?|metro\s*areas?|remote|hybrid|on-site|posted|recent|abroad|worldwide|europe|africa|asia|america|startups?|companies?)\b/i.test(rawCand) ||
+      KNOWN_LOCATION_DEFINITIONS.some((l) => l.regex.test(rawCand));
+    if (
+      rawCand.length >= 3 &&
+      !isCohortOrGrad &&
+      !isLocationOrModifier &&
+      !/^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|fresh|remote|hybrid|posted|the\s+memory|memory|saved\s+role|my\s+saved\s+role|memory\s+vault|profile)$/i.test(rawCand)
+    ) {
       const matchedKnownDef = KNOWN_ROLE_DEFINITIONS.find((def) => def.regex.test(rawCand));
       if (matchedKnownDef) {
         specificExtractedRole = matchedKnownDef.canonicalName;
@@ -770,12 +971,16 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   if (!specificExtractedRole && matchedRoles.length === 0) {
     const cleanRemainder = workingQuery
       .replace(/\b(search|find|give\s+me|show\s+me|get\s+me|find\s+me|tell\s+me|me|us|i\s*am\s*an?|i\s*am\s*a|i\s*am|i'?m\s*an?|i'?m\s*a|i'?m|am\s*an?|am\s*a|am|my|we|looking\s+for|look\s+for|i\s*m\s+looking\s+for|some|any|all|verified|positions?|jobs?|roles?|openings?|internships?|opportunities|listings?|extract|with|and|or|visual|snapshots?|page|direct|application|links?|core|technical|qualifications?|salary|compensation|locations?|company|names?|titles?|for|\d+)\b/gi, " ")
+      .replace(/\b(need|want|know|what|which|who|where|when|why|how|companies|company|are|is|were|was|be|been|being|working|works|work|hiring|hires|hire|right\s+now|right|now|currently|presently|available|urgent|urgently|active|actively)\b/gi, " ")
+      .replace(/\b(paying|paid|salary|salaries|compensation|comp|stipend|package|usd|eur|gbp|inr|dollars?|euros?|rupees?|lpa|ctc)\b/gi, " ")
       .replace(/\b(in|at|around|near|on|from|to|into|across|an?|the|posted|budget|percent|percentage|tokens?|usage|credits?|days?|weeks?|months?|hours?|ago|recently|recent|latest|new|fresh)\b/gi, " ")
+      .replace(/[.,?;:!]/g, " ")
+      .replace(/\b(more\s+than|less\s+than|funded\s+by|no\s+preference|no\s+location\s+preference|no\s+specific\s+location|at\s+law\s+firms?|at\s+universities|at\s+major\s+news\s+outlets|at\s+startups?|at\s+mid-sized\s+companies|funded\s+by\s+ngos?|this|that|which|there|are|any|next\s+year|last|past|within|abroad|worldwide|globally|around\s+the\s+world|anywhere)\b/gi, " ")
       .replace(/[%$#@!*&^~]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
 
-    if (cleanRemainder.length >= 3 && !/^(the|any|all|some|good|top|best|entry\s*level|junior|senior)$/i.test(cleanRemainder)) {
+    if (cleanRemainder.length >= 3 && !/^(the|any|all|some|good|top|best|entry\s*level|junior|senior|posted|recent)$/i.test(cleanRemainder)) {
       let normRemainder = cleanRemainder;
       if (/engineering$/i.test(normRemainder)) {
         normRemainder = normRemainder.replace(/engineering$/i, "Engineer");
@@ -812,25 +1017,40 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
 
   // 10. Target Companies Extraction
   const matchedCompanies: string[] = [];
+
+  // Helper to check if a name was mentioned in a platform source clause e.g. "search on Y Combinator and GitHub"
+  const isPlatformSourceMention = (compName: string) => {
+    const esc = compName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\b(?:search\\s+)?(?:across|on|in|via)\\s+(?:[a-z0-9\\s,&-]*?)?\\b${esc}\\b`, "i").test(cleanQuery);
+  };
+
   for (const compDef of KNOWN_COMPANY_DEFINITIONS) {
     if (compDef.regex.test(lower)) {
-      if (!matchedCompanies.includes(compDef.canonicalName)) {
+      if (!matchedCompanies.includes(compDef.canonicalName) && !isPlatformSourceMention(compDef.canonicalName)) {
         matchedCompanies.push(compDef.canonicalName);
       }
     }
   }
 
   if (matchedCompanies.length === 0) {
-    const compMatch = cleanQuery.match(
+    // Strip "companies in/at/near/around <Location>" to prevent "in" from being extracted as a company
+    const companyCleaned = cleanQuery.replace(/\bcompanies\s+(?:in|at|around|near)\s+/gi, " ");
+    const compMatch = companyCleaned.match(
       /\b(?:from|at|by|company|companies|watch|watching|track|tracking|monitor|monitoring)\s+([A-Za-z0-9&.-]+(?:\s+[A-Za-z0-9&.-]+)?)(?:\s+(?:for|in|roles?|jobs?|internships?|with|where|seeking|and|from|posted|last|past|within|today|yesterday|this)|$)/i
     );
     if (compMatch && compMatch[1]) {
-      const candidateComp = compMatch[1].trim();
+      let candidateComp = compMatch[1].trim();
+      candidateComp = candidateComp.replace(/[.,;]+$/g, "").trim();
+      const isStopWord = /^(in|at|on|for|from|with|by|to|into|across|an?|the|and|or|of|is|are|were|was|be|that|which|what|who|where|working|hiring|urgent|now|right|usd|eur|gbp|inr)$/i.test(candidateComp);
+      const isGenericCategory =
+        /\b(startups?|law\s*firms?|universit(?:y|ies)|news\s*outlets?|ngos?|non-profits?|foundations?|institutes?|schools?|colleges?|agencies?|studios?|consultanc(?:y|ies)|companies?|enterprises?)\b/i.test(candidateComp);
       const isGeneric =
+        isStopWord ||
+        isGenericCategory ||
         /^(the|any|all|remote|hybrid|on-site|an?|india|hyderabad|bengaluru|pune|mumbai|delhi|tripura|agartala|usa|uk|software|developer|engineer|intern|internship|startups?|enterprises?|faang|big\s*tech|companies?|jobs?|internships?|roles?|positions?|openings?|freshers?|graduates?|students?|\d{4})$/i.test(candidateComp) ||
-        /\b(with|using|having|where|for)\b/i.test(candidateComp) ||
+        /\b(with|using|having|where|for|only)\b/i.test(candidateComp) ||
         KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(candidateComp));
-      if (candidateComp.length >= 2 && !isGeneric && !matchedCompanies.includes(candidateComp)) {
+      if (candidateComp.length >= 2 && !isGeneric && !matchedCompanies.includes(candidateComp) && !isPlatformSourceMention(candidateComp)) {
         matchedCompanies.push(candidateComp);
       }
     }
@@ -908,18 +1128,18 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   // Build canonical SearchIntent
   const intent: SearchIntent = {
     role: filterOverrides?.role || primaryRole,
-    roles: filterOverrides?.roles || matchedRoles,
-    skills: filterOverrides?.skills || (matchedSkills.length > 0 ? matchedSkills : undefined),
+    roles: filterOverrides?.roles || (matchedRoles.length > 0 ? matchedRoles : primaryRole ? [primaryRole] : []),
+    skills: filterOverrides?.skills || (matchedSkills.length > 0 ? matchedSkills : []),
     location: filterOverrides?.location || primaryLocation,
-    locations: filterOverrides?.locations || (matchedLocations.length > 0 ? matchedLocations : undefined),
+    locations: filterOverrides?.locations || (matchedLocations.length > 0 ? matchedLocations : primaryLocation ? [primaryLocation] : []),
     company: filterOverrides?.company || primaryCompany,
-    companies: filterOverrides?.companies || (matchedCompanies.length > 0 ? matchedCompanies : undefined),
+    companies: filterOverrides?.companies || (matchedCompanies.length > 0 ? matchedCompanies : primaryCompany ? [primaryCompany] : []),
     workMode: filterOverrides?.workMode || primaryWorkMode,
-    workModes: filterOverrides?.workModes || matchedModes,
+    workModes: filterOverrides?.workModes || (matchedModes.length > 0 ? matchedModes : [primaryWorkMode]),
     experienceLevel: filterOverrides?.experienceLevel || primaryExperienceLevel,
-    experienceLevels: filterOverrides?.experienceLevels || matchedExpLevels,
+    experienceLevels: filterOverrides?.experienceLevels || (matchedExpLevels.length > 0 ? matchedExpLevels : [primaryExperienceLevel]),
     opportunityType: filterOverrides?.opportunityType || primaryOpportunityType,
-    opportunityTypes: filterOverrides?.opportunityTypes || matchedOppTypes,
+    opportunityTypes: filterOverrides?.opportunityTypes || (matchedOppTypes.length > 0 ? matchedOppTypes : [primaryOpportunityType]),
     targetGradYear: filterOverrides?.targetGradYear || targetGradYear,
     companyType: filterOverrides?.companyType || companyType,
     queryHint: cleanQuery || filterOverrides?.queryHint || primaryRole,
@@ -931,11 +1151,11 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     isExplicitFreshness: filterOverrides?.isExplicitFreshness !== undefined ? filterOverrides.isExplicitFreshness : isExplicitFreshness,
     isExplicitLocation: filterOverrides?.isExplicitLocation !== undefined ? filterOverrides.isExplicitLocation : hasExplicitLocation,
     minimumMatchScore: filterOverrides?.minimumMatchScore || minimumMatchScore,
-    sources: filterOverrides?.sources || finalSources,
+    sources: filterOverrides?.sources || finalSources || [],
     excludeKnown: filterOverrides?.excludeKnown !== undefined ? filterOverrides.excludeKnown : excludeKnown,
     watchIntent: filterOverrides?.watchIntent || watchIntent,
     requiresEvidenceVerification: filterOverrides?.requiresEvidenceVerification !== undefined ? filterOverrides.requiresEvidenceVerification : requiresEvidenceVerification,
-    requestedEvidence: filterOverrides?.requestedEvidence || (requestedEvidence.length > 0 ? requestedEvidence : undefined),
+    requestedEvidence: filterOverrides?.requestedEvidence || (requestedEvidence.length > 0 ? requestedEvidence : []),
   };
 
   return intent;
@@ -1216,17 +1436,21 @@ Rules:
 
         const isInvalidLocation = (loc?: string) => {
           if (!loc) return true;
-          return /^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|y\s*combinator|yc|techstars|startups?|companies?|firms?|enterprises?)$/i.test(loc.trim()) ||
-            /\b(with|using|having|where)\b/i.test(loc) ||
-            KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(loc)) ||
-            KNOWN_COMPANY_DEFINITIONS.some((c) => c.regex.test(loc));
+          const trimmed = loc.trim();
+          return /^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|y\s*combinator|yc|techstars|startups?|companies?|firms?|enterprises?)$/i.test(trimmed) ||
+            /\b(with|using|having|where)\b/i.test(trimmed) ||
+            KNOWN_CURRENCY_CODES.has(trimmed.toLowerCase()) ||
+            /^(usd|eur|gbp|inr|cad|aud|dollars?|euros?|pounds?|rupees?|lpa|ctc|cash|equity|hourly|stipend)$/i.test(trimmed) ||
+            KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(trimmed)) ||
+            KNOWN_COMPANY_DEFINITIONS.some((c) => c.regex.test(trimmed));
         };
 
         const isInvalidCompany = (comp?: string) => {
           if (!comp) return true;
-          return /^(the|any|all|remote|hybrid|on-site|an?|software|developer|engineer|startups?|companies?)$/i.test(comp.trim()) ||
-            /\b(with|using|having|where)\b/i.test(comp) ||
-            KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(comp));
+          const trimmed = comp.trim();
+          return /^(the|any|all|remote|hybrid|on-site|an?|software|developer|engineer|startups?|companies?|in|at|on|for|from|with|by|to|into|across|and|or|of|is|are|were|was|be|that|which|what|who|where|working|hiring|urgent|now|right|usd|eur|gbp|inr)$/i.test(trimmed) ||
+            /\b(with|using|having|where)\b/i.test(trimmed) ||
+            KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(trimmed));
         };
 
         let resolvedLocation = parsed.location || (!isInvalidLocation(baseIntent.location) ? baseIntent.location : undefined);
@@ -1343,17 +1567,21 @@ If days/freshness is specified (e.g. "last 4 days"), set postedWithinDays: 4, fr
 
         const isInvalidLocation = (loc?: string) => {
           if (!loc) return true;
-          return /^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|y\s*combinator|yc|techstars|startups?|companies?|firms?|enterprises?)$/i.test(loc.trim()) ||
-            /\b(with|using|having|where)\b/i.test(loc) ||
-            KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(loc)) ||
-            KNOWN_COMPANY_DEFINITIONS.some((c) => c.regex.test(loc));
+          const trimmed = loc.trim();
+          return /^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|y\s*combinator|yc|techstars|startups?|companies?|firms?|enterprises?)$/i.test(trimmed) ||
+            /\b(with|using|having|where)\b/i.test(trimmed) ||
+            KNOWN_CURRENCY_CODES.has(trimmed.toLowerCase()) ||
+            /^(usd|eur|gbp|inr|cad|aud|dollars?|euros?|pounds?|rupees?|lpa|ctc|cash|equity|hourly|stipend)$/i.test(trimmed) ||
+            KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(trimmed)) ||
+            KNOWN_COMPANY_DEFINITIONS.some((c) => c.regex.test(trimmed));
         };
 
         const isInvalidCompany = (comp?: string) => {
           if (!comp) return true;
-          return /^(the|any|all|remote|hybrid|on-site|an?|software|developer|engineer|startups?|companies?)$/i.test(comp.trim()) ||
-            /\b(with|using|having|where)\b/i.test(comp) ||
-            KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(comp));
+          const trimmed = comp.trim();
+          return /^(the|any|all|remote|hybrid|on-site|an?|software|developer|engineer|startups?|companies?|in|at|on|for|from|with|by|to|into|across|and|or|of|is|are|were|was|be|that|which|what|who|where|working|hiring|urgent|now|right|usd|eur|gbp|inr)$/i.test(trimmed) ||
+            /\b(with|using|having|where)\b/i.test(trimmed) ||
+            KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(trimmed));
         };
 
         let resolvedLocation = parsed.location || (!isInvalidLocation(baseIntent.location) ? baseIntent.location : undefined);

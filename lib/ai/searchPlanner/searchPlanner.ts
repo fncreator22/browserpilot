@@ -14,9 +14,11 @@ import {
 import { validateSearchActionPlan, type PlanValidationResult } from "./searchPlanValidator";
 import { type BrainContext } from "@/lib/ai/brain/brainTypes";
 import { type SearchIntent } from "@/lib/scraper/providers/baseProvider";
+import { parseSearchIntent } from "@/lib/scraper/intentParser";
 import { getEffectiveGeminiApiKey, resolveGeminiApiKey, detectOptimalGeminiModel, DEFAULT_GEMINI_MODEL } from "@/lib/ai/modelSelector";
 import { recordAIUsageEvent } from "@/lib/ai/governance/providerGovernance";
 import { callPuterChatCompletion } from "@/lib/ai/puterClient";
+import { callDeepSeekChatCompletion, resolveDeepSeekApiKey } from "@/lib/ai/deepseek";
 
 export interface SearchPlannerOptions {
   userId?: string | null;
@@ -46,31 +48,72 @@ export class SearchPlanner {
    * Generates a validated SearchActionPlan from user query, intent, and BrainContext.
    */
   public async planSearch(
-    rawQuery: string,
-    canonicalIntent: SearchIntent,
-    brainContext: BrainContext,
+    rawQuery: string | { rawQuery?: string; query?: string; intent?: SearchIntent; brainContext?: BrainContext; options?: SearchPlannerOptions },
+    canonicalIntent?: SearchIntent,
+    brainContext?: BrainContext,
     options: SearchPlannerOptions = {}
   ): Promise<SearchPlannerResult> {
+    let resolvedRawQuery = "";
+    let resolvedOptions = options;
+
+    if (typeof rawQuery === "object" && rawQuery !== null) {
+      resolvedRawQuery = rawQuery.rawQuery || rawQuery.query || "";
+      resolvedOptions = { ...rawQuery.options, ...options };
+    } else {
+      resolvedRawQuery = rawQuery || "";
+    }
+
+    const rawQueryObj = typeof rawQuery === "object" && rawQuery !== null ? rawQuery : null;
+    const resolvedIntent: SearchIntent = canonicalIntent || rawQueryObj?.intent || parseSearchIntent(resolvedRawQuery);
+    const defaultBrainContext: BrainContext = {
+      query: resolvedRawQuery,
+      userId: resolvedOptions.userId || null,
+      userContext: [],
+      platformContext: [],
+      searchContext: [],
+      companyContext: [],
+      roleSemantics: undefined,
+      recommendations: [],
+      queryReformulations: [],
+      budgetMetrics: {
+        totalItemsRetrieved: 0,
+        itemsIncluded: 0,
+        itemsFiltered: 0,
+        estimatedTokens: 0,
+        budgetLimit: 4000,
+      },
+      generatedAt: new Date(),
+    };
+    const resolvedBrainContext: BrainContext = brainContext || rawQueryObj?.brainContext || defaultBrainContext;
+
     const startTime = Date.now();
-    const effectiveKey = await resolveGeminiApiKey(options.apiKeyOverride, options.userId);
-    let effectivePuterToken = options.puterTokenOverride;
-    if (!effectivePuterToken && options.userId && typeof window === "undefined") {
+    const effectiveKey = await resolveGeminiApiKey(resolvedOptions.apiKeyOverride, resolvedOptions.userId);
+    let effectiveDeepSeekKey: string | null = null;
+    if (typeof window === "undefined") {
       try {
-        const { getUserPuterToken } = await import("@/lib/ai/governance/providerGovernance");
-        effectivePuterToken = (await getUserPuterToken(options.userId)) || undefined;
+        effectiveDeepSeekKey = await resolveDeepSeekApiKey(resolvedOptions.apiKeyOverride, resolvedOptions.userId);
       } catch {}
     }
+    let effectivePuterToken = resolvedOptions.puterTokenOverride;
+    if (!effectivePuterToken && resolvedOptions.userId && typeof window === "undefined") {
+      try {
+        const { getUserPuterToken } = await import("@/lib/ai/governance/providerGovernance");
+        effectivePuterToken = (await getUserPuterToken(resolvedOptions.userId)) || undefined;
+      } catch {}
+    }
+    const hasDeepSeekKey = !!effectiveDeepSeekKey;
     const hasPuterToken = !!effectivePuterToken;
+    const hasAnyModel = !!effectiveKey || hasDeepSeekKey || hasPuterToken;
     const planId = `plan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
     let aiConfigurationStatus: SearchPlannerResult["aiConfigurationStatus"] =
-      effectiveKey || hasPuterToken ? "CONFIGURED" : "MODEL_CONFIGURATION_REQUIRED";
+      hasAnyModel ? "CONFIGURED" : "MODEL_CONFIGURATION_REQUIRED";
     let aiConfigurationMessage =
-      effectiveKey || hasPuterToken
-        ? `AI model configuration active (${effectiveKey ? "Google Gemini" : "Puter AI"}).`
+      hasAnyModel
+        ? `AI model configuration active (${effectiveKey ? "Google Gemini" : hasDeepSeekKey ? "DeepSeek AI" : "Puter AI"}).`
         : "AI search planning is unavailable because the required model configuration is missing. Search will proceed using the deterministic engine.";
 
-    if (options.requireAiPlanning && !effectiveKey && !hasPuterToken) {
+    if (resolvedOptions.requireAiPlanning && !hasAnyModel) {
       const err = new Error("MODEL_CONFIGURATION_REQUIRED: AI search planning is unavailable because the required model configuration is missing.");
       (err as any).category = "MODEL_CONFIGURATION_REQUIRED";
       throw err;
@@ -78,21 +121,21 @@ export class SearchPlanner {
 
     // Build Constraints from Canonical Intent
     const constraints: PlanConstraints = {
-      roles: canonicalIntent.roles || (canonicalIntent.role ? [canonicalIntent.role] : []),
-      locations: canonicalIntent.locations || (canonicalIntent.location ? [canonicalIntent.location] : []),
-      workModes: canonicalIntent.workModes || (canonicalIntent.workMode ? [canonicalIntent.workMode] : []),
-      postedWithinDays: canonicalIntent.postedWithinDays,
-      freshnessWindowHours: canonicalIntent.freshnessWindowHours,
-      requestedCount: canonicalIntent.requestedCount || 10,
-      targetCompanies: canonicalIntent.companies || (canonicalIntent.company ? [canonicalIntent.company] : []),
-      isExplicitFreshness: canonicalIntent.isExplicitFreshness,
+      roles: resolvedIntent.roles || (resolvedIntent.role ? [resolvedIntent.role] : []),
+      locations: resolvedIntent.locations || (resolvedIntent.location ? [resolvedIntent.location] : []),
+      workModes: resolvedIntent.workModes || (resolvedIntent.workMode ? [resolvedIntent.workMode] : []),
+      postedWithinDays: resolvedIntent.postedWithinDays,
+      freshnessWindowHours: resolvedIntent.freshnessWindowHours,
+      requestedCount: resolvedIntent.requestedCount || 10,
+      targetCompanies: resolvedIntent.companies || (resolvedIntent.company ? [resolvedIntent.company] : []),
+      isExplicitFreshness: resolvedIntent.isExplicitFreshness,
     };
 
     let generatedPlan: SearchActionPlan | null = null;
     let modelTelemetry: SearchPlannerResult["modelTelemetry"] = undefined;
 
     // Check cancellation signal before model planning
-    if (options.signal?.aborted) {
+    if (resolvedOptions.signal?.aborted) {
       const abortErr = new Error("Search planning cancelled by user.");
       abortErr.name = "AbortError";
       throw abortErr;
@@ -105,13 +148,13 @@ export class SearchPlanner {
         const modelName = await detectOptimalGeminiModel(effectiveKey);
         const tModelStart = Date.now();
 
-        const prompt = `User Query: "${rawQuery}"
+        const prompt = `User Query: "${resolvedRawQuery}"
 Canonical Constraints: ${JSON.stringify(constraints)}
 Brain Context:
-- Target Companies: ${brainContext.companyContext.map((c) => c.item.companyName).join(", ") || "None"}
-- Role Semantics: ${brainContext.roleSemantics?.normalizedRole || "None"} (Synonyms: ${brainContext.roleSemantics?.semanticSynonyms.slice(0, 3).join(", ") || "None"})
-- User Preferences: ${brainContext.userContext.map((u) => `${u.item.category}: ${u.item.value}`).join("; ") || "None"}
-- Platform Knowledge: ${brainContext.platformContext.map((p) => p.item.memoryId).join(", ") || "None"}
+- Target Companies: ${resolvedBrainContext.companyContext?.map((c) => c.item.companyName).join(", ") || "None"}
+- Role Semantics: ${resolvedBrainContext.roleSemantics?.normalizedRole || "None"} (Synonyms: ${resolvedBrainContext.roleSemantics?.semanticSynonyms?.slice(0, 3).join(", ") || "None"})
+- User Preferences: ${resolvedBrainContext.userContext?.map((u) => `${u.item.category}: ${u.item.value}`).join("; ") || "None"}
+- Platform Knowledge: ${resolvedBrainContext.platformContext?.map((p) => p.item.memoryId).join(", ") || "None"}
 
 Generate an optimal search plan using available capabilities:
 - discovery.search_pipeline
@@ -226,16 +269,112 @@ Return JSON adhering to SearchActionPlan schema.`;
       }
     }
 
-    // 2. Puter-Based Planning (if user connected Puter and Gemini was not used or failed)
-    if (!generatedPlan && effectivePuterToken && !process.env.IS_TEST_HARNESS) {
+    // 2. DeepSeek-Based Planning (if user connected DEEPSEEK_BYOK or has active Puter session)
+    if (!generatedPlan && (effectiveDeepSeekKey || effectivePuterToken) && !process.env.IS_TEST_HARNESS) {
       try {
-        const prompt = `User Query: "${rawQuery}"
+        const prompt = `User Query: "${resolvedRawQuery}"
 Canonical Constraints: ${JSON.stringify(constraints)}
 Brain Context:
-- Target Companies: ${brainContext.companyContext.map((c) => c.item.companyName).join(", ") || "None"}
-- Role Semantics: ${brainContext.roleSemantics?.normalizedRole || "None"} (Synonyms: ${brainContext.roleSemantics?.semanticSynonyms.slice(0, 3).join(", ") || "None"})
-- User Preferences: ${brainContext.userContext.map((u) => `${u.item.category}: ${u.item.value}`).join("; ") || "None"}
-- Platform Knowledge: ${brainContext.platformContext.map((p) => p.item.memoryId).join(", ") || "None"}
+- Target Companies: ${resolvedBrainContext.companyContext?.map((c) => c.item.companyName).join(", ") || "None"}
+- Role Semantics: ${resolvedBrainContext.roleSemantics?.normalizedRole || "None"} (Synonyms: ${resolvedBrainContext.roleSemantics?.semanticSynonyms?.slice(0, 3).join(", ") || "None"})
+- User Preferences: ${resolvedBrainContext.userContext?.map((u) => `${u.item.category}: ${u.item.value}`).join("; ") || "None"}
+- Platform Knowledge: ${resolvedBrainContext.platformContext?.map((p) => p.item.memoryId).join(", ") || "None"}
+
+Generate an optimal search plan using available capabilities:
+- discovery.search_pipeline
+- source.search
+- company.lookup
+- company.ats
+- company.careers
+- browser.authenticated_search
+- evidence.verify_url
+- evidence.verify_metadata
+
+Return strictly valid JSON adhering to SearchActionPlan schema.`;
+
+        const dsRes = await callDeepSeekChatCompletion({
+          apiKey: effectiveDeepSeekKey,
+          puterToken: effectivePuterToken,
+          userId: resolvedOptions.userId || undefined,
+          operation: "ACTION_PLANNING",
+          model: "deepseek-chat",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are BrowserPilot's DeepSeek search planner. Generate strictly valid JSON for a SearchActionPlan matching the user request with fields: query, constraints, actions (array of objects with actionId, capability, parameters, rationale, dependencyIds: string[]).",
+            },
+            { role: "user", content: prompt },
+          ],
+        });
+
+        const rawText = dsRes.content;
+        const cleanJson = rawText.replace(/```json|```/gi, "").trim();
+        const parsed = JSON.parse(cleanJson);
+
+        const rawActions = Array.isArray(parsed.actions) ? parsed.actions : [];
+        const normalizedActions = rawActions.map((a: any, idx: number) => ({
+          actionId: a.actionId || `act_${idx + 1}`,
+          capabilityId: a.capabilityId || a.capability || "discovery.search_pipeline",
+          priority: typeof a.priority === "number" ? Math.min(Math.max(a.priority, 1), 10) : 1,
+          input: a.input || a.parameters || {},
+          purpose: a.purpose || a.rationale || "Discover matching opportunities",
+          expectedEvidence: a.expectedEvidence || "Job vacancy postings and direct application URLs",
+          maxResults: typeof a.maxResults === "number" ? a.maxResults : 10,
+          timeoutMs: typeof a.timeoutMs === "number" ? a.timeoutMs : 15000,
+          dependencyIds: Array.isArray(a.dependencyIds) ? a.dependencyIds : [],
+        }));
+
+        if (normalizedActions.length === 0) {
+          normalizedActions.push({
+            actionId: "act_1",
+            capabilityId: "discovery.search_pipeline",
+            priority: 1,
+            input: { query: resolvedRawQuery, targetRoles: constraints.roles, targetLocations: constraints.locations },
+            purpose: "Execute unified search pipeline",
+            expectedEvidence: "Verified job vacancies",
+            maxResults: 10,
+            timeoutMs: 15000,
+            dependencyIds: [],
+          });
+        }
+
+        generatedPlan = {
+          ...parsed,
+          planId,
+          query: resolvedRawQuery,
+          actions: normalizedActions,
+          constraints: parsed.constraints || constraints,
+          stoppingCriteria: parsed.stoppingCriteria || { maxResults: 10, stopOnTargetCount: true, maxPlanningRounds: 2 },
+          confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.9,
+          reasoningSummary: (parsed.reasoningSummary || parsed.reasoning || "Generated dynamic DeepSeek search plan").slice(0, 500),
+          createdAt: new Date(),
+        };
+
+        modelTelemetry = {
+          provider: "DeepSeek AI",
+          modelName: "deepseek-chat",
+          durationMs: dsRes.durationMs,
+          tokensUsed: dsRes.totalTokens,
+        };
+      } catch (err) {
+        if (resolvedOptions.signal?.aborted) {
+          throw err;
+        }
+        console.warn("[SearchPlanner] DeepSeek model planning failed, attempting next available planner:", err);
+      }
+    }
+
+    // 3. Puter-Based Planning (if user connected Puter and Gemini/DeepSeek was not used or failed)
+    if (!generatedPlan && effectivePuterToken && !process.env.IS_TEST_HARNESS) {
+      try {
+        const prompt = `User Query: "${resolvedRawQuery}"
+Canonical Constraints: ${JSON.stringify(constraints)}
+Brain Context:
+- Target Companies: ${resolvedBrainContext.companyContext?.map((c) => c.item.companyName).join(", ") || "None"}
+- Role Semantics: ${resolvedBrainContext.roleSemantics?.normalizedRole || "None"} (Synonyms: ${resolvedBrainContext.roleSemantics?.semanticSynonyms?.slice(0, 3).join(", ") || "None"})
+- User Preferences: ${resolvedBrainContext.userContext?.map((u) => `${u.item.category}: ${u.item.value}`).join("; ") || "None"}
+- Platform Knowledge: ${resolvedBrainContext.platformContext?.map((p) => p.item.memoryId).join(", ") || "None"}
 
 Generate an optimal search plan using available capabilities:
 - discovery.search_pipeline
@@ -251,7 +390,7 @@ Return strictly valid JSON adhering to SearchActionPlan schema.`;
 
         const puterRes = await callPuterChatCompletion({
           token: effectivePuterToken,
-          userId: options.userId || undefined,
+          userId: resolvedOptions.userId || undefined,
           operation: "ACTION_PLANNING",
           messages: [
             {
@@ -285,7 +424,7 @@ Return strictly valid JSON adhering to SearchActionPlan schema.`;
             actionId: "act_1",
             capabilityId: "discovery.search_pipeline",
             priority: 1,
-            input: { query: rawQuery, targetRoles: constraints.roles, targetLocations: constraints.locations },
+            input: { query: resolvedRawQuery, targetRoles: constraints.roles, targetLocations: constraints.locations },
             purpose: "Execute unified search pipeline",
             expectedEvidence: "Verified job vacancies",
             maxResults: 10,
@@ -297,7 +436,7 @@ Return strictly valid JSON adhering to SearchActionPlan schema.`;
         generatedPlan = {
           ...parsed,
           planId,
-          query: rawQuery,
+          query: resolvedRawQuery,
           actions: normalizedActions,
           constraints: parsed.constraints || constraints,
           stoppingCriteria: parsed.stoppingCriteria || { maxResults: 10, stopOnTargetCount: true, maxPlanningRounds: 2 },
@@ -313,7 +452,7 @@ Return strictly valid JSON adhering to SearchActionPlan schema.`;
           tokensUsed: puterRes.totalTokens,
         };
       } catch (err) {
-        if (options.signal?.aborted) {
+        if (resolvedOptions.signal?.aborted) {
           throw err;
         }
         console.warn("[SearchPlanner] Puter AI planning failed or quota exhausted, falling back to deterministic planning:", err);
@@ -322,7 +461,7 @@ Return strictly valid JSON adhering to SearchActionPlan schema.`;
 
     // 3. Deterministic Strategy Synthesis (Autonomous Fallback)
     if (!generatedPlan) {
-      generatedPlan = this.synthesizeDeterministicPlan(planId, rawQuery, constraints, brainContext);
+      generatedPlan = this.synthesizeDeterministicPlan(planId, resolvedRawQuery, constraints, resolvedBrainContext);
       modelTelemetry = {
         provider: "Deterministic Intelligence Engine",
         modelName: "browserpilot-rule-planner-v1",
@@ -331,10 +470,10 @@ Return strictly valid JSON adhering to SearchActionPlan schema.`;
     }
 
     // 3. Deterministic Plan Validation & Constraint Normalization
-    const validation = validateSearchActionPlan(generatedPlan, canonicalIntent, {
-      userId: options.userId,
-      allowedDomains: options.allowedDomains,
-      maxActionsBudget: options.maxActionsBudget || 10,
+    const validation = validateSearchActionPlan(generatedPlan, resolvedIntent, {
+      userId: resolvedOptions.userId,
+      allowedDomains: resolvedOptions.allowedDomains,
+      maxActionsBudget: resolvedOptions.maxActionsBudget || 10,
     });
 
     return {
@@ -362,7 +501,7 @@ Return strictly valid JSON adhering to SearchActionPlan schema.`;
 
     if (isCompanySpecific) {
       const company = constraints.targetCompanies![0];
-      const compInfo = brainContext.companyContext.find(
+      const compInfo = brainContext.companyContext?.find(
         (c) => c.item.companyName.toLowerCase() === company.toLowerCase()
       );
 

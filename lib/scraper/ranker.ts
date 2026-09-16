@@ -12,6 +12,7 @@
 import { type SearchIntent } from "./providers/baseProvider";
 import { type DeduplicatedOpportunity } from "./deduplicator";
 import { normalizeJobTitle } from "./normalizer";
+import { KNOWN_GEO_REGIONS, resolveLocationGeo } from "./searchQualityGate";
 
 export interface ScoreBreakdown {
   role: number;
@@ -259,8 +260,36 @@ export function determineMatchBadge(
   // Check if location was specified and differs
   let hasLocationMismatch = false;
   if (targetLocation && targetLocation !== "remote" && targetLocation !== "anywhere") {
-    if (!oppLocation.includes(targetLocation) && !targetLocation.includes(oppLocation)) {
-      hasLocationMismatch = true;
+    const isPureRemoteOpp = oppLocation === "remote" || oppLocation === "anywhere" || oppLocation === "worldwide" || oppLocation === "";
+    if (isPureRemoteOpp && ((intent.workMode || "").toUpperCase() === "REMOTE" || (intent.workMode || "ANY").toUpperCase() === "ANY")) {
+      hasLocationMismatch = false;
+    } else {
+      let isSameLocationOrHub = false;
+      if (oppLocation.includes(targetLocation) || targetLocation.includes(oppLocation)) {
+        isSameLocationOrHub = true;
+      } else {
+        const targetGeo = resolveLocationGeo(targetLocation);
+        const oppGeo = resolveLocationGeo(oppLocation);
+
+        if (targetGeo.city && oppGeo.city && targetGeo.city.toLowerCase() === oppGeo.city.toLowerCase()) {
+          isSameLocationOrHub = true;
+        } else {
+          const targetDef = KNOWN_GEO_REGIONS[targetLocation] || Object.values(KNOWN_GEO_REGIONS).find((g) =>
+            g.synonyms.some((s) => s.toLowerCase() === targetLocation || targetLocation.includes(s))
+          );
+          if (targetDef) {
+            const matches = targetDef.synonyms.some((syn) => {
+              if (syn.length <= 3) return new RegExp(`\\b${syn}\\b`, "i").test(oppLocation);
+              return oppLocation.includes(syn);
+            });
+            if (matches) isSameLocationOrHub = true;
+          }
+        }
+      }
+
+      if (!isSameLocationOrHub) {
+        hasLocationMismatch = true;
+      }
     }
   }
 
@@ -321,9 +350,15 @@ export function rankOpportunities(
     const freshness = calculateFreshnessScore(opp);
     const verification = calculateVerificationScore(opp, options.sourceQualityBoosts);
 
-    const totalScore = Math.min(100, Math.max(0, role + skills + workMode + freshness + verification));
+    const rawTotalScore = Math.min(100, Math.max(0, role + skills + workMode + freshness + verification));
     const breakdown = { role, skills, workMode, freshness, verification };
-    const badgeInfo = determineMatchBadge(opp, intent, breakdown, totalScore);
+    const badgeInfo = determineMatchBadge(opp, intent, breakdown, rawTotalScore);
+
+    // Apply location mismatch penalty so out-of-city recommendations never outrank true local matches
+    let totalScore = rawTotalScore;
+    if (badgeInfo.type === "RECOMMENDED_LOCATION") {
+      totalScore = Math.max(30, rawTotalScore - 20);
+    }
 
     return {
       opportunity: opp,

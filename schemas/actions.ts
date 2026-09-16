@@ -9,7 +9,12 @@ import { z } from "zod";
 export const NavigateActionSchema = z.object({
   tool: z.literal("browser.navigate"),
   parameters: z.object({
-    url: z.string().url("A valid HTTP or HTTPS URL is required"),
+    url: z
+      .string()
+      .url("A valid HTTP or HTTPS URL is required")
+      .refine((u) => /^https?:\/\//i.test(u), {
+        message: "Only HTTP and HTTPS protocols are allowed",
+      }),
     waitUntil: z.enum(["load", "domcontentloaded", "networkidle", "commit"]).optional().default("domcontentloaded"),
     timeout: z.number().int().positive().max(60000).optional().default(30000),
   }),
