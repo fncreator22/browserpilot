@@ -63,6 +63,7 @@ public/graph/
 
 # local scratch / one-off diagnostic scripts
 scratch/
+.scratch/
 out.log
 err.log
 

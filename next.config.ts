@@ -51,6 +51,7 @@ const privateApiHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   async headers() {
     return [
       {

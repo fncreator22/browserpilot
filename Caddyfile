@@ -1,0 +1,38 @@
+# ==============================================================================
+# §BROWSERPILOT PRODUCTION CADDY CONFIGURATION
+# ==============================================================================
+# Automatic TLS/SSL reverse proxy terminating on port 80 & 443
+# Proxies to Next.js standalone application container on app:3000
+# Disables buffering for real-time Server-Sent Events (SSE) and WebSockets.
+
+{$DOMAIN:localhost} {
+    # Modern compression for text, html, and json payloads
+    encode zstd gzip
+
+    # Production security headers
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # Reverse proxy configuration for Next.js application & streaming SSE endpoints
+    reverse_proxy app:3000 {
+        # Strict constraint: Disable buffering for SSE and live job event bus streams
+        header_up X-Accel-Buffering no
+
+        # Pass canonical client identity headers
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+
+        # Force immediate stream flushing for zero-latency agent output
+        flush_interval -1
+
+        # Strip internal server fingerprint
+        header_down -Server
+    }
+}
