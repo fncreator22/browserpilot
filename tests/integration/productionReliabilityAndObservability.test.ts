@@ -53,6 +53,13 @@ export async function runProductionReliabilityAndObservabilityTests() {
   const userAlice = "usr_rel_alice";
   const userBob = "usr_rel_bob";
 
+  await prisma.searchResult.deleteMany({
+    where: { search: { userId: { in: [userAlice, userBob] } } },
+  }).catch(() => {});
+  await prisma.search.deleteMany({
+    where: { userId: { in: [userAlice, userBob] } },
+  }).catch(() => {});
+
   await prisma.user.upsert({
     where: { id: userAlice },
     update: {},
@@ -510,6 +517,30 @@ export async function runProductionReliabilityAndObservabilityTests() {
   // TEST 21: CONCURRENT SEARCH TENANT ISOLATION STRESS TEST
   // ---------------------------------------------------------------------------
   console.log("▶ [TEST 21] Running 10 Concurrent Searches across Tenants...");
+  const enterprisePlan = await prisma.plan.findFirst({ where: { code: "ENTERPRISE" } });
+  if (enterprisePlan) {
+    for (const u of [userAlice, userBob]) {
+      const existingSub = await prisma.subscription.findFirst({ where: { userId: u } });
+      if (existingSub) {
+        await prisma.subscription.update({
+          where: { id: existingSub.id },
+          data: { planId: enterprisePlan.id, status: "ACTIVE" },
+        });
+      } else {
+        await prisma.subscription.create({
+          data: {
+            userId: u,
+            planId: enterprisePlan.id,
+            status: "ACTIVE",
+            billingInterval: "MONTHLY",
+            currentPeriodStart: new Date(),
+            currentPeriodEnd: new Date(Date.now() + 30 * 86400 * 1000),
+          },
+        });
+      }
+    }
+  }
+
   const concurrentPromises = Array.from({ length: 10 }, (_, idx) => {
     const uid = idx % 2 === 0 ? userAlice : userBob;
     const reqConc = new NextRequest("http://localhost:3000/api/search", {

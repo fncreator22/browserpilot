@@ -10,6 +10,7 @@ import {
   upsertOpportunity
 } from "@/lib/db/opportunities";
 import { prisma } from "@/lib/db/prisma";
+import { type SearchProvider } from "@/lib/scraper/providers/baseProvider";
 
 export async function runSearchIntegrationTests(): Promise<void> {
   console.log("▶ [INTEGRATION] Running Production Search & Opportunity Integration Tests (TASK-005)...");
@@ -54,11 +55,32 @@ export async function runSearchIntegrationTests(): Promise<void> {
     },
   });
 
+  const mockIntegrationProvider: SearchProvider = {
+    name: "MockStartupAIProvider",
+    supports: () => true,
+    harvestCandidates: async () => [
+      {
+        sourcePlatform: "MockStartupAIProvider",
+        sourceUrl: "https://startup.ai/jobs/intern-ai-2026",
+        applyUrl: "https://startup.ai/jobs/intern-ai-2026/apply",
+        title: "AI Engineer Intern (2026)",
+        companyName: "Nexus AI Lab",
+        location: "India",
+        workMode: "REMOTE",
+        opportunityType: "INTERNSHIP",
+        description: "AI engineer internship for 2026 graduates developing frontier LLM tooling and autonomous multi-agent pipelines.",
+        rawSnippet: "Remote internship in India for 2026 graduates with AI and machine learning skills.",
+        discoveredAt: new Date(),
+      },
+    ],
+  };
+
   const pipelineResult = await executeSearchPipeline(intent, {
     userId: testUser.id,
     rawQuery: query,
     persistToDb: true,
     maxResults: 3,
+    customProviders: [mockIntegrationProvider],
   });
 
   assert.ok(pipelineResult.rankedOpportunities.length > 0, "Must return ranked opportunities");

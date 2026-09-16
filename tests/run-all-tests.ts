@@ -22,9 +22,11 @@ import { runOpportunityDbIntegrationTests } from "./integration/opportunityDb.te
 import { runDeduplicationUnitTests } from "./unit/deduplication.test";
 import { runRankerUnitTests } from "./unit/ranker.test";
 import { runNaturalLanguageIntentTests } from "./unit/naturalLanguageIntent.test";
+import { runLocationQualityGateTests } from "./unit/locationQualityGate.test";
 import { runUnifiedNaturalLanguageRoutingTests } from "./unit/unifiedNaturalLanguageRouting.test";
 import { runOutboundEmailDeliveryTests } from "./unit/outboundEmailDelivery.test";
 import { runSearchIntegrationTests } from "./integration/searchIntegration.test";
+import { runDiscoveryLifecycleBenchmark } from "./integration/discoveryLifecycleBenchmark.test";
 import { runEvidenceVerifierUnitTests } from "./unit/evidenceVerifier.test";
 import { runEvidenceVerificationIntegrationTests } from "./integration/evidenceVerification.test";
 import { runOpportunityDetailIntegrationTests } from "./integration/opportunityDetail.test";
@@ -71,6 +73,7 @@ import { runNaturalLanguageWorkflowAcceptanceTest } from "./integration/naturalL
 import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJobMonitoringSimulation.test";
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
 import { runAdminUserTokenVisibilityTests } from "./integration/adminUserTokenVisibility.test";
+import { runAdminSwarmAndEnrichmentTests } from "./unit/adminSwarmAndEnrichment.test";
 
 async function runMasterTestSuite() {
   console.log("=================================================");
@@ -92,12 +95,14 @@ async function runMasterTestSuite() {
     { name: "Unit: Fast-Calculated Time Budget (Prompt C2)", fn: runTimeBudgetUnitTests },
     { name: "Unit: Normalization & 3-Tier Deduplication (TASK-004)", fn: runDeduplicationUnitTests },
     { name: "Unit: 100-Point Student Relevance Ranker (TASK-004)", fn: runRankerUnitTests },
+    { name: "Unit: Location Quality Gate & Cross-Border Gating", fn: runLocationQualityGateTests },
     { name: "Unit: Natural-Language Intent Interpretation (TASK-018)", fn: runNaturalLanguageIntentTests },
     { name: "Unit: Unified Natural-Language Routing (TASK-019)", fn: runUnifiedNaturalLanguageRoutingTests },
     { name: "Unit: Outbound LifecycleAlert Email Delivery (TASK-020)", fn: runOutboundEmailDeliveryTests },
     { name: "Unit: Evidence Verifier & Content Validation (TASK-006)", fn: runEvidenceVerifierUnitTests },
     { name: "Integration: Opportunity Database & Domain Schema (TASK-001 & 002)", fn: runOpportunityDbIntegrationTests },
     { name: "Integration: Production Search & Opportunity Integration (TASK-005)", fn: runSearchIntegrationTests },
+    { name: "Integration: Discovery Lifecycle & Cross-Border Benchmark", fn: runDiscoveryLifecycleBenchmark },
     { name: "Integration: Playwright Evidence Verification & Proofs (TASK-006)", fn: runEvidenceVerificationIntegrationTests },
     { name: "Integration: Opportunity Detail & Evidence Workspace (TASK-007)", fn: runOpportunityDetailIntegrationTests },
     { name: "Integration: Search History & Re-runable Sessions (TASK-008)", fn: runSearchHistoryIntegrationTests },
@@ -149,6 +154,7 @@ async function runMasterTestSuite() {
     { name: "Integration: Time Budget Watchdog & Timeout (Prompt C2)", fn: runTimeBudgetWatchdogIntegrationTest },
     { name: "Integration: Immediate Real Failure Propagation (Prompt C3)", fn: runImmediateFailurePropagationTest },
     { name: "Integration: Real Job Cancellation & Orphan Checks (Prompt C4)", fn: runJobCancellationIntegrationTest },
+    { name: "Unit: Admin Swarms, HR Enrichment, Plugins & Multi-Gateway Payments", fn: runAdminSwarmAndEnrichmentTests },
     { name: "E2E: Full Autonomous Agent Pipeline", fn: runEndToEndPipelineTest },
   ];
 

@@ -38,6 +38,14 @@ export async function runSearchResultsExperienceTests() {
   await ensureDatabaseSchema();
 
   const testUserId = "usr_task055_test";
+
+  await prisma.searchResult.deleteMany({
+    where: { search: { userId: testUserId } },
+  }).catch(() => {});
+  await prisma.search.deleteMany({
+    where: { userId: testUserId },
+  }).catch(() => {});
+
   await prisma.user.upsert({
     where: { id: testUserId },
     update: {},

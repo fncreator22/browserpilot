@@ -46,6 +46,13 @@ export async function runUserMemoryAndPersonalizationTests() {
   const userA = "usr_task056_alice";
   const userB = "usr_task056_bob";
 
+  await prisma.searchResult.deleteMany({
+    where: { search: { userId: { in: [userA, userB] } } },
+  }).catch(() => {});
+  await prisma.search.deleteMany({
+    where: { userId: { in: [userA, userB] } },
+  }).catch(() => {});
+
   await prisma.user.upsert({
     where: { id: userA },
     update: {},

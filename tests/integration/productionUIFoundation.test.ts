@@ -36,6 +36,13 @@ export async function runProductionUIFoundationTests() {
   await ensureDatabaseSchema();
 
   const testUserId = "usr_ui_foundation_test";
+  await prisma.searchResult.deleteMany({
+    where: { search: { userId: testUserId } },
+  }).catch(() => {});
+  await prisma.search.deleteMany({
+    where: { userId: testUserId },
+  }).catch(() => {});
+
   await prisma.user.upsert({
     where: { id: testUserId },
     update: {},
