@@ -14,6 +14,7 @@ import {
   isSafePublicUrl,
 } from "./baseProvider";
 import { connectorUsageService } from "@/lib/discovery/connectors/connectorUsageService";
+import { searchAtsDirectory, resolveAtsCompany } from "./atsCompanyDirectory";
 
 export interface AtsCompanyTarget {
   name: string;
@@ -80,8 +81,8 @@ function stripHtml(html: string): string {
 
 function deduceExperienceLevel(title: string): string {
   const lower = title.toLowerCase();
-  if (/\b(intern|internship|trainee|co-op)\b/i.test(lower)) return "INTERN";
-  if (/\b(entry|junior|jr|graduate|grad|associate|new grad)\b/i.test(lower)) return "ENTRY_LEVEL";
+  if (/\b(intern|internship|trainee|co-op|fellow|fellowship|scholar|apprentice|resident)\b/i.test(lower)) return "INTERN";
+  if (/\b(entry|junior|jr|graduate|grad|associate|new grad|early career)\b/i.test(lower)) return "ENTRY_LEVEL";
   if (/\b(senior|sr|lead|principal|staff|director|head|vp)\b/i.test(lower)) return "SENIOR";
   return "MID";
 }
@@ -128,13 +129,7 @@ export class AtsProvider implements SearchProvider {
           hasAccelerator = true;
           companiesToQuery.push(...YC_ATS_COMPANIES);
         } else {
-          const slug = compName.toLowerCase().replace(/[^a-z0-9]/g, "");
-          companiesToQuery.push({
-            name: compName,
-            greenhouseSlug: slug,
-            leverSlug: slug,
-            ashbySlug: slug,
-          });
+          companiesToQuery.push(resolveAtsCompany(compName));
         }
       }
       if (hasAccelerator && companiesToQuery.length === 0) {
@@ -171,6 +166,19 @@ export class AtsProvider implements SearchProvider {
       } catch (err) {
         console.warn("[AtsProvider] Dynamic candidate discovery failed, falling back to curated list:", err);
       }
+
+      // Supplement with directory targets matching search intent domain
+      const directoryMatches = searchAtsDirectory({
+        query: intent.role || intent.queryHint,
+        remoteOnly: intent.workMode === "REMOTE",
+        limit: 20,
+      });
+      for (const match of directoryMatches) {
+        if (!companiesToQuery.some((c) => c.name.toLowerCase() === match.name.toLowerCase())) {
+          companiesToQuery.push(match);
+        }
+      }
+
       if (companiesToQuery.length === 0 && harvestPromises.length === 0) {
         companiesToQuery.push(...DEFAULT_ATS_COMPANIES);
       }
@@ -202,9 +210,60 @@ export class AtsProvider implements SearchProvider {
       }
     }
 
+    // Module 4.A: Asynchronously stream all harvested opportunities into the Global Job Marketplace
+    if (allCandidates.length > 0) {
+      this.indexCandidatesToMarketplace(allCandidates).catch((err) => {
+        console.warn("[AtsProvider] Marketplace indexing error:", err);
+      });
+    }
+
     // Filter against intent
     const filtered = this.filterCandidates(allCandidates, intent);
     return filtered.slice(0, limits.maxCandidates || 50);
+  }
+
+  private async indexCandidatesToMarketplace(candidates: RawJobCandidate[]): Promise<void> {
+    try {
+      const { createHash } = await import("crypto");
+      const { upsertOpportunity, upsertSourceListing } = await import("@/lib/db/opportunities");
+
+      for (const candidate of candidates.slice(0, 50)) {
+        if (!candidate.title || !candidate.companyName || !candidate.applyUrl) continue;
+        const canonicalHash = createHash("sha256")
+          .update(`${candidate.companyName.trim().toLowerCase()}:${candidate.title.trim().toLowerCase()}:${candidate.applyUrl.trim()}`)
+          .digest("hex");
+
+        try {
+          const opp = await upsertOpportunity({
+            canonicalHash,
+            title: candidate.title,
+            companyName: candidate.companyName,
+            location: candidate.location || "Remote / Multiple",
+            workMode: candidate.workMode || "ANY",
+            experienceLevel: candidate.experienceLevel || "ENTRY_LEVEL",
+            opportunityType: candidate.opportunityType || "FULL_TIME",
+            salaryCurrency: "USD",
+            description: candidate.description || `${candidate.title} at ${candidate.companyName}`,
+            primaryApplyUrl: candidate.applyUrl,
+            status: "ACTIVE",
+            lastVerifiedAt: new Date(),
+          });
+
+          await upsertSourceListing({
+            opportunityId: opp.id,
+            sourcePlatform: candidate.sourcePlatform || "ATS Direct",
+            sourceUrl: candidate.sourceUrl || candidate.applyUrl,
+            applyUrl: candidate.applyUrl,
+            verificationStatus: "VERIFIED",
+            rawSnippet: candidate.rawSnippet || null,
+          });
+        } catch {
+          // Ignore individual duplicate or synthetic items
+        }
+      }
+    } catch {
+      // Best-effort ingestion without blocking user response
+    }
   }
 
   private async harvestGreenhouse(
