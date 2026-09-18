@@ -443,7 +443,7 @@ export const CONVERSATIONAL_PREAMBLES = [
   /^(?:please\s+)?(?:tell|show|give|find|get)\s+me\s+(?:what|which|about)?\s*/i,
   /^what\s+(?:are\s+the\s+)?(?:companies|startups|employers|places)\s+(?:that\s+are\s+|which\s+are\s+|are\s+)?/i,
   /^(?:who\s+is|who's)\s+hiring\s+(?:for|in)?\s*/i,
-  /^(?:tell\s+me\s+about|looking\s+to\s+(?:know|find)|search\s+for|find\s+me)\s*/i,
+  /^(?:tell\s+me\s+about|looking\s+to\s+(?:know|find)|search\s+for|find\s+me(?:\s+some)?)\s*/i,
 ];
 
 /**
@@ -592,12 +592,72 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     workingQuery = workingQuery.replace(explicitMonthsMatch[0], " ");
   }
 
-  // Check days (e.g. "last 15 days", "within 30 days", "past 10 days")
-  const explicitDaysMatch = workingQuery.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+|in\s+|within\s+|past\s+|last\s+)?(\d{1,3})\s*(?:days?|d)\b/i) ||
-    workingQuery.match(/\b(\d{1,3})\s*(?:days?|d)\s*ago\b/i) ||
-    workingQuery.match(/\bposted\s+(?:within|in|last|past)\s+(\d{1,3})\s*(?:days?|d)\b/i);
+  // Check colloquial day ranges and word numbers (e.g. "which has been posted in last two or three days", "last 2 or 3 days", "past few days", "two or three days", "three days")
+  const WORD_TO_DAYS: Record<string, number> = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    ten: 10,
+    fourteen: 14,
+    fifteen: 15,
+    twenty: 20,
+    thirty: 30,
+    "a few": 3,
+    few: 3,
+    "couple of": 2,
+    couple: 2,
+    several: 4,
+  };
 
-  if (!explicitMonthsMatch && explicitDaysMatch && explicitDaysMatch[1]) {
+  const colloquialDaysMatch = workingQuery.match(
+    /\b(?:(?:that|which)\s+(?:has|have)\s+(?:been\s+)?)?(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+|in\s+|within\s+|past\s+|last\s+)?(?:(one|two|three|four|five|six|seven|ten|fourteen|fifteen|twenty|thirty|a\s+few|few|couple\s+of|couple|several)(?:\s*(?:or|to|-)\s*(one|two|three|four|five|six|seven|ten|fourteen|fifteen|twenty|thirty|\d+))?|(\d+)\s*(?:or|to|-)\s*(\d+))\s*(?:days?|d)\b/i
+  );
+
+  if (!explicitMonthsMatch && colloquialDaysMatch) {
+    let days = 3;
+    const w1 = colloquialDaysMatch[1]?.toLowerCase().trim();
+    const w2 = colloquialDaysMatch[2]?.toLowerCase().trim();
+    const d1 = colloquialDaysMatch[3] ? parseInt(colloquialDaysMatch[3], 10) : undefined;
+    const d2 = colloquialDaysMatch[4] ? parseInt(colloquialDaysMatch[4], 10) : undefined;
+
+    if (d2 !== undefined) {
+      days = d2;
+    } else if (w2 !== undefined) {
+      days = WORD_TO_DAYS[w2] ?? (parseInt(w2, 10) || 3);
+    } else if (w1 !== undefined) {
+      days = WORD_TO_DAYS[w1] ?? 3;
+    } else if (d1 !== undefined) {
+      days = d1;
+    }
+
+    if (days > 0) {
+      postedWithinDays = days;
+      freshnessWindowHours = days * 24;
+      isExplicitFreshness = true;
+      sortMode = "LATEST";
+      dateConstraint = {
+        type: "RELATIVE",
+        amount: days,
+        unit: "DAY",
+        cutoffDate: new Date(Date.now() - days * 24 * 3600 * 1000),
+        rawText: colloquialDaysMatch[0],
+      };
+      workingQuery = workingQuery.replace(colloquialDaysMatch[0], " ");
+    }
+  }
+
+  // Check days (e.g. "last 15 days", "within 30 days", "past 10 days")
+  const explicitDaysMatch = !colloquialDaysMatch && (
+    workingQuery.match(/\b(?:posted\s+)?(?:in\s+the\s+|within\s+the\s+|over\s+the\s+|in\s+|within\s+|past\s+|last\s+)?(\d{1,3})\s*(?:days?|d)\b/i) ||
+    workingQuery.match(/\b(\d{1,3})\s*(?:days?|d)\s*ago\b/i) ||
+    workingQuery.match(/\bposted\s+(?:within|in|last|past)\s+(\d{1,3})\s*(?:days?|d)\b/i)
+  );
+
+  if (!explicitMonthsMatch && !colloquialDaysMatch && explicitDaysMatch && explicitDaysMatch[1]) {
     const days = parseInt(explicitDaysMatch[1], 10);
     if (days > 0) {
       postedWithinDays = days;
