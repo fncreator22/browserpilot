@@ -186,8 +186,8 @@ export function BentoDiscoveryDeck({ onSelectPrompt }: BentoDiscoveryDeckProps) 
 
           <div className="space-y-2 pt-2 border-t border-border/50">
             <div className="flex items-center justify-between text-xs font-mono">
-              <span className="text-muted-foreground">Active Connectors:</span>
-              <span className="text-emerald-500 font-semibold">6 ATS Boards</span>
+              <span className="text-muted-foreground">Active Plugins:</span>
+              <span className="text-emerald-500 font-semibold">6 Plugin Feeds</span>
             </div>
             <div className="flex items-center justify-between text-xs font-mono">
               <span className="text-muted-foreground">Next Sweep:</span>
