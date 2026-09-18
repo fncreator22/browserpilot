@@ -116,6 +116,16 @@ export async function ensureDefaultPlans(force = false): Promise<void> {
           active: p.active,
         },
       });
+    } else {
+      await prisma.plan.update({
+        where: { code: p.code },
+        data: {
+          maxWatches: p.maxWatches,
+          maxDailyDiscoveries: p.maxDailyDiscoveries,
+          maxMonthlyAIOperations: p.maxMonthlyAIOperations,
+          allowedIntervals: JSON.stringify(p.allowedIntervals),
+        },
+      });
     }
   }
 
