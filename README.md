@@ -18,35 +18,35 @@ Alternative Production Mirror: [https://browserpilot-sr2mahajangmailcoms-project
 
 ## Visual Interface Overview
 
-### Desktop Opportunity Discovery Workspace
-The centralized discovery command center surfaces active career opportunities with multi-source filtering, match rankings, and verified compensation calibration.
+### Discovery and Autonomous Radar Workspace
+The centralized discovery command center surfaces active career opportunities with multi-source filtering, match rankings, monitored target companies, roles, skills, and verified compensation calibration.
 
-![Opportunity Discovery Workspace](public/screenshots/discover_retrofit_desktop.png)
+![Opportunity Discovery Workspace](public/screenshots/current_discovery_workspace.png)
 
-### Deep Dossier and Recruiter Outreach Slide-over
-Detailed vacancy intelligence with direct ATS application link validation, team composition insights, and direct recruiter contact discovery.
+### Autonomous 24/7 Radar Monitoring
+Persistent background monitors manage target roles, skills, and companies with global connector configuration (Ashby, Greenhouse, Lever, Workable, LinkedIn) and configurable freshness boundaries.
 
-![Opportunity Intelligence Slideover](public/screenshots/discover_retrofit_slideover.png)
+![Autonomous Opportunity Radar](public/screenshots/current_autonomous_radar.png)
 
-### Autonomous 24/7 Opportunity Watches
-Persistent background watchers monitor target roles, skills, and companies with automated novelty detection, rate-controlled polling, and instant alert dispatch.
+### Deep Dossier and Direct Recruiter Outreach
+Detailed vacancy intelligence with direct ATS application link validation, source platform audits, match score explanations, and direct hiring manager outreach shortcuts.
 
-![Autonomous Opportunity Watches](public/screenshots/watch_genuine_desktop.png)
+![Opportunity Intelligence Dossier](public/screenshots/current_opportunity_dossier.png)
 
-### Integration Connectors and Provider Management
-Configurable authentication and provider routing for Gemini, DeepSeek, Puter, and enterprise ATS APIs with key sanitization and token isolation.
+### Voice-Driven Interactive Career Discovery
+Real-time conversational discovery interface allowing voice-prompted searches, automated constraint normalization, and intelligent opportunity matching.
 
-![Provider and Connector Settings](public/screenshots/settings_modal_desktop_connectors.png)
+![Voice Discovery Interface](public/screenshots/current_voice_discovery.png)
 
-### Enterprise Observability and Security Deck
-Real-time system telemetry, pipeline throughput metrics, audit trails, and tenant-isolated operational diagnostics.
+### Subscription Quotas and Plan Entitlements
+Granular subscription tiers, autonomous watch limits, daily discovery quotas, and promotional coupon redemption.
 
-![Enterprise Observability Deck](public/screenshots/admin_relocated_portal_verified.png)
+![Subscription Plans and Limits](public/screenshots/current_subscription_plans.png)
 
-### Fully Responsive Mobile Experience
-Compact density layout designed for high-precision review across viewports from 360px to 430px.
+### Two-Pane Settings and Quota Control
+Unified configuration deck for managing AI provider credentials, persistent memory vaults, notification webhooks, and account security.
 
-![Mobile Discovery Interface](public/screenshots/discover_q1_mobile.png)
+![Settings and Quota Deck](public/screenshots/current_settings_quotas.png)
 
 ---
 
@@ -212,19 +212,19 @@ npm run typecheck
 npm run build
 ```
 
-### Key Verification Suites
-
-| Suite ID | Description | Coverage |
+### Verification Coverage by Subsystem
+ 
+| Subsystem Domain | Validation Scope | Reliability Target |
 | :--- | :--- | :--- |
-| TASK-014 | Autonomous Discovery & Novelty Intelligence | Watch persistence, polling cadence, deduplication |
-| TASK-019 | Natural-Language Routing Engine | Intent classification, taxonomy routing, constraint parsing |
-| TASK-027 | Scraper Boundary & Broadening Isolation | Provider isolation, mock test containment |
-| TASK-045 | Search Pipeline Determinism | Multi-source aggregation, ranking consistency |
-| TASK-046 | DeepReach Cross-Platform Scanner | Social harvest, candidate normalizer |
-| TASK-053 | Authentication and Connector Security | Token isolation, unauthenticated endpoint rejection |
-| TASK-054 | Rate Limiting & Abuse Prevention | Burst mitigation, in-memory fallback limits |
-| TASK-057 | Production Reliability & Observability | 21 test scenarios: abort handling, secret sanitization, IDOR checks |
-| TASK-058 | Final Security & Data-Isolation Gate | 26 test scenarios: SSRF prevention, XSS guards, memory admission |
+| **Autonomous Radar & Discovery** | Multi-source polling, watch persistence, deduplication | 100% deduplication of seen vacancies |
+| **Natural-Language Routing** | Intent classification, constraint normalization, entity extraction | Deterministic taxonomy mapping |
+| **ATS Scraper Boundaries** | Greenhouse, Ashby, Lever, Workable isolated execution | Zero fallback hallucination |
+| **Multi-Source Ranking** | Semantic scoring, gap analysis, compensation calibration | Bounded 0-100 fit score |
+| **DeepReach Social Scanner** | Direct recruiter attribution, contact discovery | Strict domain and origin verification |
+| **Auth & Secret Security** | PBKDF2/bcrypt hashing, timing-safe equality, token isolation | Zero secret egress in model prompts |
+| **Abuse & Rate Limiting** | Sliding window rate limiter, IP-based lockout | Zero degradation under burst load |
+| **Production Observability** | Lifecycle alerts, SSE streaming, crash recovery | Idempotent resume and error mapping |
+| **Data Isolation & Tenant Vaults** | Multi-tenant memory vaults, cross-account access denial | Absolute cross-tenant IDOR protection |
 
 ---
 
