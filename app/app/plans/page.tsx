@@ -23,6 +23,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useUIState } from "@/components/providers/ui-state-provider";
+import { 
+  getPlanPrice, 
+  formatCurrency, 
+  SUPPORTED_CURRENCIES, 
+  type SupportedCurrency 
+} from "@/lib/billing/currency";
 
 interface PlanConfig {
   id: string;
@@ -62,7 +68,7 @@ interface QuotaReport {
 
 export default function PlansPage() {
   const router = useRouter();
-  const { openProfileModal } = useUIState();
+  const { openProfileModal, currency, setCurrency } = useUIState();
 
   const [billingInterval, setBillingInterval] = useState<"MONTHLY" | "YEARLY">("MONTHLY");
   const [plans, setPlans] = useState<PlanConfig[]>([]);
@@ -175,6 +181,7 @@ export default function PlansPage() {
     const params = new URLSearchParams({
       plan: targetPlan.code,
       interval: billingInterval,
+      currency: currency,
     });
     if (appliedCoupon?.code) {
       params.set("coupon", appliedCoupon.code);
@@ -393,39 +400,70 @@ export default function PlansPage() {
           </div>
         </section>
 
-        {/* Monthly vs Yearly Billing Interval Switch */}
+        {/* Monthly vs Yearly Billing Interval & Currency Switch */}
         <section className="flex flex-col items-center justify-center space-y-3 pt-2">
-          <div className="inline-flex items-center bg-muted/60 p-1 rounded-full border border-border/80 shadow-2xs">
-            <button
-              type="button"
-              onClick={() => setBillingInterval("MONTHLY")}
-              className={`px-5 py-2 text-xs font-sans font-semibold rounded-full transition-all cursor-pointer ${
-                billingInterval === "MONTHLY"
-                  ? "bg-card text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Monthly Billing
-            </button>
-            <button
-              type="button"
-              onClick={() => setBillingInterval("YEARLY")}
-              className={`px-5 py-2 text-xs font-sans font-semibold rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
-                billingInterval === "YEARLY"
-                  ? "bg-primary text-white shadow-marble-1"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <span>Yearly Billing</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
-                billingInterval === "YEARLY" ? "bg-white/20 text-white" : "bg-primary/10 text-primary"
-              }`}>
-                Save 17-20%
-              </span>
-            </button>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {/* Interval Switch */}
+            <div className="inline-flex items-center bg-muted/60 p-1 rounded-full border border-border/80 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setBillingInterval("MONTHLY")}
+                className={`px-5 py-2 text-xs font-sans font-semibold rounded-full transition-all cursor-pointer ${
+                  billingInterval === "MONTHLY"
+                    ? "bg-card text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Monthly Billing
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingInterval("YEARLY")}
+                className={`px-5 py-2 text-xs font-sans font-semibold rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
+                  billingInterval === "YEARLY"
+                    ? "bg-primary text-white shadow-marble-1"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>Yearly Billing</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
+                  billingInterval === "YEARLY" ? "bg-white/20 text-white" : "bg-primary/10 text-primary"
+                }`}>
+                  Save 17-20%
+                </span>
+              </button>
+            </div>
+
+            {/* Currency Selector */}
+            <div className="inline-flex items-center bg-muted/60 p-1 rounded-full border border-border/80 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setCurrency("USD")}
+                className={`px-3.5 py-1.5 text-xs font-mono font-semibold rounded-full transition-all cursor-pointer ${
+                  currency === "USD"
+                    ? "bg-card text-foreground shadow-xs border border-border/40"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="United States Dollar ($)"
+              >
+                $ USD
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrency("INR")}
+                className={`px-3.5 py-1.5 text-xs font-mono font-semibold rounded-full transition-all cursor-pointer ${
+                  currency === "INR"
+                    ? "bg-card text-foreground shadow-xs border border-border/40"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Indian Rupee (₹)"
+              >
+                ₹ INR
+              </button>
+            </div>
           </div>
           <p className="text-[11px] text-muted-foreground font-sans">
-            Yearly plans grant full 365-day continuous execution with discounted annual rates.
+            Yearly plans grant full 365-day continuous execution with discounted annual rates. Multi-currency supported for global payment gateways.
           </p>
         </section>
 
@@ -472,16 +510,18 @@ export default function PlansPage() {
             const isPro = p.code === "PREMIUM";
             const isEnterprise = p.code === "ENTERPRISE";
             
-            const rawPrice = billingInterval === "YEARLY" ? p.priceYearly : p.priceMonthly;
-            const annualSavings = (p.priceMonthly * 12) - p.priceYearly;
+            const priceInfo = getPlanPrice(p.code, billingInterval, currency);
+            const rawPrice = priceInfo.amount;
+            const currencySymbol = priceInfo.symbol;
+            const annualSavings = (priceInfo.rawMonthly * 12) - priceInfo.amount;
             const planDiscountPct = (p as any).discountPercentage || 0;
 
             // 1. Calculate base discount from Plan tier discountPercentage
             let priceAfterPlanDiscount = rawPrice;
-            let planDollarSaved = 0;
+            let planDiscountSaved = 0;
             if (planDiscountPct > 0 && p.code !== "FREE") {
-              planDollarSaved = Math.round(((rawPrice * planDiscountPct) / 100) * 100) / 100;
-              priceAfterPlanDiscount = Math.max(0, rawPrice - planDollarSaved);
+              planDiscountSaved = Math.round(((rawPrice * planDiscountPct) / 100) * 100) / 100;
+              priceAfterPlanDiscount = Math.max(0, rawPrice - planDiscountSaved);
             }
 
             // 2. Check if active coupon applies to this tier
@@ -494,19 +534,19 @@ export default function PlansPage() {
             let finalPrice = priceAfterPlanDiscount;
             let cutPrice: number | null = (planDiscountPct > 0 && p.code !== "FREE") ? rawPrice : null;
             let discountTag: string | null = (planDiscountPct > 0 && p.code !== "FREE") ? `${planDiscountPct}% OFF Deal` : null;
-            let dollarSaved: number = planDollarSaved;
+            let totalSaved: number = planDiscountSaved;
 
             if (couponApplies && appliedCoupon) {
               if (appliedCoupon.discountType === "PLAN_ACCESS" || appliedCoupon.discountValue >= 100) {
                 cutPrice = rawPrice;
                 finalPrice = 0;
-                dollarSaved = rawPrice;
+                totalSaved = rawPrice;
                 discountTag = "100% Full Access via Coupon";
               } else if (appliedCoupon.discountType === "PERCENTAGE") {
                 const couponSavings = Math.round(((priceAfterPlanDiscount * appliedCoupon.discountValue) / 100) * 100) / 100;
                 cutPrice = rawPrice;
                 finalPrice = Math.max(0, priceAfterPlanDiscount - couponSavings);
-                dollarSaved += couponSavings;
+                totalSaved += couponSavings;
                 discountTag = planDiscountPct > 0
                   ? `${planDiscountPct}% OFF + Extra ${appliedCoupon.discountValue}% OFF (${appliedCoupon.code})`
                   : `${appliedCoupon.discountValue}% OFF via ${appliedCoupon.code}`;
@@ -514,12 +554,43 @@ export default function PlansPage() {
                 const couponSavings = Math.min(priceAfterPlanDiscount, appliedCoupon.discountValue);
                 cutPrice = rawPrice;
                 finalPrice = Math.max(0, priceAfterPlanDiscount - couponSavings);
-                dollarSaved += couponSavings;
+                totalSaved += couponSavings;
                 discountTag = planDiscountPct > 0
-                  ? `${planDiscountPct}% OFF + Extra $${appliedCoupon.discountValue} OFF (${appliedCoupon.code})`
-                  : `$${appliedCoupon.discountValue} OFF via ${appliedCoupon.code}`;
+                  ? `${planDiscountPct}% OFF + Extra ${currencySymbol}${appliedCoupon.discountValue} OFF (${appliedCoupon.code})`
+                  : `${currencySymbol}${appliedCoupon.discountValue} OFF via ${appliedCoupon.code}`;
               }
             }
+
+            // Strictly isolated tier features
+            const tierFeatures = p.features && p.features.length > 0 ? p.features : (
+              p.code === "FREE"
+                ? [
+                    "1 Active Autonomous Watch (24h standard interval)",
+                    "10 Daily Job Discoveries",
+                    "100 Monthly AI Operations",
+                    "Community Plugins & Standard Job Boards",
+                    "Standard In-App Results Dashboard",
+                  ]
+                : p.code === "PREMIUM"
+                ? [
+                    "10 Concurrent Autonomous Watches (Hourly scans)",
+                    "50 Daily Agent Discoveries",
+                    "2,000 Monthly AI Operations",
+                    "50,000 Daily AI Token Cap",
+                    "Company Targeting & Advanced Filter Engine",
+                    "Full Plugins Marketplace & ATS Connectors",
+                    "Priority BullMQ Worker Queue",
+                  ]
+                : [
+                    "Unlimited High-Frequency Watches (15-min scans)",
+                    "Unlimited Daily Job Discoveries",
+                    "10,000 Monthly AI Operations",
+                    "200,000 Daily AI Token Cap",
+                    "Dedicated Scraping Proxies & Custom ATS Plugins",
+                    "Real-time DeepReach Executive Personnel Radar",
+                    "Dedicated Enterprise Slack & Priority Support",
+                  ]
+            );
 
             return (
               <div
@@ -565,11 +636,11 @@ export default function PlansPage() {
                     <div className="flex items-baseline gap-2 flex-wrap">
                       {cutPrice !== null && (
                         <span className="text-xl sm:text-2xl font-sans font-bold text-muted-foreground line-through decoration-rose-500/80 decoration-2">
-                          ${cutPrice}
+                          {currencySymbol}{cutPrice}
                         </span>
                       )}
                       <span className="text-4xl sm:text-5xl font-sans font-extrabold tracking-tight text-foreground">
-                        ${finalPrice % 1 === 0 ? finalPrice : finalPrice.toFixed(2)}
+                        {currencySymbol}{finalPrice % 1 === 0 ? finalPrice : finalPrice.toFixed(2)}
                       </span>
                       <span className="text-xs font-mono text-muted-foreground">
                         /{billingInterval === "YEARLY" ? "year" : "month"}
@@ -581,9 +652,9 @@ export default function PlansPage() {
                         <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
                           {discountTag}
                         </span>
-                        {cutPrice !== null && dollarSaved > 0 && (
+                        {cutPrice !== null && totalSaved > 0 && (
                           <span className="text-[10px] font-mono text-primary font-semibold">
-                            (You save ${dollarSaved.toFixed(2)})
+                            (You save {currencySymbol}{totalSaved.toFixed(2)})
                           </span>
                         )}
                       </div>
@@ -591,7 +662,7 @@ export default function PlansPage() {
 
                     {!discountTag && billingInterval === "YEARLY" && annualSavings > 0 && (
                       <span className="inline-block mt-1 text-[11px] font-sans font-semibold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
-                        Save ${annualSavings}/year ({Math.round((annualSavings / (p.priceMonthly * 12)) * 100)}% discount)
+                        Save {currencySymbol}{annualSavings}/year ({Math.round((annualSavings / (priceInfo.rawMonthly * 12)) * 100)}% discount)
                       </span>
                     )}
                   </div>
@@ -608,7 +679,7 @@ export default function PlansPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground font-sans">Daily AI Token Cap:</span>
-                      <span className="font-bold text-foreground">{(p.dailyTokenLimit || 10000).toLocaleString()}/day</span>
+                      <span className="font-bold text-foreground">{(p.dailyTokenLimit || (p.code === "ENTERPRISE" ? 200000 : p.code === "PREMIUM" ? 50000 : 10000)).toLocaleString()}/day</span>
                     </div>
                   </div>
 
@@ -618,11 +689,7 @@ export default function PlansPage() {
                       Included Capabilities
                     </span>
                     <ul className="space-y-2 text-xs font-sans text-foreground">
-                      {(p.features || [
-                        `${p.maxWatches} Active Autonomous Watches`,
-                        `${p.maxDailyDiscoveries} Daily Job Discoveries`,
-                        "Standard Monitoring Intervals",
-                      ]).map((feat, idx) => (
+                      {tierFeatures.map((feat, idx) => (
                         <li key={idx} className="flex items-start gap-2">
                           <Check className="h-4 w-4 text-primary shrink-0 mt-0.5 stroke-[2.5]" />
                           <span>{feat}</span>
@@ -664,7 +731,7 @@ export default function PlansPage() {
                       ) : finalPrice === 0 ? (
                         `Activate ${p.name} (Free Access)`
                       ) : cutPrice !== null ? (
-                        `Upgrade to ${p.name} ($${finalPrice % 1 === 0 ? finalPrice : finalPrice.toFixed(2)})`
+                        `Upgrade to ${p.name} (${currencySymbol}${finalPrice % 1 === 0 ? finalPrice : finalPrice.toFixed(2)})`
                       ) : (
                         `Upgrade to ${p.name}`
                       )}

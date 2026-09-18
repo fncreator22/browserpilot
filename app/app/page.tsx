@@ -74,7 +74,8 @@ function DiscoverContent() {
     try {
       const res = await fetch("/api/search/history?limit=6");
       if (res.ok) {
-        const histData = await res.json();
+        const raw = await res.text();
+        const histData = raw && raw.trim().length > 0 ? JSON.parse(raw) : null;
         if (histData?.history) {
           setSearchHistory(histData.history);
           setHasCheckedHistory(true);
@@ -100,8 +101,9 @@ function DiscoverContent() {
 
         const res = await fetch("/api/search/active");
         if (!res.ok) return;
-        const data = await res.json();
-        if (cancelled) return;
+        const rawActive = await res.text();
+        const data = rawActive && rawActive.trim().length > 0 ? JSON.parse(rawActive) : null;
+        if (cancelled || !data) return;
 
         if (data.active && data.query) {
           if (cancelledExecutionId && (data.executionId === cancelledExecutionId || data.searchId === cancelledExecutionId)) {
@@ -117,8 +119,9 @@ function DiscoverContent() {
           }
           const histRes = await fetch(`/api/search/history/${targetSearchId}`);
           if (histRes.ok) {
-            const histData = await histRes.json();
-            if (!cancelled && histData.search) {
+            const rawHist = await histRes.text();
+            const histData = rawHist && rawHist.trim().length > 0 ? JSON.parse(rawHist) : null;
+            if (!cancelled && histData?.search) {
               if (histData.search.status === "RUNNING" || histData.search.status === "QUEUED") {
                 setActiveQuery(histData.search.rawQuery);
                 setActiveExecutionId(histData.search.id);
@@ -281,7 +284,8 @@ function DiscoverContent() {
         });
       } catch {}
     }
-    toast.info("Search Cancelled", { description: "Search execution was cancelled." });
+    const { showDeduplicatedCancelToast } = await import("@/lib/utils/toastDebounce");
+    showDeduplicatedCancelToast("Search execution was cancelled.");
   }, [activeExecutionId]);
 
   const executeDiscoverySearch = useCallback(async (queryText: string, allowFallback: boolean = true) => {
@@ -298,13 +302,23 @@ function DiscoverContent() {
           allowDeterministicFallback: allowFallback,
         }),
       });
-      const data = await res.json();
-      if (data.status === "QUEUED" && data.executionId) {
+      let data: any = null;
+      try {
+        const text = await res.text();
+        if (text && text.trim().length > 0) {
+          data = JSON.parse(text);
+        }
+      } catch {
+        data = null;
+      }
+      if (data && data.status === "QUEUED" && data.executionId) {
         setActiveExecutionId(data.executionId);
         setActiveQuery(cleanText);
         setIsSearching(true);
-      } else {
+      } else if (data) {
         handleSearchResult(data);
+      } else {
+        setIsSearching(false);
       }
     } catch {
       setIsSearching(false);
@@ -336,22 +350,11 @@ function DiscoverContent() {
               className="min-h-[calc(100vh-14rem)] flex flex-col justify-center items-center text-center max-w-3xl mx-auto px-4 py-8"
             >
               <div className="space-y-6 w-full">
-              {/* Radar Aperture Badge */}
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-muted/70 border border-border/80 text-xs font-medium text-muted-foreground shadow-2xs">
-                <Radio className="h-3.5 w-3.5 text-foreground" />
-                <span className="font-sans font-semibold text-foreground">Radar</span>
-                <span className="text-muted-foreground/50">•</span>
-                <span className="font-sans">Autonomous Opportunity Intelligence</span>
-              </div>
-
               {/* Centered Typography */}
-              <div className="space-y-2.5 max-w-xl mx-auto">
+              <div className="max-w-2xl mx-auto py-2">
                 <h1 className="text-3xl sm:text-4xl md:text-5xl font-sans font-bold tracking-tight text-foreground">
                   Where should your career go next?
                 </h1>
-                <p className="text-xs sm:text-sm text-muted-foreground font-sans leading-relaxed">
-                  Search any role, company, or tech stack. Autonomous agents verify authenticity, salary bands, and live recruiter contacts across verified sources.
-                </p>
               </div>
 
               {/* Central AI Search Capsule */}
@@ -414,42 +417,6 @@ function DiscoverContent() {
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="space-y-6"
             >
-            {/* Header Title Bar - Minimal Notion/Claude Breadcrumb */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="flex items-center justify-between gap-3 pb-3 border-b border-border/60"
-            >
-              <div className="flex items-center gap-2 text-xs font-sans text-muted-foreground min-w-0">
-                <span className="flex h-5 w-5 items-center justify-center rounded-md bg-foreground text-background shrink-0 font-bold text-[10px]">
-                  <Radio className="h-3 w-3" />
-                </span>
-                <span className="font-semibold text-foreground">Radar</span>
-                <span>/</span>
-                <span className="truncate max-w-[220px] sm:max-w-md text-foreground/80 font-mono text-[11px]">&ldquo;{activeQuery || "Search"}&rdquo;</span>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleResetDiscovery}
-                  className="h-7 px-2.5 font-sans font-medium text-xs gap-1 border-border/70 hover:bg-muted/40 cursor-pointer"
-                >
-                  <RotateCw className="h-3 w-3" />
-                  <span className="hidden sm:inline">New Discovery</span>
-                  <span className="sm:hidden">New</span>
-                </Button>
-                <Link href="/app/watch">
-                  <Button variant="outline" size="sm" className="h-7 px-2.5 font-sans font-medium text-xs gap-1 border-border/70 hover:bg-muted/40 cursor-pointer">
-                    <Eye className="h-3 w-3 text-foreground" />
-                    <span className="hidden sm:inline">Watch</span>
-                  </Button>
-                </Link>
-              </div>
-            </motion.div>
-
             {/* Natural Language Discovery Input */}
             <motion.div
               initial={{ opacity: 0, y: 15 }}

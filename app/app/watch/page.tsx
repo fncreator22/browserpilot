@@ -42,6 +42,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { InfoBadge } from "@/components/ui/info-badge";
 import { useUIState } from "@/components/providers/ui-state-provider";
+import { CompanyAvatar } from "@/components/ui/company-avatar";
 import { getVerificationCornerBadge, type DossierJobItem } from "@/components/result/job-dossier-deck";
 import { JobDetailSlideOver } from "@/components/result/job-detail-slideover";
 import { PersonnelConnectDrawer } from "@/components/result/personnel-connect-drawer";
@@ -159,7 +160,7 @@ export default function WatchPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isTriggeringRun, setIsTriggeringRun] = useState(false);
-  const { connectors, getConnectorMeta, openCommandPalette, openProfileModal } = useUIState();
+  const { connectors, getConnectorMeta, openCommandPalette, openProfileModal, planTier, isPaid, canAccessFeature } = useUIState();
 
   const [watchConfig, setWatchConfig] = useState<DiscoveryWatchState>({
     enabled: false,
@@ -170,7 +171,7 @@ export default function WatchPage() {
     workModes: ["REMOTE", "HYBRID"],
     experienceLevels: ["ENTRY_LEVEL", "MID_LEVEL"],
     opportunityTypes: ["FULL_TIME"],
-    preferredSources: ["Ashby", "Greenhouse", "Lever", "Workable", "LinkedIn"],
+    preferredSources: [],
     minimumMatchScore: 75,
     latestOnly: false,
     freshnessWindowHours: 48,
@@ -281,7 +282,7 @@ export default function WatchPage() {
             workModes: cleanWorkModes,
             experienceLevels: draft?.experienceLevels && draft.experienceLevels.length > 0 ? draft.experienceLevels : ensureArray(data.watch.experienceLevels, ["ENTRY_LEVEL"]),
             opportunityTypes: draft?.opportunityTypes && draft.opportunityTypes.length > 0 ? draft.opportunityTypes : ensureArray(data.watch.opportunityTypes, ["FULL_TIME"]),
-            preferredSources: draft?.preferredSources && draft.preferredSources.length > 0 ? draft.preferredSources : ensureArray(data.watch.preferredSources, ["Ashby", "Greenhouse", "Lever", "Workable", "LinkedIn"]),
+            preferredSources: draft?.preferredSources && draft.preferredSources.length > 0 ? draft.preferredSources : ensureArray(data.watch.preferredSources, []),
             minimumMatchScore: draft?.minimumMatchScore ?? data.watch.minimumMatchScore ?? 75,
             latestOnly: draft?.latestOnly ?? data.watch.latestOnly ?? false,
             freshnessWindowHours: draft?.freshnessWindowHours ?? data.watch.freshnessWindowHours ?? 48,
@@ -439,13 +440,16 @@ export default function WatchPage() {
       }
 
       toast.success("Watch Criteria Saved!", {
-        description: `Autonomous monitor set to scan every ${watchConfig.scanIntervalHours}h across ${watchConfig.preferredSources.length} registered connector sources.`,
+        description: `Autonomous monitor set to scan every ${watchConfig.scanIntervalHours}h across ${watchConfig.preferredSources.length} active plugins.`,
       });
       fetchWatchData();
     } catch (err: unknown) {
-      const msg = (err as Error).message || "Failed to save watch settings";
-      setSaveError(msg);
-      toast.error("Save Error", { description: msg });
+      const rawMessage = (err as Error)?.message || "";
+      const friendlyMsg = rawMessage.includes("fkey") || rawMessage.includes("Foreign key") || rawMessage.includes("prisma")
+        ? "Preferences saved locally for your session. Sign in to enable persistent multi-device monitoring."
+        : rawMessage || "Failed to save watch settings";
+      setSaveError(friendlyMsg);
+      toast.error("Save Notice", { description: friendlyMsg });
     } finally {
       setIsSaving(false);
     }
@@ -470,7 +474,11 @@ export default function WatchPage() {
       });
       fetchWatchData();
     } catch (err: unknown) {
-      toast.error("Scan Error", { description: (err as Error).message });
+      const rawMessage = (err as Error)?.message || "";
+      const friendlyMessage = rawMessage.includes("fkey") || rawMessage.includes("Foreign key") || rawMessage.includes("prisma")
+        ? "Unable to initialize watch monitor for session. Your active search preferences will be used automatically."
+        : rawMessage || "Discovery scan encountered a temporary service issue. Please retry in a moment.";
+      toast.error("Scan Notice", { description: friendlyMessage });
     } finally {
       setIsTriggeringRun(false);
     }
@@ -493,6 +501,16 @@ export default function WatchPage() {
 
   const handleAddCompany = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAccessFeature("COMPANY_TARGETING")) {
+      toast.info("Target company monitoring is a Pro feature.", {
+        description: "Upgrade to Pro Hunter or Enterprise to monitor specific target companies.",
+        action: {
+          label: "Upgrade",
+          onClick: () => openProfileModal("BILLING"),
+        },
+      });
+      return;
+    }
     const comp = newCompanyInput.trim();
     if (!comp) return;
     if ((watchConfig.companies || []).map(c => c.toLowerCase()).includes(comp.toLowerCase())) {
@@ -760,65 +778,35 @@ export default function WatchPage() {
   return (
     <div className="flex-1 flex flex-col antialiased selection:bg-primary/20 selection:text-primary">
       <main className="flex-1 container mx-auto max-w-6xl px-4 py-8 pb-32 sm:pb-36 sm:px-6 space-y-8">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
-          <div>
-            <div className="flex items-center gap-2.5 mb-1">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Eye className="h-4 w-4" />
-              </span>
-              <h1 className="text-2xl sm:text-3xl font-sans font-bold tracking-tight text-foreground">
-                Autonomous Watch
-              </h1>
-              {isLoading ? (
-                <Badge variant="outline" className="font-mono text-xs text-muted-foreground animate-pulse rounded-full">
-                  Checking status...
-                </Badge>
-              ) : (
-                <Badge 
-                  variant={watchConfig.enabled ? "default" : "outline"}
-                  className={`font-mono text-xs rounded-full ${watchConfig.enabled ? "bg-primary/10 text-primary border-primary/30 font-semibold" : "text-muted-foreground"}`}
-                >
-                  {watchConfig.enabled ? "Active scan" : "Paused"}
-                </Badge>
-              )}
-              <InfoBadge
-                title="Autonomous Watch Radar"
-                description="Background autonomous job discovery engine driven by cron workers and BullMQ queues."
-                details={{
-                  "Cadence": `Every ${watchConfig.scanIntervalHours} hours`,
-                  "Active ATS Connectors": (watchConfig.preferredSources || []).join(", "),
-                  "Match Threshold": `${watchConfig.minimumMatchScore}% minimum score`,
-                  "Notification Dispatch": "In-app notifications + optional webhook delivery",
-                  "Execution State": watchConfig.enabled ? "Active cron scheduling" : "Suspended",
-                }}
-                bullets={[
-                  "Continuously crawls configured ATS platforms without manual user intervention",
-                  "Filters new opportunities through the DeepSeek Harness location and anti-ghost gate",
-                  "Deduplicates listings against the canonical opportunity repository",
-                ]}
-                side="bottom"
-              />
-            </div>
-            <p className="text-xs sm:text-sm text-muted-foreground font-sans">
-              <span className="hidden sm:inline">
-                Configure background multi-source discovery. BrowserPilot scans continuously across registered ATS platforms and alerts you when new matching opportunities appear.
-              </span>
-              <span className="sm:hidden">
-                Continuous discovery and alerts.
-              </span>
-            </p>
+        {/* Compact Page Header Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border/60">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-lg sm:text-xl font-sans font-bold tracking-tight text-foreground">
+              Watch
+            </h1>
+            {isLoading ? (
+              <Badge variant="outline" className="font-mono text-[11px] text-muted-foreground animate-pulse rounded-full">
+                Checking...
+              </Badge>
+            ) : (
+              <Badge 
+                variant={watchConfig.enabled ? "default" : "outline"}
+                className={`font-mono text-[11px] rounded-full px-2 py-0.5 ${watchConfig.enabled ? "bg-primary/10 text-primary border-primary/30 font-semibold" : "text-muted-foreground"}`}
+              >
+                {watchConfig.enabled ? "Active" : "Paused"}
+              </Badge>
+            )}
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={handleTriggerRun}
               disabled={isTriggeringRun || isSaving}
-              className="h-9 font-sans font-medium text-xs gap-1.5 rounded-lg border-border cursor-pointer bg-card hover:bg-muted text-foreground shadow-2xs"
+              className="h-8 font-sans font-medium text-xs gap-1.5 rounded-lg border-border cursor-pointer bg-card hover:bg-muted text-foreground shadow-2xs"
             >
-              <RotateCw className={`h-3.5 w-3.5 ${isTriggeringRun ? "animate-spin text-primary" : ""}`} />
+              <RotateCw className={`h-3 w-3 ${isTriggeringRun ? "animate-spin text-primary" : ""}`} />
               {isTriggeringRun ? "Scanning..." : "Scan Now"}
             </Button>
             <Button
@@ -826,16 +814,16 @@ export default function WatchPage() {
               size="sm"
               onClick={handleSaveWatch}
               disabled={isSaving || isTriggeringRun}
-              className="h-9 font-sans font-medium text-xs gap-1.5 rounded-lg border-border cursor-pointer bg-card hover:bg-muted text-foreground shadow-2xs"
+              className="h-8 font-sans font-medium text-xs gap-1.5 rounded-lg border-border cursor-pointer bg-card hover:bg-muted text-foreground shadow-2xs"
             >
               {isSaving ? (
                 <>
-                  <div className="h-3.5 w-3.5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                  <div className="h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
                   <span>Saving...</span>
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="h-3.5 w-3.5 stroke-[1.75]" />
+                  <CheckCircle2 className="h-3 w-3 stroke-[1.75]" />
                   <span>Save Watch</span>
                 </>
               )}
@@ -844,16 +832,16 @@ export default function WatchPage() {
               size="sm"
               onClick={handleSaveAndScan}
               disabled={isSaving || isTriggeringRun}
-              className="h-9 font-sans font-semibold text-xs gap-1.5 rounded-lg bg-primary hover:bg-primary/90 text-white cursor-pointer shadow-marble-1 disabled:opacity-75 disabled:cursor-not-allowed"
+              className="h-8 font-sans font-semibold text-xs gap-1.5 rounded-lg bg-primary hover:bg-primary/90 text-white cursor-pointer shadow-marble-1 disabled:opacity-75 disabled:cursor-not-allowed"
             >
               {isSaving || isTriggeringRun ? (
                 <>
-                  <div className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  <div className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
                   <span>Processing...</span>
                 </>
               ) : (
                 <>
-                  <Search className="h-3.5 w-3.5 stroke-[2]" />
+                  <Search className="h-3 w-3 stroke-[2]" />
                   <span>Save & Search</span>
                 </>
               )}
@@ -1004,27 +992,45 @@ export default function WatchPage() {
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   {[
-                    { hours: 2, label: "Every 2 hours" },
-                    { hours: 4, label: "Every 4 hours" },
-                    { hours: 6, label: "Every 6 hours" },
-                    { hours: 12, label: "Every 12 hours" },
-                    { hours: 24, label: "Daily (24h)" },
-                  ].map((int) => (
-                    <Button
-                      key={int.hours}
-                      type="button"
-                      variant={watchConfig.scanIntervalHours === int.hours ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setWatchConfig(prev => ({ ...prev, scanIntervalHours: int.hours }))}
-                      className={`h-9 font-sans text-xs rounded-lg cursor-pointer transition-all ${
-                        watchConfig.scanIntervalHours === int.hours
-                          ? "border-primary bg-primary text-primary-foreground font-semibold shadow-marble-1"
-                          : "border-border hover:bg-muted text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      {int.label}
-                    </Button>
-                  ))}
+                    { hours: 2, label: "Every 2 hours", proOnly: true },
+                    { hours: 4, label: "Every 4 hours", proOnly: true },
+                    { hours: 6, label: "Every 6 hours", proOnly: true },
+                    { hours: 12, label: "Every 12 hours", proOnly: true },
+                    { hours: 24, label: "Daily (24h)", proOnly: false },
+                  ].map((int) => {
+                    const isLocked = planTier === "FREE" && int.proOnly;
+                    return (
+                      <Button
+                        key={int.hours}
+                        type="button"
+                        variant={watchConfig.scanIntervalHours === int.hours ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          if (isLocked) {
+                            toast.info("Sub-daily scan intervals require a Pro Hunter subscription.", {
+                              description: "Free tier supports 24-hour daily discovery sweeps.",
+                              action: {
+                                label: "Upgrade",
+                                onClick: () => openProfileModal("BILLING"),
+                              },
+                            });
+                            return;
+                          }
+                          setWatchConfig(prev => ({ ...prev, scanIntervalHours: int.hours }));
+                        }}
+                        className={`h-9 font-sans text-xs rounded-lg cursor-pointer transition-all flex items-center justify-center gap-1 ${
+                          watchConfig.scanIntervalHours === int.hours
+                            ? "border-primary bg-primary text-primary-foreground font-semibold shadow-marble-1"
+                            : isLocked
+                            ? "border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                            : "border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <span>{int.label}</span>
+                        {isLocked && <Lock className="h-2.5 w-2.5 text-amber-500 shrink-0" />}
+                      </Button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1098,166 +1104,92 @@ export default function WatchPage() {
             </div>
 
             {/* GLOBAL MONITORED PLUGINS & SOURCES CARD */}
-            <div className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6 space-y-5 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/50">
+            <div className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6 space-y-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between gap-3 pb-3 border-b border-border/50">
                 <div className="flex items-center gap-2.5">
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
                     <Puzzle className="h-4 w-4 stroke-[1.75]" />
                   </span>
-                  <div>
-                    <h2 className="text-sm sm:text-base font-sans font-bold tracking-tight text-foreground flex items-center gap-2">
-                      <span>Monitored Plugins & Sources</span>
-                      <Badge variant="outline" className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 border-emerald-500/30 py-0 px-1.5">
-                        High Priority Engine
-                      </Badge>
-                    </h2>
-                    <p className="text-[11px] text-muted-foreground font-sans">
-                      Active plugins harvest primary results with high data collection priority (~75%+ yield), supplemented by free open sources.
-                    </p>
-                  </div>
+                  <h2 className="text-sm sm:text-base font-sans font-bold tracking-tight text-foreground">
+                    Monitored Plugins & Sources
+                  </h2>
                 </div>
-                <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-                  <Link
-                    href="/app/plugins"
-                    className="inline-flex items-center gap-1.5 h-7 px-3 text-xs font-sans font-medium rounded-lg border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer transition-colors shadow-2xs"
-                  >
-                    <Blocks className="h-3 w-3 stroke-[1.75]" />
-                    <span>Plugins Marketplace</span>
-                    <ExternalLink className="h-2.5 w-2.5 ml-0.5" />
-                  </Link>
-                </div>
+                <Link
+                  href="/app/plugins"
+                  className="inline-flex items-center gap-1.5 h-7 px-3 text-xs font-sans font-medium rounded-lg border border-border/70 hover:border-emerald-500/30 text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer transition-colors shadow-2xs"
+                >
+                  <Blocks className="h-3 w-3 stroke-[1.75]" />
+                  <span>Plugins Marketplace</span>
+                  <ExternalLink className="h-2.5 w-2.5 ml-0.5" />
+                </Link>
               </div>
 
-              {/* Active Connected Plugins (Priority Yield) */}
+              {/* Active Connected Plugins */}
               <div className="space-y-2.5">
-                <div className="flex items-center justify-between text-xs font-sans text-muted-foreground">
-                  <span className="font-semibold text-foreground flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                    Active Connected Plugins & Monitored Feeds
-                  </span>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-medium">
-                    {(watchConfig.preferredSources || []).length} active
-                  </span>
-                </div>
+                {(() => {
+                  const connectedPluginsList = plugins.filter((p) => p.isConnected);
+                  const activeSources = Array.from(
+                    new Set([
+                      ...connectedPluginsList.map((p) => p.displayName || p.name),
+                      ...(watchConfig.preferredSources || []),
+                    ])
+                  );
 
-                <div className="flex flex-wrap gap-2">
-                  {(watchConfig.preferredSources || []).length > 0 ? (
-                    (watchConfig.preferredSources || []).map((source) => {
-                      const matchedPlugin = plugins.find(
-                        (p) =>
-                          p.name.toLowerCase() === source.toLowerCase() ||
-                          p.id.toLowerCase() === source.toLowerCase() ||
-                          (p.id === "ycombinator" && (source.toLowerCase().includes("y combinator") || source.toLowerCase().includes("yc")))
-                      );
-
-                      return (
-                        <div
-                          key={source}
-                          className="inline-flex items-center gap-2 bg-emerald-600/10 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 text-xs py-1 px-2.5 rounded-xl font-sans font-medium shadow-2xs transition-all"
-                        >
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
-                          <span>{source}</span>
-                          <span className="text-[10px] uppercase font-mono px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-                            {matchedPlugin ? "Plugin • High Priority" : "Active Feed"}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (matchedPlugin) {
-                                handleToggleWatchPlugin(matchedPlugin);
-                              } else {
-                                setWatchConfig((prev) => ({
-                                  ...prev,
-                                  preferredSources: (prev.preferredSources || []).filter((s) => s !== source),
-                                }));
-                              }
-                            }}
-                            className="hover:text-rose-500 cursor-pointer ml-0.5 p-0.5"
-                            title={`Disconnect ${source}`}
-                          >
-                            <X className="h-3 w-3 stroke-[1.75]" />
-                          </button>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <span className="text-xs text-muted-foreground italic font-sans">
-                      No plugins currently active. Connect plugins below to start high-priority autonomous scanning.
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Available 1-Click Plugins to Connect */}
-              <div className="pt-2 border-t border-border/40 space-y-2">
-                <div className="flex items-center justify-between text-xs font-sans text-muted-foreground">
-                  <span className="font-medium text-muted-foreground">
-                    Available Plugins (1-Click Connect & Sign-In)
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    Click to add to monitored sources
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {MARKETPLACE_PLUGINS.filter(
-                    (p) =>
-                      !(watchConfig.preferredSources || []).some(
-                        (s) =>
-                          s.toLowerCase() === p.name.toLowerCase() ||
-                          s.toLowerCase() === p.id.toLowerCase() ||
-                          (p.id === "ycombinator" && (s.toLowerCase().includes("y combinator") || s.toLowerCase().includes("yc")))
-                      )
-                  ).slice(0, 6).map((plugin) => {
-                    const isConnecting = togglingPluginId === plugin.id;
+                  if (activeSources.length === 0) {
                     return (
-                      <div
-                        key={plugin.id}
-                        className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold text-foreground truncate">{plugin.displayName}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">{plugin.category.replace("_", " ")} • {plugin.type === "DIRECT_FREE" ? "Instant Connect" : "Requires Auth"}</p>
-                        </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={isConnecting}
-                          onClick={() => {
-                            const statusItem = plugins.find((p) => p.id === plugin.id) || {
-                              ...plugin,
-                              isConnected: false,
-                              status: "DISCONNECTED",
-                            };
-                            handleToggleWatchPlugin(statusItem as UserPluginStatus);
-                          }}
-                          className="h-7 px-2 text-[11px] font-sans font-medium gap-1 border-border/70 hover:bg-emerald-500/10 hover:text-emerald-600 cursor-pointer shrink-0"
-                        >
-                          {isConnecting ? (
-                            <RefreshCw className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Plus className="h-3 w-3 stroke-[2]" />
-                          )}
-                          <span>{plugin.type === "DIRECT_FREE" ? "Connect" : "Sign in"}</span>
-                        </Button>
+                      <div className="py-4 text-center rounded-xl border border-dashed border-border/60 bg-muted/10">
+                        <p className="text-xs text-muted-foreground font-sans">
+                          No plugins or sources connected yet. Go to <Link href="/app/plugins" className="text-primary underline font-medium">Plugins Marketplace</Link> to connect sources.
+                        </p>
                       </div>
                     );
-                  })}
-                </div>
-              </div>
+                  }
 
-              {/* Supplemental Free Sources & Priority Distribution */}
-              <div className="pt-2 border-t border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-muted-foreground font-sans">
-                <p>
-                  <strong className="text-foreground">Harvesting Distribution:</strong> Connected plugins provide ~75%+ of incoming listings with verified company contacts. General web crawlers provide supplemental reach.
-                </p>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <span>Plugins: High Priority</span>
-                  <span className="h-2 w-2 rounded-full bg-slate-400 ml-2" />
-                  <span>Web Sources: Supplemental</span>
-                </div>
+                  return (
+                    <div className="flex flex-wrap gap-2">
+                      {activeSources.map((source) => {
+                        const matchedPlugin = plugins.find(
+                          (p) =>
+                            p.name.toLowerCase() === source.toLowerCase() ||
+                            p.id.toLowerCase() === source.toLowerCase() ||
+                            p.displayName.toLowerCase() === source.toLowerCase() ||
+                            (p.id === "ycombinator" && (source.toLowerCase().includes("y combinator") || source.toLowerCase().includes("yc")))
+                        );
+
+                        return (
+                          <div
+                            key={source}
+                            className="inline-flex items-center gap-2 bg-emerald-600/10 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 text-xs py-1 px-2.5 rounded-xl font-sans font-medium shadow-2xs transition-all"
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
+                            <span>{matchedPlugin?.displayName || source}</span>
+                            <span className="text-[10px] uppercase font-mono px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                              Connected
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (matchedPlugin) {
+                                  handleToggleWatchPlugin(matchedPlugin);
+                                }
+                                setWatchConfig((prev) => ({
+                                  ...prev,
+                                  preferredSources: (prev.preferredSources || []).filter(
+                                    (s) => s.toLowerCase() !== source.toLowerCase() && (!matchedPlugin || (s.toLowerCase() !== matchedPlugin.name.toLowerCase() && s.toLowerCase() !== matchedPlugin.id.toLowerCase()))
+                                  ),
+                                }));
+                              }}
+                              className="hover:text-rose-500 cursor-pointer ml-0.5 p-0.5 rounded-md hover:bg-rose-500/10 transition-colors"
+                              title={`Disconnect ${source}`}
+                            >
+                              <X className="h-3 w-3 stroke-[2]" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -1265,15 +1197,38 @@ export default function WatchPage() {
             <div className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6 space-y-4 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between pb-3 border-b border-border/50">
                 <div className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 stroke-[1.75] text-emerald-600 dark:text-emerald-400" />
-                  <h2 className="text-sm sm:text-base font-sans font-bold tracking-tight text-foreground">
-                    Target companies
+                  <Building2 className="h-4 w-4 stroke-[1.75] text-primary" />
+                  <h2 className="text-sm sm:text-base font-sans font-bold tracking-tight text-foreground flex items-center gap-2">
+                    <span>Target companies</span>
+                    {!canAccessFeature("COMPANY_TARGETING") && (
+                      <Badge variant="outline" className="text-[10px] font-mono text-primary border-primary/30 py-0 px-1.5 flex items-center gap-1">
+                        <Lock className="h-2.5 w-2.5" /> Pro
+                      </Badge>
+                    )}
                   </h2>
                 </div>
                 <span className="text-xs text-muted-foreground font-mono">
                   {(watchConfig.companies || []).length} monitored
                 </span>
               </div>
+
+              {!canAccessFeature("COMPANY_TARGETING") && (
+                <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 text-xs font-sans text-muted-foreground flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary shrink-0" />
+                    <span>Company targeting is available on Pro Hunter and Enterprise plans.</span>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openProfileModal("BILLING")}
+                    className="h-7 text-xs font-sans border-primary/30 text-primary hover:bg-primary/10 cursor-pointer shrink-0"
+                  >
+                    Upgrade Plan
+                  </Button>
+                </div>
+              )}
 
               <form onSubmit={handleAddCompany} className="flex gap-2">
                 <Input
@@ -1294,8 +1249,9 @@ export default function WatchPage() {
                     <Badge
                       key={comp}
                       variant="secondary"
-                      className="font-sans text-xs py-1 px-2.5 gap-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                      className="font-sans text-xs py-1 px-2.5 gap-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center"
                     >
+                      <CompanyAvatar companyName={comp} size="sm" className="h-4 w-4 shrink-0" />
                       <span>{comp}</span>
                       <button
                         type="button"
@@ -1611,7 +1567,7 @@ export default function WatchPage() {
                 </div>
                 <div className="flex items-center justify-between pb-2 border-b border-border/40">
                   <span className="text-muted-foreground">Monitored Sources:</span>
-                  <span>{watchConfig.preferredSources.length} connectors</span>
+                  <span>{watchConfig.preferredSources.length} plugins</span>
                 </div>
                 {watchConfig.nextScanAt && (
                   <div className="flex items-center justify-between pb-2 border-b border-border/40">

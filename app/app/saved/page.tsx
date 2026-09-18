@@ -199,34 +199,21 @@ export default function SavedOpportunitiesPage() {
     <div className="flex-1 flex flex-col antialiased selection:bg-emerald-500/20 selection:text-emerald-600">
       <main className="flex-1 container mx-auto max-w-7xl px-4 py-8 pb-32 sm:px-6 space-y-8">
         {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/60">
-          <div>
-            <div className="flex items-center gap-2.5 mb-1">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 dark:bg-emerald-950 dark:text-emerald-400">
-                <Bookmark className="h-4 w-4" />
-              </span>
-              <h1 className="text-2xl sm:text-3xl font-sans font-bold tracking-tight text-foreground">
-                Saved Opportunities
-              </h1>
-              <Badge variant="secondary" className="font-mono text-xs">
-                {savedRecords.length} Saved
-              </Badge>
-            </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              <span className="hidden sm:inline">
-                Your curated shortlist of high-fit roles and verified employer listings.
-              </span>
-              <span className="sm:hidden">
-                Your shortlisted opportunities.
-              </span>
-            </p>
+        <div className="flex items-center justify-between gap-4 pb-3 border-b border-border/60">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-lg sm:text-xl font-sans font-bold tracking-tight text-foreground">
+              Saved Opportunities
+            </h1>
+            <Badge variant="secondary" className="font-mono text-xs">
+              {savedRecords.length} Saved
+            </Badge>
           </div>
 
           <div className="flex items-center gap-2">
             <Link href="/app">
-              <Button size="sm" className="h-9 min-h-[44px] sm:min-h-[36px] px-3.5 font-sans font-medium text-xs gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer shadow-xs focus-visible:ring-2 focus-visible:ring-emerald-500">
+              <Button size="sm" className="h-8 px-3.5 font-sans font-medium text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-xs">
                 <Compass className="h-3.5 w-3.5" />
-                Find More Opportunities
+                <span>Find More Opportunities</span>
               </Button>
             </Link>
           </div>

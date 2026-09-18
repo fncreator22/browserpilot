@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useUIState } from "@/components/providers/ui-state-provider";
 
 const ACQUISITION_OPTIONS = [
   { id: "SEARCH_ENGINE", label: "Search Engine (Google, etc.)", icon: Search },
@@ -90,6 +91,7 @@ const ORGANIZATION_SIZES = [
 export default function OnboardingPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { currency, setCurrency } = useUIState();
 
   const [step, setStep] = useState(1);
   const [acquisitionSource, setAcquisitionSource] = useState("");
@@ -496,6 +498,37 @@ export default function OnboardingPage() {
                   </div>
                 </div>
               )}
+
+              {/* Currency Preference */}
+              <div className="space-y-2 pt-2 border-t border-border/40">
+                <label className="text-xs font-mono font-semibold text-foreground block">
+                  Preferred Currency
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrency("USD")}
+                    className={`p-2 rounded-lg border text-center text-xs font-mono transition-colors cursor-pointer ${
+                      currency === "USD"
+                        ? "border-primary bg-primary/10 text-primary font-semibold"
+                        : "border-border/80 bg-background hover:bg-muted/40 text-muted-foreground"
+                    }`}
+                  >
+                    $ USD (United States Dollar)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrency("INR")}
+                    className={`p-2 rounded-lg border text-center text-xs font-mono transition-colors cursor-pointer ${
+                      currency === "INR"
+                        ? "border-primary bg-primary/10 text-primary font-semibold"
+                        : "border-border/80 bg-background hover:bg-muted/40 text-muted-foreground"
+                    }`}
+                  >
+                    ₹ INR (Indian Rupee)
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -541,6 +574,12 @@ export default function OnboardingPage() {
                       {isOrgUser
                         ? `${organizationName || "Not specified"} (${organizationSize})`
                         : EXPERIENCE_LEVELS.find((e) => e.id === experienceLevel)?.label || experienceLevel}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase text-muted-foreground block">Preferred Currency</span>
+                    <span className="font-semibold text-foreground">
+                      {currency === "INR" ? "₹ INR (Indian Rupee)" : "$ USD (US Dollar)"}
                     </span>
                   </div>
                 </div>
