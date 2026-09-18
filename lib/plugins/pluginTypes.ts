@@ -6,7 +6,7 @@
  */
 
 export type PluginType = "DIRECT_FREE" | "AUTH_REQUIRED";
-export type PluginCategory = "ATS_BOARD" | "TECH_COMMUNITY" | "PROFESSIONAL_NETWORK" | "SEARCH_ENGINE";
+export type PluginCategory = "ATS_BOARD" | "TECH_COMMUNITY" | "PROFESSIONAL_NETWORK" | "SEARCH_ENGINE" | "NOTIFICATION_INTEGRATION";
 
 export interface MarketplacePlugin {
   id: string;
@@ -19,6 +19,8 @@ export interface MarketplacePlugin {
   description: string;
   features: string[];
   isPopular?: boolean;
+  isPrototype?: boolean;
+  prototypeTag?: string;
 }
 
 export interface UserPluginStatus extends MarketplacePlugin {
@@ -132,5 +134,42 @@ export const MARKETPLACE_PLUGINS: MarketplacePlugin[] = [
     authProvider: "REDDIT",
     description: "Crawls r/forhire, r/cscareerquestions, r/remotework with anti-bot rate management.",
     features: ["Community job posts", "Freelance & contract roles", "Salary discussions"],
+  },
+
+  // Prototype Plugins (Features under active integration)
+  {
+    id: "email_digest",
+    name: "Email Sync",
+    displayName: "Email Application & Alert Sync",
+    category: "NOTIFICATION_INTEGRATION",
+    type: "AUTH_REQUIRED",
+    authProvider: "CUSTOM",
+    description: "Automatic email parsing for application receipts, interview requests, and new job notifications.",
+    features: ["Inbox parsing", "Status tracking", "Alert dispatch"],
+    isPrototype: true,
+    prototypeTag: "Prototype",
+  },
+  {
+    id: "slack_alerts",
+    name: "Slack",
+    displayName: "Slack Direct Notification Hook",
+    category: "NOTIFICATION_INTEGRATION",
+    type: "AUTH_REQUIRED",
+    authProvider: "CUSTOM",
+    description: "Post instantaneous high-scoring match alerts directly into your private Slack channel.",
+    features: ["Custom webhook", "High match threshold", "Real-time pings"],
+    isPrototype: true,
+    prototypeTag: "Prototype",
+  },
+  {
+    id: "github_curated",
+    name: "GitHub Curated",
+    displayName: "GitHub Hiring Repository Crawler",
+    category: "TECH_COMMUNITY",
+    type: "DIRECT_FREE",
+    description: "Parses monthly trending hiring repositories, open issues, and startup job lists on GitHub.",
+    features: ["Repo monitoring", "Markdown parsing", "Commit tracking"],
+    isPrototype: true,
+    prototypeTag: "Prototype",
   },
 ];
