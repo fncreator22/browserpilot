@@ -6,7 +6,7 @@
 
 ---
 
-## 📊 Summary of Findings
+##  Summary of Findings
 
 | Category | Total Count |
 | :--- | :--- |
@@ -17,7 +17,7 @@
 
 ---
 
-## 📋 End-to-End Feature Audit Matrix (Sections 1–13)
+##  End-to-End Feature Audit Matrix (Sections 1–13)
 
 | # | Feature Area | Status | Evidence (file:line) | Notes |
 | :- | :--- | :--- | :--- | :--- |
@@ -37,9 +37,9 @@
 
 ---
 
-## 🔒 Security & Secrets Findings
+##  Security & Secrets Findings
 
-### 🚨 Rotate Immediately (User Prompt Context Exposure)
+###  Rotate Immediately (User Prompt Context Exposure)
 > [!IMPORTANT]
 > **Action Required**: The following credentials were provided in plaintext chat messages during previous setup steps:
 > 1. **GitHub Personal Access Token (`ghp_ih3B...[REDACTED]`)**:
@@ -51,7 +51,7 @@
 
 ---
 
-### 🛡️ Security Audit Matrix
+### ️ Security Audit Matrix
 
 | Security Domain | Status | Evidence (file:line) | Verification & Details |
 | :--- | :--- | :--- | :--- |
@@ -66,7 +66,7 @@
 
 ---
 
-### 🛠️ Auto-Fixed Items
+### ️ Auto-Fixed Items
 1. **`.gitignore` Hardening ([.gitignore](file:///c:/Users/sr2ma/Documents/github/browserAI/.gitignore))**: Added explicit exclusion patterns for `.env.local`, `.env.*.local`, `*.sqlite`, `*.sqlite3`, and `dev.db`.
 2. **SSRF Private Network Pre-Filter ([lib/verification/domainConfig.ts](file:///c:/Users/sr2ma/Documents/github/browserAI/lib/verification/domainConfig.ts))**: Added `isPrivateOrMetadataHost` blocking RFC 1918 subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), `169.254.169.254`, `metadata.google.internal`, and `0.0.0.0`.
 3. **Indirect Prompt Injection Delimitation ([lib/ai/synthesizer.ts](file:///c:/Users/sr2ma/Documents/github/browserAI/lib/ai/synthesizer.ts))**: Enclosed scraped page text within `<untrusted_web_content>` tags with passive data processing instructions.
@@ -75,6 +75,6 @@
 
 ---
 
-### ⚖️ Needs Your Decision
+### ️ Needs Your Decision
 1. **API Key & PAT Rotation**: As noted above, rotate your GitHub PAT and Gemini API key in their respective provider consoles since they were shared in chat.
 2. **Git History Rewriting**: No secrets were ever committed to Git history, so destructive history rewriting (`git filter-repo`) is **NOT required**.

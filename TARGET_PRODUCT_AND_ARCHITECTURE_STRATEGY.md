@@ -71,9 +71,9 @@ graph TD
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │ DO NOT BUILD YET (Anti-Scope)                                                          │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
-│ ❌ Automated Application Submitter (Bot auto-filling forms - high ban & CAPTCHA risk). │
-│ ❌ Custom Vector DB / OpenSearch Cluster (Overkill for MVP dataset scale).             │
-│ ❌ Full Microservice Mesh (Unjustified operational overhead before product-market fit).│
+│  Automated Application Submitter (Bot auto-filling forms - high ban & CAPTCHA risk). │
+│  Custom Vector DB / OpenSearch Cluster (Overkill for MVP dataset scale).             │
+│  Full Microservice Mesh (Unjustified operational overhead before product-market fit).│
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 

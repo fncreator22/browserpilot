@@ -7,18 +7,18 @@
 ## Feature Inventory & Test Coverage Matrix
 | # | Feature | Requirement | Tier 1 (Unit) | Tier 2 (Boundary/Edge) | Tier 3 (Integration) | Tier 4 (E2E Scenario) |
 |---|---------|-------------|:-------------:|:---------------------:|:-------------------:|:---------------------:|
-| 1 | Auth & Password Security | ORIGINAL_REQUEST §R2 | ✓ | ✓ | ✓ | ✓ |
-| 2 | BYOK Gemini API Key Storage | ORIGINAL_REQUEST §R2 | ✓ | ✓ | ✓ | ✓ |
-| 3 | Task Submission & Budgeting | ORIGINAL_REQUEST §R2 | ✓ | ✓ | ✓ | ✓ |
-| 4 | Live SSE Execution Streaming | ORIGINAL_REQUEST §R2 | ✓ | ✓ | ✓ | ✓ |
-| 5 | Stage Progression 10%–100% | ORIGINAL_REQUEST §R2 | ✓ | ✓ | ✓ | ✓ |
-| 6 | Capability & Security Guard | ORIGINAL_REQUEST §R2 | ✓ | ✓ | ✓ | ✓ |
-| 7 | AI Planner & Validation | ORIGINAL_REQUEST §R2 | ✓ | ✓ | ✓ | ✓ |
-| 8 | Viewport Screenshot Captures | ORIGINAL_REQUEST §R2 | ✓ | ✓ | ✓ | ✓ |
-| 9 | Synthesizer & Error Mapping | ORIGINAL_REQUEST §R1 | ✓ | ✓ | ✓ | ✓ |
-| 10 | Turso Cloud LibSQL Adapter | ORIGINAL_REQUEST §R3 | ✓ | ✓ | ✓ | ✓ |
-| 11 | Multi-Tenant Data Isolation | ORIGINAL_REQUEST §R3 | ✓ | ✓ | ✓ | ✓ |
-| 12 | Serverless Freeze Prevention | ORIGINAL_REQUEST §R3 | ✓ | ✓ | ✓ | ✓ |
+| 1 | Auth & Password Security | ORIGINAL_REQUEST §R2 | [x] | [x] | [x] | [x] |
+| 2 | BYOK Gemini API Key Storage | ORIGINAL_REQUEST §R2 | [x] | [x] | [x] | [x] |
+| 3 | Task Submission & Budgeting | ORIGINAL_REQUEST §R2 | [x] | [x] | [x] | [x] |
+| 4 | Live SSE Execution Streaming | ORIGINAL_REQUEST §R2 | [x] | [x] | [x] | [x] |
+| 5 | Stage Progression 10%–100% | ORIGINAL_REQUEST §R2 | [x] | [x] | [x] | [x] |
+| 6 | Capability & Security Guard | ORIGINAL_REQUEST §R2 | [x] | [x] | [x] | [x] |
+| 7 | AI Planner & Validation | ORIGINAL_REQUEST §R2 | [x] | [x] | [x] | [x] |
+| 8 | Viewport Screenshot Captures | ORIGINAL_REQUEST §R2 | [x] | [x] | [x] | [x] |
+| 9 | Synthesizer & Error Mapping | ORIGINAL_REQUEST §R1 | [x] | [x] | [x] | [x] |
+| 10 | Turso Cloud LibSQL Adapter | ORIGINAL_REQUEST §R3 | [x] | [x] | [x] | [x] |
+| 11 | Multi-Tenant Data Isolation | ORIGINAL_REQUEST §R3 | [x] | [x] | [x] | [x] |
+| 12 | Serverless Freeze Prevention | ORIGINAL_REQUEST §R3 | [x] | [x] | [x] | [x] |
 
 ## Test Architecture
 - **Master Test Runner**: `tests/run-all-tests.ts` (invoked via `npm test`).

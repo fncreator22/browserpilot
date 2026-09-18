@@ -26,11 +26,11 @@
   7. Displays an interactive **Verified Job Dossier Deck** with 1-click external apply links, screenshot zoom, and persistent bookmarking.
 
 ### 2.2 What Milestone 1 Explicitly Excludes (OUT-OF-SCOPE)
-* ❌ Automated job application submission bots (auto-filling external forms).
-* ❌ Stripe / LemonSqueezy payment gateways and active credit billing.
-* ❌ Multi-container Kubernetes / microservice service mesh.
-* ❌ Vector database embeddings / OpenSearch clusters.
-* ❌ Resume parsing and automated PDF uploads.
+*  Automated job application submission bots (auto-filling external forms).
+*  Stripe / LemonSqueezy payment gateways and active credit billing.
+*  Multi-container Kubernetes / microservice service mesh.
+*  Vector database embeddings / OpenSearch clusters.
+*  Resume parsing and automated PDF uploads.
 
 ---
 

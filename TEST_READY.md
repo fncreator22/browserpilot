@@ -5,7 +5,7 @@ BrowserPilot is covered by an automated test suite comprising **16 test suites**
 
 ---
 
-## 🚀 Test Runner Execution Commands
+##  Test Runner Execution Commands
 
 ### Primary Test Runner
 Run the master test matrix verifying all 16 test suites:
@@ -36,7 +36,7 @@ npm run build        # Next.js Turbopack production compilation
 
 ---
 
-## 📊 16-Suite Test Matrix Summary
+##  16-Suite Test Matrix Summary
 
 ### 1. Unit Test Suites (8 Suites)
 
@@ -100,7 +100,7 @@ npm run build        # Next.js Turbopack production compilation
 
 ---
 
-## 🛡️ Production Assurance & Architecture
+## ️ Production Assurance & Architecture
 
 - **Database**: Cloud Turso Database via `@prisma/adapter-libsql` and `@libsql/client` (zero native C++ bindings, 100% serverless compatible).
 - **Serverless Resilience**: Active SSE streams and direct execution routes (`/api/jobs/[id]/execute`) prevent serverless background freezing on Vercel Serverless Lambdas.

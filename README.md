@@ -2,219 +2,267 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16.3.2-black?logo=next.js)](https://nextjs.org/)
-[![Playwright](https://img.shields.io/badge/Playwright-1.62.1-green?logo=playwright)](https://playwright.dev/)
-[![Gemini 2.5](https://img.shields.io/badge/Gemini-2.5%20Flash-orange?logo=google)](https://deepmind.google/technologies/gemini/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![React 19](https://img.shields.io/badge/React-19.2.8-blue?logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![Prisma](https://img.shields.io/badge/Prisma-7.x-2D3748?logo=prisma)](https://www.prisma.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-4169E1?logo=postgresql)](https://supabase.com/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
+[![Deployment Status](https://img.shields.io/badge/Deployment-Production%20Live-brightgreen)](https://browserpilot-gold.vercel.app)
 
-> **Enterprise-Grade Autonomous Web Agent Platform** powered by Gemini 2.5 Flash reasoning, Playwright browser sandboxes, BullMQ Redis queues, Prisma PostgreSQL persistence, and NextAuth.js multi-tenancy.
+BrowserPilot is an autonomous opportunity discovery platform and career intelligence engine. It continuously monitors official employer infrastructure across major Applicant Tracking Systems (Greenhouse, Ashby, Lever, Workday) and cross-platform channels, performing deterministic match verification, zero-ghost filtering, and direct hiring manager discovery.
+
+Production Deployment: [https://browserpilot-gold.vercel.app](https://browserpilot-gold.vercel.app)  
+Alternative Production Mirror: [https://browserpilot-sr2mahajangmailcoms-projects.vercel.app](https://browserpilot-sr2mahajangmailcoms-projects.vercel.app)
+
+---
+
+## Visual Interface Overview
+
+### Desktop Opportunity Discovery Workspace
+The centralized discovery command center surfaces active career opportunities with multi-source filtering, match rankings, and verified compensation calibration.
+
+![Opportunity Discovery Workspace](public/screenshots/discover_retrofit_desktop.png)
+
+### Deep Dossier and Recruiter Outreach Slide-over
+Detailed vacancy intelligence with direct ATS application link validation, team composition insights, and direct recruiter contact discovery.
+
+![Opportunity Intelligence Slideover](public/screenshots/discover_retrofit_slideover.png)
+
+### Autonomous 24/7 Opportunity Watches
+Persistent background watchers monitor target roles, skills, and companies with automated novelty detection, rate-controlled polling, and instant alert dispatch.
+
+![Autonomous Opportunity Watches](public/screenshots/watch_genuine_desktop.png)
+
+### Integration Connectors and Provider Management
+Configurable authentication and provider routing for Gemini, DeepSeek, Puter, and enterprise ATS APIs with key sanitization and token isolation.
+
+![Provider and Connector Settings](public/screenshots/settings_modal_desktop_connectors.png)
+
+### Enterprise Observability and Security Deck
+Real-time system telemetry, pipeline throughput metrics, audit trails, and tenant-isolated operational diagnostics.
+
+![Enterprise Observability Deck](public/screenshots/admin_relocated_portal_verified.png)
+
+### Fully Responsive Mobile Experience
+Compact density layout designed for high-precision review across viewports from 360px to 430px.
+
+![Mobile Discovery Interface](public/screenshots/discover_q1_mobile.png)
 
 ---
 
 ## Table of Contents
-- [🌟 Architecture & Core Pillars](#-architecture--core-pillars)
-- [🎯 Real Autonomous Execution vs Mock Data](#-real-autonomous-execution-vs-mock-data)
-- [🛠️ The 8 Canonical Browser Tools](#️-the-8-canonical-browser-tools)
-- [🛡️ Security, Guardrails & Policy Catalog](#️-security-guardrails--policy-catalog)
-- [🐳 One-Command Deployment (Docker Compose)](#-one-command-deployment-docker-compose)
-- [💻 Local Development Quickstart](#-local-development-quickstart)
-- [🧪 Automated Test Matrix (§36)](#-automated-test-matrix-36)
-- [👥 Multi-Tenancy & Rate Limits](#-multi-tenancy--rate-limits)
-- [🤝 Contributing & Branching Model](#-contributing--branching-model)
-- [📄 License](#-license)
+
+- [Core Capabilities](#core-capabilities)
+- [System Architecture](#system-architecture)
+- [Tech Stack](#tech-stack)
+- [Local Development Setup](#local-development-setup)
+- [Environment Configuration](#environment-configuration)
+- [Database Setup](#database-setup)
+- [Testing and Verification Matrix](#testing-and-verification-matrix)
+- [Branch Protection and Contribution Governance](#branch-protection-and-contribution-governance)
+- [Security and Responsible Disclosure](#security-and-responsible-disclosure)
+- [License](#license)
 
 ---
 
-## Architecture & Core Pillars
+## Core Capabilities
 
-BrowserPilot is built for deterministic web automation, structured extraction, form filling, visual regression capture, and state auditing.
+### 1. Continuous Official ATS Ingestion
+Scrapes and monitors live employer endpoints directly from Greenhouse, Ashby, Lever, and Workday portals. By verifying HTTP 200 responses directly on the employer's canonical subdomain, BrowserPilot guarantees zero aggregated stale postings and eliminates ghost vacancies.
+
+### 2. DeepReach Social Channel Discovery
+Extends beyond static job boards to scout active hiring signals, team expansions, and stealth announcements across X, Reddit, LinkedIn, and YouTube.
+
+### 3. 100-Point Semantic Match Engine
+Uses hybrid reasoning pipelines powered by Gemini 2.5 Flash and DeepSeek Harness to analyze candidate constraints (roles, seniority, tech stacks, salary requirements, location) against full job descriptions, calculating deterministic fit scores and gap analyses.
+
+### 4. Autonomous Background Watches
+Users can define persistent search watches with notification webhooks. The background scheduler runs scheduled sweeps, detects newly published vacancies, and dispatches instant alerts via email or webhook.
+
+### 5. Multi-Tenant Enterprise Security
+All search queries, persistent user memory vaults, and telemetry data are strictly tenant-isolated. Sensitive tokens, API keys, and credentials are encrypted at rest and recursively sanitized prior to model inference.
+
+---
+
+## System Architecture
 
 ```text
-User Natural Language Prompt
-  ↓
-[POST /api/jobs] → Prisma DB (Job: QUEUED) + BullMQ Redis Queue
-  ↓
-Worker Pool / In-Process Runner (worker/index.ts)
-  ↓
-[Step 1: PRE-FLIGHT] Capability Guard (lib/capabilities/guard.ts)
-  ├── ALLOWED: Continue
-  └── BLOCKED / REQUIRES_AUTH: Immediate safe stop
-  ↓
-[Step 2: PLANNING] Gemini 2.5 Flash Planner (lib/ai/planner.ts)
-  ↓
-[Step 3: PRE-EXECUTION] Plan Validator (lib/verification/planValidator.ts)
-  ├── Checks: Allowed domains, step budgets, prohibited protocols (file://, javascript:)
-  └── Reject-by-Default: Entire plan rejected if 1 step fails
-  ↓
-[Step 4: EXECUTION] Playwright ToolCall Dispatcher (worker/executor.ts)
-  ├── 8 Canonical Tools in isolated incognito contexts
-  └── Interaction Guard: Auto-dismisses popups / stops on verification challenges
-  ↓
-[Step 5: VERIFICATION] Result Verifier & Bounded Recovery (lib/verification/resultVerifier.ts)
-  ├── VERIFIED: All criteria met
-  └── RECOVER: Alternate action plan (Hard cap: 2 retries) → Fallback to PARTIAL
-  ↓
-[Step 6: SYNTHESIS] Gemini Synthesizer → Structured JSON / Markdown Report
-  ↓
-[Step 7: DISCLOSURE] 4-Level Progressive Disclosure Dashboard (/app/jobs/[id])
+User / Automated Watch Request
+  |
+  v
+Next.js 16 App Router (/api/search, /api/discovery/watch)
+  |
+  +--> Capability Guard & Authentication Gate (lib/capabilities/guard.ts)
+  |      |-- Enforces role-based permissions and session token validity
+  |      `-- Sanitizes prompt inputs and rejects hostile prompt injections
+  |
+  +--> Intent Parser & Constraint Normalizer (lib/scraper/intentParser.ts)
+  |      |-- Extracts explicit roles, locations, compensation brackets, and stacks
+  |      `-- Maps criteria into standardized taxonomy filters
+  |
+  +--> Discovery Execution Engine (lib/ai/harness/intelligenceHarness.ts)
+  |      |-- Stage 1: Official ATS Ingestion (Greenhouse, Ashby, Lever, Workday)
+  |      |-- Stage 2: DeepReach Social Discovery (X, Reddit, LinkedIn, YouTube)
+  |      |-- Stage 3: Live HTTP 200 Verification Gate
+  |      `-- Stage 4: Semantic Scoring & Relevance Ranker
+  |
+  +--> Database Layer (Supabase PostgreSQL via Prisma ORM)
+  |      |-- Persists opportunities, watches, runs, alerts, and audit logs
+  |      `-- Strict tenant foreign key constraints and IDOR rejection
+  |
+  `--> Telemetry & Client Stream (/api/search/[id]/events)
+         `-- Server-Sent Events (SSE) deliver live progressive disclosure
 ```
 
-For complete system diagrams and IPC specs, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+---
+
+## Tech Stack
+
+| Layer | Technology |
+| :--- | :--- |
+| Framework | Next.js 16.3.2 (App Router, Turbopack) |
+| Frontend | React 19.2.8, Tailwind CSS v4, Motion 13.x, daisyUI 5.x |
+| Language | TypeScript 5.x (Strict Type Checking) |
+| Database | PostgreSQL (Supabase pooler), Prisma 7.x ORM |
+| AI Reasoning | Gemini 2.5 Flash (@google/genai), DeepSeek Harness, Vercel AI SDK (ai) |
+| Authentication | NextAuth.js 4.24.x with session isolation |
+| Deployment | Vercel Serverless Architecture (IAD1 Edge Region) |
 
 ---
 
-## Real Autonomous Execution vs Mock Data
+## Local Development Setup
 
-BrowserPilot executes **100% real browser operations**:
-- Launches **real Chromium browser sandboxes** via Playwright.
-- Interacts with live DOM elements (navigation, clicking, keyboard strokes, text extraction).
-- Captures real viewport PNG screenshots saved to `storage/artifacts/`.
-- Queries Gemini 2.5 Flash for live intent classification, reasoning, and synthesis.
-- Persists live execution telemetry, step events, and observations to SQLite/PostgreSQL via Prisma.
+### Prerequisites
+- Node.js 20.x or higher
+- npm 10.x or higher
+- PostgreSQL database instance (or Supabase project)
 
----
-
-## The 8 Canonical Browser Tools
-
-| Tool Name | Action Category | Purpose & Description |
-| :--- | :--- | :--- |
-| `browser.navigate` | Navigation | Navigates to target URL with configurable timeout and wait condition (`domcontentloaded`). |
-| `browser.inspect` | State Inspection | Audits interactive DOM accessibility trees, buttons, forms, and headings. |
-| `browser.click` | Interaction | Clicks elements using precise CSS/XPath selectors. |
-| `browser.fill` | Form Filling | Types structured text into inputs and textarea fields. |
-| `browser.press` | Keyboard Input | Dispatches keyboard events (`Enter`, `Tab`, `Escape`, `ArrowDown`). |
-| `browser.extractText` | Extraction | Extracts single or batch inner text from matching DOM elements. |
-| `browser.screenshot` | Telemetry | Captures viewport PNG snapshot artifacts. |
-| `browser.getState` | Diagnostics | Retrieves active page URL, title, and interactive element metrics. |
-
----
-
-## Security, Guardrails & Policy Catalog
-
-- **Reject-by-Default Whitelist**: Only domains explicitly permitted or matching user constraints are allowed.
-- **No Arbitrary Code Injection**: Arbitrary `eval()` and `javascript:` injection are strictly prohibited.
-- **Anti-Bot & CAPTCHA Zero-Bypass**: Hard halts on CAPTCHA / Cloudflare challenges with human-readable diagnostics.
-- **Zero Raw Error Leakage (§26)**: All system failures map to 7 standardized human-friendly messages.
-
-For detailed capability definitions, see [docs/CAPABILITIES.md](docs/CAPABILITIES.md).
-
----
-
-## One-Command Deployment (Docker Compose)
-
-Boot the entire production stack (Web App, Background Worker, Redis, and PostgreSQL) with a single command:
-
+### Step 1: Clone Repository
 ```bash
-# 1. Clone repository
 git clone https://github.com/fncreator22/browserpilot.git
 cd browserpilot
-
-# 2. Configure environment
-cp .env.example .env
-
-# 3. Boot with Docker Compose
-docker compose up --build
 ```
 
-- **Web Dashboard**: `http://localhost:3000`
-- **PostgreSQL**: `localhost:5432`
-- **Redis Queue**: `localhost:6379`
-
----
-
-## Local Development Quickstart
-
-### 1. Prerequisites
-- Node.js 20+
-- npm / yarn / pnpm
-
-### 2. Setup & Database
+### Step 2: Install Dependencies
 ```bash
 npm install
-npx prisma db push
-npx prisma generate
 ```
 
-### 3. Start Development Server
+### Step 3: Configure Environment Variables
+Create `.env.local` based on `.env.example`:
+```bash
+cp .env.example .env.local
+```
+Fill in the required database credentials, auth secrets, and AI provider keys.
+
+### Step 4: Generate Prisma Client and Run Migrations
+```bash
+npx prisma generate
+npx prisma db push
+```
+
+### Step 5: Start Development Server
 ```bash
 npm run dev
 ```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## Dual-Environment Database Switching (Supabase vs AWS Aurora)
+## Environment Configuration
 
-BrowserPilot runs **exclusively on PostgreSQL** via Prisma with `@prisma/adapter-pg`. The codebase contains zero SQLite or LibSQL fallbacks.
+The following variables must be defined in `.env.local` for local execution:
 
-| Environment | Provider | Config File | Primary Purpose |
-| :--- | :--- | :--- | :--- |
-| **Development** | **Supabase PostgreSQL** | `.env.development` | Daily interactive testing, local dev, zero compute cost |
-| **Load Testing** | **AWS Aurora Serverless v2** | `.env.production.aws` | Large-scale 10,000+ user simulations (`ap-south-2`) |
-
-### Strict Isolation & Safety Guarantees
-1. **Zero Silent Fallbacks:** The app reads exactly one `DATABASE_URL`. If the database is unreachable or misconfigured, it halts immediately with a clear error.
-2. **Never Dual-Writes:** Only one database target is active at any time.
-3. **Clear Startup Banner:** The app logs the active target at boot so you always know which database is receiving queries:
-   ```text
-   [Database] Active Engine: POSTGRESQL | Provider: Supabase | Host: aws-0-ap-south-1.pooler.supabase.com | DB: postgres
-   ```
-4. **AWS Aurora Cost Protection:** Keep the Aurora cluster stopped when not running large load tests:
-   ```powershell
-   # Stop cluster (preserves all data, ceases ACU compute charges)
-   aws rds stop-db-cluster --db-cluster-identifier browserpilot-prod-aurora --region ap-south-2
-
-   # Start cluster (before activating .env.production.aws)
-   aws rds start-db-cluster --db-cluster-identifier browserpilot-prod-aurora --region ap-south-2
-   ```
-
-### 4. Start Background Worker (Optional - In-process fallback enabled)
 ```bash
-npm run worker:dev # or npx tsx worker/index.ts
+# Database (PostgreSQL / Supabase)
+DATABASE_URL="postgresql://user:password@host:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://user:password@host:5432/postgres"
+
+# Authentication
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-secure-random-32-character-secret"
+
+# AI Reasoning Providers
+GEMINI_API_KEY="your-google-gemini-api-key"
+AI_GATEWAY_API_KEY="your-vercel-ai-gateway-key"
+
+# Admin & Operational Security
+ADMIN_EMAILS="admin@example.com"
+ADMIN_SECRET_KEY="your-internal-admin-secret-key"
+
+# Optional Cache / Queue
+REDIS_URL="redis://localhost:6379"
 ```
 
 ---
 
-## Automated Test Matrix (§36)
+## Testing and Verification Matrix
 
-Run the full automated test suite:
+BrowserPilot enforces comprehensive automated quality checks. All test suites must execute cleanly before any code can be merged.
 
+### Run All Test Suites
 ```bash
+# Run complete test verification suite
 npm test
+
+# Run TypeScript static type analysis
+npm run typecheck
+
+# Verify Next.js production build
+npm run build
 ```
 
-| §36 Scenario | Focus Area | Status | Test Reference |
-| :--- | :--- | :--- | :--- |
-| **Scenario 1** | Happy Path Public Extraction | ✅ **PASS** | `tests/e2e/autonomousPipeline.test.ts` |
-| **Scenario 2** | Pre-Flight Capability Guard Halt | ✅ **PASS** | `tests/unit/capabilityGuard.test.ts` |
-| **Scenario 3** | Plan Validator Security Rejection | ✅ **PASS** | `tests/unit/planValidator.test.ts` |
-| **Scenario 4** | Interaction Guard Overlay Dismissal | ✅ **PASS** | `tests/integration/executor.test.ts` |
-| **Scenario 5** | Result Verifier Bounded Recovery (Cap = 2) | ✅ **PASS** | `tests/unit/resultVerifier.test.ts` |
-| **Scenario 6** | Multi-User Isolation & Rate Limits | ✅ **PASS** | `tests/integration/multiUser.test.ts` |
-| **Scenario 7** | DB Persistence & Process Restart | ✅ **PASS** | `tests/run-db-persistence-test.ts` |
+### Key Verification Suites
+
+| Suite ID | Description | Coverage |
+| :--- | :--- | :--- |
+| TASK-014 | Autonomous Discovery & Novelty Intelligence | Watch persistence, polling cadence, deduplication |
+| TASK-019 | Natural-Language Routing Engine | Intent classification, taxonomy routing, constraint parsing |
+| TASK-027 | Scraper Boundary & Broadening Isolation | Provider isolation, mock test containment |
+| TASK-045 | Search Pipeline Determinism | Multi-source aggregation, ranking consistency |
+| TASK-046 | DeepReach Cross-Platform Scanner | Social harvest, candidate normalizer |
+| TASK-053 | Authentication and Connector Security | Token isolation, unauthenticated endpoint rejection |
+| TASK-054 | Rate Limiting & Abuse Prevention | Burst mitigation, in-memory fallback limits |
+| TASK-057 | Production Reliability & Observability | 21 test scenarios: abort handling, secret sanitization, IDOR checks |
+| TASK-058 | Final Security & Data-Isolation Gate | 26 test scenarios: SSRF prevention, XSS guards, memory admission |
 
 ---
 
-## Multi-Tenancy & Rate Limits
+## Branch Protection and Contribution Governance
 
-- **Scoped Queries**: Every job query, timeline event, and artifact download is isolated to the authenticated user ID.
-- **Concurrent Limits**: Configured to max 2 concurrent jobs and 20 hourly jobs per user to prevent worker pool starvation.
-- **Job Control**: Dedicated ownership-checked `POST /api/jobs/:id/cancel` and `POST /api/jobs/:id/retry` endpoints.
+BrowserPilot operates under a strict repository access and governance model to guarantee stability, security, and traceability:
+
+1. **Pull Requests Required**:
+   - All community contributors must fork the repository and submit changes via a Pull Request (PR) targeted against the `main` branch.
+   - Direct pushes to the `main` branch are disabled and restricted.
+
+2. **Admin-Only Merge Rights**:
+   - Only designated repository administrators and core maintainers possess permissions to approve and merge Pull Requests into `main`.
+   - Contributors cannot merge their own PRs, even if all automated checks pass.
+
+3. **Mandatory Quality Gates**:
+   - Every PR triggers automated continuous integration (CI).
+   - A PR must pass `npm run typecheck` with zero errors, pass all automated test suites, and compile cleanly via `npm run build`.
+   - At least one code review and approval from an authorized administrator is mandatory prior to merging.
+
+4. **Conventional Commits**:
+   - All commits must adhere to the Conventional Commits specification (for example, `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `perf:`).
+
+For full details on development standards, coding conventions, and the submission lifecycle, consult [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
-## Contributing & Branching Model
+## Security and Responsible Disclosure
 
-We welcome contributions from the community!
+Security is fundamental to BrowserPilot. The platform enforces:
+- Strict SSRF protection rejecting internal network addresses (RFC 1918), localhost, and cloud metadata services.
+- Automated secret and credential redacting preventing tokens or passwords from entering prompts or model context.
+- Cross-tenant IDOR protection ensuring that search histories, user memory vaults, and saved vacancies are inaccessible across accounts.
 
-1. **Branch Policy**:
-   - **`main`**: Production releases only. Direct commits are restricted.
-   - **`develop`**: Primary integration branch. Target all Pull Requests against `develop`.
-2. **Interactive PR Template**:
-   - When raising a Pull Request, use the [PR Template](.github/pull_request_template.md) to select change types and verify checklist items.
-
-For full guidelines, read [CONTRIBUTING.md](CONTRIBUTING.md).
+If you identify a potential security vulnerability, do not open a public issue. Review our security reporting instructions in [CONTRIBUTING.md](CONTRIBUTING.md) to contact the maintainers directly.
 
 ---
 
-## 📄 License
+## License
 
-Distributed under the **Apache 2.0 License**. See [LICENSE](LICENSE) for more information.
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.

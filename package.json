@@ -1,6 +1,12 @@
 {
   "name": "browserpilot",
   "version": "0.1.0",
+  "description": "Autonomous opportunity radar and career discovery engine with 24/7 official ATS scrapers, DeepReach social intelligence, and semantic scoring powered by Gemini and DeepSeek.",
+  "homepage": "https://browserpilot-gold.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fncreator22/browserpilot.git"
+  },
   "private": true,
   "scripts": {
     "dev": "next dev",
