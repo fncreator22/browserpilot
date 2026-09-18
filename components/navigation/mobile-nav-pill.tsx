@@ -9,7 +9,8 @@ import {
   Bookmark, 
   Settings,
   Plus,
-  Search
+  Search,
+  Briefcase
 } from "lucide-react";
 import { useUIState } from "@/components/providers/ui-state-provider";
 
@@ -43,6 +44,12 @@ export function MobileNavPill() {
       label: "Home",
       icon: Compass,
       isActive: pathname === "/app",
+    },
+    {
+      href: "/app/marketplace",
+      label: "Market",
+      icon: Briefcase,
+      isActive: pathname === "/app/marketplace",
     },
     {
       href: "/app/watch",
