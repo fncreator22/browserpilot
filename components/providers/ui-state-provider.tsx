@@ -64,6 +64,16 @@ interface UIStateContextType {
   profileModalTab: ProfileTab;
   openProfileModal: (tab?: ProfileTab) => void;
   closeProfileModal: () => void;
+
+  // Subscription Tier & Feature Isolation
+  planTier: "FREE" | "PREMIUM" | "ENTERPRISE";
+  isPaid: boolean;
+  isEnterprise: boolean;
+  capabilities: Record<string, boolean>;
+  canAccessFeature: (featureKey: string) => boolean;
+  currency: "USD" | "INR";
+  setCurrency: (c: "USD" | "INR") => void;
+  refreshBilling: () => Promise<void>;
 }
 
 const UIStateContext = createContext<UIStateContextType | null>(null);
@@ -79,12 +89,71 @@ export function UIStateProvider({ children }: { children: React.ReactNode }) {
   const [profileModalTab, setProfileModalTab] = useState<ProfileTab>("ACCOUNT");
   const [isSidebarCollapsed, setIsSidebarCollapsedState] = useState<boolean>(false);
 
+  // Subscription Tier & Capabilities
+  const [planTier, setPlanTier] = useState<"FREE" | "PREMIUM" | "ENTERPRISE">("FREE");
+  const [isPaid, setIsPaid] = useState<boolean>(false);
+  const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
+  const [currency, setCurrencyState] = useState<"USD" | "INR">("USD");
+
+  const setCurrency = useCallback((newCur: "USD" | "INR") => {
+    setCurrencyState(newCur);
+    try {
+      localStorage.setItem("browserpilot_currency_preference", newCur);
+    } catch {}
+  }, []);
+
+  const refreshBilling = useCallback(async () => {
+    try {
+      const res = await fetch("/api/account/billing");
+      if (res.ok) {
+        const raw = await res.text();
+        const data = raw && raw.trim().length > 0 ? JSON.parse(raw) : null;
+        if (!data) return;
+        if (data.planTier) setPlanTier(data.planTier);
+        if (typeof data.isPaid === "boolean") setIsPaid(data.isPaid);
+        if (data.capabilities) setCapabilities(data.capabilities);
+        if (data.currency) {
+          const stored = localStorage.getItem("browserpilot_currency_preference");
+          if (stored === "INR" || stored === "USD") {
+            setCurrencyState(stored);
+          } else {
+            setCurrencyState(data.currency);
+          }
+        }
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (session?.user) {
+      refreshBilling();
+    }
+  }, [session, refreshBilling]);
+
+  const canAccessFeature = useCallback((featureKey: string): boolean => {
+    const norm = featureKey.toUpperCase();
+    if (capabilities[norm] !== undefined) {
+      return Boolean(capabilities[norm]);
+    }
+    if (norm === "PRIORITY_EXECUTION" || norm === "SWARM_FLEET") {
+      return planTier === "ENTERPRISE";
+    }
+    if (norm === "COMPANY_TARGETING" || norm === "ADVANCED_FILTERS" || norm === "CSV_EXPORT" || norm === "PUTER_PREMIUM") {
+      return isPaid || planTier === "PREMIUM" || planTier === "ENTERPRISE";
+    }
+    return true;
+  }, [capabilities, planTier, isPaid]);
+
   // Safely restore collapsed state from localStorage post-hydration
   useEffect(() => {
     try {
       const saved = localStorage.getItem("browserpilot_sidebar_collapsed");
       if (saved === "true") {
         setIsSidebarCollapsedState(true);
+      }
+      const savedCur = localStorage.getItem("browserpilot_currency_preference");
+      if (savedCur === "USD" || savedCur === "INR") {
+        setCurrencyState(savedCur);
       }
     } catch {
       // Ignore storage access errors
@@ -154,8 +223,9 @@ export function UIStateProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch("/api/connectors");
       if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.connectors)) {
+        const raw = await res.text();
+        const data = raw && raw.trim().length > 0 ? JSON.parse(raw) : null;
+        if (data && Array.isArray(data.connectors)) {
           setConnectors(data.connectors);
         }
       }
@@ -254,8 +324,9 @@ export function UIStateProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch("/api/notifications?unreadOnly=true");
       if (res.ok) {
-        const data = await res.json();
-        setUnreadNotificationsCount(data.unreadCount || 0);
+        const raw = await res.text();
+        const data = raw && raw.trim().length > 0 ? JSON.parse(raw) : null;
+        if (data) setUnreadNotificationsCount(data.unreadCount || 0);
       }
     } catch {
       // Non-fatal
@@ -268,8 +339,9 @@ export function UIStateProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch("/api/opportunities/saved");
       if (res.ok) {
-        const data = await res.json();
-        setSavedCount(data.saved?.length || 0);
+        const raw = await res.text();
+        const data = raw && raw.trim().length > 0 ? JSON.parse(raw) : null;
+        if (data) setSavedCount(data.saved?.length || 0);
       }
     } catch {
       // Non-fatal
@@ -295,6 +367,7 @@ export function UIStateProvider({ children }: { children: React.ReactNode }) {
     const handleRefreshEvent = () => {
       refreshNotifications();
       refreshSavedCount();
+      refreshBilling();
     };
 
     window.addEventListener("browserai:refresh-state", handleRefreshEvent);
@@ -312,7 +385,7 @@ export function UIStateProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("browserai:bookmark-updated", handleRefreshEvent);
       window.removeEventListener("browserai:search-completed", handleRefreshEvent);
     };
-  }, [session?.user, refreshNotifications, refreshSavedCount]);
+  }, [session?.user, refreshNotifications, refreshSavedCount, refreshBilling]);
 
   // Mark single notification as read & update unread badge synchronously
   const markNotificationAsRead = useCallback(async (id: string) => {
@@ -409,6 +482,16 @@ export function UIStateProvider({ children }: { children: React.ReactNode }) {
     profileModalTab,
     openProfileModal,
     closeProfileModal,
+
+    // Subscription Tier & Feature Isolation
+    planTier,
+    isPaid,
+    isEnterprise: planTier === "ENTERPRISE",
+    capabilities,
+    canAccessFeature,
+    currency,
+    setCurrency,
+    refreshBilling,
   };
 
   return (
