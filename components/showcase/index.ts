@@ -6,4 +6,3 @@
  */
 
 export { PreviewSearchCapsule } from "./preview-search-capsule";
-export { PreviewMessagingDrawer } from "./preview-messaging-drawer";
