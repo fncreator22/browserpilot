@@ -53,6 +53,38 @@ export async function GET() {
       getAvailablePlans(),
     ]);
 
+    const { getPlanCapabilities } = await import("@/lib/billing/entitlementService");
+    const { TIER_PRICES, SUPPORTED_CURRENCIES } = await import("@/lib/billing/currency");
+
+    const rawCaps = await getPlanCapabilities(plan.code).catch(() => []);
+    const capabilitiesMap: Record<string, boolean> = {
+      COMPANY_TARGETING: plan.supportsCompanyTargeting,
+      ADVANCED_FILTERS: plan.supportsAdvancedFilters,
+      PUTER_PREMIUM: plan.supportsPuterPremium,
+      PRIORITY_EXECUTION: plan.supportsPriorityExecution,
+      CSV_EXPORT: isPaid,
+      DIRECT_REACH: true,
+      AI_DISCOVERY: true,
+    };
+    for (const cap of rawCaps) {
+      capabilitiesMap[cap.capabilityKey.toUpperCase()] = cap.enabled;
+    }
+
+    // Resolve user currency preference (stored in profile or inferred from location)
+    let userCurrency: "USD" | "INR" = (plan.currency?.toUpperCase() === "INR" ? "INR" : "USD");
+    try {
+      const userProfile = await prisma.userProfile.findUnique({
+        where: { userId: activeUserId },
+        select: { preferredLocations: true },
+      });
+      if (userProfile?.preferredLocations) {
+        const locs = JSON.parse(userProfile.preferredLocations);
+        if (Array.isArray(locs) && locs.some((l: string) => /india|bengaluru|bangalore|delhi|mumbai|hyderabad|pune|chennai|noida/i.test(l))) {
+          userCurrency = "INR";
+        }
+      }
+    } catch {}
+
     return NextResponse.json({
       plan,
       subscription: subscription
@@ -67,6 +99,11 @@ export async function GET() {
           }
         : null,
       isPaid,
+      planTier: plan.code.toUpperCase(),
+      capabilities: capabilitiesMap,
+      currency: userCurrency,
+      supportedCurrencies: SUPPORTED_CURRENCIES,
+      tierPrices: TIER_PRICES,
       quota,
       usage: {
         activeWatches: (quota as any).activeWatches?.used ?? (typeof (quota as any).activeWatches === "number" ? (quota as any).activeWatches : 0),
