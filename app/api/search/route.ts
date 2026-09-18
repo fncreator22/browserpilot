@@ -38,6 +38,7 @@ import { promptQueue } from "@/lib/queue/millisecondFifoQueue";
 import { UniversalAuditLogger } from "@/lib/audit/universalAuditLogger";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export interface SearchApiRequest {
   query?: string;
@@ -67,9 +68,20 @@ export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions).catch(() => null);
 
     const sessionUser = session?.user as any;
-    if (sessionUser?.id) {
+    if (sessionUser?.email) {
+      try {
+        const dbUser = await prisma.user.findUnique({
+          where: { email: sessionUser.email.toLowerCase().trim() },
+          select: { id: true },
+        });
+        if (dbUser) {
+          userId = dbUser.id;
+        }
+      } catch {}
+    }
+    if (!userId && sessionUser?.id) {
       userId = sessionUser.id;
-    } else if (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test" || (process.env as any).IS_TEST_HARNESS === "true") {
+    } else if (!userId && (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test" || (process.env as any).IS_TEST_HARNESS === "true")) {
       const headerUserId = request.headers.get("x-test-user-id") || request.headers.get("x-user-id");
       if (headerUserId) {
         userId = headerUserId;
@@ -511,6 +523,25 @@ export async function POST(request: NextRequest) {
         } catch (dbErr) {
           console.warn("[SearchAPI] Upfront search record creation warning:", dbErr);
         }
+
+        // Track Monthly AI Operations quota for user
+        if (userId && !userId.startsWith("guest_")) {
+          try {
+            const { recordAIUsageEvent } = await import("@/lib/ai/governance/providerGovernance");
+            await recordAIUsageEvent({
+              userId,
+              provider: hasClientKey ? (clientPuterToken ? "PUTER" : "GEMINI_BYOK") : "BROWSERPILOT_SWARM",
+              model: "gemini-2.5-flash",
+              operation: "DISCOVERY_SEARCH",
+              inputTokens: 250,
+              outputTokens: 400,
+              totalTokens: 650,
+              status: "SUCCESS",
+            });
+          } catch (eventErr) {
+            console.warn("[SearchAPI] AI usage event recording warning:", eventErr);
+          }
+        }
       }
 
       await enqueueSearchDiscoveryJob({
@@ -615,10 +646,28 @@ export async function POST(request: NextRequest) {
           signal: executionAbort.signal,
         });
 
-        const rankedOpportunities = harnessResult.rankedOpportunities;
+        let rankedOpportunities = harnessResult.rankedOpportunities;
         const canonicalIntent = harnessResult.context.searchIntent || initialIntent;
         const decision = harnessResult.decision;
         const correctionResult = harnessResult.context.correctionLoopResult;
+
+        // Apply high-yield 10-15 opportunity guarantee (5-8 exact + 5-7 recommendations)
+        if (!customProviders || customProviders.length === 0) {
+          try {
+            const { augmentToGuaranteedYield } = await import("@/lib/discovery/search/highYieldSearchAugmentor");
+            rankedOpportunities = await augmentToGuaranteedYield(
+              rankedOpportunities,
+              rawQuery || initialIntent.queryHint || "Find software jobs",
+              canonicalIntent,
+              {
+                userId,
+                signal: executionAbort.signal,
+              }
+            );
+          } catch (yieldErr) {
+            console.warn("[SearchAPI] High-yield augmentation warning:", yieldErr);
+          }
+        }
 
         const isCancelled =
           executionAbort.signal.aborted ||
@@ -842,6 +891,25 @@ export async function POST(request: NextRequest) {
           if (finalCancelled) {
             await prisma.searchResult.deleteMany({ where: { searchId: executionId } }).catch(() => {});
             await executionKeyRegistry.killExecutionKey(executionId, "CANCELLED_BY_USER", userId);
+          }
+
+          // Track Monthly AI Operations quota for user in direct execution path
+          if (userId && !userId.startsWith("guest_") && !finalCancelled) {
+            try {
+              const { recordAIUsageEvent } = await import("@/lib/ai/governance/providerGovernance");
+              await recordAIUsageEvent({
+                userId,
+                provider: hasClientKey ? (clientPuterToken ? "PUTER" : "GEMINI_BYOK") : "BROWSERPILOT_SWARM",
+                model: "gemini-2.5-flash",
+                operation: "DISCOVERY_SEARCH",
+                inputTokens: 250,
+                outputTokens: 400,
+                totalTokens: 650,
+                status: "SUCCESS",
+              });
+            } catch (eventErr) {
+              console.warn("[SearchAPI] AI usage event recording warning:", eventErr);
+            }
           }
         }
 
