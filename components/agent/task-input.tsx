@@ -86,6 +86,7 @@ interface TaskInputProps {
   onSearchingChange?: (isSearching: boolean) => void;
   onExecutionQueued?: (executionId: string, query: string) => void;
   onCancel?: () => void;
+  trailingActions?: React.ReactNode;
 }
 
 const PLACEHOLDER_IDEAS = [
@@ -146,6 +147,7 @@ export function TaskInput({
   onSearchingChange,
   onExecutionQueued,
   onCancel,
+  trailingActions,
 }: TaskInputProps) {
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion();
@@ -453,8 +455,9 @@ export function TaskInput({
       try {
         const res = await fetch("/api/account/recommendations");
         if (res.ok) {
-          const data = await res.json();
-          if (isMounted && Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+          const rawRec = await res.text();
+          const data = rawRec && rawRec.trim().length > 0 ? JSON.parse(rawRec) : null;
+          if (data && isMounted && Array.isArray(data.recommendations) && data.recommendations.length > 0) {
             const mapped = data.recommendations.map((item: any) => {
               let IconComponent = Briefcase;
               if (item.icon === "layers") IconComponent = Layers;
@@ -560,7 +563,8 @@ export function TaskInput({
     if (onSearchingChange) onSearchingChange(false);
     if (onOpportunitySearchResult) onOpportunitySearchResult(null);
     if (onCancel) onCancel();
-    toast.info("Search Cancelled", { description: "Search execution was cancelled by user request." });
+    const { showDeduplicatedCancelToast } = await import("@/lib/utils/toastDebounce");
+    showDeduplicatedCancelToast("Search execution was cancelled by user request.");
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -573,7 +577,7 @@ export function TaskInput({
 
     if (isBusy) {
       toast.info("Search in progress", {
-        description: "Your discovery query is actively querying ATS connectors.",
+        description: "Your discovery query is actively querying discovery plugins.",
       });
       return;
     }
@@ -624,9 +628,17 @@ export function TaskInput({
             ocrText: clientOcrText,
           }),
         });
-        const deepData = await deepRes.json();
+        let deepData: any = null;
+        try {
+          const rawDeep = await deepRes.text();
+          if (rawDeep && rawDeep.trim().length > 0) {
+            deepData = JSON.parse(rawDeep);
+          }
+        } catch {
+          deepData = null;
+        }
 
-        if (deepRes.ok && deepData.data) {
+        if (deepRes.ok && deepData?.data) {
           // Listing Trust Advisory Toast for ghost jobs or undisclosed employers
           if (deepData.data.isUndisclosed || deepData.data.trustReport?.isGhostJob) {
             toast.warning("Listing Trust Advisory", {
@@ -692,13 +704,17 @@ export function TaskInput({
             // Fall through to mainline search
           }
         } else {
-          toast.error(deepData.message || "DeepReach extraction failed");
+          toast.error("DeepReach Notice", {
+            description: deepData?.message || "Vision extraction was unable to identify listings in this image.",
+          });
           setIsSubmitting(false);
           if (onSearchingChange) onSearchingChange(false);
           return;
         }
-      } catch (err: any) {
-        toast.error("DeepReach Extraction Failed", { description: err.message });
+      } catch {
+        toast.error("DeepReach Notice", {
+          description: "An issue occurred while analyzing the document image. Please try again or enter your search keywords directly.",
+        });
         setIsSubmitting(false);
         if (onSearchingChange) onSearchingChange(false);
         return;
@@ -718,7 +734,7 @@ export function TaskInput({
     const abortCtrl = new AbortController();
     abortControllerRef.current = abortCtrl;
     const timeoutId = setTimeout(() => {
-      abortCtrl.abort(new Error("Search timed out: Upstream ATS connectors took too long to respond. Try narrowing your query or retrying."));
+      abortCtrl.abort(new Error("Search timed out: Upstream discovery plugins took too long to respond. Try narrowing your query or retrying."));
     }, 300000);
 
     let searchHandedOffToQueue = false;
@@ -764,14 +780,29 @@ export function TaskInput({
         currentExecutionIdRef.current = execIdHeader;
       }
 
-      const data = await res.json();
+      let data: any = null;
+      try {
+        const rawText = await res.text();
+        if (rawText && rawText.trim().length > 0) {
+          data = JSON.parse(rawText);
+        }
+      } catch {
+        data = null;
+      }
 
       if (abortCtrl.signal.aborted) {
         return;
       }
 
       if (!res.ok) {
-        if (res.status === 401 || data.error === "AUTH_OR_KEY_REQUIRED") {
+        if (res.status === 504 || res.status === 502 || res.status === 503) {
+          const timeoutDesc = "The search service took longer than expected or is under high traffic. Please retry in a few moments.";
+          setSubmitError(timeoutDesc);
+          toast.error("Search Notice", { description: timeoutDesc });
+          if (onOpportunitySearchResult) onOpportunitySearchResult(null);
+          return;
+        }
+        if (res.status === 401 || data?.error === "AUTH_OR_KEY_REQUIRED") {
           setShowAccessGate(true);
           setIsSubmitting(false);
           if (onSearchingChange) onSearchingChange(false);
@@ -781,7 +812,7 @@ export function TaskInput({
           return;
         }
         if (res.status === 429) {
-          toast.error(data.message || "Rate limit reached. Please wait a moment before trying again.");
+          toast.error(data?.message || "Rate limit reached. Please wait a moment before trying again.");
           return;
         }
         if (res.status === 499) {
@@ -793,7 +824,11 @@ export function TaskInput({
           }
           return;
         }
-        throw new Error(data.message || "Failed to execute opportunity discovery search.");
+        throw new Error(data?.message || "We could not find matching results. Please try a different query or adjust your filters.");
+      }
+
+      if (!data) {
+        throw new Error("Unable to read search results from server. Please retry in a moment.");
       }
 
       if (data.status === "QUEUED" && data.executionId) {
@@ -830,7 +865,7 @@ export function TaskInput({
 
       if (foundCount === 0) {
         toast.info("Search Complete", {
-          description: `Search complete - no matches found across your ${sourceCount} sources.`,
+          description: `Search complete. No matches found across your ${sourceCount} sources.`,
         });
       } else {
         toast.success("Opportunities Discovered!", {
@@ -841,9 +876,9 @@ export function TaskInput({
       clearTimeout(timeoutId);
       const isTimeout = abortCtrl.signal.aborted && ((err as Error).name === "AbortError" || (err as Error).message?.includes("timed out"));
       if (isTimeout) {
-        const timeoutMsg = "Search timed out: Upstream ATS connectors took too long to respond. Try narrowing your query or retrying.";
+        const timeoutMsg = "Search took longer than expected to query all job plugins. Please try narrowing your search keywords.";
         setSubmitError(timeoutMsg);
-        toast.error("Opportunity Search Error", { description: timeoutMsg });
+        toast.error("Search Notice", { description: timeoutMsg });
         if (onOpportunitySearchResult) {
           onOpportunitySearchResult(null);
         }
@@ -852,9 +887,21 @@ export function TaskInput({
       if (abortCtrl.signal.aborted) {
         return;
       }
-      const msg = (err as Error).message || "An unexpected error occurred during opportunity search.";
-      setSubmitError(msg);
-      toast.error("Opportunity Search Error", { description: msg });
+      const rawMsg = (err as Error).message || "";
+      const isTechnicalError = 
+        rawMsg.includes("JSON") || 
+        rawMsg.includes("Unexpected end") || 
+        rawMsg.includes("Failed to execute 'json'") ||
+        rawMsg.includes("fetch failed") ||
+        rawMsg.includes("NetworkError") ||
+        rawMsg.includes("Load failed");
+
+      const friendlyMsg = isTechnicalError
+        ? "We could not complete your search at this moment. Please check your internet connection or retry shortly."
+        : rawMsg || "An unexpected issue occurred during your search. Please try again.";
+
+      setSubmitError(friendlyMsg);
+      toast.error("Search Notice", { description: friendlyMsg });
       if (onOpportunitySearchResult) {
         onOpportunitySearchResult(null);
       }
@@ -906,34 +953,46 @@ export function TaskInput({
           <Textarea
             id="task-goal"
             value={prompt}
-            readOnly={isListening}
+            disabled={isBusy}
+            readOnly={isListening || isBusy}
             onClick={() => {
+              if (isBusy) return;
               if (isListening) {
                 stopVoiceRecording();
               }
             }}
             onChange={(e) => {
+              if (isBusy) return;
               const val = e.target.value;
               setPrompt(val);
               basePromptRef.current = val;
             }}
-            onPaste={handlePaste}
+            onPaste={(e) => {
+              if (isBusy) {
+                e.preventDefault();
+                return;
+              }
+              handlePaste(e);
+            }}
             onKeyDown={(e) => {
+              if (isBusy) return;
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 handleSubmit();
               }
             }}
             placeholder={
-              isListening
+              isBusy
+                ? "Autonomous discovery agent is scouting live job boards and ATS sources..."
+                : isListening
                 ? "Listening to voice input... Click mic or text box to stop and edit."
                 : attachedImage
                 ? "Add any additional context or hit Discover to parse image..."
                 : PLACEHOLDER_IDEAS[placeholderIndex]
             }
-            title={isListening ? "Listening... Click to stop recording and edit prompt" : undefined}
+            title={isBusy ? "Search in progress - input locked" : isListening ? "Listening... Click to stop recording and edit prompt" : undefined}
             rows={isCompact ? 2 : 3}
-            className="text-sm sm:text-base leading-relaxed placeholder:text-muted-foreground/50 resize-none min-h-[70px] max-h-[160px] sm:max-h-[180px] overflow-y-auto focus:outline-none bg-transparent w-full p-0 border-0 shadow-none focus-visible:ring-0 font-sans"
+            className="text-sm sm:text-base leading-relaxed placeholder:text-muted-foreground/50 resize-none min-h-[70px] max-h-[160px] sm:max-h-[180px] overflow-y-auto focus:outline-none bg-transparent w-full p-0 border-0 shadow-none focus-visible:ring-0 font-sans disabled:opacity-85 disabled:cursor-not-allowed select-text"
           />
         </div>
 
@@ -965,6 +1024,7 @@ export function TaskInput({
             <div className="relative" ref={plusMenuRef}>
               <button
                 type="button"
+                disabled={isBusy}
                 onClick={() => setShowPlusMenu(!showPlusMenu)}
                 aria-expanded={showPlusMenu}
                 aria-label="Add action or context"
@@ -972,14 +1032,14 @@ export function TaskInput({
                   showPlusMenu || attachedImage
                     ? "bg-primary text-primary-foreground border-primary"
                     : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border-border"
-                }`}
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
                 title="Upload screenshot or media"
               >
                 <Plus className={`h-4 w-4 transition-transform duration-200 ${showPlusMenu ? "rotate-45" : ""}`} />
               </button>
 
               <AnimatePresence>
-                {showPlusMenu && (
+                {showPlusMenu && !isBusy && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95, y: -4 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1012,12 +1072,13 @@ export function TaskInput({
             {/* Filters Toggle Button */}
             <button
               type="button"
+              disabled={isBusy}
               onClick={() => setShowRefine(!showRefine)}
               className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-sans font-medium transition-colors cursor-pointer border ${
                 showRefine || hasActiveFilters
                   ? "bg-primary text-primary-foreground border-primary"
                   : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border-border"
-              }`}
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               <SlidersHorizontal className="h-3.5 w-3.5 stroke-[1.75]" />
               <span className="hidden sm:inline">Filters</span>
@@ -1031,14 +1092,15 @@ export function TaskInput({
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
+                disabled={isBusy}
                 onClick={toggleVoiceRecording}
                 aria-label={isListening ? "Stop voice recording" : "Record voice input"}
                 className={`inline-flex items-center justify-center h-8 w-8 rounded-lg text-xs font-sans font-medium transition-all cursor-pointer border ${
                   isListening
                     ? "bg-primary text-primary-foreground border-primary shadow-marble-1"
                     : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border-border"
-                }`}
-                title={isListening ? "Stop recording (speaking writes to prompt directly)" : "Voice input (Speech to Text)"}
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                title={isBusy ? "Search in progress" : isListening ? "Stop recording (speaking writes to prompt directly)" : "Voice input (Speech to Text)"}
               >
                 {isListening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5 stroke-[1.75]" />}
               </button>
@@ -1119,6 +1181,8 @@ export function TaskInput({
                 </>
               )}
             </Button>
+
+            {trailingActions}
           </div>
         </div>
 
