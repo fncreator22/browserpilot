@@ -7,25 +7,19 @@ import {
   Sparkles, 
   Trash2, 
   Edit3, 
-  Plus, 
-  CheckCircle2, 
-  AlertCircle, 
-  Building, 
   MapPin, 
   Globe, 
   Briefcase, 
-  Layers,
   ArrowRight,
   ShieldCheck,
   Info,
-  Clock,
   RotateCw,
-  Lightbulb
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { CareerMemoryForm } from "@/components/profile/career-memory-form";
 
 interface MemoryItem {
   id: string;
@@ -39,10 +33,7 @@ interface MemoryItem {
 
 export default function UserMemoryPage() {
   const [preferences, setPreferences] = useState<MemoryItem[]>([]);
-  const [recommendations, setRecommendations] = useState<MemoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [newPreferenceText, setNewPreferenceText] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -54,7 +45,6 @@ export default function UserMemoryPage() {
       if (res.ok) {
         const data = await res.json();
         setPreferences(data.preferences || []);
-        setRecommendations(data.recommendations || []);
       }
     } catch {
       toast.error("Failed to load saved preferences.");
@@ -67,38 +57,6 @@ export default function UserMemoryPage() {
     fetchMemories();
   }, []);
 
-  const handleAddPreference = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPreferenceText.trim()) return;
-
-    try {
-      setIsSubmitting(true);
-      const res = await fetch("/api/user/memory", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: newPreferenceText.trim() }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        toast.success("Preference remembered successfully", {
-          description: `Saved ${data.admittedCount || 1} durable preference(s).`,
-        });
-        setNewPreferenceText("");
-        fetchMemories();
-      } else {
-        toast.error("Could not save preference", {
-          description: data.message || "Memory admission policy rejected this statement.",
-        });
-      }
-    } catch {
-      toast.error("Network error saving preference.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleDelete = async (id: string) => {
     try {
       const res = await fetch(`/api/user/memory/${encodeURIComponent(id)}`, {
@@ -110,7 +68,6 @@ export default function UserMemoryPage() {
           description: "Future searches and AI Brain context will no longer use this memory.",
         });
         setPreferences((prev) => prev.filter((p) => p.id !== id));
-        setRecommendations((prev) => prev.filter((r) => r.id !== id));
       } else {
         toast.error("Failed to delete preference.");
       }
@@ -156,13 +113,13 @@ export default function UserMemoryPage() {
       case "ROLE_PREFERENCE":
         return <Briefcase className="h-4 w-4 text-primary" />;
       case "LOCATION_PREFERENCE":
-        return <MapPin className="h-4 w-4 text-emerald-400" />;
+        return <MapPin className="h-4 w-4 text-blue-600" />;
       case "WORK_MODE_PREFERENCE":
-        return <Globe className="h-4 w-4 text-sky-400" />;
+        return <Globe className="h-4 w-4 text-sky-600" />;
       case "SKILL_INTEREST":
-        return <Sparkles className="h-4 w-4 text-purple-400" />;
+        return <Sparkles className="h-4 w-4 text-primary" />;
       default:
-        return <Brain className="h-4 w-4 text-amber-400" />;
+        return <Brain className="h-4 w-4 text-amber-600" />;
     }
   };
 
@@ -174,7 +131,7 @@ export default function UserMemoryPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col antialiased selection:bg-emerald-500/20 selection:text-emerald-600">
+    <div className="flex-1 flex flex-col antialiased">
       <main className="flex-1 container mx-auto max-w-5xl px-4 sm:px-6 py-6 pb-32 space-y-6">
         {/* Header Title */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
@@ -184,15 +141,15 @@ export default function UserMemoryPage() {
                 <Brain className="h-4 w-4" />
               </span>
               <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
-                User Memory Vault & Personalization
+                Career Memory Vault & Personalization
               </h1>
             </div>
             <p className="text-xs text-muted-foreground mt-1 font-sans">
               <span className="hidden sm:inline">
-                Durable preferences BrowserPilot remembers to personalize your searches. Explicit query constraints always override saved preferences.
+                Durable career profile context, education, experience, and academic bands BrowserPilot uses to filter and score opportunities.
               </span>
               <span className="sm:hidden">
-                Durable search preferences.
+                Durable career profile context.
               </span>
             </p>
           </div>
@@ -205,59 +162,18 @@ export default function UserMemoryPage() {
           </Link>
         </div>
 
-        {/* Section 1: Add a Preference */}
-        <div className="rounded-2xl border border-border/80 bg-card p-5 space-y-3 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-foreground font-sans flex items-center gap-1.5">
-              <Plus className="h-3.5 w-3.5 text-primary" />
-              Add a Durable Preference
-            </span>
-            <span className="text-[11px] font-sans text-muted-foreground">
-              Passes through Memory Admission
-            </span>
+        {/* Structured Career Memory Form */}
+        <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-marble-1">
+          <div className="border-b border-border/50 pb-3 mb-5">
+            <h2 className="text-sm font-bold text-foreground font-sans flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              Verified Background & Preference Constraints
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Specify your target roles, locations, skills, educational major, passing year, and CGPA equivalent percentage.
+            </p>
           </div>
-
-          <form onSubmit={handleAddPreference} className="flex flex-col sm:flex-row items-stretch gap-2">
-            <Input
-              type="text"
-              value={newPreferenceText}
-              onChange={(e) => setNewPreferenceText(e.target.value)}
-              placeholder="e.g. Remember that I prefer remote backend engineering roles in India"
-              className="font-mono text-xs h-10 flex-1"
-            />
-            <Button
-              type="submit"
-              disabled={isSubmitting || !newPreferenceText.trim()}
-              className="font-mono text-xs h-10 gap-1.5 cursor-pointer shrink-0"
-            >
-              {isSubmitting ? (
-                <RotateCw className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Sparkles className="h-3.5 w-3.5" />
-              )}
-              Remember Preference
-            </Button>
-          </form>
-
-          {/* Quick statement suggestions */}
-          <div className="flex items-center gap-1.5 flex-wrap pt-1 text-[11px] font-mono text-muted-foreground">
-            <span>Try:</span>
-            {[
-              "Remember that I prefer remote roles",
-              "Remember that I target backend engineering",
-              "Prioritize opportunities in India",
-              "I prefer Python and TypeScript roles",
-            ].map((suggestion) => (
-              <button
-                key={suggestion}
-                type="button"
-                onClick={() => setNewPreferenceText(suggestion)}
-                className="px-2 py-0.5 rounded border border-border/60 bg-muted/20 hover:bg-muted/50 text-foreground cursor-pointer transition-colors"
-              >
-                {suggestion}
-              </button>
-            ))}
-          </div>
+          <CareerMemoryForm onSaved={fetchMemories} />
         </div>
 
         {/* Section 2: What BrowserPilot Remembers */}
@@ -265,18 +181,18 @@ export default function UserMemoryPage() {
           <div className="flex items-center justify-between border-b border-border/60 pb-3">
             <div>
               <h3 className="text-sm font-semibold text-foreground font-sans flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                Active Saved Preferences ({preferences.length})
+                <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                Active Stored Memory Vault Keys ({preferences.length})
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                These preferences guide intelligent search planning when query constraints are unstated.
+                These explicit keys guide intelligent search planning and opportunity fit ranking across ATS sources.
               </p>
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={fetchMemories}
-              className="h-7 text-xs font-mono gap-1 text-muted-foreground"
+              className="h-7 text-xs font-mono gap-1 text-muted-foreground cursor-pointer"
             >
               <RotateCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
               Refresh
@@ -291,10 +207,10 @@ export default function UserMemoryPage() {
             <div className="p-8 text-center rounded-xl border border-dashed border-border/60 bg-muted/10 space-y-2">
               <Brain className="h-6 w-6 text-muted-foreground mx-auto opacity-60" />
               <p className="text-xs font-mono text-foreground font-medium">
-                No durable preferences saved yet.
+                No extra durable memories stored yet.
               </p>
               <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
-                Add a preference above (e.g. &ldquo;Remember that I prefer remote roles&rdquo;) to guide future searches.
+                Fill out the structured form above to store your career memory profile.
               </p>
             </div>
           ) : (
@@ -317,7 +233,10 @@ export default function UserMemoryPage() {
                           <span className="text-[11px] font-sans font-medium text-muted-foreground">
                             {formatCategoryLabel(item.category)}
                           </span>
-                          <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 text-emerald-500 border-emerald-500/30 bg-emerald-500/10">
+                          <span className="text-[10px] font-mono text-muted-foreground">
+                            ({item.key})
+                          </span>
+                          <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 text-emerald-700 border-emerald-500/30 bg-emerald-500/10">
                             {item.confidence}
                           </Badge>
                         </div>
@@ -334,7 +253,7 @@ export default function UserMemoryPage() {
                               size="sm"
                               disabled={isSavingEdit || !editingValue.trim()}
                               onClick={() => handleSaveEdit(item.id)}
-                              className="h-8 text-xs font-mono"
+                              className="h-8 text-xs font-mono cursor-pointer"
                             >
                               Save
                             </Button>
@@ -342,7 +261,7 @@ export default function UserMemoryPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => setEditingId(null)}
-                              className="h-8 text-xs font-mono"
+                              className="h-8 text-xs font-mono cursor-pointer"
                             >
                               Cancel
                             </Button>
@@ -386,59 +305,6 @@ export default function UserMemoryPage() {
           )}
         </div>
 
-        {/* Section 3: Recommendation Signals (Separated from Preferences) */}
-        {recommendations.length > 0 && (
-          <div className="rounded-2xl border border-sky-500/30 bg-sky-500/5 p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-semibold text-sky-600 font-sans flex items-center gap-1.5">
-                  <Lightbulb className="h-4 w-4" />
-                  Suggested for you (Recommendation signals)
-                </h3>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Observed from search patterns and feedback. Recommendations are not permanent preferences.
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2 pt-1">
-              {recommendations.map((rec) => (
-                <div
-                  key={rec.id}
-                  className="p-3 rounded-lg border border-sky-500/20 bg-background/60 flex items-center justify-between gap-3 text-xs font-mono"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">{rec.key}:</span>
-                    <span className="font-semibold text-foreground">{rec.value}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        handleAddPreference({
-                          preventDefault: () => {},
-                        } as any);
-                      }}
-                      className="h-7 text-[11px] font-mono"
-                    >
-                      Promote to Preference
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(rec.id)}
-                      className="h-7 text-[11px] font-mono text-muted-foreground hover:text-rose-500"
-                    >
-                      Dismiss
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Privacy & Invariants Notice */}
         <div className="rounded-xl border border-border/60 bg-muted/20 p-4 text-xs text-muted-foreground space-y-1.5 font-mono">
           <div className="flex items-center gap-1.5 text-foreground font-semibold">
@@ -446,11 +312,11 @@ export default function UserMemoryPage() {
             <span>Memory Privacy & Invariant Guarantees:</span>
           </div>
           <p className="text-[11px] leading-relaxed">
-            1. <strong>Explicit Query Authority:</strong> When you search &ldquo;hybrid jobs&rdquo;, your query overrides any saved remote preferences.
+            1. <strong>Explicit Query Authority:</strong> When you search &ldquo;hybrid jobs&rdquo;, your active query overrides saved remote preferences.
             <br />
             2. <strong>Transient Searches:</strong> Routine searches like &ldquo;Find 5 jobs today&rdquo; never become permanent preferences.
             <br />
-            3. <strong>Complete Tenant Isolation:</strong> Preferences are strictly isolated to your authenticated account.
+            3. <strong>Complete Tenant Isolation:</strong> Career context is strictly isolated to your authenticated account.
           </p>
         </div>
       </main>

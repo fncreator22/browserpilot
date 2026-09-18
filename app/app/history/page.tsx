@@ -203,50 +203,21 @@ function HistoryContent() {
     <div className="flex-1 flex flex-col antialiased selection:bg-emerald-500/20 selection:text-emerald-600">
       <main className="flex-1 container mx-auto max-w-7xl px-4 py-8 pb-32 sm:px-6 space-y-8">
         {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/60">
-          <div>
-            <div className="flex items-center gap-2.5 mb-1">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <History className="h-4 w-4" />
-              </span>
-              <h1 className="text-2xl sm:text-3xl font-sans font-bold tracking-tight text-foreground">
-                Search History
-              </h1>
-              <Badge variant="secondary" className="font-mono text-xs">
-                {searchHistory.length} Sessions
-              </Badge>
-              <InfoBadge
-                title="Search History Persistence"
-                description="Past discovery queries and candidate pools are permanently persisted in PostgreSQL."
-                details={{
-                  "Storage Engine": "Supabase PostgreSQL (`SearchQuery` table)",
-                  "Data Preserved": "Query string, parsed role/skills/location, match scores, full job listings",
-                  "Replay Mode": "Instant client-side replay without re-scraping or token expenditure",
-                  "Retention": "Retained indefinitely until explicitly deleted by the user",
-                }}
-                bullets={[
-                  "Review past results anytime after logging out and returning",
-                  "Click any session to inspect candidate details, claims, and verified citations",
-                  "Export or delete individual search records on demand",
-                ]}
-                side="bottom"
-              />
-            </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              <span className="hidden sm:inline">
-                Review previous natural-language discovery sessions, replay queries, and inspect past candidate pools.
-              </span>
-              <span className="sm:hidden">
-                Past searches and candidate pools.
-              </span>
-            </p>
+        <div className="flex items-center justify-between gap-4 pb-3 border-b border-border/60">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-lg sm:text-xl font-sans font-bold tracking-tight text-foreground">
+              Search History
+            </h1>
+            <Badge variant="secondary" className="font-mono text-xs">
+              {searchHistory.length} Sessions
+            </Badge>
           </div>
 
           <div className="flex items-center gap-2">
             <Link href="/app">
-              <Button size="sm" className="h-8 font-sans font-medium text-xs gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer shadow-xs">
+              <Button size="sm" className="h-8 font-sans font-medium text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-xs">
                 <Plus className="h-3.5 w-3.5" />
-                Start New Discovery
+                <span>Start New Discovery</span>
               </Button>
             </Link>
           </div>
