@@ -19,6 +19,8 @@ import { LinkedInIcon, TwitterIcon, GitHubIcon } from "@/components/ui/social-ic
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { PrototypeBadge } from "@/components/ui/prototype-badge";
+import { CompanyAvatar } from "@/components/ui/company-avatar";
 import { resolveCompanyPersonnel } from "@/lib/discovery/personnel/companyPersonnelDirectory";
 
 export interface ContactPersonnelItem {
@@ -58,7 +60,8 @@ export function PersonnelConnectDrawer({
   const [filterType, setFilterType] = useState<"ALL" | "HR" | "ENGINEERING">("ALL");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const defaultDirectory = resolveCompanyPersonnel(companyName) as ContactPersonnelItem[];
+  const cleanCompanyName = companyName.replace(/\s+\d{10,}$/, "").trim() || companyName;
+  const defaultDirectory = resolveCompanyPersonnel(cleanCompanyName) as ContactPersonnelItem[];
 
   // Merge and deduplicate by email, profileUrl, or fullName
   const contactsMap = new Map<string, ContactPersonnelItem>();
@@ -173,12 +176,16 @@ export function PersonnelConnectDrawer({
         <div className="p-4 sm:p-5 border-b border-border/80 flex items-start justify-between gap-3 bg-card shrink-0">
           <div>
             <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-primary" />
+              <CompanyAvatar companyName={cleanCompanyName} size="sm" className="h-5 w-5 shrink-0" />
               <h2 className="font-semibold text-base text-foreground tracking-tight">
-                {companyName} Outreach
+                {cleanCompanyName} Outreach
               </h2>
               <Badge variant="outline" className="text-[10px] font-mono border-border">
                 {effectiveContacts.length} Found
+              </Badge>
+              <Badge variant="outline" className="text-[10px] font-mono bg-primary/10 text-primary border-primary/20 flex items-center gap-1">
+                <ShieldCheck className="h-3 w-3 text-primary" />
+                <span>DeepReach v3.1</span>
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -257,8 +264,8 @@ export function PersonnelConnectDrawer({
                         )}
                         <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono border ${
                           isHR 
-                            ? "bg-blue-500/10 text-blue-500 border-blue-500/20" 
-                            : "bg-purple-500/10 text-purple-500 border-purple-500/20"
+                            ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" 
+                            : "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20"
                         }`}>
                           {isHR ? "Recruiter" : "Team Lead"}
                         </span>

@@ -32,12 +32,14 @@ import { TwitterIcon, GitHubIcon } from "@/components/ui/social-icons";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { PrototypeBadge } from "@/components/ui/prototype-badge";
 import { useUIState } from "@/components/providers/ui-state-provider";
 import { getVerificationCornerBadge, type DossierJobItem } from "@/components/result/job-dossier-deck";
 import { getAtsSourceInfo, getSocialAuthorHandle } from "@/lib/ats/atsSourceInfo";
 import { TrustScoreBadge } from "@/components/result/trust-score-badge";
 import { GhostJobBanner } from "@/components/result/ghost-job-banner";
 import { CompanyIntelligencePill } from "@/components/result/company-intelligence-pill";
+import { CompanyAvatar } from "@/components/ui/company-avatar";
 import { 
   humanizeStatus, 
   humanizeOpportunityType, 
@@ -167,7 +169,7 @@ export function JobDetailSlideOver({
             {/* Title & Company Block */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-xs font-sans text-muted-foreground">
-                <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                <CompanyAvatar companyName={job.companyName || job.company || "Company"} applyUrl={effectiveUrl} size="sm" className="h-5 w-5 shrink-0" />
                 <span className="font-semibold text-foreground text-sm">{job.companyName}</span>
                 {job.postedAgoText && (
                   <>
@@ -683,9 +685,15 @@ export function JobDetailSlideOver({
                     <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                     Key company contacts & hiring team
                   </div>
-                  <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono">
-                    DeepReach Verified
-                  </Badge>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-mono flex items-center gap-1">
+                      <ShieldCheck className="h-3 w-3 text-primary" />
+                      <span>DeepReach v3.1</span>
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono">
+                      Verified Intel
+                    </Badge>
+                  </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   Direct recruiter profiles, talent acquisition managers, and outreach shortcuts for {job.companyName} are free and available via built-in DeepReach intelligence.
