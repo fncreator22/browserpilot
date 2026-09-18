@@ -159,7 +159,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: "Users & Quotas", href: ADMIN_UI_ROUTES.USERS, icon: Users },
     { label: "Plans & Capabilities", href: ADMIN_UI_ROUTES.PLANS, icon: Sliders },
     { label: "Job Brain", href: ADMIN_UI_ROUTES.TAXONOMY, icon: Brain },
-    { label: "Connectors", href: ADMIN_UI_ROUTES.CONNECTORS, icon: Plug },
+    { label: "Plugins & Sources", href: ADMIN_UI_ROUTES.CONNECTORS, icon: Plug },
   ];
 
   const dropdownNavItems = [

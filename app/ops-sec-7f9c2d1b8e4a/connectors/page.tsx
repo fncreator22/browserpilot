@@ -301,13 +301,13 @@ export default function AdminConnectorsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-6">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center border border-purple-500/20">
+            <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center border border-primary/20">
               <Plug className="h-4 w-4" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Connector Registry & Analytics</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Plugins & Discovery Sources Registry</h1>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Admin-managed crawler sources, real harvest usage tracking, and automatic search discovery controls.
+            Admin-managed scraper plugins, harvest tracking, and automatic synchronization with the user plugins marketplace.
           </p>
         </div>
 
@@ -317,19 +317,19 @@ export default function AdminConnectorsPage() {
             size="sm"
             onClick={() => fetchDashboardData(true)}
             disabled={isRefreshing}
-            className="gap-2 font-mono text-xs border-border/80 hover:bg-muted/50"
+            className="gap-2 font-mono text-xs border-border/80 hover:bg-muted/50 cursor-pointer"
           >
-            <RotateCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-purple-400" : ""}`} />
+            <RotateCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-primary" : ""}`} />
             Refresh Analytics
           </Button>
 
           <Button
             size="sm"
             onClick={handleOpenAdd}
-            className="gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-md text-xs"
+            className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-marble-1 text-xs cursor-pointer font-medium"
           >
             <Plus className="h-3.5 w-3.5" />
-            Add Connector
+            Add Plugin
           </Button>
         </div>
       </div>
@@ -339,8 +339,8 @@ export default function AdminConnectorsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-5 rounded-xl border border-border/60 bg-card/60 backdrop-blur-sm space-y-2 shadow-sm">
             <div className="flex items-center justify-between text-muted-foreground text-xs font-mono">
-              <span>ACTIVE CONNECTORS</span>
-              <Layers className="h-4 w-4 text-purple-400" />
+              <span>ACTIVE PLUGINS</span>
+              <Layers className="h-4 w-4 text-primary" />
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-bold tracking-tight text-foreground font-mono">
@@ -415,7 +415,7 @@ export default function AdminConnectorsPage() {
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
         <div className="flex items-center gap-1.5 p-1 bg-muted/40 border border-border/60 rounded-lg w-full sm:w-auto overflow-x-auto">
           {[
-            { id: "ALL", label: "All Connectors" },
+            { id: "ALL", label: "All Plugins" },
             { id: "DIRECT_ATS", label: "Direct ATS" },
             { id: "CAREER_PORTAL", label: "Career Portals" },
             { id: "AGGREGATOR", label: "Aggregators" },
@@ -424,9 +424,9 @@ export default function AdminConnectorsPage() {
             <button
               key={tab.id}
               onClick={() => setFilterType(tab.id)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                 filterType === tab.id
-                  ? "bg-purple-600 text-white shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
               }`}
             >
@@ -439,20 +439,20 @@ export default function AdminConnectorsPage() {
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search connectors..."
+            placeholder="Search plugins..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border/60 bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-purple-500"
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border/60 bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
 
-      {/* Connector Registry Table */}
+      {/* Plugin Registry Table */}
       <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
         <div className="px-5 py-4 border-b border-border/60 bg-muted/20 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Globe className="h-4 w-4 text-purple-400" />
-            <h2 className="text-sm font-bold text-foreground tracking-wide">Registered Harvester Connectors</h2>
+            <Globe className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-bold text-foreground tracking-wide">Registered Plugins & Discovery Sources</h2>
           </div>
           <span className="text-xs font-mono text-muted-foreground">
             Showing {filteredConnectors.length} of {connectors.length}
@@ -463,7 +463,7 @@ export default function AdminConnectorsPage() {
           <table className="w-full text-left text-xs">
             <thead className="bg-muted/30 text-muted-foreground font-mono uppercase tracking-wider border-b border-border/40 text-[10px]">
               <tr>
-                <th className="px-4 py-3">Connector</th>
+                <th className="px-4 py-3">Plugin</th>
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">Base Pattern</th>
                 <th className="px-4 py-3">Session Mode</th>
@@ -479,14 +479,14 @@ export default function AdminConnectorsPage() {
               {loading ? (
                 <tr>
                   <td colSpan={10} className="px-4 py-12 text-center text-muted-foreground font-mono">
-                    <RotateCw className="h-5 w-5 animate-spin mx-auto mb-2 text-purple-400" />
-                    Loading connector registry and live metrics...
+                    <RotateCw className="h-5 w-5 animate-spin mx-auto mb-2 text-primary" />
+                    Loading plugin registry and live metrics...
                   </td>
                 </tr>
               ) : filteredConnectors.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-4 py-12 text-center text-muted-foreground font-mono">
-                    No connectors match the current filter.
+                    No plugins match the current filter.
                   </td>
                 </tr>
               ) : (
@@ -497,14 +497,14 @@ export default function AdminConnectorsPage() {
 
                   return (
                     <tr key={c.id} className="hover:bg-muted/20 transition-colors">
-                      {/* Connector Name & Icon */}
+                      {/* Plugin Name & Icon */}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2.5">
                           <div className="h-8 w-8 rounded-md bg-muted/60 border border-border/60 flex items-center justify-center overflow-hidden shrink-0">
                             {c.iconUrl ? (
                               <img src={c.iconUrl} alt="" className="h-5 w-5 object-contain" />
                             ) : (
-                              <Plug className="h-4 w-4 text-purple-400" />
+                              <Plug className="h-4 w-4 text-primary" />
                             )}
                           </div>
                           <div>
@@ -520,7 +520,7 @@ export default function AdminConnectorsPage() {
                       <td className="px-4 py-3.5">
                         <Badge
                           variant="outline"
-                          className="font-mono text-[10px] uppercase border-purple-500/30 text-purple-300 bg-purple-500/5"
+                          className="font-mono text-[10px] uppercase border-border text-foreground bg-muted/40"
                         >
                           {c.type}
                         </Badge>
@@ -739,9 +739,9 @@ export default function AdminConnectorsPage() {
           <div className="bg-card border border-border/80 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl space-y-0">
             <div className="px-6 py-5 border-b border-border/60 bg-muted/30 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <Plug className="h-5 w-5 text-purple-400" />
+                <Plug className="h-5 w-5 text-primary" />
                 <h3 className="font-bold text-foreground text-base">
-                  {editingConnector ? `Edit Connector: ${formData.displayName}` : "Register New Connector"}
+                  {editingConnector ? `Edit Plugin: ${formData.displayName}` : "Register New Plugin"}
                 </h3>
               </div>
               <button
@@ -764,7 +764,7 @@ export default function AdminConnectorsPage() {
                     placeholder="e.g. SmartRecruiters"
                     value={formData.displayName}
                     onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-border/60 bg-background text-foreground text-xs focus:ring-1 focus:ring-purple-500"
+                    className="w-full px-3 py-2 rounded-lg border border-border/60 bg-background text-foreground text-xs focus:ring-1 focus:ring-primary"
                   />
                 </div>
 
@@ -773,7 +773,7 @@ export default function AdminConnectorsPage() {
                   <select
                     value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-border/60 bg-background text-foreground text-xs focus:ring-1 focus:ring-purple-500"
+                    className="w-full px-3 py-2 rounded-lg border border-border/60 bg-background text-foreground text-xs focus:ring-1 focus:ring-primary"
                   >
                     <option value="CAREER_PORTAL">CAREER_PORTAL (Workday, Custom)</option>
                     <option value="DIRECT_ATS">DIRECT_ATS (Greenhouse, Lever)</option>
@@ -791,7 +791,7 @@ export default function AdminConnectorsPage() {
                   placeholder="https://jobs.smartrecruiters.com"
                   value={formData.baseUrl}
                   onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-border/60 bg-background text-foreground text-xs focus:ring-1 focus:ring-purple-500"
+                  className="w-full px-3 py-2 rounded-lg border border-border/60 bg-background text-foreground text-xs focus:ring-1 focus:ring-primary"
                 />
               </div>
 
@@ -804,10 +804,10 @@ export default function AdminConnectorsPage() {
                   placeholder="*smartrecruiters.com*"
                   value={formData.baseUrlPattern}
                   onChange={(e) => setFormData({ ...formData, baseUrlPattern: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-border/60 bg-background text-foreground text-xs font-mono focus:ring-1 focus:ring-purple-500"
+                  className="w-full px-3 py-2 rounded-lg border border-border/60 bg-background text-foreground text-xs font-mono focus:ring-1 focus:ring-primary"
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Wildcard used to match dynamic open-web URLs to this connector.
+                  Wildcard used to match dynamic open-web URLs to this plugin.
                 </p>
               </div>
 
@@ -827,7 +827,7 @@ export default function AdminConnectorsPage() {
                     placeholder="https://example.com/icon.png"
                     value={formData.iconUrl}
                     onChange={(e) => setFormData({ ...formData, iconUrl: e.target.value })}
-                    className="flex-1 px-3 py-2 rounded-lg border border-border/60 bg-background text-foreground text-xs focus:ring-1 focus:ring-purple-500"
+                    className="flex-1 px-3 py-2 rounded-lg border border-border/60 bg-background text-foreground text-xs focus:ring-1 focus:ring-primary"
                   />
                   <label className="cursor-pointer px-3 py-2 rounded-lg border border-border/80 bg-muted/40 hover:bg-muted text-foreground flex items-center gap-1 font-mono text-[11px]">
                     <Upload className="h-3 w-3" /> Upload
@@ -843,7 +843,7 @@ export default function AdminConnectorsPage() {
                     type="checkbox"
                     checked={formData.requiresAuth}
                     onChange={(e) => setFormData({ ...formData, requiresAuth: e.target.checked })}
-                    className="rounded border-border text-purple-600 focus:ring-purple-500 h-4 w-4"
+                    className="rounded border-border text-primary focus:ring-primary h-4 w-4"
                   />
                   <span className="font-medium">Requires User-Connected Session</span>
                   <span className="text-[10px] text-muted-foreground">
@@ -856,7 +856,7 @@ export default function AdminConnectorsPage() {
                     type="checkbox"
                     checked={formData.isEnabled}
                     onChange={(e) => setFormData({ ...formData, isEnabled: e.target.checked })}
-                    className="rounded border-border text-purple-600 focus:ring-purple-500 h-4 w-4"
+                    className="rounded border-border text-primary focus:ring-primary h-4 w-4"
                   />
                   <span className="font-medium">Enable for Automatic Discovery & Search</span>
                 </label>
@@ -866,11 +866,11 @@ export default function AdminConnectorsPage() {
                     type="checkbox"
                     checked={formData.isPublic}
                     onChange={(e) => setFormData({ ...formData, isPublic: e.target.checked })}
-                    className="rounded border-border text-purple-600 focus:ring-purple-500 h-4 w-4"
+                    className="rounded border-border text-primary focus:ring-primary h-4 w-4"
                   />
-                  <span className="font-medium">Visible to Users in Connector Preferences</span>
+                  <span className="font-medium">Visible to Users in Plugin Preferences</span>
                   <span className="text-[10px] text-muted-foreground">
-                    (When unchecked, regular users cannot see this connector)
+                    (When unchecked, regular users cannot see this plugin)
                   </span>
                 </label>
               </div>
@@ -890,7 +890,7 @@ export default function AdminConnectorsPage() {
                   type="submit"
                   size="sm"
                   disabled={submitting}
-                  className="bg-purple-600 hover:bg-purple-500 text-white font-medium"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
                 >
                   {submitting ? (
                     <>
@@ -900,7 +900,7 @@ export default function AdminConnectorsPage() {
                   ) : editingConnector ? (
                     "Save Changes"
                   ) : (
-                    "Register Connector"
+                    "Register Plugin"
                   )}
                 </Button>
               </div>

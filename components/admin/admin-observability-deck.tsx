@@ -227,7 +227,7 @@ export function AdminObservabilityDeck({ adminKey }: { adminKey?: string | null 
                 }}
               />
             </span>
-            <Server className="h-3.5 w-3.5 text-purple-400" />
+            <Server className="h-3.5 w-3.5 text-sky-400" />
           </div>
           <div className="flex items-center gap-1.5 flex-wrap pt-1">
             <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[11px] font-mono">
@@ -240,7 +240,7 @@ export function AdminObservabilityDeck({ adminKey }: { adminKey?: string | null 
               400: {codes.c400}
             </Badge>
             {codes.c402 > 0 && (
-              <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/30 text-[11px] font-mono">
+              <Badge variant="outline" className="bg-indigo-500/10 text-indigo-400 border-indigo-500/30 text-[11px] font-mono">
                 402: {codes.c402}
               </Badge>
             )}
@@ -299,7 +299,7 @@ export function AdminObservabilityDeck({ adminKey }: { adminKey?: string | null 
                     <span className={`${
                       req.statusCode < 300 ? "text-emerald-400" :
                       req.statusCode < 400 ? "text-blue-400" :
-                      req.statusCode === 402 ? "text-purple-400" :
+                      req.statusCode === 402 ? "text-indigo-400" :
                       req.statusCode < 500 ? "text-amber-400" : "text-rose-400"
                     }`}>
                       {req.statusCode}
