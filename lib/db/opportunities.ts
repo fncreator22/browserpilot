@@ -359,12 +359,18 @@ export async function createSearch(data: CreateSearchInput): Promise<Search> {
   );
 
   let verifiedUserId: string | null = null;
-  if (data.userId) {
+  if (data.userId && !data.userId.startsWith("guest_")) {
     try {
-      const existingUser = await prisma.user.findUnique({
+      let existingUser = await prisma.user.findUnique({
         where: { id: data.userId },
         select: { id: true },
       });
+      if (!existingUser && data.userId.includes("@")) {
+        existingUser = await prisma.user.findUnique({
+          where: { email: data.userId.toLowerCase().trim() },
+          select: { id: true },
+        });
+      }
       if (existingUser) {
         verifiedUserId = existingUser.id;
       }
@@ -1043,26 +1049,88 @@ export async function getDiscoveryWatch(userId: string, watchId?: string): Promi
     };
   }
 
-  // Create default watch config hydrated from Career Memory (default enabled)
-  const created = await prisma.discoveryWatch.create({
-    data: {
-      userId,
+  // Verify user exists in the database before attempting to create to avoid foreign key violation
+  let userExists = false;
+  try {
+    const userRecord = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    userExists = Boolean(userRecord);
+  } catch (checkErr) {
+    console.warn(`[getDiscoveryWatch] Failed to check user existence for ${userId}:`, checkErr);
+  }
+
+  if (!userExists) {
+    return {
+      id: `virtual_watch_${userId}`,
       name: "Autonomous Watch",
       enabled: true,
-      roles: JSON.stringify(profileRoles),
-      skills: JSON.stringify(profileSkills),
-      locations: JSON.stringify(profileLocations),
-      companies: JSON.stringify([]),
-      workModes: JSON.stringify(profileWorkModes),
-      experienceLevels: JSON.stringify(["INTERN", "ENTRY_LEVEL"]),
-      opportunityTypes: JSON.stringify(["INTERNSHIP", "FULL_TIME"]),
-      preferredSources: JSON.stringify(["LinkedIn", "Y Combinator", "Indeed", "Greenhouse", "Ashby", "Lever"]),
+      roles: profileRoles,
+      skills: profileSkills,
+      locations: profileLocations,
+      companies: [],
+      workModes: profileWorkModes,
+      experienceLevels: ["INTERN", "ENTRY_LEVEL"],
+      opportunityTypes: ["INTERNSHIP", "FULL_TIME"],
+      preferredSources: ["LinkedIn", "Y Combinator", "Indeed", "Greenhouse", "Ashby", "Lever"],
       minimumMatchScore: 70,
       latestOnly: false,
       freshnessWindowHours: 48,
       scanIntervalHours: 6,
-    },
-  });
+      lastScannedAt: null,
+      nextScanAt: null,
+      lockedAt: null,
+      lockOwner: null,
+    };
+  }
+
+  // Create default watch config hydrated from Career Memory (default enabled)
+  let created: any;
+  try {
+    created = await prisma.discoveryWatch.create({
+      data: {
+        userId,
+        name: "Autonomous Watch",
+        enabled: true,
+        roles: JSON.stringify(profileRoles),
+        skills: JSON.stringify(profileSkills),
+        locations: JSON.stringify(profileLocations),
+        companies: JSON.stringify([]),
+        workModes: JSON.stringify(profileWorkModes),
+        experienceLevels: JSON.stringify(["INTERN", "ENTRY_LEVEL"]),
+        opportunityTypes: JSON.stringify(["INTERNSHIP", "FULL_TIME"]),
+        preferredSources: JSON.stringify(["LinkedIn", "Y Combinator", "Indeed", "Greenhouse", "Ashby", "Lever"]),
+        minimumMatchScore: 70,
+        latestOnly: false,
+        freshnessWindowHours: 48,
+        scanIntervalHours: 6,
+      },
+    });
+  } catch (createErr) {
+    console.warn(`[getDiscoveryWatch] Failed to create watch record for ${userId}:`, createErr);
+    return {
+      id: `virtual_watch_${userId}`,
+      name: "Autonomous Watch",
+      enabled: true,
+      roles: profileRoles,
+      skills: profileSkills,
+      locations: profileLocations,
+      companies: [],
+      workModes: profileWorkModes,
+      experienceLevels: ["INTERN", "ENTRY_LEVEL"],
+      opportunityTypes: ["INTERNSHIP", "FULL_TIME"],
+      preferredSources: ["LinkedIn", "Y Combinator", "Indeed", "Greenhouse", "Ashby", "Lever"],
+      minimumMatchScore: 70,
+      latestOnly: false,
+      freshnessWindowHours: 48,
+      scanIntervalHours: 6,
+      lastScannedAt: null,
+      nextScanAt: null,
+      lockedAt: null,
+      lockOwner: null,
+    };
+  }
 
   return {
     id: created.id,
@@ -1150,7 +1218,7 @@ export async function createDiscoveryWatch(
       workModes: JSON.stringify(safeParseStringArray(input.workModes ?? ["REMOTE", "HYBRID"])),
       experienceLevels: JSON.stringify(safeParseStringArray(input.experienceLevels ?? ["ENTRY_LEVEL"])),
       opportunityTypes: JSON.stringify(safeParseStringArray(input.opportunityTypes ?? ["FULL_TIME"])),
-      preferredSources: JSON.stringify(safeParseStringArray(input.preferredSources ?? ["LinkedIn", "Y Combinator", "Indeed"])),
+      preferredSources: JSON.stringify(safeParseStringArray(input.preferredSources ?? [])),
       minimumMatchScore: input.minimumMatchScore ?? 70,
       latestOnly: input.latestOnly ?? false,
       freshnessWindowHours: input.freshnessWindowHours ?? 48,
@@ -1206,10 +1274,9 @@ export async function upsertDiscoveryWatch(
   const isIntervalChanged = typeof input.scanIntervalHours === "number" && input.scanIntervalHours !== targetWatch.scanIntervalHours;
 
   let calculatedNextScanAt = input.nextScanAt !== undefined ? input.nextScanAt : targetWatch.nextScanAt;
-  if (input.nextScanAt === undefined && (isIntervalChanged || !targetWatch.nextScanAt || targetWatch.nextScanAt < new Date())) {
-    const baseTime = targetWatch.lastScannedAt ? targetWatch.lastScannedAt.getTime() : Date.now();
-    const potentialNext = new Date(baseTime + targetInterval * 3600 * 1000);
-    calculatedNextScanAt = potentialNext > new Date() ? potentialNext : new Date(Date.now() + targetInterval * 3600 * 1000);
+  if (isIntervalChanged && input.nextScanAt === undefined) {
+    const lastScan = targetWatch.lastScannedAt ? new Date(targetWatch.lastScannedAt).getTime() : Date.now();
+    calculatedNextScanAt = new Date(lastScan + targetInterval * 3600 * 1000);
   }
 
   const updated = await prisma.discoveryWatch.update({
@@ -1224,7 +1291,7 @@ export async function upsertDiscoveryWatch(
       ...(input.workModes ? { workModes: JSON.stringify(safeParseStringArray(input.workModes)) } : {}),
       ...(input.experienceLevels ? { experienceLevels: JSON.stringify(safeParseStringArray(input.experienceLevels)) } : {}),
       ...(input.opportunityTypes ? { opportunityTypes: JSON.stringify(safeParseStringArray(input.opportunityTypes)) } : {}),
-      ...(input.preferredSources ? { preferredSources: JSON.stringify(safeParseStringArray(input.preferredSources)) } : {}),
+      ...(input.preferredSources !== undefined ? { preferredSources: JSON.stringify(safeParseStringArray(input.preferredSources)) } : {}),
       ...(typeof input.minimumMatchScore === "number" ? { minimumMatchScore: input.minimumMatchScore } : {}),
       ...(typeof input.latestOnly === "boolean" ? { latestOnly: input.latestOnly } : {}),
       ...(typeof input.freshnessWindowHours === "number" ? { freshnessWindowHours: input.freshnessWindowHours } : {}),
@@ -1401,13 +1468,71 @@ export async function createDiscoveryRun(
   userId: string,
   triggerType: "MANUAL" | "SCHEDULED" = "MANUAL"
 ) {
-  return await prisma.discoveryRun.create({
-    data: {
+  let userExists = false;
+  try {
+    const userRecord = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    userExists = Boolean(userRecord);
+  } catch {}
+
+  if (!userExists) {
+    return {
+      id: `virtual_run_${Date.now()}`,
       userId,
       triggerType,
       status: "RUNNING",
-    },
-  });
+      startedAt: new Date(),
+      completedAt: null,
+      durationMs: null,
+      providersAttempted: 0,
+      providersSucceeded: 0,
+      providersFailed: 0,
+      candidatesFound: 0,
+      validCandidates: 0,
+      newOpportunities: 0,
+      newSources: 0,
+      alreadyKnown: 0,
+      reposted: 0,
+      notificationsCreated: 0,
+      errorMessage: null,
+      createdAt: new Date(),
+    };
+  }
+
+  try {
+    return await prisma.discoveryRun.create({
+      data: {
+        userId,
+        triggerType,
+        status: "RUNNING",
+      },
+    });
+  } catch (err) {
+    console.warn(`[createDiscoveryRun] Failed to create run record for ${userId}:`, err);
+    return {
+      id: `virtual_run_${Date.now()}`,
+      userId,
+      triggerType,
+      status: "RUNNING",
+      startedAt: new Date(),
+      completedAt: null,
+      durationMs: null,
+      providersAttempted: 0,
+      providersSucceeded: 0,
+      providersFailed: 0,
+      candidatesFound: 0,
+      validCandidates: 0,
+      newOpportunities: 0,
+      newSources: 0,
+      alreadyKnown: 0,
+      reposted: 0,
+      notificationsCreated: 0,
+      errorMessage: null,
+      createdAt: new Date(),
+    };
+  }
 }
 
 /**
@@ -1431,25 +1556,34 @@ export async function completeDiscoveryRun(
     errorMessage?: string | null;
   }
 ) {
-  return await prisma.discoveryRun.update({
-    where: { id: runId },
-    data: {
-      status: data.status,
-      completedAt: new Date(),
-      durationMs: data.durationMs,
-      providersAttempted: data.providersAttempted,
-      providersSucceeded: data.providersSucceeded,
-      providersFailed: data.providersFailed,
-      candidatesFound: data.candidatesFound,
-      validCandidates: data.validCandidates,
-      newOpportunities: data.newOpportunities,
-      newSources: data.newSources,
-      alreadyKnown: data.alreadyKnown,
-      reposted: data.reposted,
-      notificationsCreated: data.notificationsCreated,
-      errorMessage: data.errorMessage,
-    },
-  });
+  if (runId.startsWith("virtual_run_") || runId.startsWith("locked_") || runId.startsWith("disabled_")) {
+    return null;
+  }
+
+  try {
+    return await prisma.discoveryRun.update({
+      where: { id: runId },
+      data: {
+        status: data.status,
+        completedAt: new Date(),
+        durationMs: data.durationMs,
+        providersAttempted: data.providersAttempted,
+        providersSucceeded: data.providersSucceeded,
+        providersFailed: data.providersFailed,
+        candidatesFound: data.candidatesFound,
+        validCandidates: data.validCandidates,
+        newOpportunities: data.newOpportunities,
+        newSources: data.newSources,
+        alreadyKnown: data.alreadyKnown,
+        reposted: data.reposted,
+        notificationsCreated: data.notificationsCreated,
+        errorMessage: data.errorMessage,
+      },
+    });
+  } catch (err) {
+    console.warn(`[completeDiscoveryRun] Non-fatal run update notice for ${runId}:`, err);
+    return null;
+  }
 }
 
 /**
