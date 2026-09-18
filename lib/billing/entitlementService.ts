@@ -68,18 +68,42 @@ export async function checkCapabilityEntitlement(
   }
 
   // 1. Resolve effective plan
-  const { getUserEffectivePlan } = await import("./planService");
-  const effective = await getUserEffectivePlan(userId);
-  const plan = effective.plan;
-  const planCode = plan.code.toUpperCase();
+  let planCode = "FREE";
+  if (userId && userId.toUpperCase() !== "FREE" && userId.toUpperCase() !== "STARTER" && userId.toUpperCase() !== "COMMUNITY") {
+    try {
+      const { getUserEffectivePlan } = await import("./planService");
+      const effective = await getUserEffectivePlan(userId);
+      planCode = effective?.plan?.code?.toUpperCase() || "FREE";
+    } catch {
+      planCode = "FREE";
+    }
+  }
 
   // Find DB Plan row to query relations
-  const dbPlan = await prisma.plan.findUnique({
-    where: { code: planCode },
-    include: { capabilities: true },
-  });
+  let dbPlan: any = null;
+  try {
+    dbPlan = await prisma.plan.findUnique({
+      where: { code: planCode },
+      include: { capabilities: true },
+    });
+  } catch {}
 
   if (!dbPlan) {
+    const { DEFAULT_PLANS } = await import("./planService");
+    const staticPlan = DEFAULT_PLANS.find((p) => p.code.toUpperCase() === planCode);
+    if (staticPlan) {
+      const legacyColName = LEGACY_PLAN_CAPABILITY_MAP[normKey] || LEGACY_PLAN_CAPABILITY_MAP[capabilityKey];
+      if (legacyColName && legacyColName in staticPlan) {
+        const legacyValue = Boolean((staticPlan as any)[legacyColName]);
+        return {
+          allowed: legacyValue,
+          reason: legacyValue ? undefined : `Legacy feature "${legacyColName}" not granted on tier "${planCode}".`,
+          planCode,
+          capabilityKey: normKey,
+          source: "LEGACY_COLUMN",
+        };
+      }
+    }
     return {
       allowed: false,
       reason: `Plan "${planCode}" not found in database.`,
@@ -91,7 +115,7 @@ export async function checkCapabilityEntitlement(
 
   // 2a. Check explicit PlanCapability row
   const explicitRow = dbPlan.capabilities.find(
-    (c) => normalizeCapabilityKey(c.capabilityKey) === normKey
+    (c: any) => normalizeCapabilityKey(c.capabilityKey) === normKey
   );
 
   if (explicitRow) {
@@ -185,6 +209,12 @@ export async function getCapabilityLimit(
     if (code === "PREMIUM") return 25;
     if (code === "FREE") return 1;
     return 0; // Deny by default
+  }
+
+  if (normKey === "MIN_SCAN_INTERVAL_HOURS") {
+    const code = entitlement.planCode.toUpperCase();
+    if (code === "ENTERPRISE" || code === "PREMIUM") return 1;
+    return 24; // FREE tier minimum scan interval is 24 hours
   }
 
   return defaultValue ?? null;
@@ -381,5 +411,129 @@ export async function countUserActiveWatches(userId: string): Promise<number> {
       enabled: true,
     },
   });
+}
+
+export interface GatedFeatureDescriptor {
+  capabilityKey: string;
+  featureName: string;
+  requiredPlan: string;
+  userFriendlyMessage: string;
+}
+
+export interface DiscoveryEntitlementCheckResult {
+  allowed: boolean;
+  planCode: string;
+  gatedFeatures: GatedFeatureDescriptor[];
+  upgradeNotification?: {
+    title: string;
+    message: string;
+    targetPlan: string;
+    upgradeUrl: string;
+  };
+  sanitizedCriteria: {
+    companyTargetingAllowed: boolean;
+    companies: string[];
+    scanFrequencyHours?: number;
+  };
+}
+
+/**
+ * Evaluates whether a planned discovery run complies with subscription tier capabilities.
+ * If user attempts to use a gated feature (e.g. company targeting or sub-24h scans on Free tier),
+ * returns structured friendly upgrade notifications rather than throwing a raw 400 or 500 error.
+ */
+export async function checkDiscoveryRunEntitlements(
+  userId: string,
+  criteria: {
+    companies?: string[];
+    company?: string;
+    requestedIntervalHours?: number;
+    scanFrequencyHours?: number;
+  } = {}
+): Promise<DiscoveryEntitlementCheckResult> {
+  const gatedFeatures: GatedFeatureDescriptor[] = [];
+  const candidateCompanies = [
+    ...(criteria.companies || []),
+    ...(criteria.company ? [criteria.company] : []),
+  ].filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+
+  const hasCompanyTargeting = candidateCompanies.length > 0;
+  const requestedInterval = criteria.requestedIntervalHours || criteria.scanFrequencyHours;
+
+  let planCode = "FREE";
+  try {
+    if (userId && userId !== "FREE") {
+      const { getUserEffectivePlan } = await import("./planService");
+      const effective = await getUserEffectivePlan(userId);
+      if (effective?.plan?.code) {
+        planCode = effective.plan.code.toUpperCase();
+      }
+    }
+  } catch {
+    planCode = "FREE";
+  }
+
+  // 1. Check Company Targeting Capability
+  let companyTargetingAllowed = true;
+  if (hasCompanyTargeting) {
+    let allowed = false;
+    if (planCode === "FREE") {
+      allowed = false;
+    } else {
+      const companyCheck = await checkCapabilityEntitlement(userId || "FREE", "COMPANY_TARGETING");
+      allowed = companyCheck.allowed;
+    }
+
+    if (!allowed) {
+      companyTargetingAllowed = false;
+      gatedFeatures.push({
+        capabilityKey: "COMPANY_TARGETING",
+        featureName: "Direct Company ATS Targeting",
+        requiredPlan: "PREMIUM",
+        userFriendlyMessage:
+          "Direct company targeting (filtering specifically for designated employer boards) is a Pro/Premium feature. On the Free tier, you can discover all matching opportunities by role and skills across all boards.",
+      });
+    }
+  }
+
+  // 2. Check Scan Frequency / Interval Capability
+  let resolvedInterval = requestedInterval;
+  if (typeof requestedInterval === "number" && requestedInterval > 0) {
+    const minInterval = planCode === "FREE" ? 24 : ((await getCapabilityLimit(userId || "FREE", "MIN_SCAN_INTERVAL_HOURS")) ?? 1);
+    if (requestedInterval < minInterval) {
+      resolvedInterval = minInterval;
+      gatedFeatures.push({
+        capabilityKey: "SCAN_FREQUENCY",
+        featureName: "High-Frequency Autonomous Scans",
+        requiredPlan: "PREMIUM",
+        userFriendlyMessage: `Autonomous scans every ${requestedInterval} hour${requestedInterval === 1 ? "" : "s"} require a Pro/Premium subscription. Free tier scans run every ${minInterval} hours.`,
+      });
+    }
+  }
+
+  const isAllowed = gatedFeatures.length === 0;
+
+  let upgradeNotification: DiscoveryEntitlementCheckResult["upgradeNotification"] = undefined;
+  if (!isAllowed) {
+    const primaryGated = gatedFeatures[0];
+    upgradeNotification = {
+      title: `${primaryGated.featureName} Requires Pro`,
+      message: `Upgrade to BrowserPilot Pro or Premium to unlock ${primaryGated.featureName.toLowerCase()} and automated high-frequency scans.`,
+      targetPlan: "PREMIUM",
+      upgradeUrl: "/app/plans",
+    };
+  }
+
+  return {
+    allowed: isAllowed,
+    planCode,
+    gatedFeatures,
+    upgradeNotification,
+    sanitizedCriteria: {
+      companyTargetingAllowed,
+      companies: companyTargetingAllowed ? candidateCompanies : [],
+      scanFrequencyHours: resolvedInterval,
+    },
+  };
 }
 
