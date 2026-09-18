@@ -49,7 +49,7 @@ export function PricingOverviewSection() {
       features: [
         "Dedicated headless worker cluster",
         "15-minute ultra-fresh polling windows",
-        "Custom enterprise ATS connectors",
+        "Custom enterprise discovery plugins",
         "Multi-profile team radar dashboards",
         "Bulk recruiter outreach automation",
         "Dedicated VIP engineering support"
