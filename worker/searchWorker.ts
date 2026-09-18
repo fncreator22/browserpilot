@@ -179,10 +179,28 @@ export async function processSearchDiscoveryJob(job: Job<SearchDiscoveryJobPaylo
       },
     });
 
-    const rankedOpportunities = harnessResult.rankedOpportunities;
+    let rankedOpportunities = harnessResult.rankedOpportunities;
     const canonicalIntent = harnessResult.context.searchIntent || (filters as any);
     const decision = harnessResult.decision;
     const correctionResult = harnessResult.context.correctionLoopResult;
+
+    // Apply high-yield 10-15 opportunity guarantee (5-8 exact + 5-7 recommendations)
+    if (!customProviders || customProviders.length === 0) {
+      try {
+        const { augmentToGuaranteedYield } = await import("@/lib/discovery/search/highYieldSearchAugmentor");
+        rankedOpportunities = await augmentToGuaranteedYield(
+          rankedOpportunities,
+          query || "Find software opportunities",
+          canonicalIntent,
+          {
+            userId,
+            signal: executionAbort.signal,
+          }
+        );
+      } catch (yieldErr) {
+        console.warn("[SearchWorker] High-yield augmentation warning:", yieldErr);
+      }
+    }
 
     const isCancelled = executionAbort.signal.aborted ||
       harnessResult.telemetry.status === "CANCELLED" ||
@@ -353,6 +371,22 @@ export async function processSearchDiscoveryJob(job: Job<SearchDiscoveryJobPaylo
       }).catch((err) => {
         console.warn(`[SearchWorker] Final state transition warning for ${executionId}:`, err);
       });
+
+      if (userId && !userId.startsWith("guest_")) {
+        try {
+          const { recordAIUsageEvent } = await import("@/lib/ai/governance/providerGovernance");
+          await recordAIUsageEvent({
+            userId,
+            provider: "BROWSERPILOT_SWARM",
+            model: "gemini-2.5-flash",
+            operation: "DISCOVERY_EVALUATION",
+            inputTokens: 350,
+            outputTokens: 500,
+            totalTokens: 850,
+            status: "SUCCESS",
+          });
+        } catch {}
+      }
     }
 
     // 6. Emit Completion / Final Event to SSE
