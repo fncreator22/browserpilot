@@ -108,7 +108,7 @@ const COMPARISON_STAGES: ComparisonStage[] = [
   }
 ];
 
-const ATS_CONNECTORS = [
+const ATS_PLUGINS = [
   { name: "Greenhouse API", status: "Active 60s Polling", latency: "142ms", color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
   { name: "Ashby HQ Webhook", status: "Sub-Second Ingestion", latency: "89ms", color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
   { name: "Lever Requisitions", status: "Real-time Verification", latency: "164ms", color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
@@ -617,7 +617,7 @@ export function ScrollComparisonSection() {
               style={{ x: horizontalTrackX }}
               className="flex items-center gap-2.5 w-max py-0.5"
             >
-              {ATS_CONNECTORS.map((portal, idx) => (
+              {ATS_PLUGINS.map((portal, idx) => (
                 <div 
                   key={idx}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#d4e0ed] bg-white text-xs shadow-xs shrink-0"
