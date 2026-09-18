@@ -63,12 +63,6 @@ export function AppSidebar() {
       isActive: pathname === "/app/history",
     },
     {
-      href: "/app/settings/memory",
-      label: "Memory Vault",
-      icon: Brain,
-      isActive: pathname === "/app/settings/memory",
-    },
-    {
       href: "/app/plugins",
       label: "Plugins Marketplace",
       icon: Puzzle,
@@ -86,7 +80,7 @@ export function AppSidebar() {
       href: ADMIN_UI_ROUTES.OVERVIEW,
       label: "Admin Observatory",
       icon: ShieldCheck,
-      badgeColor: "bg-purple-600",
+      badgeColor: "bg-blue-600",
       isActive: pathname?.startsWith("/ops-sec-"),
     }] : []),
   ];

@@ -9,10 +9,10 @@ import {
   Radio, 
   Bookmark, 
   History, 
-  Blocks, 
   ShieldAlert, 
   User, 
-  Sparkles 
+  Sparkles, 
+  Briefcase
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useUIState } from "@/components/providers/ui-state-provider";
@@ -28,10 +28,10 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Discover", href: "/app", icon: Compass },
+  { label: "Job Market", href: "/app/marketplace", icon: Briefcase },
   { label: "Autonomous Radar", href: "/app/watch", icon: Radio },
   { label: "Saved", href: "/app/saved", icon: Bookmark },
   { label: "History", href: "/app/history", icon: History },
-  { label: "Plugins", href: "/app/plugins", icon: Blocks },
 ];
 
 export function TopNavIsland() {
