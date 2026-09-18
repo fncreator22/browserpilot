@@ -51,7 +51,10 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { usePuter } from "@/hooks/usePuter";
 import { useUIState, type ProfileTab } from "@/components/providers/ui-state-provider";
+import { PrototypeBadge } from "@/components/ui/prototype-badge";
+import { getPlanPrice, formatCurrency } from "@/lib/billing/currency";
 import { ConnectorPreferencesPanel } from "@/components/connectors/connector-preferences-modal";
+import { CareerMemoryForm } from "@/components/profile/career-memory-form";
 import { 
   DEFAULT_DEEPREACH_CHANNELS, 
   type DeepReachChannelsPreferences 
@@ -76,7 +79,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const router = useRouter();
   const { data: session, update: updateSession } = useSession();
   const { isLoaded: isPuterLoaded, isSignedIn: isPuterSignedIn, user: puterUser, signIn: puterSignIn, signOut: puterSignOut } = usePuter();
-  const { unreadNotificationsCount, refreshNotifications } = useUIState();
+  const { unreadNotificationsCount, refreshNotifications, currency, setCurrency } = useUIState();
 
   // Active Category Selection (defaults to AI Providers)
   const [activeCategory, setActiveCategory] = useState<ProfileTab>(() => {
@@ -217,6 +220,20 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
           localStorage.setItem("browserpilot_deepreach_channels", JSON.stringify(next));
         } catch {}
       }
+      // Synchronize with server-side plugins API & BrowserSession
+      if (channel === "twitter") {
+        fetch("/api/plugins/x_twitter", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: next[channel] ? "CONNECT" : "DISCONNECT" }),
+        }).catch(() => {});
+      } else if (channel === "linkedIn") {
+        fetch("/api/plugins/linkedin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: next[channel] ? "CONNECT" : "DISCONNECT" }),
+        }).catch(() => {});
+      }
       toast.success(`${channel.toUpperCase()} DeepReach scanner ${next[channel] ? "enabled" : "disabled"}`);
       return next;
     });
@@ -224,8 +241,9 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
 
   const loadProvidersAndUsage = () => {
     fetch("/api/account/providers")
-      .then((res) => res.json())
-      .then((data) => {
+      .then((res) => res.text())
+      .then((raw) => {
+        const data = raw && raw.trim().length > 0 ? JSON.parse(raw) : null;
         if (data?.providers) {
           setConnectedProviders(data.providers);
           const deepseekConn = data.providers.find(
@@ -242,9 +260,27 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
       })
       .catch(() => {});
 
+    fetch("/api/plugins")
+      .then((res) => res.text())
+      .then((raw) => {
+        const data = raw && raw.trim().length > 0 ? JSON.parse(raw) : null;
+        if (Array.isArray(data?.plugins)) {
+          const twitterPlugin = data.plugins.find((p: any) => p.id === "x_twitter" || p.id === "twitter" || p.id === "x");
+          const linkedinPlugin = data.plugins.find((p: any) => p.id === "linkedin");
+          if (twitterPlugin) {
+            setDeepReachChannels((prev) => ({ ...prev, twitter: Boolean(twitterPlugin.isConnected) }));
+          }
+          if (linkedinPlugin) {
+            setDeepReachChannels((prev) => ({ ...prev, linkedIn: Boolean(linkedinPlugin.isConnected) }));
+          }
+        }
+      })
+      .catch(() => {});
+
     fetch("/api/account/usage")
-      .then((res) => res.json())
-      .then((data) => {
+      .then((res) => res.text())
+      .then((raw) => {
+        const data = raw && raw.trim().length > 0 ? JSON.parse(raw) : null;
         if (data?.summary) setUsageSummary(data.summary);
       })
       .catch(() => {});
@@ -252,8 +288,9 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
 
   const loadBilling = () => {
     fetch("/api/account/billing")
-      .then((res) => res.json())
-      .then((data) => {
+      .then((res) => res.text())
+      .then((raw) => {
+        const data = raw && raw.trim().length > 0 ? JSON.parse(raw) : null;
         if (data && !data.error) setBillingData(data);
       })
       .catch(() => {});
@@ -303,6 +340,25 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         .catch(() => {});
     }
   }, [isOpen, session]);
+
+  // Re-fetch billing quota immediately when switching to Subscription & Quotas tab
+  useEffect(() => {
+    if (isOpen && activeCategory === "BILLING") {
+      loadBilling();
+    }
+  }, [isOpen, activeCategory]);
+
+  // Synchronize billing quotas whenever a search completes in the background
+  useEffect(() => {
+    const handleSearchComplete = () => {
+      loadBilling();
+      loadProvidersAndUsage();
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("browserai:search-completed", handleSearchComplete);
+      return () => window.removeEventListener("browserai:search-completed", handleSearchComplete);
+    }
+  }, []);
 
   // Auto-synchronize browser Puter authentication token to server DB if logged in
   useEffect(() => {
@@ -356,6 +412,12 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
       shortDesc: "Puter OAuth, BYOK Gemini, token budget",
       icon: Sparkles,
       badge: isEffectivePuterConnected ? "Puter Active" : hasKey ? "BYOK Active" : undefined,
+    },
+    {
+      id: "CONNECTORS",
+      label: "Plugins & Connectors",
+      shortDesc: "ATS, job boards & radar plugins",
+      icon: Blocks,
     },
     {
       id: "CAREER_MEMORY",
@@ -750,6 +812,12 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const handleSelectCategory = (catId: ProfileTab) => {
     setActiveCategory(catId);
     setMobileDetailView(catId);
+    if (catId === "BILLING") {
+      loadBilling();
+    }
+    if (catId === "PROVIDERS" || catId === "CONNECTORS") {
+      loadProvidersAndUsage();
+    }
   };
 
   const handleMobileBack = () => {
@@ -802,6 +870,50 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   placeholder="you@domain.com"
                   className="font-sans text-xs bg-background border-border/80 text-foreground"
                 />
+              </div>
+
+              {/* Billing & Display Currency Preference */}
+              <div className="pt-3 border-t border-border/50">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/30 p-3.5 rounded-xl border border-border/70">
+                  <div>
+                    <label className="text-xs font-semibold text-foreground font-sans block">
+                      Display & Billing Currency
+                    </label>
+                    <p className="text-[11px] text-muted-foreground font-sans mt-0.5">
+                      Choose whether subscription tiers, checkout, and quotas are displayed in USD or INR.
+                    </p>
+                  </div>
+                  <div className="inline-flex items-center bg-muted p-1 rounded-xl border border-border/80 shadow-2xs shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCurrency("USD");
+                        toast.success("Currency Preference Saved", { description: "Active display currency set to USD ($)." });
+                      }}
+                      className={`px-3 py-1.5 text-xs font-mono font-semibold rounded-lg transition-all cursor-pointer ${
+                        currency === "USD"
+                          ? "bg-card text-foreground shadow-xs border border-border/40"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      $ USD
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCurrency("INR");
+                        toast.success("Currency Preference Saved", { description: "Active display currency set to INR (₹)." });
+                      }}
+                      className={`px-3 py-1.5 text-xs font-mono font-semibold rounded-lg transition-all cursor-pointer ${
+                        currency === "INR"
+                          ? "bg-card text-foreground shadow-xs border border-border/40"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      ₹ INR
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="pt-3 border-t border-border/50 space-y-3">
@@ -1266,10 +1378,28 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-lg font-sans font-bold text-foreground">Data Connectors</h2>
+              <h2 className="text-lg font-sans font-bold text-foreground">Plugins & Monitored Sources</h2>
               <p className="text-xs text-muted-foreground font-sans mt-0.5">
-                Manage all registered job board aggregators, direct ATS platforms, and autonomous guest search channels.
+                Manage all registered job board aggregators, direct ATS platforms, and autonomous intelligence plugins.
               </p>
+            </div>
+
+            {/* Direct & Auth Scraper Plugins */}
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-marble-1">
+              <div className="flex items-center justify-between pb-3 border-b border-border/60">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold font-sans text-foreground">Scraper Plugins & Direct ATS Feeds</h3>
+                    <Badge variant="outline" className="text-[10px] uppercase font-mono px-2 py-0.5 bg-primary/10 text-primary border-primary/20">
+                      Active Marketplace
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-sans">
+                    Enable authenticated ATS crawlers (Greenhouse, Lever, Workday, Indeed) and social streams.
+                  </p>
+                </div>
+              </div>
+              <ConnectorPreferencesPanel showActions={false} />
             </div>
 
             {/* Pro DeepReach Multi-Platform Channels */}
@@ -1384,7 +1514,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   <div>
                     <h3 className="text-sm font-semibold font-sans text-foreground">Active Plugins Engine</h3>
                     <p className="text-xs text-muted-foreground font-sans mt-0.5">
-                      Monitored sources are now driven by the modern Plugins architecture (~75%+ priority yield). Manage scraper plugins and credentials in the marketplace.
+                      Monitored sources are driven by our high-yield scraper plugins (~75%+ priority yield). Manage scraper plugins and credentials in the marketplace.
                     </p>
                   </div>
                 </div>
@@ -1405,74 +1535,14 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-lg font-sans font-bold text-foreground">Career Memory & Preferences</h2>
+              <h2 className="text-lg font-sans font-bold text-foreground">Career Memory Vault & Personalization</h2>
               <p className="text-xs text-muted-foreground font-sans mt-0.5">
-                Your personal preferences and background context that inform autonomous watch and opportunity fit scoring.
+                Configure your verified career context, education, experience, and CGPA band to power autonomous search matching.
               </p>
             </div>
 
-            {/* Central Memory Vault Hub Card */}
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 space-y-4 shadow-marble-1">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-marble-1 shrink-0">
-                    <Brain className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold font-sans text-foreground">Central Memory Vault</h3>
-                    <p className="text-xs text-muted-foreground font-sans mt-0.5">
-                      Target roles, locations, skills, and ranking parameters are centrally managed in your dedicated Memory Vault.
-                    </p>
-                  </div>
-                </div>
-                <Link
-                  href="/app/settings/memory"
-                  onClick={onClose}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-sans font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0 shadow-marble-1 cursor-pointer"
-                >
-                  <span>Open Memory Vault</span>
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-
-              {/* Active Preferences Snapshot */}
-              <div className="pt-3 border-t border-emerald-500/15 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="p-3 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-border/50">
-                  <span className="text-[11px] font-mono text-muted-foreground block mb-1.5 uppercase tracking-wider">Target Roles</span>
-                  <div className="flex flex-wrap gap-1">
-                    {preferredRoles.length > 0 ? (
-                      preferredRoles.slice(0, 4).map((role) => (
-                        <span key={role} className="inline-flex px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium text-[11px]">
-                          {role}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-muted-foreground italic text-[11px]">None configured</span>
-                    )}
-                    {preferredRoles.length > 4 && (
-                      <span className="text-[11px] text-muted-foreground">+{preferredRoles.length - 4} more</span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-border/50">
-                  <span className="text-[11px] font-mono text-muted-foreground block mb-1.5 uppercase tracking-wider">Preferred Locations</span>
-                  <div className="flex flex-wrap gap-1">
-                    {preferredLocations.length > 0 ? (
-                      preferredLocations.slice(0, 4).map((loc) => (
-                        <span key={loc} className="inline-flex px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 font-medium text-[11px]">
-                          {loc}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-muted-foreground italic text-[11px]">Global / Remote</span>
-                    )}
-                    {preferredLocations.length > 4 && (
-                      <span className="text-[11px] text-muted-foreground">+{preferredLocations.length - 4} more</span>
-                    )}
-                  </div>
-                </div>
-              </div>
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-marble-1">
+              <CareerMemoryForm />
             </div>
           </div>
         );
@@ -1645,7 +1715,9 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             {billingData?.plan?.code !== "PREMIUM" && (() => {
               const premiumPlan = (billingData as any)?.availablePlans?.find((p: any) => p.code === "PREMIUM");
               const discountPct = premiumPlan?.discountPercentage || 0;
-              const basePrice = premiumPlan?.priceMonthly ?? 19;
+              const planPrice = getPlanPrice("PREMIUM", "MONTHLY", currency);
+              const basePrice = planPrice.amount;
+              const currencySymbol = planPrice.symbol;
               const offerPrice = discountPct > 0 ? Math.round(basePrice * (1 - discountPct / 100) * 100) / 100 : basePrice;
 
               return (
@@ -1674,10 +1746,10 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         "Processing..."
                       ) : discountPct > 0 ? (
                         <span>
-                          Upgrade (<span className="line-through opacity-75 mr-1">${basePrice}</span>${offerPrice}/mo)
+                          Upgrade (<span className="line-through opacity-75 mr-1">{currencySymbol}{basePrice}</span>{currencySymbol}{offerPrice}/mo)
                         </span>
                       ) : (
-                        `Upgrade ($${basePrice}/mo)`
+                        `Upgrade (${currencySymbol}${basePrice}/mo)`
                       )}
                     </Button>
                   </div>
@@ -1724,22 +1796,25 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     <div className={`p-2 rounded-lg ${emailAlertsEnabled ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
                       <Radio className="h-4 w-4" />
                     </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={emailAlertsEnabled}
-                      onClick={() => handleToggleNotificationPref("email", !emailAlertsEnabled)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        emailAlertsEnabled ? "bg-primary" : "bg-muted"
-                      }`}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                          emailAlertsEnabled ? "translate-x-4" : "translate-x-0"
+                    <div className="flex items-center gap-1.5">
+                      <PrototypeBadge label="Prototype (Email Alerts)" />
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={emailAlertsEnabled}
+                        onClick={() => handleToggleNotificationPref("email", !emailAlertsEnabled)}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          emailAlertsEnabled ? "bg-primary" : "bg-muted"
                         }`}
-                      />
-                    </button>
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                            emailAlertsEnabled ? "translate-x-4" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <h3 className="text-xs font-sans font-bold text-foreground">Role Matches</h3>
@@ -1810,22 +1885,25 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     <div className={`p-2 rounded-lg ${dailyDigestEnabled ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
                       <Mail className="h-4 w-4" />
                     </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={dailyDigestEnabled}
-                      onClick={() => handleToggleNotificationPref("digest", !dailyDigestEnabled)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        dailyDigestEnabled ? "bg-primary" : "bg-muted"
-                      }`}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                          dailyDigestEnabled ? "translate-x-4" : "translate-x-0"
+                    <div className="flex items-center gap-1.5">
+                      <PrototypeBadge label="Prototype (Email Digest)" />
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={dailyDigestEnabled}
+                        onClick={() => handleToggleNotificationPref("digest", !dailyDigestEnabled)}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          dailyDigestEnabled ? "bg-primary" : "bg-muted"
                         }`}
-                      />
-                    </button>
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                            dailyDigestEnabled ? "translate-x-4" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <h3 className="text-xs font-sans font-bold text-foreground">Daily Briefing</h3>
