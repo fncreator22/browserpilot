@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "lastUpdatedAt": "2026-09-18T10:41:38.546Z",
-  "totalRolesLearned": 390,
+  "lastUpdatedAt": "2026-09-18T23:36:58.689Z",
+  "totalRolesLearned": 453,
   "departments": {
     "engineering": {
       "id": "engineering",
@@ -47,7 +47,7 @@
                 "SQL",
                 "Git"
               ],
-              "observedCount": 271,
+              "observedCount": 276,
               "isDynamicallyLearned": false,
               "discoveredFromPortals": [
                 "Greenhouse",
@@ -57,7 +57,7 @@
                 "Ashby"
               ],
               "firstObservedAt": "2026-01-01T00:00:00.000Z",
-              "lastObservedAt": "2026-09-18T10:35:58.745Z"
+              "lastObservedAt": "2026-09-18T23:32:30.353Z"
             },
             "backend-engineer": {
               "canonicalTitle": "Backend Engineer",
@@ -76,7 +76,7 @@
                 "Microservices",
                 "REST"
               ],
-              "observedCount": 632,
+              "observedCount": 737,
               "isDynamicallyLearned": false,
               "discoveredFromPortals": [
                 "Greenhouse",
@@ -86,7 +86,7 @@
                 "Indeed"
               ],
               "firstObservedAt": "2026-01-01T00:00:00.000Z",
-              "lastObservedAt": "2026-09-18T10:41:28.707Z"
+              "lastObservedAt": "2026-09-18T23:36:47.021Z"
             },
             "distributed-systems-engineer": {
               "canonicalTitle": "Distributed Systems Engineer",
@@ -177,7 +177,7 @@
               "lastObservedAt": "2026-09-11T12:01:55.789Z"
             },
             "senior-golang-engineer-m-w-d-traveltech": {
-              "canonicalTitle": "Senior Golang Engineer (m/w/d) – TravelTech",
+              "canonicalTitle": "Senior Golang Engineer (m/w/d) - TravelTech",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 5,
@@ -237,7 +237,7 @@
               "lastObservedAt": "2026-09-11T10:16:46.303Z"
             },
             "functional-perceived-quality-engineer-convergence-engineer": {
-              "canonicalTitle": "Functional Perceived Quality Engineer – Convergence Engineer",
+              "canonicalTitle": "Functional Perceived Quality Engineer - Convergence Engineer",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 2,
@@ -381,7 +381,7 @@
               "lastObservedAt": "2026-09-11T07:55:23.560Z"
             },
             "senior-backend-developer-go-kubernetes-berlin": {
-              "canonicalTitle": "Senior Backend Developer – Go & Kubernetes (Berlin)",
+              "canonicalTitle": "Senior Backend Developer - Go & Kubernetes (Berlin)",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 1,
@@ -405,7 +405,7 @@
               "lastObservedAt": "2026-09-11T07:55:23.566Z"
             },
             "senior-backend-engineer-golang-python-immediate-joiner": {
-              "canonicalTitle": "Senior Backend Engineer – Golang & Python | Immediate Joiner",
+              "canonicalTitle": "Senior Backend Engineer - Golang & Python | Immediate Joiner",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 1,
@@ -732,13 +732,13 @@
               "canonicalTitle": "Intern, Smart Factory Solutions",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 4,
+              "observedCount": 5,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-11T12:05:01.591Z",
-              "lastObservedAt": "2026-09-11T21:44:28.229Z"
+              "lastObservedAt": "2026-09-18T21:09:22.299Z"
             },
             "intern": {
               "canonicalTitle": "Intern",
@@ -792,7 +792,7 @@
               "canonicalTitle": "Backend Developer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3875,
+              "observedCount": 4945,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Ashby",
@@ -800,7 +800,7 @@
                 "Indeed"
               ],
               "firstObservedAt": "2026-09-11T12:43:46.872Z",
-              "lastObservedAt": "2026-09-18T10:31:07.338Z"
+              "lastObservedAt": "2026-09-18T23:27:06.053Z"
             },
             "software-engineer-ii-fullstack-developer": {
               "canonicalTitle": "Software Engineer II - Fullstack Developer",
@@ -854,37 +854,37 @@
               "canonicalTitle": "Backend Engineer, Core Systems",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 247,
+              "observedCount": 307,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-11T12:44:03.392Z",
-              "lastObservedAt": "2026-09-18T10:32:58.989Z"
+              "lastObservedAt": "2026-09-18T23:28:37.009Z"
             },
             "backend-engineer-distributed-systems": {
               "canonicalTitle": "Backend Engineer, Distributed Systems",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 100,
+              "observedCount": 125,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-11T12:44:57.372Z",
-              "lastObservedAt": "2026-09-18T10:34:07.626Z"
+              "lastObservedAt": "2026-09-18T23:29:28.194Z"
             },
             "junior-software-engineer": {
               "canonicalTitle": "Junior Software Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 18,
+              "observedCount": 21,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-11T12:45:20.369Z",
-              "lastObservedAt": "2026-09-18T09:47:21.104Z"
+              "lastObservedAt": "2026-09-18T23:36:58.689Z"
             },
             "senior-resident-md-psychaitry": {
               "canonicalTitle": "Senior Resident MD Psychaitry",
@@ -950,13 +950,13 @@
               "canonicalTitle": "Software Engineer - Java",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 9,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-11T14:16:38.043Z",
-              "lastObservedAt": "2026-09-11T16:33:11.156Z"
+              "lastObservedAt": "2026-09-18T23:27:13.960Z"
             },
             "developer-iii-software-engineering": {
               "canonicalTitle": "Developer III - Software Engineering",
@@ -1079,7 +1079,7 @@
               "lastObservedAt": "2026-09-11T19:03:57.292Z"
             },
             "flutter-backend-intern-ai-assisted-development-claude-codex-final-year-students-btech": {
-              "canonicalTitle": "Flutter/Backend Intern (AI-Assisted Development — Claude, Codex) — Final Year Students, Btech",
+              "canonicalTitle": "Flutter/Backend Intern (AI-Assisted Development - Claude, Codex) - Final Year Students, Btech",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 2,
@@ -1130,61 +1130,61 @@
               "canonicalTitle": "Support Engineer (EMEA)",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 68,
+              "observedCount": 75,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-11T21:27:06.435Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.960Z"
             },
             "support-engineer-apac": {
               "canonicalTitle": "Support Engineer (APAC)",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 68,
+              "observedCount": 75,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-11T21:27:06.437Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.960Z"
             },
             "multigres-engineer": {
               "canonicalTitle": "Multigres Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 68,
+              "observedCount": 75,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-11T21:27:06.437Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.960Z"
             },
             "developer-relations-engineer": {
               "canonicalTitle": "Developer Relations Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 34,
+              "observedCount": 41,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-11T21:27:06.437Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.961Z"
             },
             "support-engineer-amer-weekends": {
               "canonicalTitle": "Support Engineer (AMER - Weekends)",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 68,
+              "observedCount": 75,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-11T21:27:06.437Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.960Z"
             },
             "postgres-engineer": {
               "canonicalTitle": "Postgres Engineer",
@@ -1262,103 +1262,103 @@
               "canonicalTitle": "Backend Engineer 1",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 19,
+              "observedCount": 24,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-14T06:11:27.025Z",
-              "lastObservedAt": "2026-09-18T09:41:21.352Z"
+              "lastObservedAt": "2026-09-18T23:26:35.617Z"
             },
             "backend-engineer-2": {
               "canonicalTitle": "Backend Engineer 2",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 19,
+              "observedCount": 24,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-14T06:11:27.025Z",
-              "lastObservedAt": "2026-09-18T09:41:21.353Z"
+              "lastObservedAt": "2026-09-18T23:26:35.617Z"
             },
             "backend-engineer-3": {
               "canonicalTitle": "Backend Engineer 3",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 19,
+              "observedCount": 24,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-14T06:11:27.025Z",
-              "lastObservedAt": "2026-09-18T09:41:21.353Z"
+              "lastObservedAt": "2026-09-18T23:26:35.617Z"
             },
             "backend-engineer-4": {
               "canonicalTitle": "Backend Engineer 4",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 19,
+              "observedCount": 24,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-14T06:11:27.025Z",
-              "lastObservedAt": "2026-09-18T09:41:21.353Z"
+              "lastObservedAt": "2026-09-18T23:26:35.617Z"
             },
             "backend-engineer-5": {
               "canonicalTitle": "Backend Engineer 5",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 19,
+              "observedCount": 24,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-14T06:11:27.025Z",
-              "lastObservedAt": "2026-09-18T09:41:21.353Z"
+              "lastObservedAt": "2026-09-18T23:26:35.617Z"
             },
             "backend-engineer-6": {
               "canonicalTitle": "Backend Engineer 6",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 19,
+              "observedCount": 24,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-14T06:11:27.025Z",
-              "lastObservedAt": "2026-09-18T09:41:21.353Z"
+              "lastObservedAt": "2026-09-18T23:26:35.617Z"
             },
             "backend-engineer-7": {
               "canonicalTitle": "Backend Engineer 7",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 19,
+              "observedCount": 24,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-14T06:11:27.025Z",
-              "lastObservedAt": "2026-09-18T09:41:21.353Z"
+              "lastObservedAt": "2026-09-18T23:26:35.617Z"
             },
             "backend-engineer-8": {
               "canonicalTitle": "Backend Engineer 8",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 19,
+              "observedCount": 24,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-14T06:11:27.026Z",
-              "lastObservedAt": "2026-09-18T09:41:21.353Z"
+              "lastObservedAt": "2026-09-18T23:26:35.617Z"
             },
             "senior-backend-engineer": {
               "canonicalTitle": "Senior Backend Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3795,
+              "observedCount": 4845,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse",
@@ -1366,7 +1366,7 @@
                 "Company Careers"
               ],
               "firstObservedAt": "2026-09-14T06:11:27.646Z",
-              "lastObservedAt": "2026-09-18T10:30:58.391Z"
+              "lastObservedAt": "2026-09-18T23:27:00.909Z"
             },
             "software-development-engineer-prime-video-linear-prime-video": {
               "canonicalTitle": "Software Development Engineer - Prime Video Linear, Prime Video",
@@ -1408,49 +1408,49 @@
               "canonicalTitle": "Customer Success Engineer, LATAM (Spanish, Portugese)",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 21,
+              "observedCount": 22,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-14T06:12:20.741Z",
-              "lastObservedAt": "2026-09-17T10:03:37.490Z"
+              "lastObservedAt": "2026-09-18T18:15:29.792Z"
             },
             "director-engineering-platform-operations-productivity": {
               "canonicalTitle": "Director, Engineering, Platform Operations & Productivity",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 30,
+              "observedCount": 35,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-14T06:12:20.741Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.962Z"
             },
             "director-of-engineering-organizations-cells": {
               "canonicalTitle": "Director of Engineering, Organizations & Cells",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 33,
+              "observedCount": 38,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-14T06:12:20.741Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.962Z"
             },
             "director-of-recruiting-engineering-it-bangalore-india": {
               "canonicalTitle": "Director of Recruiting, Engineering & IT, Bangalore India",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 14,
+              "observedCount": 19,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-14T06:12:20.741Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.963Z"
             },
             "geospatial-summer-intern": {
               "canonicalTitle": "Geospatial Summer Intern",
@@ -1468,37 +1468,37 @@
               "canonicalTitle": "Forward Deployed Engineer Intern",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 9,
+              "observedCount": 10,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-14T08:39:00.483Z",
-              "lastObservedAt": "2026-09-15T22:32:57.270Z"
+              "lastObservedAt": "2026-09-18T21:09:22.295Z"
             },
             "staff-backend-engineer-core-infrastructure": {
               "canonicalTitle": "Staff Backend Engineer, Core Infrastructure",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 105,
+              "observedCount": 140,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-14T11:26:07.382Z",
-              "lastObservedAt": "2026-09-18T09:46:20.673Z"
+              "lastObservedAt": "2026-09-18T23:30:44.124Z"
             },
             "staff-backend-engineer": {
               "canonicalTitle": "Staff Backend Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 39,
+              "observedCount": 54,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-14T11:27:27.251Z",
-              "lastObservedAt": "2026-09-18T09:46:39.132Z"
+              "lastObservedAt": "2026-09-18T23:31:05.916Z"
             },
             "senior-software-engineer-sde3-4": {
               "canonicalTitle": "Senior Software Engineer (SDE3/4)",
@@ -1576,25 +1576,25 @@
               "canonicalTitle": "Engineering Manager, Agent Foundations: Agent Execution",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 7,
+              "observedCount": 13,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-14T15:00:47.942Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.963Z"
             },
             "engineering-manager-build": {
               "canonicalTitle": "Engineering Manager, Build",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 7,
+              "observedCount": 13,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-14T15:00:47.942Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.963Z"
             },
             "drone-airframe-development-internship": {
               "canonicalTitle": "Drone Airframe Development Internship",
@@ -1621,7 +1621,7 @@
               "lastObservedAt": "2026-09-14T15:51:42.674Z"
             },
             "senior-software-engineer-go-golang": {
-              "canonicalTitle": "Senior Software Engineer – Go (Golang)",
+              "canonicalTitle": "Senior Software Engineer - Go (Golang)",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 7,
@@ -1720,37 +1720,37 @@
               "canonicalTitle": "Engineering Manager, Data Foundations",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 8,
+              "observedCount": 15,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-15T12:21:13.292Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.963Z"
             },
             "director-of-product-management-agentic-software-delivery": {
               "canonicalTitle": "Director of Product Management, Agentic Software Delivery",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 29,
+              "observedCount": 34,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-15T12:21:22.600Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.962Z"
             },
             "lead-internal-events-production-strategist": {
               "canonicalTitle": "Lead Internal Events & Production Strategist",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 12,
+              "observedCount": 13,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-15T12:21:22.600Z",
-              "lastObservedAt": "2026-09-16T12:56:28.355Z"
+              "lastObservedAt": "2026-09-18T20:17:35.374Z"
             },
             "senior-backend-engineer-architecture-engineering-nonlinear-productivity": {
               "canonicalTitle": "Senior Backend Engineer, Architecture Engineering: Nonlinear Productivity",
@@ -1840,16 +1840,16 @@
               "canonicalTitle": "Candidate Experience Specialist, Contractor",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 2,
+              "observedCount": 3,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-15T20:40:51.996Z",
-              "lastObservedAt": "2026-09-15T21:32:00.472Z"
+              "lastObservedAt": "2026-09-18T20:17:35.373Z"
             },
             "gtm-business-systems-analyst-post-sales": {
-              "canonicalTitle": "GTM Business Systems Analyst – Post Sales",
+              "canonicalTitle": "GTM Business Systems Analyst - Post Sales",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 1,
@@ -1900,25 +1900,25 @@
               "canonicalTitle": "Assistant Manager",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 1,
+              "observedCount": 2,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-15T21:32:00.470Z",
-              "lastObservedAt": "2026-09-15T21:32:00.470Z"
+              "lastObservedAt": "2026-09-18T20:17:35.368Z"
             },
             "lead-sec-analyst": {
               "canonicalTitle": "Lead SEC Analyst",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 1,
+              "observedCount": 2,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-15T21:32:00.472Z",
-              "lastObservedAt": "2026-09-15T21:32:00.472Z"
+              "lastObservedAt": "2026-09-18T20:17:35.374Z"
             },
             "software-engineer-backend": {
               "canonicalTitle": "Software Engineer Backend",
@@ -1933,7 +1933,7 @@
               "lastObservedAt": "2026-09-15T22:36:39.683Z"
             },
             "java-developer-core-java-multithreading-sql-database-design-spring-boot": {
-              "canonicalTitle": "Java Developer – Core Java, Multithreading, SQL, Database Design & Spring Boot",
+              "canonicalTitle": "Java Developer - Core Java, Multithreading, SQL, Database Design & Spring Boot",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 1,
@@ -1948,13 +1948,13 @@
               "canonicalTitle": ".NET Software Developer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 4,
+              "observedCount": 9,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-15T22:36:39.687Z",
-              "lastObservedAt": "2026-09-18T09:41:34.783Z"
+              "lastObservedAt": "2026-09-18T23:27:13.960Z"
             },
             "sr-software-engineer": {
               "canonicalTitle": "Sr. Software Engineer",
@@ -1984,25 +1984,25 @@
               "canonicalTitle": "Senior Software Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 12,
+              "observedCount": 19,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-16T06:31:16.251Z",
-              "lastObservedAt": "2026-09-18T09:41:34.783Z"
+              "lastObservedAt": "2026-09-18T23:27:13.960Z"
             },
             "java-backend-developer": {
               "canonicalTitle": "JAVA Backend Developer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 5,
+              "observedCount": 10,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-16T08:39:33.435Z",
-              "lastObservedAt": "2026-09-16T12:56:21.573Z"
+              "lastObservedAt": "2026-09-18T23:25:13.389Z"
             },
             "software-engineer-iii-java-full-stack-developer-react": {
               "canonicalTitle": "Software Engineer III - Java Full Stack Developer + React",
@@ -2101,7 +2101,7 @@
               "lastObservedAt": "2026-09-17T00:04:59.619Z"
             },
             "systems-verification-engineer-flight-control-actuation-m-f-d": {
-              "canonicalTitle": "Systems Verification Engineer – Flight Control Actuation – m/f/d",
+              "canonicalTitle": "Systems Verification Engineer - Flight Control Actuation - m/f/d",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 4,
@@ -2188,13 +2188,13 @@
               "canonicalTitle": "Associate Revenue Operations Analyst, Policy & Rules of Engagement",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 13,
+              "observedCount": 16,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-16T23:23:09.411Z",
-              "lastObservedAt": "2026-09-17T11:17:06.794Z"
+              "lastObservedAt": "2026-09-18T20:17:35.373Z"
             },
             "customer-experience-associate-evening-shift": {
               "canonicalTitle": "Customer Experience Associate (Evening Shift)",
@@ -2260,13 +2260,13 @@
               "canonicalTitle": "Postgres Engineer (AMER)",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 9,
+              "observedCount": 16,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T00:25:51.691Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.960Z"
             },
             "anthropic-fellows-program-ml-systems-reinforcement-learning": {
               "canonicalTitle": "Anthropic Fellows Program, ML Systems & Reinforcement Learning",
@@ -2401,7 +2401,7 @@
               "lastObservedAt": "2026-09-17T11:16:56.223Z"
             },
             "application-support-specialist-hybrid-flexible": {
-              "canonicalTitle": "Application Support Specialist – Hybrid & Flexible",
+              "canonicalTitle": "Application Support Specialist - Hybrid & Flexible",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 1,
@@ -2425,7 +2425,7 @@
               "lastObservedAt": "2026-09-17T11:16:56.225Z"
             },
             "warehouse-logistics-support-multiple-positions": {
-              "canonicalTitle": "Warehouse & Logistics Support – Multiple Positions",
+              "canonicalTitle": "Warehouse & Logistics Support - Multiple Positions",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 1,
@@ -2488,37 +2488,37 @@
               "canonicalTitle": "Software Engineer - Auth",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 4,
+              "observedCount": 11,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T11:38:11.328Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.961Z"
             },
             "software-engineer-iac-platform-experience": {
               "canonicalTitle": "Software Engineer: IaC Platform Experience",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 4,
+              "observedCount": 11,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T11:38:11.328Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.961Z"
             },
             "software-engineer-branching": {
               "canonicalTitle": "Software Engineer - Branching",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 4,
+              "observedCount": 11,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T11:38:11.330Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.962Z"
             },
             "full-stack-development-internship-in-cochin": {
               "canonicalTitle": "Full Stack Development Internship in Cochin",
@@ -2701,7 +2701,7 @@
               "lastObservedAt": "2026-09-17T16:59:32.227Z"
             },
             "software-engineer-java-backend-api": {
-              "canonicalTitle": "SoftWare Engineer – Java Backend API",
+              "canonicalTitle": "SoftWare Engineer - Java Backend API",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 1,
@@ -2740,13 +2740,13 @@
               "canonicalTitle": "Software Development Engineer III -Backend",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 4,
+              "observedCount": 9,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-17T20:01:38.249Z",
-              "lastObservedAt": "2026-09-18T09:41:34.782Z"
+              "lastObservedAt": "2026-09-18T23:27:13.958Z"
             },
             "sde2-sde3-backend": {
               "canonicalTitle": "SDE2/SDE3-Backend",
@@ -2824,37 +2824,37 @@
               "canonicalTitle": "Software Engineer III - Java AWS",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 8,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.807Z",
-              "lastObservedAt": "2026-09-18T09:41:34.782Z"
+              "lastObservedAt": "2026-09-18T23:27:13.958Z"
             },
             "software-engineer-iii-java-full-stack": {
               "canonicalTitle": "Software Engineer III-Java Full Stack",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 8,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.808Z",
-              "lastObservedAt": "2026-09-18T09:41:34.782Z"
+              "lastObservedAt": "2026-09-18T23:27:13.958Z"
             },
             "senior-software-engineer-java-development": {
               "canonicalTitle": "Senior Software Engineer - Java development",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 8,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.808Z",
-              "lastObservedAt": "2026-09-18T09:41:34.782Z"
+              "lastObservedAt": "2026-09-18T23:27:13.958Z"
             },
             "senior-software-engineer-full-stack-c-net-core": {
               "canonicalTitle": "Senior Software Engineer-Full stack (C#, .NET Core)",
@@ -2872,241 +2872,241 @@
               "canonicalTitle": "Senior Software Engineer (Java Full Stack Developer)",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 5,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.809Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T16:23:10.881Z"
             },
             "software-engineer-sde-2": {
               "canonicalTitle": "Software Engineer (SDE-2)",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 1,
+              "observedCount": 4,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.809Z",
-              "lastObservedAt": "2026-09-17T20:03:26.809Z"
+              "lastObservedAt": "2026-09-18T23:27:13.960Z"
             },
             "multigres-deployment-engineer": {
               "canonicalTitle": "Multigres Deployment Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 10,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.810Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.960Z"
             },
             "database-support-engineer-amer": {
               "canonicalTitle": "Database Support Engineer (AMER)",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 10,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.810Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.960Z"
             },
             "postgres-deployment-engineer-nix": {
               "canonicalTitle": "Postgres Deployment Engineer (Nix)",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 10,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.810Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.960Z"
             },
             "edge-functions-engineer": {
               "canonicalTitle": "Edge Functions Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 10,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.811Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.961Z"
             },
             "engineering-manager": {
               "canonicalTitle": "Engineering Manager",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 10,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.811Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.961Z"
             },
             "api-engineer": {
               "canonicalTitle": "API Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 10,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.811Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.961Z"
             },
             "supalite-engineer": {
               "canonicalTitle": "Supalite Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 10,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.811Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.961Z"
             },
             "release-engineer": {
               "canonicalTitle": "Release Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 10,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.811Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.961Z"
             },
             "performance-engineer-performance-analysis-tuning": {
               "canonicalTitle": "Performance Engineer - Performance Analysis & Tuning",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 10,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.811Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.961Z"
             },
             "performance-engineer-benchmarking": {
               "canonicalTitle": "Performance Engineer - Benchmarking",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 10,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.812Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.961Z"
             },
             "engineering-productivity-engineer": {
               "canonicalTitle": "Engineering Productivity Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 10,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.812Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.961Z"
             },
             "platform-engineer-compute-capacity": {
               "canonicalTitle": "Platform Engineer - Compute Capacity",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 10,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.812Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.962Z"
             },
             "engineering-manager-dedicated-integrations": {
               "canonicalTitle": "Engineering Manager, Dedicated Integrations",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 9,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.813Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.963Z"
             },
             "engineering-manager-git-gitaly-operations": {
               "canonicalTitle": "Engineering Manager - Git & Gitaly Operations",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 8,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.813Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.963Z"
             },
             "engineering-manager-nonlinear-productivity-friction-elimination-solutions": {
               "canonicalTitle": "Engineering Manager - Nonlinear Productivity (Friction Elimination & Solutions)",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 8,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.813Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.964Z"
             },
             "engineering-manager-sscs-supply-chain": {
               "canonicalTitle": "Engineering Manager, SSCS: Supply Chain",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 8,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.813Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.964Z"
             },
             "engineering-manager-switchboard": {
               "canonicalTitle": "Engineering Manager, Switchboard",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 9,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.814Z",
-              "lastObservedAt": "2026-09-18T09:41:34.786Z"
+              "lastObservedAt": "2026-09-18T23:27:13.964Z"
             },
             "engineering-manager-trusted-agentic-development": {
               "canonicalTitle": "Engineering Manager, Trusted Agentic Development",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 9,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.814Z",
-              "lastObservedAt": "2026-09-18T09:41:34.786Z"
+              "lastObservedAt": "2026-09-18T23:27:13.964Z"
             },
             "intermediate-backend-engineer": {
               "canonicalTitle": "Intermediate Backend Engineer",
@@ -3124,13 +3124,13 @@
               "canonicalTitle": "Intermediate Backend Engineer - Database Change Management",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 9,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.814Z",
-              "lastObservedAt": "2026-09-18T09:41:34.786Z"
+              "lastObservedAt": "2026-09-18T23:27:13.964Z"
             },
             "senior-java-software-engineer": {
               "canonicalTitle": "Senior Java Software Engineer",
@@ -3148,25 +3148,325 @@
               "canonicalTitle": "Software Engineer (Fullstack), Collections",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 2,
+              "observedCount": 7,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-18T09:06:26.546Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.960Z"
             },
             "intermediate-backend-engineer-emea": {
               "canonicalTitle": "Intermediate Backend Engineer, EMEA",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 2,
+              "observedCount": 7,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-18T09:06:26.547Z",
-              "lastObservedAt": "2026-09-18T09:41:34.786Z"
+              "lastObservedAt": "2026-09-18T23:27:13.965Z"
+            },
+            "founding-backend-engineer": {
+              "canonicalTitle": "Founding Backend Engineer",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 5,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T15:50:00.309Z",
+              "lastObservedAt": "2026-09-18T23:25:13.388Z"
+            },
+            "software-development-engineer-3-java": {
+              "canonicalTitle": "Software Development Engineer 3 - Java",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 5,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T15:50:00.311Z",
+              "lastObservedAt": "2026-09-18T23:25:13.389Z"
+            },
+            "sr-engineer-backend": {
+              "canonicalTitle": "Sr Engineer- Backend",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 5,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T15:50:00.311Z",
+              "lastObservedAt": "2026-09-18T23:25:13.389Z"
+            },
+            "developer": {
+              "canonicalTitle": "Developer",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 5,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T15:50:00.311Z",
+              "lastObservedAt": "2026-09-18T23:25:13.389Z"
+            },
+            "senior-software-engineer-backend-fullstack-india": {
+              "canonicalTitle": "Senior Software Engineer - Backend/Fullstack [India]",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 2,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T15:50:00.311Z",
+              "lastObservedAt": "2026-09-18T16:18:59.190Z"
+            },
+            "java-aws-developer-ccb-ramp-up-cards": {
+              "canonicalTitle": "Java AWS Developer-CCB Ramp up - Cards",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 5,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T15:50:00.312Z",
+              "lastObservedAt": "2026-09-18T23:25:13.389Z"
+            },
+            "senior-backend-engineer-cloud-platform": {
+              "canonicalTitle": "Senior Backend Engineer, Cloud Platform",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 5,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T15:50:00.312Z",
+              "lastObservedAt": "2026-09-18T23:25:13.389Z"
+            },
+            "senior-software-engineer-backend": {
+              "canonicalTitle": "Senior Software Engineer, Backend",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 5,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T15:50:00.312Z",
+              "lastObservedAt": "2026-09-18T23:25:13.389Z"
+            },
+            "forward-deployed-engineer": {
+              "canonicalTitle": "Forward Deployed Engineer",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T17:16:42.895Z",
+              "lastObservedAt": "2026-09-18T17:16:42.895Z"
+            },
+            "developer-relations-engineer-new-york-ny": {
+              "canonicalTitle": "Developer Relations Engineer (New York, NY)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Y Combinator"
+              ],
+              "firstObservedAt": "2026-09-18T18:15:29.792Z",
+              "lastObservedAt": "2026-09-18T18:15:29.792Z"
+            },
+            "engineering-manager-tenant-scale-git": {
+              "canonicalTitle": "Engineering Manager, Tenant Scale:Git",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-18T18:15:29.795Z",
+              "lastObservedAt": "2026-09-18T18:15:29.795Z"
+            },
+            "forward-deployed-engineer-emea": {
+              "canonicalTitle": "Forward Deployed Engineer - EMEA",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-18T18:15:29.796Z",
+              "lastObservedAt": "2026-09-18T18:15:29.796Z"
+            },
+            "junior-fullstack-developer-remote-100": {
+              "canonicalTitle": "JUNIOR FULLSTACK DEVELOPER - Remote 100%",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:13:27.527Z",
+              "lastObservedAt": "2026-09-18T20:13:27.527Z"
+            },
+            "software-developer-i-front-end": {
+              "canonicalTitle": "Software Developer I - Front End",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:13:27.527Z",
+              "lastObservedAt": "2026-09-18T20:13:27.527Z"
+            },
+            "staff-backend-engineer-developer-experience": {
+              "canonicalTitle": "Staff Backend Engineer, Developer Experience",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-18T20:13:38.182Z",
+              "lastObservedAt": "2026-09-18T20:13:38.182Z"
+            },
+            "senior-backend-engineer-database-excellence-ruby": {
+              "canonicalTitle": "Senior Backend Engineer, Database Excellence (Ruby)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-18T20:17:35.374Z",
+              "lastObservedAt": "2026-09-18T20:17:35.374Z"
+            },
+            "senior-director-revenue-analytics": {
+              "canonicalTitle": "Senior Director, Revenue Analytics",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-18T20:17:35.374Z",
+              "lastObservedAt": "2026-09-18T20:17:35.374Z"
+            },
+            "senior-executive-business-partner-cfo": {
+              "canonicalTitle": "Senior Executive Business Partner, CFO",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-18T20:17:35.374Z",
+              "lastObservedAt": "2026-09-18T20:17:35.374Z"
+            },
+            "staff-backend-engineer-database-change-management": {
+              "canonicalTitle": "Staff Backend Engineer - Database Change Management",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-18T20:17:35.375Z",
+              "lastObservedAt": "2026-09-18T20:17:35.375Z"
+            },
+            "tech-operations-specialist": {
+              "canonicalTitle": "Tech Operations Specialist",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-18T20:17:35.375Z",
+              "lastObservedAt": "2026-09-18T20:17:35.375Z"
+            },
+            "intern-data-analytics-retail": {
+              "canonicalTitle": "Intern, Data Analytics (Retail)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T21:00:23.495Z",
+              "lastObservedAt": "2026-09-18T21:00:23.495Z"
+            },
+            "stage-data-specialist-hors-domicile-h-f": {
+              "canonicalTitle": "Stage Data Specialist Hors-Domicile (H/F)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T21:00:23.496Z",
+              "lastObservedAt": "2026-09-18T21:00:23.496Z"
+            },
+            "hris-analyst": {
+              "canonicalTitle": "HRIS Analyst",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Y Combinator"
+              ],
+              "firstObservedAt": "2026-09-18T21:00:23.497Z",
+              "lastObservedAt": "2026-09-18T21:00:23.497Z"
+            },
+            "artificial-intelligence-intern": {
+              "canonicalTitle": "Artificial Intelligence Intern",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T21:09:22.299Z",
+              "lastObservedAt": "2026-09-18T21:09:22.299Z"
+            },
+            "gbm-bengaluru-associate-software-engineering": {
+              "canonicalTitle": "GBM-Bengaluru-Associate-Software Engineering",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 3,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T22:06:07.376Z",
+              "lastObservedAt": "2026-09-18T23:25:13.389Z"
             }
           }
         },
@@ -3287,13 +3587,13 @@
               "canonicalTitle": "Senior Frontend Developer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 1,
+              "observedCount": 3,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-11T07:54:09.688Z",
-              "lastObservedAt": "2026-09-11T07:54:09.688Z"
+              "lastObservedAt": "2026-09-18T20:13:38.181Z"
             },
             "software-engineer-ii-frontend": {
               "canonicalTitle": "Software Engineer-II (Frontend)",
@@ -3356,7 +3656,7 @@
               "lastObservedAt": "2026-09-11T12:10:27.888Z"
             },
             "lead-frontend-engineer-m-f-react-typescript-frontend-architecture-for-cloud-saas-solution": {
-              "canonicalTitle": "Lead Frontend Engineer (m/f) – React & TypeScript | Frontend Architecture for Cloud SaaS Solution",
+              "canonicalTitle": "Lead Frontend Engineer (m/f) - React & TypeScript | Frontend Architecture for Cloud SaaS Solution",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 1,
@@ -3395,38 +3695,38 @@
               "canonicalTitle": "Junior React Developer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 25,
+              "observedCount": 32,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-11T12:37:34.206Z",
-              "lastObservedAt": "2026-09-18T10:29:43.693Z"
+              "lastObservedAt": "2026-09-18T23:20:03.490Z"
             },
             "frontend-developer": {
               "canonicalTitle": "Frontend Developer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 21,
+              "observedCount": 28,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "MockLinkedIn",
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-11T12:38:44.841Z",
-              "lastObservedAt": "2026-09-18T09:34:58.035Z"
+              "lastObservedAt": "2026-09-18T23:21:05.917Z"
             },
             "full-stack-engineer": {
               "canonicalTitle": "Full Stack Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 23,
+              "observedCount": 28,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Indeed"
               ],
               "firstObservedAt": "2026-09-11T12:41:56.406Z",
-              "lastObservedAt": "2026-09-18T10:30:16.344Z"
+              "lastObservedAt": "2026-09-18T23:24:44.000Z"
             },
             "frontend-engineer-agentic-ai": {
               "canonicalTitle": "Frontend Engineer - Agentic AI",
@@ -3511,6 +3811,150 @@
               ],
               "firstObservedAt": "2026-09-17T10:03:37.489Z",
               "lastObservedAt": "2026-09-17T10:03:37.489Z"
+            },
+            "fullstack-engineer-typescript-ai-engineering-duo-client-sdk": {
+              "canonicalTitle": "Fullstack Engineer (TypeScript), AI Engineering: Duo Client SDK",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-18T18:15:29.796Z",
+              "lastObservedAt": "2026-09-18T18:15:29.796Z"
+            },
+            "senior-frontend-engineer-react-remote-friendly": {
+              "canonicalTitle": "Senior Frontend Engineer (React) - Remote friendly",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 2,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:12:57.693Z",
+              "lastObservedAt": "2026-09-18T20:13:38.181Z"
+            },
+            "senior-frontend-engineer-stablecoin": {
+              "canonicalTitle": "Senior Frontend Engineer - Stablecoin",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 2,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:12:57.696Z",
+              "lastObservedAt": "2026-09-18T20:13:38.181Z"
+            },
+            "senior-software-engineer-frontend": {
+              "canonicalTitle": "Senior Software Engineer, Frontend",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 2,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:12:57.697Z",
+              "lastObservedAt": "2026-09-18T20:13:38.181Z"
+            },
+            "software-engineer-3-frontend": {
+              "canonicalTitle": "Software Engineer 3-Frontend",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 2,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:12:57.698Z",
+              "lastObservedAt": "2026-09-18T20:13:38.181Z"
+            },
+            "ui-developer-agentic-security-platform": {
+              "canonicalTitle": "UI Developer - Agentic Security Platform",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 2,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:12:57.701Z",
+              "lastObservedAt": "2026-09-18T20:13:38.181Z"
+            },
+            "senior-frontend-engineer": {
+              "canonicalTitle": "Senior Frontend Engineer",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 2,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:12:57.702Z",
+              "lastObservedAt": "2026-09-18T20:13:38.181Z"
+            },
+            "junior-react-developer-remote-work": {
+              "canonicalTitle": "Junior React Developer - Remote Work",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:13:27.524Z",
+              "lastObservedAt": "2026-09-18T20:13:27.524Z"
+            },
+            "junior-frontend-developer-all-genders": {
+              "canonicalTitle": "Junior Frontend Developer (all genders)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:13:27.525Z",
+              "lastObservedAt": "2026-09-18T20:13:27.525Z"
+            },
+            "desenvolvedor-frontend-j-nior-gest-o-seller": {
+              "canonicalTitle": "Desenvolvedor Frontend Júnior | Gestão Seller",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:13:27.525Z",
+              "lastObservedAt": "2026-09-18T20:13:27.525Z"
+            },
+            "frontend-engineer-jr-react-js-css": {
+              "canonicalTitle": "Frontend Engineer, Jr. (React.js, CSS)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:13:27.526Z",
+              "lastObservedAt": "2026-09-18T20:13:27.526Z"
+            },
+            "frontend-engineer-post-grad-toronto": {
+              "canonicalTitle": "Frontend Engineer (Post Grad, Toronto)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:13:27.528Z",
+              "lastObservedAt": "2026-09-18T20:13:27.528Z"
             }
           }
         },
@@ -3572,7 +4016,7 @@
                 "Go",
                 "Python"
               ],
-              "observedCount": 73,
+              "observedCount": 80,
               "isDynamicallyLearned": false,
               "discoveredFromPortals": [
                 "Greenhouse",
@@ -3580,32 +4024,32 @@
                 "Y Combinator"
               ],
               "firstObservedAt": "2026-01-01T00:00:00.000Z",
-              "lastObservedAt": "2026-09-18T09:41:34.784Z"
+              "lastObservedAt": "2026-09-18T23:27:13.961Z"
             },
             "reliability-engineer": {
               "canonicalTitle": "Reliability Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 1614,
+              "observedCount": 2080,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn",
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-11T07:54:17.164Z",
-              "lastObservedAt": "2026-09-18T10:41:38.545Z"
+              "lastObservedAt": "2026-09-18T23:36:48.015Z"
             },
             "cloud-platform-engineer": {
               "canonicalTitle": "Cloud / Platform Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 22,
+              "observedCount": 27,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Hacker News"
               ],
               "firstObservedAt": "2026-09-14T06:12:20.743Z",
-              "lastObservedAt": "2026-09-18T09:41:34.786Z"
+              "lastObservedAt": "2026-09-18T23:27:13.965Z"
             }
           }
         },
@@ -3727,13 +4171,13 @@
               "canonicalTitle": "Director of Engineering, Security Factory",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 21,
+              "observedCount": 22,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-14T06:12:20.741Z",
-              "lastObservedAt": "2026-09-17T10:03:37.490Z"
+              "lastObservedAt": "2026-09-18T18:15:29.792Z"
             },
             "senior-manager-product-security-engineering-security-posture-supply-chain": {
               "canonicalTitle": "Senior Manager, Product Security Engineering (Security Posture & Supply Chain)",
@@ -3746,6 +4190,42 @@
               ],
               "firstObservedAt": "2026-09-15T12:21:22.601Z",
               "lastObservedAt": "2026-09-16T12:56:28.355Z"
+            },
+            "platform-security-engineer-amer-apac": {
+              "canonicalTitle": "Platform Security Engineer (AMER/APAC)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 7,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Y Combinator"
+              ],
+              "firstObservedAt": "2026-09-18T15:54:18.723Z",
+              "lastObservedAt": "2026-09-18T23:27:13.962Z"
+            },
+            "intermediate-security-engineer-security-incident-response-team-sirt": {
+              "canonicalTitle": "Intermediate Security Engineer, Security Incident Response Team (SIRT)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-18T18:15:29.797Z",
+              "lastObservedAt": "2026-09-18T18:15:29.797Z"
+            },
+            "intermediate-software-engineer-security-factory-vulnerability-management": {
+              "canonicalTitle": "Intermediate Software Engineer, Security Factory: Vulnerability Management",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-18T18:15:29.797Z",
+              "lastObservedAt": "2026-09-18T18:15:29.797Z"
             }
           }
         }
@@ -3796,7 +4276,7 @@
                 "LangChain",
                 "Vector Databases"
               ],
-              "observedCount": 228,
+              "observedCount": 234,
               "isDynamicallyLearned": false,
               "discoveredFromPortals": [
                 "Ashby",
@@ -3805,7 +4285,7 @@
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-01-01T00:00:00.000Z",
-              "lastObservedAt": "2026-09-18T09:41:34.785Z"
+              "lastObservedAt": "2026-09-18T23:27:13.962Z"
             },
             "machine-learning-engineer": {
               "canonicalTitle": "Machine Learning Engineer",
@@ -3822,7 +4302,7 @@
                 "Kubeflow",
                 "Feature Stores"
               ],
-              "observedCount": 142,
+              "observedCount": 143,
               "isDynamicallyLearned": false,
               "discoveredFromPortals": [
                 "Greenhouse",
@@ -3830,7 +4310,7 @@
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-01-01T00:00:00.000Z",
-              "lastObservedAt": "2026-09-17T19:30:36.452Z"
+              "lastObservedAt": "2026-09-18T21:09:22.296Z"
             },
             "agentic-ai-workflow-specialist": {
               "canonicalTitle": "Agentic AI Workflow Specialist",
@@ -4123,13 +4603,14 @@
               "canonicalTitle": "AI Engineering Intern",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 18,
+              "observedCount": 22,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
-                "Y Combinator"
+                "Y Combinator",
+                "LinkedIn"
               ],
               "firstObservedAt": "2026-09-11T12:45:20.369Z",
-              "lastObservedAt": "2026-09-18T09:47:21.105Z"
+              "lastObservedAt": "2026-09-18T23:36:58.689Z"
             },
             "ml-data-associate-ii-artificial-general-intelligence": {
               "canonicalTitle": "ML Data Associate-II, Artificial General Intelligence",
@@ -4171,13 +4652,13 @@
               "canonicalTitle": "Machine Learning Intern | Entry Level | Fresher | Python, Machine Learning, Scikit-learn | Remote",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 5,
+              "observedCount": 7,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-14T08:39:00.483Z",
-              "lastObservedAt": "2026-09-14T12:02:39.787Z"
+              "lastObservedAt": "2026-09-18T21:09:22.296Z"
             },
             "ai-engineer-intern": {
               "canonicalTitle": "AI Engineer Intern",
@@ -4255,13 +4736,13 @@
               "canonicalTitle": "AI/ML Intern",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 6,
+              "observedCount": 7,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-16T09:48:34.526Z",
-              "lastObservedAt": "2026-09-16T23:35:58.342Z"
+              "lastObservedAt": "2026-09-18T21:09:22.291Z"
             },
             "applied-ai-engineer-beneficial-deployments-life-sciences": {
               "canonicalTitle": "Applied AI Engineer, Beneficial Deployments (Life Sciences)",
@@ -4303,13 +4784,13 @@
               "canonicalTitle": "AI Engineer Intern (2026)",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 5,
+              "observedCount": 11,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "MockStartupAIProvider"
               ],
               "firstObservedAt": "2026-09-16T13:08:29.125Z",
-              "lastObservedAt": "2026-09-18T09:34:21.253Z"
+              "lastObservedAt": "2026-09-18T23:20:33.787Z"
             },
             "agentic-ai-engineer-intern": {
               "canonicalTitle": "Agentic AI Engineer Intern",
@@ -4336,7 +4817,7 @@
               "lastObservedAt": "2026-09-16T22:23:32.736Z"
             },
             "machine-learning-engineer-intern-voice-ai": {
-              "canonicalTitle": "Machine Learning Engineer Intern – Voice AI",
+              "canonicalTitle": "Machine Learning Engineer Intern - Voice AI",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 3,
@@ -4387,13 +4868,13 @@
               "canonicalTitle": "Software Engineer Intern (AI/ML & Agentic AI) - Global AI-Native Talent Intelligence Platform (Fully Remote)",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 1,
+              "observedCount": 2,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-16T23:35:58.344Z",
-              "lastObservedAt": "2026-09-16T23:35:58.344Z"
+              "lastObservedAt": "2026-09-18T21:09:22.296Z"
             },
             "senior-machine-learning-ai-engineer": {
               "canonicalTitle": "Senior Machine Learning / AI Engineer",
@@ -4519,13 +5000,37 @@
               "canonicalTitle": "Forward Deployed Engineer, AI and Agentic SDLC",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 9,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.814Z",
-              "lastObservedAt": "2026-09-18T09:41:34.786Z"
+              "lastObservedAt": "2026-09-18T23:27:13.964Z"
+            },
+            "data-scientist-with-ml-f-m-x": {
+              "canonicalTitle": "Data Scientist with ML (f/m/x)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T17:10:43.086Z",
+              "lastObservedAt": "2026-09-18T17:10:43.086Z"
+            },
+            "ai-ml-engineer-python-internship": {
+              "canonicalTitle": "AI/ML Engineer-Python (Internship)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T21:09:22.295Z",
+              "lastObservedAt": "2026-09-18T21:09:22.295Z"
             }
           }
         },
@@ -4602,7 +5107,7 @@
                 "Pandas",
                 "Scikit-Learn"
               ],
-              "observedCount": 130,
+              "observedCount": 135,
               "isDynamicallyLearned": false,
               "discoveredFromPortals": [
                 "LinkedIn",
@@ -4610,7 +5115,7 @@
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-01-01T00:00:00.000Z",
-              "lastObservedAt": "2026-09-10T11:31:10.293Z"
+              "lastObservedAt": "2026-09-18T17:11:09.895Z"
             },
             "data-analyst": {
               "canonicalTitle": "Data Analyst",
@@ -4626,14 +5131,14 @@
                 "Power BI",
                 "Data Storytelling"
               ],
-              "observedCount": 128,
+              "observedCount": 131,
               "isDynamicallyLearned": false,
               "discoveredFromPortals": [
                 "Indeed",
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-01-01T00:00:00.000Z",
-              "lastObservedAt": "2026-09-15T21:32:00.472Z"
+              "lastObservedAt": "2026-09-18T20:17:35.372Z"
             },
             "data-analyst-intern-paris": {
               "canonicalTitle": "Data Analyst Intern - Paris",
@@ -4687,13 +5192,13 @@
               "canonicalTitle": "Senior Data Analyst",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 5,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-11T09:07:04.879Z",
-              "lastObservedAt": "2026-09-15T21:32:00.468Z"
+              "lastObservedAt": "2026-09-18T20:17:35.372Z"
             },
             "enterprise-data-analyst": {
               "canonicalTitle": "Enterprise Data Analyst",
@@ -4771,13 +5276,13 @@
               "canonicalTitle": "DATA ANALYST L3",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 1,
+              "observedCount": 2,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-15T21:32:00.471Z",
-              "lastObservedAt": "2026-09-15T21:32:00.472Z"
+              "lastObservedAt": "2026-09-18T20:17:35.371Z"
             },
             "operations-analyst": {
               "canonicalTitle": "Operations Analyst",
@@ -4790,6 +5295,210 @@
               ],
               "firstObservedAt": "2026-09-17T16:33:50.693Z",
               "lastObservedAt": "2026-09-17T16:33:50.693Z"
+            },
+            "senior-data-scientist": {
+              "canonicalTitle": "Senior Data Scientist",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 2,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T17:10:43.084Z",
+              "lastObservedAt": "2026-09-18T17:10:43.086Z"
+            },
+            "associate-data-scientist": {
+              "canonicalTitle": "Associate Data Scientist",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 2,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T17:10:43.086Z",
+              "lastObservedAt": "2026-09-18T17:11:09.888Z"
+            },
+            "associate-digital-finance-transformation-data-scientist-private-equity-performance-improvement-open-to-all-us-loca": {
+              "canonicalTitle": "Associate, Digital Finance Transformation - Data Scientist - Private Equity Performance Improvement (OPEN TO ALL US LOCA",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T17:11:09.890Z",
+              "lastObservedAt": "2026-09-18T17:11:09.890Z"
+            },
+            "data-scientist-product-analytics-entry-level": {
+              "canonicalTitle": "Data Scientist, Product Analytics - Entry Level",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T17:11:09.892Z",
+              "lastObservedAt": "2026-09-18T17:11:09.892Z"
+            },
+            "junior-data-scientist": {
+              "canonicalTitle": "Junior Data Scientist",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T17:11:09.894Z",
+              "lastObservedAt": "2026-09-18T17:11:09.894Z"
+            },
+            "data-scientist-python": {
+              "canonicalTitle": "Data Scientist - Python",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T17:11:09.895Z",
+              "lastObservedAt": "2026-09-18T17:11:09.895Z"
+            },
+            "pioneer-talent-program-research-data-scientist": {
+              "canonicalTitle": "Pioneer Talent Program - Research Data Scientist",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T17:11:09.895Z",
+              "lastObservedAt": "2026-09-18T17:11:09.895Z"
+            },
+            "data-analyst-senior-data-analyst": {
+              "canonicalTitle": "Data Analyst/ Senior Data Analyst",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:17:35.370Z",
+              "lastObservedAt": "2026-09-18T20:17:35.370Z"
+            },
+            "technology-consultant-data-analyst": {
+              "canonicalTitle": "Technology Consultant - Data Analyst",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:17:35.372Z",
+              "lastObservedAt": "2026-09-18T20:17:35.372Z"
+            },
+            "data-analyst-senior": {
+              "canonicalTitle": "Data Analyst - Senior",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T20:17:35.373Z",
+              "lastObservedAt": "2026-09-18T20:17:35.373Z"
+            },
+            "intern-data-analyst-operational-technology": {
+              "canonicalTitle": "Intern, Data Analyst (Operational Technology)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T21:00:23.493Z",
+              "lastObservedAt": "2026-09-18T21:00:23.493Z"
+            },
+            "data-analyst-intern": {
+              "canonicalTitle": "DATA ANALYST INTERN",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 2,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T21:00:23.495Z",
+              "lastObservedAt": "2026-09-18T21:00:23.496Z"
+            },
+            "intern-d-l-data-analyst": {
+              "canonicalTitle": "Intern, D&L Data Analyst",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T21:00:23.496Z",
+              "lastObservedAt": "2026-09-18T21:00:23.496Z"
+            },
+            "intern-business-and-data-analyst-november-2026": {
+              "canonicalTitle": "Intern - Business and Data Analyst (November 2026)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T21:00:23.496Z",
+              "lastObservedAt": "2026-09-18T21:00:23.496Z"
+            },
+            "healthcare-data-analyst-intern-entry-level-fresher-excel-sql-power-bi-healthcare-analytics-remote": {
+              "canonicalTitle": "Healthcare Data Analyst Intern | Entry Level | Fresher | Excel, SQL, Power BI, Healthcare Analytics | Remote",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T21:00:23.496Z",
+              "lastObservedAt": "2026-09-18T21:00:23.496Z"
+            },
+            "healthcare-data-analyst-intern-entry-level-fresher-healthcare-analytics-sql-excel-power-bi-remote": {
+              "canonicalTitle": "Healthcare Data Analyst Intern | Entry Level | Fresher | Healthcare Analytics, SQL, Excel, Power BI | Remote",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T21:00:23.497Z",
+              "lastObservedAt": "2026-09-18T21:00:23.497Z"
+            },
+            "praktikant-som-data-analyst-til-salling-groups-loyalitetsprogram": {
+              "canonicalTitle": "Praktikant som Data Analyst til Salling Groups loyalitetsprogram",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T21:00:23.497Z",
+              "lastObservedAt": "2026-09-18T21:00:23.497Z"
             }
           }
         }
@@ -4958,7 +5667,7 @@
                 "User Research",
                 "Wireframing"
               ],
-              "observedCount": 91,
+              "observedCount": 94,
               "isDynamicallyLearned": false,
               "discoveredFromPortals": [
                 "Greenhouse",
@@ -4966,31 +5675,31 @@
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-01-01T00:00:00.000Z",
-              "lastObservedAt": "2026-09-14T12:06:58.416Z"
+              "lastObservedAt": "2026-09-18T23:25:22.978Z"
             },
             "senior-product-designer": {
               "canonicalTitle": "Senior Product Designer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 26,
+              "observedCount": 38,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-11T12:42:24.366Z",
-              "lastObservedAt": "2026-09-18T09:39:52.785Z"
+              "lastObservedAt": "2026-09-18T23:25:22.978Z"
             },
             "staff-product-designer": {
               "canonicalTitle": "Staff Product Designer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 8,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-11T12:42:24.367Z",
-              "lastObservedAt": "2026-09-18T09:39:52.785Z"
+              "lastObservedAt": "2026-09-18T23:25:22.978Z"
             },
             "senior-product-designer-core": {
               "canonicalTitle": "Senior Product Designer, Core",
@@ -5092,28 +5801,28 @@
               "canonicalTitle": "Senior Product Designer, Tabby Shop",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 8,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-17T20:01:47.792Z",
-              "lastObservedAt": "2026-09-18T09:39:52.785Z"
+              "lastObservedAt": "2026-09-18T23:25:22.978Z"
             },
             "product-designer-roundtripping-london-united-kingdom": {
               "canonicalTitle": "Product Designer, Roundtripping (London, United Kingdom)",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 8,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-17T20:01:47.793Z",
-              "lastObservedAt": "2026-09-18T09:39:52.785Z"
+              "lastObservedAt": "2026-09-18T23:25:22.978Z"
             },
             "product-designer-ui-ux-digital-enterprise-products": {
-              "canonicalTitle": "Product Designer (UI/UX) – Digital & Enterprise Products",
+              "canonicalTitle": "Product Designer (UI/UX) - Digital & Enterprise Products",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 1,
@@ -5128,13 +5837,13 @@
               "canonicalTitle": "Principal Product Designer, AI Experiences",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 3,
+              "observedCount": 8,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-17T20:01:47.795Z",
-              "lastObservedAt": "2026-09-18T09:39:52.785Z"
+              "lastObservedAt": "2026-09-18T23:25:22.979Z"
             },
             "sr-product-designer": {
               "canonicalTitle": "Sr. Product Designer",
@@ -5152,13 +5861,37 @@
               "canonicalTitle": "Staff Product Designer, Autonomous Recruiting",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 2,
+              "observedCount": 7,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-18T09:04:46.343Z",
-              "lastObservedAt": "2026-09-18T09:39:52.784Z"
+              "lastObservedAt": "2026-09-18T23:25:22.978Z"
+            },
+            "product-designer-design-dev-ai-tools": {
+              "canonicalTitle": "Product Designer, Design, Dev, & AI Tools",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 4,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T15:50:26.656Z",
+              "lastObservedAt": "2026-09-18T22:24:43.612Z"
+            },
+            "product-designer-s-nior-produtos-digitais": {
+              "canonicalTitle": "Product Designer Sênior | Produtos Digitais",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-18T23:25:22.977Z",
+              "lastObservedAt": "2026-09-18T23:25:22.977Z"
             }
           }
         }
@@ -5316,13 +6049,13 @@
               "canonicalTitle": "Business Development Representative",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 2,
+              "observedCount": 3,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-15T20:40:51.994Z",
-              "lastObservedAt": "2026-09-15T21:32:00.472Z"
+              "lastObservedAt": "2026-09-18T20:17:35.373Z"
             },
             "business-development-representative-sydney-or-melbourne": {
               "canonicalTitle": "Business Development Representative (Sydney or Melbourne)",
@@ -5352,13 +6085,13 @@
               "canonicalTitle": "New Business Account Executive - Netherlands",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 1,
+              "observedCount": 2,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-15T21:32:00.472Z",
-              "lastObservedAt": "2026-09-15T21:32:00.472Z"
+              "lastObservedAt": "2026-09-18T20:17:35.374Z"
             },
             "senior-account-executive-mid-market": {
               "canonicalTitle": "Senior Account Executive, Mid-Market",
@@ -5450,6 +6183,18 @@
               ],
               "firstObservedAt": "2026-01-01T00:00:00.000Z",
               "lastObservedAt": "2026-09-10T11:31:10.293Z"
+            },
+            "associate-gtm-recruiter": {
+              "canonicalTitle": "Associate GTM Recruiter",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Y Combinator"
+              ],
+              "firstObservedAt": "2026-09-18T17:11:09.896Z",
+              "lastObservedAt": "2026-09-18T17:11:09.896Z"
             }
           }
         }
@@ -5507,6 +6252,18 @@
               ],
               "firstObservedAt": "2026-09-17T00:25:51.691Z",
               "lastObservedAt": "2026-09-17T00:39:21.562Z"
+            },
+            "senior-manager-internal-audit-audit-automation-technology-risk": {
+              "canonicalTitle": "Senior Manager, Internal Audit - Audit Automation & Technology Risk",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-18T20:17:35.375Z",
+              "lastObservedAt": "2026-09-18T20:17:35.375Z"
             }
           }
         }
