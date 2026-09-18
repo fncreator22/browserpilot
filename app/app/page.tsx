@@ -33,6 +33,7 @@ import { CompactExecutionPill } from "@/components/discovery/compact-execution-p
 import { PersonalizationIndicator } from "@/components/discovery/personalization-indicator";
 import { useUIState } from "@/components/providers/ui-state-provider";
 import { usePuter } from "@/hooks/usePuter";
+import { toast } from "sonner";
 
 function formatRelativeTime(dateString: string): string {
   try {
@@ -58,6 +59,7 @@ function formatRelativeTime(dateString: string): string {
 function DiscoverContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
+  const searchIdParam = searchParams.get("searchId");
   const { openProfileModal } = useUIState();
   const { signIn: puterSignIn, isAuthenticating: isPuterAuthenticating } = usePuter();
 
@@ -92,20 +94,38 @@ function DiscoverContent() {
         await refreshSearchHistory();
 
         // 2. Check active search
+        const cancelledExecutionId = typeof window !== "undefined"
+          ? sessionStorage.getItem("browserai:cancelled_execution")
+          : null;
+
         const res = await fetch("/api/search/active");
         if (!res.ok) return;
         const data = await res.json();
         if (cancelled) return;
 
         if (data.active && data.query) {
+          if (cancelledExecutionId && (data.executionId === cancelledExecutionId || data.searchId === cancelledExecutionId)) {
+            return;
+          }
           setActiveQuery(data.query);
           if (data.executionId) setActiveExecutionId(data.executionId);
           setIsSearching(true);
-        } else if (data.recent && data.searchId && !opportunityData) {
-          const histRes = await fetch(`/api/search/history/${data.searchId}`);
+        } else if (searchIdParam && !opportunityData) {
+          const targetSearchId = searchIdParam;
+          if (cancelledExecutionId && targetSearchId === cancelledExecutionId) {
+            return;
+          }
+          const histRes = await fetch(`/api/search/history/${targetSearchId}`);
           if (histRes.ok) {
             const histData = await histRes.json();
             if (!cancelled && histData.search) {
+              if (histData.search.status === "RUNNING" || histData.search.status === "QUEUED") {
+                setActiveQuery(histData.search.rawQuery);
+                setActiveExecutionId(histData.search.id);
+                setIsSearching(true);
+                return;
+              }
+
               const verifiedCount = (histData.search.results || []).length;
               const rawStatus = histData.search.status === "COMPLETED" ? "COMPLETE" : histData.search.status;
               const status = (verifiedCount === 0 && (rawStatus === "COMPLETE" || rawStatus === "COMPLETED"))
@@ -191,6 +211,21 @@ function DiscoverContent() {
   };
 
   const handleSearchResult = useCallback((result: OpportunitySearchResultPayload | null) => {
+    if (!result) {
+      setOpportunityData(null);
+      setIsSearching(false);
+      setActiveExecutionId(undefined);
+      return;
+    }
+    if (
+      result.status === "UNAUTHORIZED" ||
+      result.status === "AUTH_OR_KEY_REQUIRED"
+    ) {
+      setOpportunityData(null);
+      setIsSearching(false);
+      setActiveExecutionId(undefined);
+      return;
+    }
     setOpportunityData(result);
     setIsSearching(false);
     setActiveExecutionId(undefined);
@@ -210,7 +245,44 @@ function DiscoverContent() {
   const handleSearchError = useCallback(() => {
     setIsSearching(false);
     setActiveExecutionId(undefined);
+    setOpportunityData(null);
   }, []);
+
+  const handleCancelActiveSearch = useCallback(async () => {
+    const execId = activeExecutionId;
+    setIsSearching(false);
+    setActiveExecutionId(undefined);
+    setOpportunityData(null);
+
+    if (typeof window !== "undefined") {
+      if (execId) {
+        sessionStorage.setItem("browserai:cancelled_execution", execId);
+      }
+      if (window.location.search) {
+        window.history.replaceState(null, "", "/app");
+      }
+      window.dispatchEvent(new CustomEvent("browserai:search-cancelled", { detail: { executionId: execId } }));
+    }
+
+    if (execId) {
+      try {
+        await fetch("/api/search/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ executionId: execId }),
+        });
+      } catch {}
+    } else {
+      try {
+        await fetch("/api/search/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cancelActive: true }),
+        });
+      } catch {}
+    }
+    toast.info("Search Cancelled", { description: "Search execution was cancelled." });
+  }, [activeExecutionId]);
 
   const executeDiscoverySearch = useCallback(async (queryText: string, allowFallback: boolean = true) => {
     if (!queryText || !queryText.trim()) return;
@@ -250,17 +322,20 @@ function DiscoverContent() {
   };
 
   return (
-    <div className="flex-1 flex flex-col antialiased selection:bg-emerald-500/20 selection:text-emerald-400">
+    <div className="flex-1 flex flex-col antialiased selection:bg-primary/20 selection:text-primary">
       <main className="flex-1 container mx-auto max-w-7xl px-4 py-6 pb-32 md:pb-12 sm:px-6 space-y-6">
         {/* CASE 1: INITIAL STATE (Claude / ChatGPT / Nothing OS Pristine First Impressions) */}
-        {!opportunityData && !isSearching ? (
-          <div className="min-h-[calc(100vh-14rem)] flex flex-col justify-center items-center text-center max-w-3xl mx-auto px-4 py-8">
+        <AnimatePresence mode="wait">
+          {!opportunityData && !isSearching ? (
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
+              key="intake-hero"
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="space-y-6 w-full"
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="min-h-[calc(100vh-14rem)] flex flex-col justify-center items-center text-center max-w-3xl mx-auto px-4 py-8"
             >
+              <div className="space-y-6 w-full">
               {/* Radar Aperture Badge */}
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-muted/70 border border-border/80 text-xs font-medium text-muted-foreground shadow-2xs">
                 <Radio className="h-3.5 w-3.5 text-foreground" />
@@ -284,6 +359,7 @@ function DiscoverContent() {
                 <TaskInput
                   key="unified-task-input"
                   initialPrompt={activeQuery}
+                  executionId={activeExecutionId}
                   hasSearchHistory={searchHistory.length > 0}
                   isSearching={isSearching}
                   onOpportunitySearchResult={handleSearchResult}
@@ -293,6 +369,7 @@ function DiscoverContent() {
                     setActiveQuery(q);
                     setIsSearching(true);
                   }}
+                  onCancel={handleCancelActiveSearch}
                 />
               </div>
 
@@ -325,11 +402,18 @@ function DiscoverContent() {
                   </Link>
                 </div>
               )}
-            </motion.div>
-          </div>
-        ) : (
-          /* CASE 2: ACTIVE SEARCHING OR RESULTS DECK (Notion Dashboard Style) */
-          <div className="space-y-6">
+            </div>
+          </motion.div>
+          ) : (
+            /* CASE 2: ACTIVE SEARCHING OR RESULTS DECK (Notion Dashboard Style) */
+            <motion.div
+              key="results-deck"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="space-y-6"
+            >
             {/* Header Title Bar - Minimal Notion/Claude Breadcrumb */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -376,6 +460,7 @@ function DiscoverContent() {
               <TaskInput
                 key="unified-task-input-active"
                 initialPrompt={activeQuery}
+                executionId={activeExecutionId}
                 hasSearchHistory={searchHistory.length > 0}
                 isSearching={isSearching}
                 onOpportunitySearchResult={handleSearchResult}
@@ -385,6 +470,7 @@ function DiscoverContent() {
                   setActiveQuery(q);
                   setIsSearching(true);
                 }}
+                onCancel={handleCancelActiveSearch}
               />
             </motion.div>
 
@@ -403,20 +489,20 @@ function DiscoverContent() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => setIsSearching(false)}
+                    onClick={handleCancelActiveSearch}
                     className="h-7 px-2.5 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer"
                   >
                     Cancel
                   </Button>
                 </div>
-                {/* Background SSE Dispatcher for Streamed Completion */}
+                {/* Background SSE Dispatcher for Streamed Completion (Zero Noise) */}
                 <div className="hidden" aria-hidden="true">
                   <SearchProgress
                     executionId={activeExecutionId}
                     query={activeQuery || initialQuery || "Searching opportunities..."}
                     onComplete={handleSearchResult}
                     onError={handleSearchError}
-                    onCancel={() => setIsSearching(false)}
+                    onCancel={handleCancelActiveSearch}
                   />
                 </div>
               </motion.div>
@@ -492,7 +578,7 @@ function DiscoverContent() {
                       </div>
                     </div>
                   ) : (
-                    /* Case 2: Zero Results - Smart Broadening & Assisted Recovery Deck */
+                    /* Case 2: Zero Results / Smart Broadening & Assisted Recovery Deck */
                     <div className="space-y-5">
                       {(() => {
                         const rawQ = opportunityData.query || activeQuery || "";
@@ -626,8 +712,9 @@ function DiscoverContent() {
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
 
 
       </main>

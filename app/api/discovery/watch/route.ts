@@ -98,12 +98,28 @@ export async function POST(request: NextRequest) {
       isNew?: boolean;
     };
 
+    // Sanitize locations: "Remote" is a work mode, not a geographic location
+    if (body.locations && Array.isArray(body.locations)) {
+      const hasRemote = body.locations.some((l) => /^(remote|fully\s*remote|remote-first)$/i.test(String(l).trim()));
+      body.locations = body.locations.filter((l) => !/^(remote|fully\s*remote|remote-first)$/i.test(String(l).trim()));
+      if (hasRemote) {
+        const wModes = Array.isArray(body.workModes) ? [...body.workModes] : [];
+        if (!wModes.includes("REMOTE")) {
+          wModes.push("REMOTE");
+        }
+        body.workModes = wModes;
+      }
+    }
+
     const targetWatchId = body.id || body.watchId;
-    const isEnabling = body.enabled !== false;
+    const isEnabling = body.enabled === true;
     const maxWatches = (await getCapabilityLimit(userId, "MAX_ACTIVE_WATCHES")) ?? 1;
     const activeCount = await countUserActiveWatches(userId);
 
-    let isNewWatch = false;
+    let isNewWatch = body.isNew === true;
+    if (body.enabled === undefined && isNewWatch) {
+      body.enabled = false;
+    }
 
     if (targetWatchId) {
       const existing = await prisma.discoveryWatch.findFirst({
@@ -127,11 +143,28 @@ export async function POST(request: NextRequest) {
       } else {
         isNewWatch = true;
       }
-    } else {
-      // No target ID provided:
-      // If the user already has >= 1 watch, this is an attempt to create a new watch!
-      const totalWatches = await prisma.discoveryWatch.count({ where: { userId } });
-      if (totalWatches > 0) {
+    } else if (!isNewWatch) {
+      // No target ID provided and not explicitly a new watch: resolve existing primary watch if any
+      const existing = await prisma.discoveryWatch.findFirst({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      });
+      if (existing) {
+        body.id = existing.id;
+        if (!existing.enabled && isEnabling && activeCount >= maxWatches) {
+          return NextResponse.json(
+            {
+              error: "QUOTA_EXCEEDED",
+              code: "ACTIVE_WATCH_LIMIT_EXCEEDED",
+              message: `You have reached your limit of ${maxWatches} active autonomous watch${maxWatches > 1 ? "es" : ""}. Please upgrade your plan to activate more watches.`,
+              currentUsage: activeCount,
+              limit: maxWatches,
+              upgradeUrl: "/app/plans",
+            },
+            { status: 429 }
+          );
+        }
+      } else {
         isNewWatch = true;
       }
     }
@@ -156,6 +189,22 @@ export async function POST(request: NextRequest) {
     const watchResult = isNewWatch
       ? await createDiscoveryWatch(userId, body)
       : await upsertDiscoveryWatch(userId, body);
+
+    // If watch was disabled, ensure state is accurately set without leaking orphaned enabled rows
+    if (body.enabled === false) {
+      if (body.id) {
+        await prisma.discoveryWatch.updateMany({
+          where: { id: body.id, userId },
+          data: { enabled: false },
+        }).catch(() => {});
+      } else {
+        await prisma.discoveryWatch.updateMany({
+          where: { userId },
+          data: { enabled: false },
+        }).catch(() => {});
+      }
+      watchResult.enabled = false;
+    }
 
     return NextResponse.json(
       {
@@ -209,7 +258,11 @@ export async function DELETE(request: NextRequest) {
       });
     }
 
-    // Default fallback: disable the primary watch
+    // Default fallback: disable all watches for user
+    await prisma.discoveryWatch.updateMany({
+      where: { userId },
+      data: { enabled: false },
+    });
     const disabled = await upsertDiscoveryWatch(userId, { enabled: false });
 
     return NextResponse.json({

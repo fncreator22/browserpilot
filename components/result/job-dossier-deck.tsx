@@ -22,7 +22,8 @@ import {
   ArrowUpRight,
   AlertTriangle,
   UserCheck,
-  Users
+  Users,
+  Quote
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,42 +46,9 @@ import {
 } from "@/lib/utils/display-mappings";
 import { InfoBadge } from "@/components/ui/info-badge";
 
-export function getAtsSourceInfo(
-  sourcePlatform?: string,
-  applyUrl?: string | null,
-  sourceListings?: Array<{ sourcePlatform?: string; sourceUrl?: string; applyUrl?: string | null }>
-) {
-  const primarySource = sourceListings?.[0]?.sourcePlatform || sourcePlatform || "";
-  const effectiveUrl = sourceListings?.[0]?.applyUrl || sourceListings?.[0]?.sourceUrl || applyUrl || "";
-  const text = `${primarySource} ${effectiveUrl}`.toLowerCase();
+import { getAtsSourceInfo, getSocialAuthorHandle, type AtsSourceInfoResult } from "@/lib/ats/atsSourceInfo";
+export { getAtsSourceInfo, getSocialAuthorHandle, type AtsSourceInfoResult };
 
-  if (text.includes("greenhouse")) {
-    return { name: "Greenhouse", className: "bg-[#EBF7EE] text-[#0D6832] border-[#BCE4C9]", dotColor: "bg-[#0D6832]" };
-  }
-  if (text.includes("lever")) {
-    return { name: "Lever", className: "bg-[#EBF2FC] text-[#0E4399] border-[#BDD7FB]", dotColor: "bg-[#0E4399]" };
-  }
-  if (text.includes("ashby")) {
-    return { name: "Ashby", className: "bg-[#F0EEFF] text-[#5636D6] border-[#D6CEFD]", dotColor: "bg-[#5636D6]" };
-  }
-  if (text.includes("workable")) {
-    return { name: "Workable", className: "bg-[#E8F8F5] text-[#008060] border-[#B2E6DC]", dotColor: "bg-[#008060]" };
-  }
-  if (text.includes("workday")) {
-    return { name: "Workday", className: "bg-[#FFF3E6] text-[#A14400] border-[#FCD3A5]", dotColor: "bg-[#A14400]" };
-  }
-  if (text.includes("linkedin")) {
-    return { name: "LinkedIn", className: "bg-[#E8F3FA] text-[#0077B5] border-[#B6DCF5]", dotColor: "bg-[#0077B5]" };
-  }
-  if (text.includes("indeed")) {
-    return { name: "Indeed", className: "bg-[#EAF1FB] text-[#2164F3] border-[#B9D1FB]", dotColor: "bg-[#2164F3]" };
-  }
-  return {
-    name: primarySource ? humanizeConnectorType(primarySource) : "Direct Web",
-    className: "bg-[#E8EFEA] text-emerald-600 dark:text-emerald-400 border-[#C3D5CA]",
-    dotColor: "bg-emerald-600",
-  };
-}
 
 export function getVerificationCornerBadge(status?: string | null) {
   const s = (status || "").toUpperCase();
@@ -365,16 +333,16 @@ export function JobDossierDeck({
   };
 
   return (
-    <div className={`rounded-2xl border border-border/80 bg-white dark:bg-slate-900 p-4 sm:p-6 space-y-6 shadow-sm ${className}`}>
+    <div className={`rounded-2xl border border-border bg-card p-4 sm:p-6 space-y-6 shadow-marble-1 ${className}`}>
       {/* Header & Controls in calm sentence-case */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <Briefcase className="h-4 w-4 stroke-[1.75] text-emerald-600 dark:text-emerald-400" />
+            <Briefcase className="h-4 w-4 stroke-[2] text-primary" />
             <h3 className="text-base sm:text-lg font-sans font-bold text-foreground">
               Verified opportunity dossiers
             </h3>
-            <Badge variant="outline" className="font-mono text-xs text-muted-foreground">
+            <Badge variant="outline" className="font-mono text-xs text-muted-foreground rounded-full">
               {jobs.length} verified roles
             </Badge>
           </div>
@@ -393,13 +361,13 @@ export function JobDossierDeck({
           ].map((f) => (
             <Button
               key={f.id}
-              variant={filterType === f.id ? "secondary" : "outline"}
+              variant={filterType === f.id ? "default" : "outline"}
               size="sm"
               onClick={() => setFilterType(f.id)}
-              className={`h-7 text-xs font-sans font-medium px-2.5 cursor-pointer ${
+              className={`h-7 text-xs font-sans font-medium px-3 rounded-full cursor-pointer transition-all ${
                 filterType === f.id
-                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-primary text-primary-foreground shadow-marble-1 font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted border-border"
               }`}
             >
               {f.id === "SAVED" ? (
@@ -418,7 +386,7 @@ export function JobDossierDeck({
       {/* Opportunities List with Slide-Over Trigger (Responsive 1, 2, or 3-column grid) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredJobs.length === 0 ? (
-          <div className="col-span-full p-8 text-center rounded-xl border border-dashed border-border/70 bg-slate-50/50 space-y-2">
+          <div className="col-span-full p-8 text-center rounded-xl border border-dashed border-border bg-muted/30 space-y-2">
             <p className="text-xs font-sans text-muted-foreground">
               No opportunities match the selected &ldquo;{filterType.toLowerCase()}&rdquo; filter.
             </p>
@@ -426,7 +394,7 @@ export function JobDossierDeck({
               variant="outline" 
               size="sm" 
               onClick={() => setFilterType("ALL")} 
-              className="h-7 text-xs font-sans cursor-pointer"
+              className="h-7 text-xs font-sans cursor-pointer rounded-lg"
             >
               Reset filter
             </Button>
@@ -438,35 +406,46 @@ export function JobDossierDeck({
             const effectivePlatform = job.sourcePlatform || job.sourceListings?.[0]?.sourcePlatform;
             const effectiveUrl = job.applyUrl || job.primaryApplyUrl || job.sourceListings?.[0]?.applyUrl;
             const atsInfo = getAtsSourceInfo(effectivePlatform, effectiveUrl, job.sourceListings);
+            const isSocialMedia = ["REDDIT", "X", "TWITTER", "YOUTUBE", "LINKEDIN"].includes(
+              (effectivePlatform || "").toUpperCase()
+            ) || /reddit\.com|x\.com|twitter\.com|youtube\.com|youtu\.be/i.test(effectiveUrl || "");
+            const socialHandle = isSocialMedia ? getSocialAuthorHandle(job) : null;
 
             return (
               <div
                 key={job.id}
                 onClick={() => setSelectedJob(job)}
-                className="group rounded-2xl border border-border/70 bg-white dark:bg-slate-900 hover:border-emerald-500/40 dark:hover:border-emerald-500/40 shadow-xs hover:shadow-md transition-all p-4 sm:p-5 flex flex-col justify-between gap-3 cursor-pointer select-none"
+                className="group rounded-2xl border border-border bg-card hover:border-primary/50 shadow-marble-1 hover:shadow-marble-2 transition-all p-4 sm:p-5 flex flex-col justify-between gap-3 cursor-pointer select-none"
               >
-                {/* Top Row: Rank + Company + ATS Badge + Match Fit + Corner Verification Badge */}
+                {/* Top Row: Rank + Company + ATS/Social Badge + Author Handle + Match Fit + Corner Verification Badge */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-bold">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary font-mono text-[10px] font-bold">
                         #{job.rankPosition || idx + 1}
                       </span>
                       <span className="flex items-center gap-1.5 font-sans font-semibold text-xs sm:text-sm text-foreground truncate max-w-[140px] sm:max-w-[160px]">
-                        <Building2 className="h-3.5 w-3.5 stroke-[1.75] text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <Building2 className="h-3.5 w-3.5 stroke-[1.75] text-primary shrink-0" />
                         <span className="truncate">{job.companyName}</span>
                       </span>
 
-                      {/* Color-coded ATS Platform Badge */}
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-sans font-medium border ${atsInfo.className}`}>
+                      {/* Color-coded ATS / Social Platform Badge */}
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-sans font-medium border ${atsInfo.className}`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${atsInfo.dotColor}`} />
                         {atsInfo.name}
                       </span>
 
+                      {/* Author / Poster Handle Badge */}
+                      {socialHandle && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-muted text-foreground font-medium border border-border">
+                          {socialHandle}
+                        </span>
+                      )}
+
                       {/* Multi-Source Deduplication Indicator */}
                       {job.sourceListings && job.sourceListings.length > 1 && (
                         <span
-                          className="badge badge-xs badge-outline text-[9px] font-sans font-medium px-1.5 py-0.5 border-slate-300 text-slate-600 bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:bg-slate-800"
+                          className="badge badge-xs badge-outline text-[9px] font-sans font-medium px-1.5 py-0.5 border-border text-muted-foreground bg-muted rounded-full"
                           title={`Also verified across ${job.sourceListings.slice(1).map(s => s.sourcePlatform || "Web").join(", ")}`}
                         >
                           +{job.sourceListings.length - 1} sources
@@ -486,7 +465,7 @@ export function JobDossierDeck({
                     <div className="flex items-center gap-1.5 ml-auto">
                       {typeof job.matchScore === "number" && (
                         <div className="flex items-center gap-1">
-                          <span className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 px-1.5 py-0.5 rounded">
+                          <span className="text-[11px] font-mono font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
                             {Math.round(job.matchScore)}% fit
                           </span>
                           <InfoBadge
@@ -548,8 +527,8 @@ export function JobDossierDeck({
                     </Badge>
                   ) : null}
 
-                  {/* Job Title in Source Serif 4 */}
-                  <h4 className="font-sans text-base sm:text-lg font-bold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-snug line-clamp-2">
+                  {/* Job Title */}
+                  <h4 className="font-sans text-base sm:text-lg font-bold text-foreground group-hover:text-primary transition-colors leading-snug line-clamp-2">
                     {job.title}
                   </h4>
 
@@ -561,27 +540,54 @@ export function JobDossierDeck({
                   )}
 
                   {/* Recruiter / Hiring Team Chip */}
-                  {job.companyContacts && job.companyContacts.length > 0 && (
+                  {job.companyContacts && job.companyContacts.length > 0 ? (
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         setPersonnelDrawerJob(job);
                       }}
-                      className="flex items-center gap-1.5 text-[11px] font-sans text-muted-foreground bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 px-2 py-1 rounded-md w-fit mt-1 cursor-pointer transition-colors text-left"
+                      className="flex items-center gap-1.5 text-[11px] font-sans text-muted-foreground bg-muted/40 hover:bg-muted border border-border px-2.5 py-1 rounded-lg w-fit mt-1 cursor-pointer transition-colors text-left"
                       title="Click to view verified recruiter & employee contact channels"
                     >
-                      <UserCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <UserCheck className="h-3 w-3 text-primary shrink-0" />
                       <span className="font-medium text-foreground truncate max-w-[130px]">
                         {job.companyContacts[0].fullName}
                       </span>
                       <span className="text-muted-foreground text-[10px]">
                         ({job.companyContacts[0].roleTitle || "Recruiter"})
                       </span>
-                      <span className="text-[10px] font-mono font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-1">
+                      <span className="text-[10px] font-mono font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded ml-1">
                         Outreach ({job.companyContacts.length}) →
                       </span>
                     </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPersonnelDrawerJob(job);
+                      }}
+                      className="flex items-center gap-1.5 text-[11px] font-sans text-muted-foreground bg-muted/40 hover:bg-muted border border-border px-2.5 py-1 rounded-lg w-fit mt-1 cursor-pointer transition-colors text-left"
+                      title="Click to view verified recruiter & employee contact channels"
+                    >
+                      <UserCheck className="h-3 w-3 text-primary shrink-0" />
+                      <span className="font-medium text-foreground truncate max-w-[130px]">
+                        {job.companyName} Hiring Team
+                      </span>
+                      <span className="text-[10px] font-mono font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded ml-1">
+                        DeepReach Outreach →
+                      </span>
+                    </button>
+                  )}
+                  {/* Social Media Snippet Description (R1) */}
+                  {isSocialMedia && (job.sourceListings?.[0]?.rawSnippet || job.description) && (
+                    <div className="rounded-xl border border-border/70 bg-muted/25 p-2.5 text-xs font-sans text-foreground/90 flex items-start gap-2 mt-1">
+                      <Quote className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 rotate-180" />
+                      <p className="line-clamp-2 leading-relaxed text-[11px] text-muted-foreground font-sans">
+                        {job.sourceListings?.[0]?.rawSnippet || job.description}
+                      </p>
+                    </div>
                   )}
                 </div>
 
@@ -613,7 +619,7 @@ export function JobDossierDeck({
                     )}
                   </div>
 
-                  {/* Bottom Action Bar: View Details Prompt & Optimistic Bookmark Button */}
+                  {/* Bottom Action Bar: View Details Prompt, Direct Social Link & Optimistic Bookmark Button */}
                   <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs font-sans">
                     {job.urlAnalysis?.isAffiliateTrap ? (
                       <span 
@@ -624,25 +630,41 @@ export function JobDossierDeck({
                         <span>Redirects to 3rd-party registration</span>
                       </span>
                     ) : (
-                      <span className="text-foreground font-semibold inline-flex items-center gap-1 group-hover:underline">
+                      <span className="text-primary font-semibold inline-flex items-center gap-1 group-hover:underline">
                         <span>View full dossier & apply</span>
                         <ArrowRight className="h-3 w-3 stroke-[1.75] transition-transform group-hover:translate-x-0.5" />
                       </span>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={(e) => handleToggleSave(job.id!, isSaved, e)}
-                      disabled={isSaving}
-                      className="flex items-center gap-1 text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition-colors cursor-pointer"
-                      aria-label={isSaved ? "Remove bookmark" : "Save opportunity"}
-                    >
-                      {isSaved ? (
-                        <BookmarkCheck className="h-4 w-4 stroke-[1.75] text-primary" />
-                      ) : (
-                        <Bookmark className="h-4 w-4 stroke-[1.75]" />
+                    <div className="flex items-center gap-2">
+                      {isSocialMedia && effectiveUrl && (
+                        <a
+                          href={effectiveUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 cursor-pointer shadow-2xs"
+                          title="Open verified original post in new tab"
+                        >
+                          <span>View Post</span>
+                          <ArrowUpRight className="h-3 w-3" />
+                        </a>
                       )}
-                    </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleSave(job.id!, isSaved, e)}
+                        disabled={isSaving}
+                        className="flex items-center gap-1 text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+                        aria-label={isSaved ? "Remove bookmark" : "Save opportunity"}
+                      >
+                        {isSaved ? (
+                          <BookmarkCheck className="h-4 w-4 stroke-[1.75] text-primary" />
+                        ) : (
+                          <Bookmark className="h-4 w-4 stroke-[1.75]" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -661,6 +683,7 @@ export function JobDossierDeck({
         onToggleSave={() => selectedJob && handleToggleSave(selectedJob.id!, savedStates[selectedJob.id!] ?? selectedJob.saved ?? false)}
         onRevalidate={() => selectedJob && handleRevalidate(selectedJob.id!)}
         isRevalidating={selectedJob ? (revalidatingIds[selectedJob.id!] || false) : false}
+        onOpenPersonnelDrawer={() => selectedJob && setPersonnelDrawerJob(selectedJob)}
       />
 
       {/* Direct Personnel & Recruiter Outreach Drawer */}

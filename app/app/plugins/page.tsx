@@ -159,9 +159,9 @@ export default function PluginsMarketplacePage() {
               key={cat.id}
               type="button"
               onClick={() => setActiveCategory(cat.id)}
-              className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-all cursor-pointer ${
                 activeCategory === cat.id
-                  ? "border-foreground bg-foreground text-background"
+                  ? "border-primary bg-primary text-primary-foreground shadow-marble-1 font-semibold"
                   : "border-border/70 bg-muted/40 text-muted-foreground hover:text-foreground hover:border-border"
               }`}
             >
@@ -173,7 +173,7 @@ export default function PluginsMarketplacePage() {
         {/* Plugins Grid: Compact 1/4 size cards (Notion / Claude style) */}
         {loading ? (
           <div className="py-20 flex flex-col items-center justify-center gap-2 text-muted-foreground font-sans text-xs">
-            <RotateCw className="h-5 w-5 animate-spin text-foreground" />
+            <RotateCw className="h-5 w-5 animate-spin text-primary" />
             Loading plugins catalog...
           </div>
         ) : filteredPlugins.length === 0 ? (
@@ -188,10 +188,10 @@ export default function PluginsMarketplacePage() {
               return (
                 <div
                   key={plugin.id}
-                  className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between gap-3 ${
+                  className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-3 shadow-marble-1 hover:shadow-marble-2 ${
                     plugin.isConnected
-                      ? "bg-card border-foreground/30 shadow-2xs"
-                      : "bg-card/50 border-border/70 hover:border-border hover:bg-card"
+                      ? "bg-card border-primary/30"
+                      : "bg-card/50 border-border hover:border-primary/40 hover:bg-card"
                   }`}
                 >
                   <div className="space-y-1.5">
@@ -231,7 +231,7 @@ export default function PluginsMarketplacePage() {
                       className={`h-7 px-2.5 text-[11px] rounded-lg font-medium transition-colors cursor-pointer ${
                         plugin.isConnected
                           ? "border-destructive/40 text-destructive hover:bg-destructive/10"
-                          : "bg-primary text-primary-foreground hover:bg-primary/90"
+                          : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-marble-1"
                       }`}
                     >
                       {isProcessingThis ? (

@@ -1,4 +1,4 @@
-﻿import { 
+import { 
   linkedInChannel, 
   parseLinkedInRecruitersFromText, 
   parseLinkedInJobsFromText 
@@ -293,7 +293,7 @@ https://twitter.com/dave_lead/status/1789012345678909999
         });
       }
       return `
-[Elena Rostova - Principal Recruiter | LinkedIn](https://www.linkedin.com/in/elena-rostova)
+[Diana Prince - Principal Recruiter | LinkedIn](https://www.linkedin.com/in/diana-prince-recruiting)
 [Senior Systems Engineer](https://www.linkedin.com/jobs/view/4455667788)
       `;
     };

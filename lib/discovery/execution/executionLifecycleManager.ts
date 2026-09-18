@@ -16,8 +16,25 @@ import {
   touchSearchHeartbeat,
   getActiveUserSearch,
 } from "@/lib/db/opportunities";
+import { executionKeyRegistry } from "./executionKeyRegistry";
+import {
+  SEARCH_BASELINE_BUDGET_MS,
+  SEARCH_MAX_CEILING_MS,
+} from "./executionBudget";
 
 export const EXECUTION_CANCEL_CHANNEL = "browserpilot:execution:cancel";
+
+declare global {
+  var __browserpilot_active_abort_controllers: Map<string, AbortController> | undefined;
+  var __browserpilot_cancelled_executions: Set<string> | undefined;
+}
+
+if (!globalThis.__browserpilot_active_abort_controllers) {
+  globalThis.__browserpilot_active_abort_controllers = new Map();
+}
+if (!globalThis.__browserpilot_cancelled_executions) {
+  globalThis.__browserpilot_cancelled_executions = new Set();
+}
 
 
 export type ExecutionLifecycleState =
@@ -71,7 +88,7 @@ export interface ActiveExecutionHandle {
 export class ExecutionLifecycleManager {
   private activeExecutions = new Map<string, ActiveExecutionHandle>();
   private intentExecutionMap = new Map<string, string>(); // `userId:hash` -> executionId
-  private staleThresholdMs = 30000; // 30s heartbeat lease before considered stale
+  private staleThresholdMs = SEARCH_BASELINE_BUDGET_MS; // 180s baseline execution budget (scaling up to 300s ceiling)
   private redisClient: Redis | null = null;
   private redisSubscriber: Redis | null = null;
   private isSubscribed = false;
@@ -143,6 +160,13 @@ export class ExecutionLifecycleManager {
    * Aborts an active execution when a cancellation signal is received from another cluster instance
    */
   public handleRemoteCancellation(executionId: string, reason = "CANCELLED"): boolean {
+    globalThis.__browserpilot_revoked_execution_keys?.add(executionId);
+    globalThis.__browserpilot_cancelled_executions?.add(executionId);
+    globalThis.__browserpilot_active_execution_keys?.delete(executionId);
+    const globalAbort = globalThis.__browserpilot_active_abort_controllers?.get(executionId);
+    if (globalAbort && !globalAbort.signal.aborted) {
+      globalAbort.abort(reason);
+    }
     const handle = this.activeExecutions.get(executionId);
     if (handle) {
       if (!handle.abortController.signal.aborted) {
@@ -254,6 +278,23 @@ export class ExecutionLifecycleManager {
       this.unregisterExecution(executionId);
     }
 
+    // Atomic execution key binding
+    executionKeyRegistry.registerKey(executionId, abortController);
+
+    if (globalThis.__browserpilot_cancelled_executions?.has(executionId) || executionKeyRegistry.isKeyRevoked(executionId)) {
+      abortController.abort("CANCELLED");
+      return {
+        executionId,
+        userId,
+        canonicalIntentHash,
+        abortController,
+        promise,
+        startedAt: new Date(),
+        lastActive: new Date(),
+      };
+    }
+    globalThis.__browserpilot_active_abort_controllers?.set(executionId, abortController);
+
     const heartbeatTimer = setInterval(async () => {
       try {
         await touchSearchHeartbeat(executionId);
@@ -310,6 +351,7 @@ export class ExecutionLifecycleManager {
    * Unregisters an execution upon completion, cancellation, or failure.
    */
   public unregisterExecution(executionId: string): void {
+    globalThis.__browserpilot_active_abort_controllers?.delete(executionId);
     const handle = this.activeExecutions.get(executionId);
     if (handle) {
       if (handle.heartbeatTimer) {
@@ -414,39 +456,25 @@ export class ExecutionLifecycleManager {
   public async cancelExecution(
     executionId: string,
     requestingUserId?: string | null,
-    reason = "CANCELLED"
+    reason = "CANCELLED_BY_USER"
   ): Promise<{ success: boolean; status: ExecutionLifecycleState; alreadyStopped?: boolean }> {
-    const record = await prisma.search.findUnique({
-      where: { id: executionId },
-      select: { id: true, userId: true, status: true },
-    });
+    // 1. Instantly kill execution key across in-memory registry, Redis, and AbortControllers
+    await executionKeyRegistry.killExecutionKey(executionId, reason, requestingUserId);
 
-    if (!record) {
-      return { success: false, status: "FAILED" };
-    }
+    // 2. Instantly register in process-wide cancelled executions set
+    globalThis.__browserpilot_cancelled_executions?.add(executionId);
 
-    // Multi-tenant check: if requestingUserId is provided, verify ownership
-    if (requestingUserId && record.userId && record.userId !== requestingUserId) {
-      throw new Error(`[ExecutionLifecycle] Unauthorized: User '${requestingUserId}' cannot cancel execution owned by '${record.userId}'.`);
-    }
-
-    // Idempotent cancellation: if already stopped or completed, do not corrupt
-    if (record.status === "STOPPED") {
-      return { success: true, status: "STOPPED", alreadyStopped: true };
-    }
-    if (record.status === "COMPLETED" || record.status === "FAILED") {
-      return { success: true, status: record.status as ExecutionLifecycleState, alreadyStopped: true };
-    }
-
-    // Signal abort on the in-memory handle if active locally
+    // 3. Abort local active handle or global abort controller immediately
     const handle = this.activeExecutions.get(executionId);
-    if (handle) {
-      if (!handle.abortController.signal.aborted) {
-        handle.abortController.abort(reason);
-      }
+    if (handle && !handle.abortController.signal.aborted) {
+      handle.abortController.abort(reason);
+    }
+    const globalAbort = globalThis.__browserpilot_active_abort_controllers?.get(executionId);
+    if (globalAbort && !globalAbort.signal.aborted) {
+      globalAbort.abort(reason);
     }
 
-    // Broadcast cancellation across all cluster instances via Redis
+    // 4. Broadcast cancellation across all cluster instances via Redis
     try {
       const client = this.redisClient || getSharedRedisClient();
       if (client) {
@@ -462,7 +490,67 @@ export class ExecutionLifecycleManager {
       // Non-fatal: local fallback handles cancellation even if Redis is unreachable
     }
 
-    // Update database status to STOPPED
+    // Delete any written candidates for forensic audit integrity and zero results
+    await prisma.searchResult.deleteMany({
+      where: { searchId: executionId },
+    }).catch(() => {});
+
+    const record = await prisma.search.findUnique({
+      where: { id: executionId },
+      select: { id: true, userId: true, status: true },
+    });
+
+    if (!record) {
+      // Early cancellation: Search record has not been inserted yet!
+      // Create an early tombstone record with status: "STOPPED" so subsequent worker/creation halts
+      try {
+        let verifiedUserId: string | null = null;
+        if (requestingUserId) {
+          const user = await prisma.user.findUnique({ where: { id: requestingUserId }, select: { id: true } }).catch(() => null);
+          if (user) verifiedUserId = user.id;
+        }
+        await prisma.search.upsert({
+          where: { id: executionId },
+          create: {
+            id: executionId,
+            userId: verifiedUserId,
+            rawQuery: "Cancelled search",
+            status: "STOPPED",
+            cancellationRequested: true,
+            stoppingReason: reason,
+            totalFound: 0,
+            completedAt: new Date(),
+          },
+          update: {
+            status: "STOPPED",
+            cancellationRequested: true,
+            stoppingReason: reason,
+            totalFound: 0,
+            completedAt: new Date(),
+          },
+        });
+      } catch (upsertErr) {
+        console.warn(`[ExecutionLifecycle] Early tombstone upsert warning for ${executionId}:`, upsertErr);
+      }
+
+      this.unregisterExecution(executionId);
+      return { success: true, status: "STOPPED" };
+    }
+
+    // Multi-tenant check: if requestingUserId is provided, verify ownership
+    if (requestingUserId && record.userId && record.userId !== requestingUserId) {
+      throw new Error(`[ExecutionLifecycle] Unauthorized: User '${requestingUserId}' cannot cancel execution owned by '${record.userId}'.`);
+    }
+
+    // Idempotent cancellation: if already stopped or completed, do not corrupt
+    if (record.status === "STOPPED") {
+      return { success: true, status: "STOPPED", alreadyStopped: true };
+    }
+    if (record.status === "COMPLETED" || record.status === "FAILED") {
+      return { success: true, status: record.status as ExecutionLifecycleState, alreadyStopped: true };
+    }
+
+    // Update database status to STOPPED with totalFound: 0
     await updateSearchStatusCas(
       executionId,
       ["CREATED", "QUEUED", "RUNNING", "CANCELLING"],
@@ -470,6 +558,7 @@ export class ExecutionLifecycleManager {
       {
         stoppingReason: reason,
         cancellationRequested: true,
+        totalFound: 0,
         completedAt: new Date(),
       }
     );
@@ -482,8 +571,18 @@ export class ExecutionLifecycleManager {
    * Distributed cancellation check: checks local handle, Redis cancellation flag, and database state.
    */
   public async isExecutionCancelled(executionId: string): Promise<boolean> {
+    if (executionKeyRegistry.isKeyRevoked(executionId)) {
+      return true;
+    }
+    if (globalThis.__browserpilot_cancelled_executions?.has(executionId)) {
+      return true;
+    }
     const handle = this.activeExecutions.get(executionId);
     if (handle && handle.abortController.signal.aborted) {
+      return true;
+    }
+    const globalAbort = globalThis.__browserpilot_active_abort_controllers?.get(executionId);
+    if (globalAbort && globalAbort.signal.aborted) {
       return true;
     }
 
@@ -525,11 +624,27 @@ export class ExecutionLifecycleManager {
    * Used for late-result protection: prevents late async callbacks from mutating finished executions.
    */
   public async isExecutionActive(executionId: string): Promise<boolean> {
+    if (executionKeyRegistry.isKeyRevoked(executionId)) {
+      return false;
+    }
+    if (globalThis.__browserpilot_cancelled_executions?.has(executionId)) {
+      return false;
+    }
+    const handle = this.activeExecutions.get(executionId);
+    if (handle?.abortController?.signal?.aborted) {
+      return false;
+    }
+    const globalAbort = globalThis.__browserpilot_active_abort_controllers?.get(executionId);
+    if (globalAbort?.signal?.aborted) {
+      return false;
+    }
+
     const record = await prisma.search.findUnique({
       where: { id: executionId },
-      select: { status: true },
+      select: { status: true, cancellationRequested: true },
     });
     if (!record) return false;
+    if (record.cancellationRequested) return false;
     return ["CREATED", "QUEUED", "RUNNING"].includes(record.status);
   }
 
@@ -688,6 +803,7 @@ export class ExecutionLifecycleManager {
     }
     this.activeExecutions.clear();
     this.intentExecutionMap.clear();
+    executionKeyRegistry.reset();
   }
 }
 

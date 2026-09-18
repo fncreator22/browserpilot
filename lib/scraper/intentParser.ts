@@ -40,7 +40,7 @@ export function isOpportunityDiscoveryIntent(rawPrompt?: string | null): boolean
 
   // 4. Tech Role with Discovery Verbs (e.g. "Find React developer in Hyderabad", "Looking for AI engineers")
   const hasDiscoveryVerb = /\b(find|search|looking for|seek|seeking|show me|discover|get|locate|list)\b/i.test(lower);
-  const hasTechRole = /\b(software engineer|swe|sde|software developer|developer|frontend|front-end|backend|back-end|fullstack|full-stack|ai engineer|ml engineer|data scientist|data engineer|data analyst|business analyst|bi analyst|devops|product manager|qa engineer|programmer)\b/i.test(lower);
+  const hasTechRole = /\b(software engineer|software development|swe|sde|software developer|developer|frontend|front-end|backend|back-end|fullstack|full-stack|ai engineer|ml engineer|data scientist|data engineer|data analyst|business analyst|bi analyst|devops|product manager|qa engineer|programmer)\b/i.test(lower);
 
   // If it's a generic web automation command AND lacks clear job/opportunity keywords, it is NOT job discovery
   if (isGenericWebAutomation && !hasJobKeywords && !hasWatchJobKeywords) {
@@ -297,7 +297,7 @@ export const KNOWN_ROLE_DEFINITIONS: KnownRoleDefinition[] = [
   },
   {
     canonicalName: "Software Engineer",
-    regex: /\b(software\s*(?:engineer(?:ing)?|developer|dev)|swe|sde|developer roles?|programmer)\b/i,
+    regex: /\b(software\s*(?:engineer(?:ing)?|developer|development|dev)|swe|sde|developer roles?|programmer)\b/i,
     related: ["Software Developer", "Junior Software Engineer", "Full Stack Developer", "Full Stack Engineer", "SDE Intern"],
   },
   {
@@ -450,9 +450,7 @@ export const CONVERSATIONAL_PREAMBLES = [
  * Extracts comprehensive, structured SearchIntent from natural language queries
  */
 export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Partial<SearchIntent>): SearchIntent {
-  const cleanQuery = (rawQuery || "").trim();
-  const lower = cleanQuery.toLowerCase();
-  let workingQuery = cleanQuery;
+  let workingQuery = (rawQuery || "").trim();
 
   // 0. Conversational Preamble & Inquiry Stripping
   for (const preamble of CONVERSATIONAL_PREAMBLES) {
@@ -462,17 +460,34 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     }
   }
 
-  // Common Typo Normalization
+  // Common Typo Normalization (TASK-R5 Typo Tolerance & Autonomous Broadening)
   workingQuery = workingQuery
+    .replace(/\bremort\b/gi, "remote")
+    .replace(/\bremot\b/gi, "remote")
+    .replace(/\bremotee\b/gi, "remote")
+    .replace(/\binter\b/gi, "intern")
+    .replace(/\binternn\b/gi, "intern")
+    .replace(/\bintrn\b/gi, "intern")
+    .replace(/\binternhip\b/gi, "internship")
+    .replace(/\bintership\b/gi, "internship")
+    .replace(/\bintrnship\b/gi, "internship")
     .replace(/\bmachanic(?:al)?\b/gi, "mechanical")
     .replace(/\bmecanic(?:al)?\b/gi, "mechanical")
-    .replace(/\benginer(?:ing)?\b/gi, "engineering")
+    .replace(/\benginer\b/gi, "engineer")
     .replace(/\benginering\b/gi, "engineering")
     .replace(/\bsoftare\b/gi, "software")
+    .replace(/\bsoftwear\b/gi, "software")
+    .replace(/\bsoftwre\b/gi, "software")
     .replace(/\bdevelopr\b/gi, "developer")
     .replace(/\banalist\b/gi, "analyst")
-    .replace(/\binternhip\b/gi, "internship")
-    .replace(/\bintership\b/gi, "internship");
+    .replace(/\bfron-end\b/gi, "frontend")
+    .replace(/\bfrontendd\b/gi, "frontend")
+    .replace(/\bbckend\b/gi, "backend")
+    .replace(/\bbackendd\b/gi, "backend")
+    .replace(/\bfullstackk\b/gi, "fullstack");
+
+  const cleanQuery = workingQuery;
+  const lower = cleanQuery.toLowerCase();
 
   // Strip remuneration clauses early so "paying in USD" does not append "paying" to roles
   workingQuery = workingQuery.replace(/\b(?:paying|paid|salary|salaries|compensation|comp|stipend|package)\s+(?:in|of|around|at)\s+[A-Za-z0-9$€£₹]+\b/gi, " ");
@@ -516,6 +531,19 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   // Mask memory & profile references so they are not captured as role or company clauses
   workingQuery = workingQuery.replace(/\b(?:based\s+on\s+)?(?:my\s+)?(?:saved\s+roles?|saved\s+preferences?)(?:\s+(?:on|in|from)\s+(?:the\s+)?(?:memory(?:\s+vault)?|profile))?\b/gi, " ");
   workingQuery = workingQuery.replace(/\b(?:on|in|from)\s+(?:the\s+)?(?:memory(?:\s+vault)?|profile)\b/gi, " ");
+
+  // Mask startup funding phrases early so "startups which are recently raise fund" sets companyType and doesn't pollute role titles or trigger false 48h freshness
+  const hasStartupFundingPhrase =
+    /\b(?:in\s+)?(?:startups?|companies?)\s+(?:which\s+(?:are|have)\s+|that\s+(?:are|have)\s+|who\s+(?:are|have)\s+)?(?:recently\s+)?(?:raised?|raising|raise)\s+(?:funds?|funding|seed|series\s+[a-z])(?:\s+as\s+a|\s+as)?\b/i.test(workingQuery) ||
+    /\b(?:startups?\s+which\s+are\s+recently\s+raise\s+fund(?:\s+as\s+a|\s+as)?)\b/i.test(workingQuery) ||
+    /\b(?:recently\s+)?(?:raised?|raising|raise)\s+(?:funds?|funding|seed|series\s+[a-z])\b/i.test(workingQuery);
+
+  if (hasStartupFundingPhrase) {
+    workingQuery = workingQuery
+      .replace(/\b(?:in\s+)?(?:startups?|companies?)\s+(?:which\s+(?:are|have)\s+|that\s+(?:are|have)\s+|who\s+(?:are|have)\s+)?(?:recently\s+)?(?:raised?|raising|raise)\s+(?:funds?|funding|seed|series\s+[a-z])(?:\s+as\s+a|\s+as)?\b/gi, " ")
+      .replace(/\b(?:startups?\s+which\s+are\s+recently\s+raise\s+fund(?:\s+as\s+a|\s+as)?)\b/gi, " ")
+      .replace(/\b(?:recently\s+)?(?:raised?|raising|raise)\s+(?:funds?|funding|seed|series\s+[a-z])\b/gi, " ");
+  }
 
   // 3. Temporal Expressions & Date Constraint Parsing (Shielded early to prevent count/role collision)
   let isExplicitFreshness = false;
@@ -794,9 +822,9 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
 
   // Company Type (Startup vs Enterprise)
   let companyType: SearchIntent["companyType"] = "ANY";
-  if (/\b(startup|startups|early stage|yc startup|seed|series a|series b)\b/i.test(workingQuery)) {
+  if (hasStartupFundingPhrase || /\b(startup|startups|early stage|yc startup|seed|series a|series b)\b/i.test(cleanQuery)) {
     companyType = "STARTUP";
-  } else if (/\b(enterprise|enterprises|faang|big tech|fortune 500|corp|mnc)\b/i.test(workingQuery)) {
+  } else if (/\b(enterprise|enterprises|faang|big tech|fortune 500|corp|mnc)\b/i.test(cleanQuery)) {
     companyType = "ENTERPRISE";
   }
 
@@ -913,12 +941,16 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     const isCohortOrGrad =
       /\b(202[0-9]|203[0-9])\s*(?:graduates?|grads?|students?|cohort|batch|passouts?)\b/i.test(rawCand) ||
       /^(?:graduates?|grads?|students?|freshers?|interns?|anybody|everyone)$/i.test(rawCand);
+    const isExperienceClause =
+      /^(?:entry\s*level|junior|senior|interns?|internships?|freshers?|experienced|mid-level)(?:\s+(?:or|and)\s+(?:entry\s*level|junior|senior|interns?|internships?|freshers?|experienced|mid-level))?$/i.test(rawCand) ||
+      /\b(or|and|as|for|in|with)$/i.test(rawCand);
     const isLocationOrModifier =
       /\b(rural\s*areas?|urban\s*areas?|metro\s*areas?|remote|hybrid|on-site|posted|recent|abroad|worldwide|europe|africa|asia|america|startups?|companies?)\b/i.test(rawCand) ||
       KNOWN_LOCATION_DEFINITIONS.some((l) => l.regex.test(rawCand));
     if (
       rawCand.length >= 3 &&
       !isCohortOrGrad &&
+      !isExperienceClause &&
       !isLocationOrModifier &&
       !/^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|fresh|remote|hybrid|posted|the\s+memory|memory|saved\s+role|my\s+saved\s+role|memory\s+vault|profile)$/i.test(rawCand)
     ) {
@@ -1125,17 +1157,32 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     };
   }
 
+  // Sanitize incoming or matched locations: "Remote" is a work mode, not a geographic location
+  const rawLocations = filterOverrides?.locations || (matchedLocations.length > 0 ? matchedLocations : primaryLocation ? [primaryLocation] : []);
+  const hasRemoteInLocations = rawLocations.some((l) => /^(remote|fully\s*remote|remote-first)$/i.test(l.trim()));
+  const sanitizedLocations = rawLocations.filter((l) => !/^(remote|fully\s*remote|remote-first)$/i.test(l.trim()));
+  const sanitizedPrimaryLocation = filterOverrides?.location && !/^(remote|fully\s*remote|remote-first)$/i.test(filterOverrides.location.trim())
+    ? filterOverrides.location
+    : (sanitizedLocations[0] || undefined);
+
+  const initialWorkModes = filterOverrides?.workModes || (matchedModes.length > 0 ? matchedModes : [primaryWorkMode]);
+  const sanitizedWorkModes = [...initialWorkModes];
+  if (hasRemoteInLocations && !sanitizedWorkModes.includes("REMOTE")) {
+    sanitizedWorkModes.push("REMOTE");
+  }
+  const sanitizedPrimaryWorkMode = filterOverrides?.workMode || (sanitizedWorkModes[0] || primaryWorkMode);
+
   // Build canonical SearchIntent
   const intent: SearchIntent = {
     role: filterOverrides?.role || primaryRole,
     roles: filterOverrides?.roles || (matchedRoles.length > 0 ? matchedRoles : primaryRole ? [primaryRole] : []),
     skills: filterOverrides?.skills || (matchedSkills.length > 0 ? matchedSkills : []),
-    location: filterOverrides?.location || primaryLocation,
-    locations: filterOverrides?.locations || (matchedLocations.length > 0 ? matchedLocations : primaryLocation ? [primaryLocation] : []),
+    location: sanitizedPrimaryLocation,
+    locations: sanitizedLocations,
     company: filterOverrides?.company || primaryCompany,
     companies: filterOverrides?.companies || (matchedCompanies.length > 0 ? matchedCompanies : primaryCompany ? [primaryCompany] : []),
-    workMode: filterOverrides?.workMode || primaryWorkMode,
-    workModes: filterOverrides?.workModes || (matchedModes.length > 0 ? matchedModes : [primaryWorkMode]),
+    workMode: sanitizedPrimaryWorkMode,
+    workModes: sanitizedWorkModes,
     experienceLevel: filterOverrides?.experienceLevel || primaryExperienceLevel,
     experienceLevels: filterOverrides?.experienceLevels || (matchedExpLevels.length > 0 ? matchedExpLevels : [primaryExperienceLevel]),
     opportunityType: filterOverrides?.opportunityType || primaryOpportunityType,
@@ -1147,7 +1194,7 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
     freshnessWindowHours: filterOverrides?.freshnessWindowHours !== undefined ? filterOverrides.freshnessWindowHours : freshnessWindowHours,
     postedWithinDays: filterOverrides?.postedWithinDays !== undefined ? filterOverrides.postedWithinDays : postedWithinDays,
     dateConstraint: filterOverrides?.dateConstraint !== undefined ? filterOverrides.dateConstraint : dateConstraint,
-    requestedCount: requestedCount !== undefined ? requestedCount : filterOverrides?.requestedCount,
+    requestedCount: requestedCount !== undefined ? requestedCount : (filterOverrides?.requestedCount !== undefined ? filterOverrides.requestedCount : 30),
     isExplicitFreshness: filterOverrides?.isExplicitFreshness !== undefined ? filterOverrides.isExplicitFreshness : isExplicitFreshness,
     isExplicitLocation: filterOverrides?.isExplicitLocation !== undefined ? filterOverrides.isExplicitLocation : hasExplicitLocation,
     minimumMatchScore: filterOverrides?.minimumMatchScore || minimumMatchScore,
@@ -1263,6 +1310,10 @@ export async function parseSearchIntentAsync(
     }
   }
 
+  const { sanitizeSearchTelemetry } = await import("@/lib/ai/errors/searchFailureModel");
+  const sanitizedQuery = sanitizeSearchTelemetry(query);
+  const sanitizedMemory = sanitizeSearchTelemetry(memoryContextString);
+
   // If no AI provider is available, use deterministic fallback
   if (resolvedProvider === "DETERMINISTIC" || (!effectiveGeminiKey && !effectivePuterToken)) {
     const deterministicBase = parseSearchIntent(rawQuery, options?.filterOverrides);
@@ -1304,7 +1355,8 @@ export async function parseSearchIntentAsync(
       const ai = createGeminiClient(effectiveGeminiKey);
       modelName = await detectOptimalGeminiModel(effectiveGeminiKey).catch(() => DEFAULT_GEMINI_MODEL);
 
-      const prompt = `User search query: "${query}"${memoryContextString}\nExisting filter overrides: ${JSON.stringify(options?.filterOverrides || {})}`;
+      const sanitizedOverrides = sanitizeSearchTelemetry(options?.filterOverrides || {});
+      const prompt = `User search query: "${sanitizedQuery}"${sanitizedMemory}\nExisting filter overrides: ${JSON.stringify(sanitizedOverrides)}`;
 
       const schema = {
         type: Type.OBJECT,
@@ -1424,11 +1476,12 @@ Rules:
         }
 
         let resolvedRoles = Array.isArray(parsed.roles) ? parsed.roles.filter((r: string) => !isMetaRole(r)) : [];
+        if (baseIntent.roles && baseIntent.roles.length > 0) {
+          const filteredBase = baseIntent.roles.filter((r) => !isMetaRole(r));
+          resolvedRoles = Array.from(new Set([...resolvedRoles, ...filteredBase]));
+        }
         if (resolvedRoles.length === 0 && userProfileMemories?.preferredRoles?.length) {
           resolvedRoles = [...userProfileMemories.preferredRoles];
-        }
-        if (resolvedRoles.length === 0 && baseIntent.roles && baseIntent.roles.length > 0) {
-          resolvedRoles = baseIntent.roles.filter((r) => !isMetaRole(r));
         }
         if (resolvedRole && !resolvedRoles.includes(resolvedRole)) {
           resolvedRoles.unshift(resolvedRole);
@@ -1531,7 +1584,7 @@ NEVER extract meta-words ("the memory", "memory", "saved role", "my saved role",
 "AI intern" -> role: "AI Intern", experienceLevel: "INTERN", opportunityType: "INTERNSHIP".
 If days/freshness is specified (e.g. "last 4 days"), set postedWithinDays: 4, freshnessWindowHours: 96, sortMode: "LATEST".`,
           },
-          { role: "user", content: `Query: "${query}"${memoryContextString}` },
+          { role: "user", content: `Query: "${sanitizedQuery}"${sanitizedMemory}` },
         ],
       });
 
@@ -1555,11 +1608,12 @@ If days/freshness is specified (e.g. "last 4 days"), set postedWithinDays: 4, fr
         }
 
         let resolvedRoles = Array.isArray(parsed.roles) ? parsed.roles.filter((r: string) => !isMetaRole(r)) : [];
+        if (baseIntent.roles && baseIntent.roles.length > 0) {
+          const filteredBase = baseIntent.roles.filter((r) => !isMetaRole(r));
+          resolvedRoles = Array.from(new Set([...resolvedRoles, ...filteredBase]));
+        }
         if (resolvedRoles.length === 0 && userProfileMemories?.preferredRoles?.length) {
           resolvedRoles = [...userProfileMemories.preferredRoles];
-        }
-        if (resolvedRoles.length === 0 && baseIntent.roles && baseIntent.roles.length > 0) {
-          resolvedRoles = baseIntent.roles.filter((r) => !isMetaRole(r));
         }
         if (resolvedRole && !resolvedRoles.includes(resolvedRole)) {
           resolvedRoles.unshift(resolvedRole);
@@ -1589,7 +1643,7 @@ If days/freshness is specified (e.g. "last 4 days"), set postedWithinDays: 4, fr
           ? parsed.locations
           : (baseIntent.locations ? baseIntent.locations.filter((l) => !isInvalidLocation(l)) : undefined);
 
-        if (!resolvedLocation && userProfileMemories?.preferredLocations?.length) {
+        if (!resolvedLocation && userProfileMemories?.preferredLocations?.length && /\b(?:my\s+)?(?:saved\s+location|memory|profile)\b/i.test(query)) {
           resolvedLocation = userProfileMemories.preferredLocations[0];
           resolvedLocations = [...userProfileMemories.preferredLocations];
         }

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "motion/react";
 import { 
   Search, 
   Compass, 
@@ -17,7 +18,8 @@ import {
   X, 
   Command as CommandIcon, 
   SlidersHorizontal, 
-  HelpCircle 
+  HelpCircle,
+  Blocks
 } from "lucide-react";
 import { useUIState, type ProfileTab } from "@/components/providers/ui-state-provider";
 
@@ -128,6 +130,14 @@ export function CommandPalette() {
       action: () => handleNavigate("/app/notifications"),
     },
     {
+      id: "nav-plugins",
+      label: "Plugins Marketplace",
+      sublabel: "Scraper plugins, active connections, and priority ATS sources",
+      category: "PAGES",
+      icon: Blocks,
+      action: () => handleNavigate("/app/plugins"),
+    },
+    {
       id: "nav-memory-vault",
       label: "User Memory Vault & Preferences",
       sublabel: "Durable search preferences remembered by AI Brain",
@@ -152,12 +162,12 @@ export function CommandPalette() {
       action: () => handleOpenSettings("CAREER_MEMORY"),
     },
     {
-      id: "set-connectors",
-      label: "ATS Connectors & Sources",
-      sublabel: "Configure Greenhouse, Lever, Ashby, and LinkedIn sources",
+      id: "set-plugins",
+      label: "Plugins & Monitored Sources",
+      sublabel: "Configure high-priority plugins and verified ATS sources",
       category: "SETTINGS",
-      icon: SlidersHorizontal,
-      action: () => handleOpenSettings("CONNECTORS"),
+      icon: Blocks,
+      action: () => handleNavigate("/app/plugins"),
     },
     {
       id: "set-billing",
@@ -248,23 +258,31 @@ export function CommandPalette() {
     }
   }, [selectedIndex]);
 
-  if (!isCommandPaletteOpen) return null;
-
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:p-6 sm:pt-20 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150"
-      onClick={closeCommandPalette}
-      role="dialog"
-      aria-modal="true"
-      aria-label="BrowserPilot Command Palette"
-    >
-      <div 
-        className="w-full max-w-2xl overflow-hidden rounded-2xl border border-border/80 bg-card dark:bg-slate-900 shadow-2xl transition-all duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AnimatePresence>
+      {isCommandPaletteOpen && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:p-6 sm:pt-20 bg-black/40 backdrop-blur-sm"
+          onClick={closeCommandPalette}
+          role="dialog"
+          aria-modal="true"
+          aria-label="BrowserPilot Command Palette"
+        >
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.98, y: -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, y: -6 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full max-w-2xl overflow-hidden rounded-2xl border border-border/80 bg-card text-foreground shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
         {/* Search Input Bar */}
-        <div className="flex items-center gap-3 border-b border-border/80 px-4 py-3.5 bg-[#F6F6F4]/50 dark:bg-slate-950/60">
-          <Search className="h-5 w-5 text-emerald-600 dark:text-emerald-400 dark:text-emerald-400 shrink-0" />
+        <div className="flex items-center gap-3 border-b border-border/80 px-4 py-3.5 bg-muted/30">
+          <Search className="h-5 w-5 text-primary shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -373,18 +391,20 @@ export function CommandPalette() {
         </div>
 
         {/* Footer Info */}
-        <div className="flex items-center justify-between border-t border-border/80 px-4 py-2.5 bg-[#F6F6F4]/60 dark:bg-slate-950/80 text-[11px] text-muted-foreground font-mono">
+        <div className="flex items-center justify-between border-t border-border/80 px-4 py-2.5 bg-muted/30 text-[11px] text-muted-foreground font-mono">
           <div className="flex items-center gap-3">
-            <span>Use <kbd className="kbd kbd-xs">↑</kbd> <kbd className="kbd kbd-xs">↓</kbd> to navigate</span>
-            <span><kbd className="kbd kbd-xs">↵</kbd> to select</span>
+            <span>Use <kbd className="kbd kbd-xs bg-card border border-border/70 text-foreground">↑</kbd> <kbd className="kbd kbd-xs bg-card border border-border/70 text-foreground">↓</kbd> to navigate</span>
+            <span><kbd className="kbd kbd-xs bg-card border border-border/70 text-foreground">↵</kbd> to select</span>
           </div>
-          <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 dark:text-white font-semibold">
+          <div className="flex items-center gap-1 text-primary font-semibold">
             <CommandIcon className="h-3 w-3 stroke-[1.75]" />
             <span>BrowserPilot Hub</span>
           </div>
         </div>
-      </div>
-    </div>
+        </motion.div>
+      </motion.div>
+    )}
+  </AnimatePresence>
   );
 }
 

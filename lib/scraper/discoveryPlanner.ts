@@ -94,6 +94,21 @@ function canonicalizeSkill(skill: string): string {
  * Builds a deterministic DiscoveryPlan from raw natural language queries and profile preferences.
  * Explicit user query constraints strictly take precedence over inferred profile preferences.
  */
+/**
+ * Alias for buildDiscoveryPlan supporting both (query, filters, profile) and (intent) signatures.
+ */
+export function createDiscoveryPlan(
+  queryOrIntent: string | Partial<SearchIntent> = "",
+  filters: Partial<SearchIntent> = {},
+  profile?: UserProfilePreferences
+): DiscoveryPlan {
+  if (typeof queryOrIntent === "object" && queryOrIntent !== null) {
+    const rawQ = (queryOrIntent as any).rawQuery || (queryOrIntent as any).queryHint || "";
+    return buildDiscoveryPlan(rawQ, { ...queryOrIntent, ...filters }, profile);
+  }
+  return buildDiscoveryPlan(queryOrIntent, filters, profile);
+}
+
 export function buildDiscoveryPlan(
   rawQuery: string = "",
   filters: Partial<SearchIntent> = {},
@@ -148,30 +163,48 @@ export function buildDiscoveryPlan(
   const skillsList = Array.from(skillsSet);
 
   // 4. Resolve Locations (Strict explicit precedence: filters.locations -> filters.location -> parsedIntent.locations -> parsedIntent.location -> profile.preferredLocations)
+  // "Remote" is a work mode, not a geographic city/region
   const locationsSet = new Set<string>();
+  let hasRemoteInLocationInput = false;
+  const isRemoteStr = (s?: string | null) => /^(remote|fully\s*remote|remote-first)$/i.test((s || "").trim());
+
+  const addLocationSanitized = (l?: string | null) => {
+    if (!l) return;
+    const trimmed = l.trim();
+    if (!trimmed || trimmed === "Any" || trimmed.toLowerCase() === "worldwide") return;
+    if (isRemoteStr(trimmed)) {
+      hasRemoteInLocationInput = true;
+      return;
+    }
+    locationsSet.add(trimmed);
+  };
+
   const isExplicitLocation = Boolean(
     parsedIntent.isExplicitLocation ||
-    (filters.locations && filters.locations.length > 0) ||
-    (filters.location && filters.location !== "Any" && filters.location.toLowerCase() !== "worldwide")
+    (filters.locations && filters.locations.some((l) => !isRemoteStr(l))) ||
+    (filters.location && filters.location !== "Any" && filters.location.toLowerCase() !== "worldwide" && !isRemoteStr(filters.location))
   );
 
   if (filters.locations && filters.locations.length > 0) {
-    filters.locations.forEach((l) => { if (l !== "Any" && l.toLowerCase() !== "worldwide") locationsSet.add(l); });
-  } else if (filters.location && filters.location !== "Any" && filters.location.toLowerCase() !== "worldwide") {
-    locationsSet.add(filters.location);
+    filters.locations.forEach(addLocationSanitized);
+  } else if (filters.location) {
+    addLocationSanitized(filters.location);
   } else if (parsedIntent.locations && parsedIntent.locations.length > 0) {
-    parsedIntent.locations.forEach((l) => locationsSet.add(l));
+    parsedIntent.locations.forEach(addLocationSanitized);
   } else if (parsedIntent.location) {
-    locationsSet.add(parsedIntent.location);
+    addLocationSanitized(parsedIntent.location);
   } else if (profile?.preferredLocations && profile.preferredLocations.length > 0) {
     // Backfill location from user profile memory when no explicit location was specified
-    profile.preferredLocations.forEach((l) => locationsSet.add(l));
+    profile.preferredLocations.forEach(addLocationSanitized);
   }
 
   const locationsList = Array.from(locationsSet);
 
   // 5. Resolve Work Modes (Strict explicit precedence)
   const workModesSet = new Set<string>();
+  if (hasRemoteInLocationInput) {
+    workModesSet.add("REMOTE");
+  }
   if (filters.workModes && filters.workModes.length > 0) {
     filters.workModes.forEach((wm) => workModesSet.add(wm.toUpperCase()));
   } else if (filters.workMode) {
@@ -180,7 +213,7 @@ export function buildDiscoveryPlan(
     parsedIntent.workModes.forEach((wm) => workModesSet.add(wm.toUpperCase()));
   } else if (profile?.preferredWorkMode && profile.preferredWorkMode !== "ANY") {
     workModesSet.add(profile.preferredWorkMode.toUpperCase());
-  } else {
+  } else if (workModesSet.size === 0) {
     workModesSet.add("ANY");
   }
 
@@ -266,7 +299,7 @@ export function buildDiscoveryPlan(
   const excludeKnown = filters.excludeKnown !== undefined ? filters.excludeKnown : (parsedIntent.excludeKnown || false);
   const watchIntent = filters.watchIntent || parsedIntent.watchIntent || undefined;
 
-  const targetResults = requestedCount ? Math.max(8, requestedCount) : (isLatestIntent ? 12 : 8);
+  const targetResults = requestedCount ? Math.max(30, requestedCount) : (isLatestIntent ? 30 : 30);
 
   const oppTypesArray = Array.from(oppTypesSet);
   const expLevelsArray = Array.from(expLevelsSet);

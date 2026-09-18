@@ -171,7 +171,7 @@ Active production SRE posting.
       if (decoded.includes("linkedin")) {
         return `
 # Recruiter Search Results
-[Sarah Jenkins - Principal Talent Partner - Enterprise | LinkedIn](https://www.linkedin.com/in/sarahjenkins-prod)
+[Rachel Adams - Principal Talent Partner - Enterprise | LinkedIn](https://www.linkedin.com/in/racheladams-prod)
 Scaling production platform engineering.
         `;
       }

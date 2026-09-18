@@ -44,19 +44,19 @@ export function TopNavIsland() {
   const isAdmin = userRole === "ADMIN" || userRole === "SUPERADMIN";
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/80 backdrop-blur-md transition-all">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur-md transition-all shadow-xs">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
         {/* Left: Brand Identity */}
         <div className="flex items-center gap-3 shrink-0">
           <Link href="/app" className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 rounded-xl bg-foreground text-background flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs">
-              <Radio className="h-4 w-4 text-background" />
+            <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center transition-transform group-hover:scale-105 shadow-marble-1">
+              <Radio className="h-4.5 w-4.5 text-white" />
             </div>
             <div>
               <span className="font-sans font-extrabold text-sm tracking-tight text-foreground block leading-tight">
-                Radar
+                BrowserPilot
               </span>
-              <span className="text-[9px] text-muted-foreground font-mono tracking-wider block">
+              <span className="text-[10px] text-muted-foreground font-mono tracking-wider block">
                 Opportunity Intel
               </span>
             </div>
@@ -64,7 +64,7 @@ export function TopNavIsland() {
         </div>
 
         {/* Center: Desktop Navigation Route Pills (hidden on mobile, mobile uses bottom dock) */}
-        <nav className="hidden lg:flex items-center gap-1 p-1 rounded-full bg-muted/40 border border-border/60">
+        <nav className="hidden lg:flex items-center gap-1.5 p-1.5 rounded-full bg-muted/60 border border-border shadow-xs">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -72,13 +72,13 @@ export function TopNavIsland() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
                   isActive
-                    ? "bg-background text-foreground shadow-xs border border-border/80 font-semibold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                    ? "bg-card text-foreground shadow-marble-1 border border-border font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-card/60"
                 }`}
               >
-                <Icon className={`h-3.5 w-3.5 ${isActive ? "text-emerald-500" : "text-muted-foreground"}`} />
+                <Icon className={`h-3.5 w-3.5 ${isActive ? "text-primary stroke-[2.25]" : "text-muted-foreground stroke-[1.75]"}`} />
                 <span>{item.label}</span>
               </Link>
             );
@@ -88,10 +88,10 @@ export function TopNavIsland() {
           {isAdmin && (
             <Link
               href={ADMIN_UI_ROUTES.OVERVIEW}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
                 pathname?.startsWith("/ops-sec-7f9c2d1b8e4a")
-                  ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 font-semibold"
-                  : "text-muted-foreground hover:text-indigo-400 hover:bg-indigo-500/10"
+                  ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                  : "text-muted-foreground hover:text-primary hover:bg-primary/5"
               }`}
             >
               <ShieldAlert className="h-3.5 w-3.5" />
@@ -105,10 +105,10 @@ export function TopNavIsland() {
           {/* Puter Account Status Indicator */}
           {isSignedIn && puterUser && (
             <div 
-              className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/40 border border-border/60 text-[11px] font-mono text-muted-foreground"
+              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted/50 border border-border text-[11px] font-mono text-muted-foreground shadow-2xs"
               title="Puter AI Cloud Account"
             >
-              <Sparkles className="h-3 w-3 text-emerald-500" />
+              <Sparkles className="h-3 w-3 text-primary" />
               <span>{puterUser.username || "Puter"}</span>
             </div>
           )}
@@ -120,13 +120,13 @@ export function TopNavIsland() {
           <button
             type="button"
             onClick={() => openProfileModal()}
-            className="flex items-center gap-2 p-1 pl-1.5 sm:pr-2.5 rounded-full border border-border/70 bg-card hover:bg-muted/60 transition-colors cursor-pointer text-xs font-sans"
+            className="flex items-center gap-2 p-1 pl-2 sm:pr-3 rounded-full border border-border bg-card hover:bg-muted/60 transition-colors cursor-pointer text-xs font-sans shadow-marble-1"
             title="User Settings & Profile"
           >
-            <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+            <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
               {session?.user?.name ? session.user.name.charAt(0).toUpperCase() : <User className="h-3 w-3" />}
             </div>
-            <span className="hidden sm:inline font-medium text-foreground truncate max-w-[100px]">
+            <span className="hidden sm:inline font-medium text-foreground truncate max-w-[110px]">
               {session?.user?.name?.split(" ")[0] || "Account"}
             </span>
           </button>

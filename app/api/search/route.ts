@@ -19,6 +19,13 @@ import {
 import { rateLimiter } from "@/lib/security/rateLimiter";
 import { prisma } from "@/lib/db/prisma";
 import { executionLifecycleManager } from "@/lib/discovery/execution/executionLifecycleManager";
+import { executionKeyRegistry } from "@/lib/discovery/execution/executionKeyRegistry";
+import {
+  SEARCH_BASELINE_BUDGET_MS,
+  SEARCH_MAX_CEILING_MS,
+  calculateSearchExecutionBudget,
+  isSearchStaleOrExceeded,
+} from "@/lib/discovery/execution/executionBudget";
 import { enqueueSearchDiscoveryJob } from "@/lib/queue/searchQueue";
 import {
   getCapabilityLimit,
@@ -28,6 +35,7 @@ import {
 import { enrichOpportunityData } from "@/lib/discovery/enrichment/opportunityEnrichmentService";
 import { telemetryEngine } from "@/lib/observability/telemetryEngine";
 import { promptQueue } from "@/lib/queue/millisecondFifoQueue";
+import { UniversalAuditLogger } from "@/lib/audit/universalAuditLogger";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +52,7 @@ export interface SearchApiRequest {
   allowDeterministicFallback?: boolean;
   apiKey?: string;
   puterToken?: string;
+  executionId?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -67,13 +76,36 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // CASE A — Unauthenticated production API request
-    if (!userId) {
+    const body = (await request.json().catch(() => ({}))) as SearchApiRequest;
+    const clientApiKey = body.apiKey?.trim() || request.headers.get("x-api-key")?.trim();
+    const clientPuterToken = body.puterToken?.trim() || request.headers.get("x-puter-token")?.trim();
+    const hasClientKey = !!(clientApiKey || clientPuterToken);
+
+    // CASE A — Unauthenticated request without an API key or Puter token
+    if (!userId && !hasClientKey) {
       return NextResponse.json(
         {
           error: "UNAUTHORIZED",
-          message: "Authentication required to perform an opportunity search. Please sign in.",
+          errorCode: "AUTH_OR_KEY_REQUIRED",
+          message: "Authentication or AI key required. Please sign in or provide your AI API key to start discovering opportunities.",
+          remediation: {
+            requiresAuth: true,
+            allowedOptions: ["SIGN_IN", "BYOK_GEMINI", "BYOK_DEEPSEEK", "PUTER_FREE"],
+          },
         },
+        { status: 401 }
+      );
+    }
+
+    // Ephemeral guest search with BYOK key
+    if (!userId && hasClientKey) {
+      userId = `guest_${Date.now()}`;
+      persistToDb = false;
+    }
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "UNAUTHORIZED", errorCode: "AUTH_OR_KEY_REQUIRED", message: "Authentication or AI key required." },
         { status: 401 }
       );
     }
@@ -101,8 +133,6 @@ export async function POST(request: NextRequest) {
         );
       }
     }
-
-    const body = (await request.json().catch(() => ({}))) as SearchApiRequest;
     rawQuery = (body.query || (body as any).rawQuery || "").trim();
     if (rawQuery) {
       try {
@@ -143,7 +173,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const maxResultsCeiling = Math.min(Math.max(body.maxResults || 50, 1), 50);
+    const maxResultsCeiling = Math.min(Math.max(body.maxResults || 60, 1), 60);
     const verifyEvidence = body.verifyEvidence ?? true;
     persistToDb = body.persistToDb !== false;
     const correlationId =
@@ -186,7 +216,7 @@ export async function POST(request: NextRequest) {
       puterToken: inputPuterToken,
       filterOverrides: filters,
     });
-    const requestedCount = initialIntent.requestedCount || filters.requestedCount || (typeof body.maxResults === "number" ? body.maxResults : 10);
+    const requestedCount = initialIntent.requestedCount || filters.requestedCount || (typeof body.maxResults === "number" ? body.maxResults : 30);
 
     const canonicalNorm = executionLifecycleManager.computeCanonicalIntentHash({
       ...initialIntent,
@@ -286,43 +316,101 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 5b. Self-Healing Concurrency & Active Search Reconciliation (TASK-067 Hardening)
-      // Automatically reconcile stranded or orphaned searches older than 30s (worker lease timeout)
-      const activeLeaseCutoff = new Date(Date.now() - 30 * 1000);
+      // 5b. Search Execution Time Budget Expansion & Active Search Reconciliation (R1)
+      // Supports 180s baseline dynamically scaling up to strict 300s (5-minute) non-negotiable ceiling.
+      // Allows complex multi-source ATS harvesting (Greenhouse, Lever, Ashby, LinkedIn) without premature ORPHANED_TIMEOUT.
+      const searchBudget = calculateSearchExecutionBudget({
+        query: rawQuery,
+        requestedCount,
+        roles: initialIntent.roles,
+        companies: initialIntent.companies,
+        sources: filters.sources,
+      });
+
+      // Accommodate searches up to the non-negotiable 300-second maximum ceiling,
+      // while dynamically reconciling searches that exceeded their specific execution budget or heartbeat threshold.
+      let activeSearchesCount = 0;
       try {
-        const orphaned = await prisma.search.findMany({
+        const candidateActive = await prisma.search.findMany({
           where: {
             userId,
             status: { in: ["CREATED", "QUEUED", "RUNNING"] },
-            createdAt: { lt: activeLeaseCutoff },
           },
-          select: { id: true },
+          select: {
+            id: true,
+            createdAt: true,
+            updatedAt: true,
+            startedAt: true,
+            status: true,
+            cancellationRequested: true,
+            rawQuery: true,
+            canonicalIntent: true,
+          },
         });
 
-        if (orphaned.length > 0) {
+        const cancelledIds: string[] = [];
+        const staleTimeoutIds: string[] = [];
+        for (const s of candidateActive) {
+          if (s.cancellationRequested || executionKeyRegistry.isKeyRevoked(s.id)) {
+            cancelledIds.push(s.id);
+            continue;
+          }
+
+          let sBudgetMs = SEARCH_BASELINE_BUDGET_MS;
+          if (s.canonicalIntent) {
+            try {
+              const parsed = JSON.parse(s.canonicalIntent);
+              sBudgetMs = calculateSearchExecutionBudget({
+                query: s.rawQuery,
+                sources: parsed?.sources,
+                requestedCount: parsed?.requestedCount,
+                companies: parsed?.companies,
+                roles: parsed?.roles,
+                isMultiSource: parsed?.sources?.length > 1,
+              }).budgetMs;
+            } catch {}
+          } else {
+            sBudgetMs = calculateSearchExecutionBudget({ query: s.rawQuery }).budgetMs;
+          }
+
+          const staleCheck = isSearchStaleOrExceeded(s, sBudgetMs);
+          if (staleCheck.isStale) {
+            staleTimeoutIds.push(s.id);
+          } else {
+            activeSearchesCount++;
+          }
+        }
+
+        if (cancelledIds.length > 0) {
           await prisma.search.updateMany({
             where: {
-              id: { in: orphaned.map((s) => s.id) },
+              id: { in: cancelledIds },
+            },
+            data: {
+              status: "STOPPED",
+              cancellationRequested: true,
+              stoppingReason: "CANCELLED_BY_USER",
+              totalFound: 0,
+              completedAt: new Date(),
+            },
+          }).catch(() => {});
+        }
+
+        if (staleTimeoutIds.length > 0) {
+          await prisma.search.updateMany({
+            where: {
+              id: { in: staleTimeoutIds },
             },
             data: {
               status: "STOPPED",
               stoppingReason: "ORPHANED_TIMEOUT",
               completedAt: new Date(),
             },
-          });
+          }).catch(() => {});
         }
       } catch (reconcileErr) {
         console.warn("[SearchAPI] Orphaned search reconciliation warning:", reconcileErr);
       }
-
-      // Count active searches strictly within the live 30s lease window
-      const activeSearchesCount = await prisma.search.count({
-        where: {
-          userId,
-          status: { in: ["CREATED", "QUEUED", "RUNNING"] },
-          createdAt: { gte: activeLeaseCutoff },
-        },
-      });
 
       const maxConcurrent = (await getCapabilityLimit(userId, "MAX_CONCURRENT_SEARCHES")) ?? 1;
 
@@ -339,15 +427,41 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 6. Durable Execution Identity & Isolated AbortSignal (TASK-067)
-    executionId = `search_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    // 6. Durable Execution Identity & Atomic Execution Key Registration (R2)
+    const clientProvidedExecutionId =
+      (body.executionId && typeof body.executionId === "string" && body.executionId.trim().length > 0)
+        ? body.executionId.trim()
+        : (request.headers.get("x-execution-id") || null);
+    executionId = clientProvidedExecutionId || `search_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     const executionAbort = new AbortController();
+
+    // Register atomic execution key bound to executionAbort
+    executionKeyRegistry.registerKey(executionId, executionAbort);
+
+    // Fail-fast if execution key was already revoked (e.g. rapid cancel < 50ms)
+    if (executionKeyRegistry.isKeyRevoked(executionId)) {
+      executionAbort.abort("CANCELLED_BY_USER");
+      return NextResponse.json(
+        {
+          success: false,
+          executionId,
+          searchId: executionId,
+          status: "STOPPED",
+          stoppingReason: "CANCELLED_BY_USER",
+          totalFound: 0,
+          resultsCount: 0,
+          message: "Search execution was cancelled.",
+        },
+        { status: 499 }
+      );
+    }
 
     if (request.signal.aborted) {
       executionAbort.abort("REQUEST_ABORTED");
     } else {
       request.signal.addEventListener("abort", () => {
         executionAbort.abort("REQUEST_ABORTED");
+        executionKeyRegistry.killExecutionKey(executionId, "REQUEST_ABORTED", userId).catch(() => {});
         executionLifecycleManager.cancelExecution(executionId, userId, "REQUEST_ABORTED").catch(() => {});
       });
     }
@@ -361,6 +475,21 @@ export async function POST(request: NextRequest) {
 
     // Asynchronous BullMQ Path (Standard Production Mode)
     if (!isSyncRequested) {
+      if (executionKeyRegistry.isKeyRevoked(executionId) || request.signal.aborted) {
+        return NextResponse.json(
+          {
+            success: false,
+            executionId,
+            searchId: executionId,
+            status: "STOPPED",
+            stoppingReason: "CANCELLED_BY_USER",
+            totalFound: 0,
+            resultsCount: 0,
+            message: "Search execution was cancelled before enqueueing.",
+          },
+          { status: 499 }
+        );
+      }
       if (persistToDb) {
         try {
           await createSearch({
@@ -434,7 +563,7 @@ export async function POST(request: NextRequest) {
             parsedLocation: initialIntent.locations?.[0] || initialIntent.location || null,
             parsedWorkMode: initialIntent.workModes?.[0] || initialIntent.workMode || "ANY",
             targetGradYear: typeof initialIntent.targetGradYear === "number" ? initialIntent.targetGradYear : null,
-            status: executionAbort.signal.aborted ? "STOPPED" : "RUNNING",
+            status: (executionAbort.signal.aborted || executionKeyRegistry.isKeyRevoked(executionId)) ? "STOPPED" : "RUNNING",
             startedAt: new Date(),
             totalFound: 0,
           });
@@ -444,6 +573,33 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+        if (executionKeyRegistry.isKeyRevoked(executionId) || executionAbort.signal.aborted || request.signal.aborted) {
+          return {
+            searchId: executionId,
+            status: "STOPPED",
+            stoppingReason: "CANCELLED_BY_USER",
+            totalFound: 0,
+            verifiedCount: 0,
+            results: [],
+            partial: false,
+            metadata: {
+              totalUniqueOpportunities: 0,
+              returnedCount: 0,
+              durationMs: 0,
+              providersAttempted: 0,
+              providersSucceeded: 0,
+              telemetry: {
+                status: "CANCELLED",
+                terminalState: "CANCELLED",
+                errorCategory: "CANCELLED",
+                toolsExecuted: [],
+                totalDurationMs: 0,
+              },
+              explanation: "Search execution was cancelled by user.",
+            },
+          };
+        }
+
         // Execute Intelligence Harness Lifecycle (TASK-048 -> TASK-053 -> TASK-067)
         const harnessResult = await intelligenceHarness.runLifecycle(rawQuery || initialIntent.queryHint || "Find software jobs", {
           executionId,
@@ -464,7 +620,11 @@ export async function POST(request: NextRequest) {
         const decision = harnessResult.decision;
         const correctionResult = harnessResult.context.correctionLoopResult;
 
-        const isCancelled = executionAbort.signal.aborted || request.signal.aborted || harnessResult.telemetry.status === "CANCELLED";
+        const isCancelled =
+          executionAbort.signal.aborted ||
+          request.signal.aborted ||
+          harnessResult.telemetry.status === "CANCELLED" ||
+          executionKeyRegistry.isKeyRevoked(executionId);
         const stillActive = persistToDb ? await executionLifecycleManager.isExecutionActive(executionId) : true;
         const effectivelyCancelled = isCancelled || !stillActive;
 
@@ -472,9 +632,16 @@ export async function POST(request: NextRequest) {
         let persistenceFailure: CanonicalSearchFailure | null = null;
         let persistenceSaved = false;
 
-        if (persistToDb) {
+        if (persistToDb && !effectivelyCancelled) {
           try {
             for (const item of rankedOpportunities) {
+              if (
+                executionAbort.signal.aborted ||
+                request.signal.aborted ||
+                executionKeyRegistry.isKeyRevoked(executionId)
+              ) {
+                break;
+              }
               const opp = item.opportunity;
               const persistedOpp = await upsertOpportunity({
                 canonicalHash: opp.canonicalHash,
@@ -506,6 +673,14 @@ export async function POST(request: NextRequest) {
                   verificationStatus: listing.verificationStatus,
                 });
               }
+
+              // Attach to Search record with rank and match score
+              await attachOpportunityToSearch({
+                searchId: executionId,
+                opportunityId: persistedOpp.id,
+                matchScore: item.totalScore,
+                rankPosition: item.rankPosition,
+              });
             }
             persistenceSaved = true;
           } catch (persistErr: unknown) {
@@ -617,9 +792,15 @@ export async function POST(request: NextRequest) {
         const status = effectivelyCancelled ? "STOPPED" : isComplete ? "COMPLETE" : isPartial ? "PARTIAL" : "NO_RESULTS";
         const partial = isPartial || effectivelyCancelled;
 
+        const finalCancelled =
+          effectivelyCancelled ||
+          executionAbort.signal.aborted ||
+          request.signal.aborted ||
+          executionKeyRegistry.isKeyRevoked(executionId);
+
         let stoppingReason = "TARGET_SATISFIED";
-        if (effectivelyCancelled) {
-          stoppingReason = "CANCELLED";
+        if (finalCancelled) {
+          stoppingReason = "CANCELLED_BY_USER";
         } else if (isComplete) {
           stoppingReason = "TARGET_SATISFIED";
         } else if (isPartial) {
@@ -638,7 +819,7 @@ export async function POST(request: NextRequest) {
 
         let explanation = "";
         const roleName = canonicalIntent.roles?.[0] || canonicalIntent.role || "opportunity";
-        if (effectivelyCancelled) {
+        if (finalCancelled) {
           explanation = "Search execution was cancelled by user request.";
         } else if (isComplete) {
           explanation = `Found ${verifiedCount} verified ${roleName} opportunities matching your criteria.`;
@@ -650,32 +831,57 @@ export async function POST(request: NextRequest) {
         }
 
         if (persistToDb) {
-          const dbStatus = effectivelyCancelled ? "STOPPED" : isComplete ? "COMPLETED" : isPartial ? "PARTIAL" : "COMPLETED";
+          const dbStatus = finalCancelled ? "STOPPED" : isComplete ? "COMPLETED" : isPartial ? "PARTIAL" : "COMPLETED";
           await executionLifecycleManager.transitionState(executionId, dbStatus as any, {
-            totalFound: verifiedCount,
+            totalFound: finalCancelled ? 0 : verifiedCount,
             stoppingReason,
-            cancellationRequested: effectivelyCancelled,
+            cancellationRequested: finalCancelled,
             completedAt: new Date(),
           }).catch(() => {});
+
+          if (finalCancelled) {
+            await prisma.searchResult.deleteMany({ where: { searchId: executionId } }).catch(() => {});
+            await executionKeyRegistry.killExecutionKey(executionId, "CANCELLED_BY_USER", userId);
+          }
         }
+
+        try {
+          UniversalAuditLogger.log({
+            actor: (session?.user as any)?.role === "ADMIN" ? "ADMIN" : "USER",
+            actionType: "SEARCH",
+            target: rawQuery || canonicalIntent.queryHint || "Opportunity Search",
+            path: "/api/search",
+            userId,
+            userEmail: session?.user?.email || null,
+            details: {
+              searchId: executionId,
+              query: rawQuery,
+              role: roleName,
+              status: finalCancelled ? "STOPPED" : status,
+              totalFound: finalCancelled ? 0 : verifiedCount,
+              stoppingReason,
+              durationMs: Math.round(performance.now() - requestStart),
+            },
+          });
+        } catch {}
 
         return {
           searchId: executionId,
           correlationId,
-          status,
-          error: effectivelyCancelled ? "CANCELLED" : undefined,
+          status: finalCancelled ? "STOPPED" : status,
+          error: finalCancelled ? "CANCELLED" : undefined,
           stoppingReason,
           query: rawQuery || canonicalIntent.queryHint,
           intent: canonicalIntent,
           canonicalIntent,
           requestedCount: effectiveRequestedCount,
-          verifiedCount,
-          results: structuredResults,
-          partial,
+          verifiedCount: finalCancelled ? 0 : verifiedCount,
+          results: finalCancelled ? [] : structuredResults,
+          partial: finalCancelled ? false : partial,
           explanation,
           diagnostics: {
             requestedCount: effectiveRequestedCount,
-            validResultCount: verifiedCount,
+            validResultCount: finalCancelled ? 0 : verifiedCount,
             rejectedResultCount: harnessResult.context.verification?.candidatesRejected || 0,
             stoppingReason,
             totalRounds: correctionResult?.totalRounds || 1,
@@ -776,9 +982,13 @@ export async function POST(request: NextRequest) {
       const targetState = isCancelled ? "STOPPED" : "FAILED";
       await executionLifecycleManager.transitionState(executionId, targetState as any, {
         failureReason: failure.userMessage || String(err),
-        stoppingReason: isCancelled ? "CANCELLED" : "EXECUTION_ERROR",
+        stoppingReason: isCancelled ? "CANCELLED_BY_USER" : "EXECUTION_ERROR",
+        totalFound: 0,
         completedAt: new Date(),
       }).catch(() => {});
+      if (isCancelled) {
+        await executionKeyRegistry.killExecutionKey(executionId, "CANCELLED_BY_USER", userId);
+      }
     } else if (isCancelled && userId) {
       try {
         await createSearch({
@@ -816,8 +1026,14 @@ export async function POST(request: NextRequest) {
         category: isCancelled ? "CANCELLED" : failure.category,
         retryable: isCancelled ? true : failure.retryable,
         stoppingReason: isCancelled ? "CANCELLED" : undefined,
+        metadata: {
+          telemetry: {
+            status: isCancelled ? "CANCELLED" : "FAILED",
+            terminalState: isCancelled ? "CANCELLED" : "FAILED",
+          },
+        },
       },
-      { status: statusCode }
+      { status: isCancelled ? 200 : statusCode }
     );
   }
 }

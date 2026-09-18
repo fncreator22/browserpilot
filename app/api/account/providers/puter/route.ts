@@ -26,14 +26,15 @@ export async function POST(req: Request) {
     const sessionUser = session?.user as { id?: string; email?: string } | undefined;
     let activeUserId = sessionUser?.id;
 
-    if (sessionUser?.email) {
-      const dbUser = await prisma.user.findUnique({ where: { email: sessionUser.email.toLowerCase().trim() } });
+    let dbUser = activeUserId ? await prisma.user.findUnique({ where: { id: activeUserId } }) : null;
+    if (!dbUser && sessionUser?.email) {
+      dbUser = await prisma.user.findUnique({ where: { email: sessionUser.email.toLowerCase().trim() } });
       if (dbUser) activeUserId = dbUser.id;
     }
 
-    if (!activeUserId) {
+    if (!activeUserId || !dbUser) {
       return NextResponse.json(
-        { error: "UNAUTHORIZED", message: "Authentication required." },
+        { error: "UNAUTHORIZED", message: "Authentication required or user account not found." },
         { status: 401 }
       );
     }
@@ -64,8 +65,19 @@ export async function POST(req: Request) {
       success: true,
       provider: connection,
     });
-  } catch (err: unknown) {
+  } catch (err: any) {
     console.error("[POST /api/account/providers/puter] Error:", err);
+    if (
+      err?.code === "P2003" ||
+      err?.message?.includes("USER_NOT_FOUND") ||
+      err?.message?.includes("P2003") ||
+      err?.message?.includes("Foreign key constraint")
+    ) {
+      return NextResponse.json(
+        { error: "UNAUTHORIZED", message: "User account could not be resolved or does not exist." },
+        { status: 401 }
+      );
+    }
     return NextResponse.json(
       { error: "INTERNAL_ERROR", message: (err as Error).message || "Failed to connect Puter account." },
       { status: 500 }
@@ -79,12 +91,13 @@ export async function DELETE() {
     const sessionUser = session?.user as { id?: string; email?: string } | undefined;
     let activeUserId = sessionUser?.id;
 
-    if (sessionUser?.email) {
-      const dbUser = await prisma.user.findUnique({ where: { email: sessionUser.email.toLowerCase().trim() } });
+    let dbUser = activeUserId ? await prisma.user.findUnique({ where: { id: activeUserId } }) : null;
+    if (!dbUser && sessionUser?.email) {
+      dbUser = await prisma.user.findUnique({ where: { email: sessionUser.email.toLowerCase().trim() } });
       if (dbUser) activeUserId = dbUser.id;
     }
 
-    if (!activeUserId) {
+    if (!activeUserId || !dbUser) {
       return NextResponse.json(
         { error: "UNAUTHORIZED", message: "Authentication required." },
         { status: 401 }
@@ -94,8 +107,19 @@ export async function DELETE() {
     const result = await disconnectProviderConnection(activeUserId, "PUTER");
 
     return NextResponse.json(result);
-  } catch (err: unknown) {
+  } catch (err: any) {
     console.error("[DELETE /api/account/providers/puter] Error:", err);
+    if (
+      err?.code === "P2003" ||
+      err?.message?.includes("USER_NOT_FOUND") ||
+      err?.message?.includes("P2003") ||
+      err?.message?.includes("Foreign key constraint")
+    ) {
+      return NextResponse.json(
+        { error: "UNAUTHORIZED", message: "User account could not be resolved or does not exist." },
+        { status: 401 }
+      );
+    }
     return NextResponse.json(
       { error: "INTERNAL_ERROR", message: "Failed to disconnect Puter account." },
       { status: 500 }

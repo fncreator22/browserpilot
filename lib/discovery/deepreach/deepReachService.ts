@@ -25,6 +25,8 @@ import {
   type DeepReachChannelParams 
 } from "./channels";
 
+export { DEFAULT_DEEPREACH_CHANNELS, type DeepReachChannelsPreferences, type DeepReachChannelParams };
+
 export interface DeepReachSearchParams {
   companyName: string;
   roleTitle?: string;
@@ -80,7 +82,7 @@ export async function discoverCompanyRecruiters(
     });
 
     const validNamedExisting = existing.filter(
-      (c) => c.fullName && !c.fullName.includes("Team") && !c.fullName.includes("Hiring") && c.email
+      (c) => c.fullName && (c.email || c.profileUrl)
     );
 
     if (validNamedExisting.length > 0) {
@@ -112,7 +114,9 @@ export async function discoverCompanyRecruiters(
   ];
 
   // Try fetching public search snippet via Jina or direct public endpoints
-  for (const query of searchQueries) {
+  for (let qIdx = 0; qIdx < searchQueries.length; qIdx++) {
+    const query = searchQueries[qIdx];
+    const isEngQuery = qIdx === 1;
     const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
     const pageText = await fetchViaJinaReader(searchUrl, 5000);
 
@@ -127,7 +131,7 @@ export async function discoverCompanyRecruiters(
           ? slug
               .replace(/[-_]/g, " ")
               .replace(/\b\w/g, (c: string) => c.toUpperCase())
-          : "Talent Specialist";
+          : isEngQuery ? "Engineering Lead" : "Talent Specialist";
 
         if (formattedName.toLowerCase().includes("team") || formattedName.toLowerCase().includes("hiring")) {
           continue;
@@ -139,17 +143,15 @@ export async function discoverCompanyRecruiters(
         const email = companyDomain
           ? `${first}.${last}@${companyDomain}`
           : undefined;
-        const personalEmail = `${first}.${last}.career@gmail.com`;
 
         contacts.push({
           fullName: formattedName,
-          roleTitle: "Technical Recruiter & Talent Partner",
+          roleTitle: isEngQuery ? "Staff Engineer & Technical Hiring Lead" : "Technical Recruiter & Talent Partner",
           companyName,
           profileUrl,
           email,
-          personalEmail,
-          contactType: "RECRUITER",
-          department: "Talent Acquisition",
+          contactType: isEngQuery ? "EMPLOYEE" : "RECRUITER",
+          department: isEngQuery ? "Engineering" : "Talent Acquisition",
           sourcePlatform: "LINKEDIN",
         });
       }
@@ -165,7 +167,25 @@ export async function discoverCompanyRecruiters(
 
   // Persist newly discovered contacts to database for instant future lookups
   try {
-    for (const c of contacts) {
+    const FORBIDDEN_SYNTHETIC_NAMES = new Set([
+      "sarah jenkins", "alex morgan", "elena rostova", "david chen", "marcus vance",
+      "claire beaumont", "ananya deshmukh", "arun kumar", "sneha rao", "vikram patel", "divya menon"
+    ]);
+    const legitimateContacts = contacts.filter((c) => {
+      const lower = (c.fullName || "").toLowerCase().trim();
+      if (FORBIDDEN_SYNTHETIC_NAMES.has(lower)) return false;
+      if (c.phone && c.phone.includes("555")) return false;
+      if (c.personalEmail && (
+        c.personalEmail.includes(".career@gmail.com") ||
+        c.personalEmail.includes(".talent@gmail.com") ||
+        c.personalEmail.includes(".tech@gmail.com") ||
+        c.personalEmail.includes(".code@gmail.com") ||
+        c.personalEmail.includes(".recruiting@gmail.com")
+      )) return false;
+      return true;
+    });
+
+    for (const c of legitimateContacts) {
       await prisma.companyContact.create({
         data: {
           companyName: c.companyName,
@@ -316,8 +336,26 @@ export async function executeDeepReachScan(
   // DB persistence for verified recruiters in prisma.companyContact
   if (verifiedRecruiterReport.verified.length > 0) {
     try {
+      const FORBIDDEN_SYNTHETIC_NAMES = new Set([
+        "sarah jenkins", "alex morgan", "elena rostova", "david chen", "marcus vance",
+        "claire beaumont", "ananya deshmukh", "arun kumar", "sneha rao", "vikram patel", "divya menon"
+      ]);
+      const legitimateRecruiters = verifiedRecruiterReport.verified.filter((c) => {
+        const lower = (c.fullName || "").toLowerCase().trim();
+        if (FORBIDDEN_SYNTHETIC_NAMES.has(lower)) return false;
+        if (c.phone && c.phone.includes("555")) return false;
+        if (c.personalEmail && (
+          c.personalEmail.includes(".career@gmail.com") ||
+          c.personalEmail.includes(".talent@gmail.com") ||
+          c.personalEmail.includes(".tech@gmail.com") ||
+          c.personalEmail.includes(".code@gmail.com") ||
+          c.personalEmail.includes(".recruiting@gmail.com")
+        )) return false;
+        return true;
+      });
+
       await Promise.all(
-        verifiedRecruiterReport.verified.map((c) =>
+        legitimateRecruiters.map((c) =>
           prisma.companyContact.create({
             data: {
               companyName: c.companyName,

@@ -20,9 +20,10 @@ export interface AtsCompanyTarget {
   greenhouseSlug?: string;
   leverSlug?: string;
   ashbySlug?: string;
+  workableSlug?: string;
 }
 
-const DEFAULT_ATS_COMPANIES: AtsCompanyTarget[] = [
+export const DEFAULT_ATS_COMPANIES: AtsCompanyTarget[] = [
   { name: "GitLab", greenhouseSlug: "gitlab" },
   { name: "Figma", greenhouseSlug: "figma" },
   { name: "Stripe", greenhouseSlug: "stripe" },
@@ -41,6 +42,7 @@ const DEFAULT_ATS_COMPANIES: AtsCompanyTarget[] = [
   { name: "Retool", ashbySlug: "retool" },
   { name: "Sentry", ashbySlug: "sentry" },
   { name: "PostHog", ashbySlug: "posthog" },
+  { name: "Hugging Face", workableSlug: "huggingface" },
 ];
 
 const YC_ATS_COMPANIES: AtsCompanyTarget[] = [
@@ -187,6 +189,9 @@ export class AtsProvider implements SearchProvider {
       }
       if (comp.ashbySlug && isAshbyEnabled) {
         harvestPromises.push(this.harvestAshby(comp.name, comp.ashbySlug, fetchFn, compositeSignal));
+      }
+      if (comp.workableSlug) {
+        harvestPromises.push(this.harvestWorkable(comp.name, comp.workableSlug, fetchFn, compositeSignal));
       }
     }
 
@@ -358,6 +363,62 @@ export class AtsProvider implements SearchProvider {
 
       await connectorUsageService.recordConnectorHarvest({
         connectorName: "Ashby",
+        targetUrl: url,
+        status: candidates.length > 0 ? "SUCCESS" : "EMPTY",
+        jobsFoundCount: candidates.length,
+        qualityGatePassCount: candidates.length,
+      });
+
+      return candidates;
+    } catch {
+      return [];
+    }
+  }
+
+  private async harvestWorkable(
+    companyName: string,
+    slug: string,
+    fetchFn: typeof fetch,
+    signal: AbortSignal
+  ): Promise<RawJobCandidate[]> {
+    const url = `https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(slug)}`;
+    if (!isSafePublicUrl(url)) return [];
+
+    try {
+      const resp = await fetchFn(url, { signal, headers: { Accept: "application/json" } });
+      if (!resp.ok) return [];
+      const data = (await resp.json()) as any;
+      if (!data || !Array.isArray(data.jobs)) return [];
+
+      const candidates: RawJobCandidate[] = data.jobs.map((job: any): RawJobCandidate => {
+        const title = job.title || "Opportunity";
+        const loc = job.city ? `${job.city}, ${job.country || ""}` : (job.telecommuting ? "Remote" : "Various");
+        const workMode = job.telecommuting ? "REMOTE" : deduceWorkMode(title, loc);
+        const exp = deduceExperienceLevel(title);
+        const empType = (job.employment_type || "").toLowerCase();
+        const oppType = empType.includes("intern") || exp === "INTERN" ? "INTERNSHIP" : "FULL_TIME";
+        const snippet = `${job.department ? `Department: ${job.department}. ` : ""}${title} at ${companyName}`;
+
+        return {
+          sourcePlatform: "Workable",
+          sourceUrl: job.url || job.shortlink || `https://apply.workable.com/${slug}/j/${job.shortcode || ""}`,
+          applyUrl: job.application_url || job.url || job.shortlink || `https://apply.workable.com/${slug}/j/${job.shortcode || ""}`,
+          externalJobId: String(job.id || job.shortcode || ""),
+          title,
+          companyName,
+          location: loc,
+          workMode,
+          experienceLevel: exp,
+          opportunityType: oppType,
+          description: snippet,
+          rawSnippet: snippet,
+          discoveredAt: new Date(),
+          postedAt: job.published_on ? new Date(job.published_on) : new Date(),
+        };
+      });
+
+      await connectorUsageService.recordConnectorHarvest({
+        connectorName: "Workable",
         targetUrl: url,
         status: candidates.length > 0 ? "SUCCESS" : "EMPTY",
         jobsFoundCount: candidates.length,

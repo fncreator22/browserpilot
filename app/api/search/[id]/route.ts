@@ -56,6 +56,16 @@ export async function GET(
       );
     }
 
+    const isAdmin = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.role === "SUPERADMIN";
+    if (!isAdmin) {
+      if (searchRecord.userId && (!userId || searchRecord.userId !== userId)) {
+        return NextResponse.json(
+          { error: "FORBIDDEN", message: "You do not have access to this search execution." },
+          { status: 403 }
+        );
+      }
+    }
+
     // 3. Resolve User Saved Opportunities (if authenticated)
     const userSavedOpportunityIds = new Set<string>();
     if (userId) {

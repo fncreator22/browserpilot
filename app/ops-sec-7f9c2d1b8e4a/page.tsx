@@ -345,7 +345,7 @@ export default function AdminOverviewPage() {
           <div className="p-4 rounded-xl border border-border/70 bg-card/60 backdrop-blur-sm space-y-2 shadow-sm transition-all group-hover:border-purple-500/40 group-hover:bg-muted/20 cursor-pointer">
             <div className="flex items-center justify-between text-muted-foreground text-xs font-mono">
               <span className="group-hover:text-purple-300 transition-colors">REGISTERED USERS</span>
-              <Users className="h-4 w-4 text-purple-400 group-hover:scale-110 transition-transform" />
+              <Users className="h-4 w-4 text-purple-400" />
             </div>
             <div className="flex items-baseline justify-between gap-2">
               <div className="flex items-baseline gap-2">

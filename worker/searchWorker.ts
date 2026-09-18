@@ -6,6 +6,7 @@ import {
 import { createRedisConnection, getSharedRedisClient } from "@/lib/queue/redis";
 import { intelligenceHarness } from "@/lib/ai/harness";
 import { executionLifecycleManager } from "@/lib/discovery/execution/executionLifecycleManager";
+import { executionKeyRegistry } from "@/lib/discovery/execution/executionKeyRegistry";
 import {
   upsertOpportunity,
   upsertSourceListing,
@@ -16,6 +17,9 @@ import { prisma } from "@/lib/db/prisma";
 import { getUserGeminiApiKey } from "@/lib/db/users";
 import { getUserPuterToken } from "@/lib/ai/governance/providerGovernance";
 import { searchEventBus } from "@/lib/events/searchEvents";
+import { executeDeepReachScan, DEFAULT_DEEPREACH_CHANNELS } from "@/lib/discovery/deepreach/deepReachService";
+
+export { executeDeepReachScan, DEFAULT_DEEPREACH_CHANNELS };
 
 export const DEFAULT_SEARCH_WORKER_CONCURRENCY = 5;
 
@@ -80,16 +84,24 @@ export async function processSearchDiscoveryJob(job: Job<SearchDiscoveryJobPaylo
     }
   };
 
-  // 1. Check if execution was already cancelled before worker picked it up
-  const isCancelledUpfront = persistToDb ? !(await executionLifecycleManager.isExecutionActive(executionId)) : false;
+  // 1. Check if execution key was revoked or cancelled before worker picked it up
+  const isCancelledUpfront = Boolean(
+    executionKeyRegistry.isKeyRevoked(executionId) ||
+    (globalThis as any).__browserpilot_cancelled_executions?.has(executionId) ||
+    (persistToDb ? !(await executionLifecycleManager.isExecutionActive(executionId)) : false)
+  );
   if (isCancelledUpfront) {
     console.log(`[SearchWorker] Job ${executionId} was already cancelled before processing.`);
-    await emitStageEvent("cancelled", { reason: "CANCELLED_BEFORE_START" });
-    return { status: "STOPPED", reason: "CANCELLED_BEFORE_START" };
+    await executionKeyRegistry.killExecutionKey(executionId, "CANCELLED_BY_USER", userId);
+    await emitStageEvent("cancelled", { reason: "CANCELLED_BY_USER" });
+    return { status: "STOPPED", reason: "CANCELLED_BY_USER" };
   }
 
   // 2. Prepare AbortController and register execution lifecycle with automatic cleanup
   const executionAbort = new AbortController();
+  if ((globalThis as any).__browserpilot_cancelled_executions?.has(executionId)) {
+    executionAbort.abort("CANCELLED");
+  }
 
   try {
     const handle = executionLifecycleManager.registerExecution(
@@ -99,10 +111,33 @@ export async function processSearchDiscoveryJob(job: Job<SearchDiscoveryJobPaylo
       executionAbort
     );
 
-    // Transition DB status to RUNNING
-    await executionLifecycleManager.transitionState(executionId, "RUNNING").catch((err) => {
+    // Transition DB status to RUNNING if not already in RUNNING state
+    let isAlreadyStopped = false;
+    try {
+      const current = await prisma.search.findUnique({
+        where: { id: executionId },
+        select: { status: true, cancellationRequested: true },
+      });
+      if (
+        !current ||
+        current.status === "STOPPED" ||
+        current.cancellationRequested ||
+        executionKeyRegistry.isKeyRevoked(executionId)
+      ) {
+        isAlreadyStopped = true;
+      } else if (current.status !== "RUNNING") {
+        await executionLifecycleManager.transitionState(executionId, "RUNNING");
+      }
+    } catch (err) {
       console.warn(`[SearchWorker] Transition to RUNNING warning for ${executionId}:`, err);
-    });
+    }
+
+    if (isAlreadyStopped || executionKeyRegistry.isKeyRevoked(executionId)) {
+      console.log(`[SearchWorker] Execution ${executionId} is cancelled or stopped. Aborting.`);
+      await executionKeyRegistry.killExecutionKey(executionId, "CANCELLED_BY_USER", userId);
+      await emitStageEvent("cancelled", { reason: "CANCELLED_BY_USER" });
+      return { status: "STOPPED", reason: "CANCELLED_BY_USER" };
+    }
 
     // 3. Resolve user credentials (BYOK Gemini API key and Puter token)
     let userApiKey: string | undefined = undefined;
@@ -149,17 +184,62 @@ export async function processSearchDiscoveryJob(job: Job<SearchDiscoveryJobPaylo
     const decision = harnessResult.decision;
     const correctionResult = harnessResult.context.correctionLoopResult;
 
-    const isCancelled = executionAbort.signal.aborted || harnessResult.telemetry.status === "CANCELLED";
-    const stillActive = persistToDb ? await executionLifecycleManager.isExecutionActive(executionId) : true;
+    const isCancelled = executionAbort.signal.aborted ||
+      harnessResult.telemetry.status === "CANCELLED" ||
+      executionKeyRegistry.isKeyRevoked(executionId) ||
+      Boolean((globalThis as any).__browserpilot_cancelled_executions?.has(executionId));
+    const stillActive = persistToDb ? await executionLifecycleManager.isExecutionActive(executionId) : !isCancelled;
     const effectivelyCancelled = isCancelled || !stillActive;
+
+    // Instant Breakup Point: If cancelled, halt immediately without writing to PostgreSQL
+    if (effectivelyCancelled) {
+      console.log(`[SearchWorker] Job ${executionId} was cancelled mid-flight. Disposing resources and skipping candidate persistence.`);
+      await executionKeyRegistry.killExecutionKey(executionId, "CANCELLED_BY_USER", userId);
+      if (persistToDb) {
+        await executionLifecycleManager.transitionState(executionId, "STOPPED", {
+          totalFound: 0,
+          stoppingReason: "CANCELLED_BY_USER",
+          cancellationRequested: true,
+          completedAt: new Date(),
+        }).catch((err) => {
+          console.warn(`[SearchWorker] Cancelled transition warning for ${executionId}:`, err);
+        });
+        await prisma.searchResult.deleteMany({ where: { searchId: executionId } }).catch(() => {});
+      }
+
+      await emitStageEvent("cancelled", {
+        reason: "CANCELLED_BY_USER",
+        verifiedCount: 0,
+        requestedCount,
+        status: "STOPPED",
+        stoppingReason: "CANCELLED_BY_USER",
+        resultsCount: 0,
+      });
+
+      return {
+        success: false,
+        executionId,
+        status: "STOPPED",
+        verifiedCount: 0,
+        totalFound: 0,
+        reason: "CANCELLED_BY_USER",
+      };
+    }
 
     // 4. Database Persistence (Opportunities & Source Listings)
     let persistenceSaved = false;
     let persistedCount = 0;
 
-    if (persistToDb) {
+    if (persistToDb && !effectivelyCancelled) {
       try {
         for (const item of rankedOpportunities) {
+          if (
+            executionAbort.signal.aborted ||
+            executionKeyRegistry.isKeyRevoked(executionId) ||
+            Boolean((globalThis as any).__browserpilot_cancelled_executions?.has(executionId))
+          ) {
+            break;
+          }
           const opp = item.opportunity;
           const persistedOpp = await upsertOpportunity({
             canonicalHash: opp.canonicalHash,
@@ -207,17 +287,55 @@ export async function processSearchDiscoveryJob(job: Job<SearchDiscoveryJobPaylo
       }
     }
 
+    const finalCancelled =
+      effectivelyCancelled ||
+      executionAbort.signal.aborted ||
+      executionKeyRegistry.isKeyRevoked(executionId) ||
+      Boolean((globalThis as any).__browserpilot_cancelled_executions?.has(executionId));
+
+    if (finalCancelled) {
+      console.log(`[SearchWorker] Job ${executionId} was cancelled during or after harness execution. Disposing resources and purging candidates.`);
+      await executionKeyRegistry.killExecutionKey(executionId, "CANCELLED_BY_USER", userId);
+      if (persistToDb) {
+        await executionLifecycleManager.transitionState(executionId, "STOPPED", {
+          totalFound: 0,
+          stoppingReason: "CANCELLED_BY_USER",
+          cancellationRequested: true,
+          completedAt: new Date(),
+        }).catch((err) => {
+          console.warn(`[SearchWorker] Cancelled transition warning for ${executionId}:`, err);
+        });
+        await prisma.searchResult.deleteMany({ where: { searchId: executionId } }).catch(() => {});
+      }
+
+      await emitStageEvent("cancelled", {
+        reason: "CANCELLED_BY_USER",
+        verifiedCount: 0,
+        requestedCount,
+        status: "STOPPED",
+        stoppingReason: "CANCELLED_BY_USER",
+        resultsCount: 0,
+      });
+
+      return {
+        success: false,
+        executionId,
+        status: "STOPPED",
+        verifiedCount: 0,
+        totalFound: 0,
+        reason: "CANCELLED_BY_USER",
+      };
+    }
+
     const verifiedCount = rankedOpportunities.length;
     const effectiveRequestedCount = canonicalIntent.requestedCount || requestedCount;
     const isComplete = verifiedCount >= effectiveRequestedCount;
     const isPartial = verifiedCount > 0 && verifiedCount < effectiveRequestedCount;
 
-    const status = effectivelyCancelled ? "STOPPED" : isComplete ? "COMPLETED" : isPartial ? "PARTIAL" : "COMPLETED";
+    const status = isComplete ? "COMPLETED" : isPartial ? "PARTIAL" : "COMPLETED";
 
     let stoppingReason = "TARGET_SATISFIED";
-    if (effectivelyCancelled) {
-      stoppingReason = "CANCELLED";
-    } else if (isComplete) {
+    if (isComplete) {
       stoppingReason = "TARGET_SATISFIED";
     } else if (isPartial) {
       stoppingReason = correctionResult?.stoppingReason || "EXHAUSTED";
@@ -227,11 +345,10 @@ export async function processSearchDiscoveryJob(job: Job<SearchDiscoveryJobPaylo
 
     // 5. Update Search Record in PostgreSQL
     if (persistToDb) {
-      const dbStatus = effectivelyCancelled ? "STOPPED" : "COMPLETED";
-      await executionLifecycleManager.transitionState(executionId, dbStatus as any, {
+      await executionLifecycleManager.transitionState(executionId, "COMPLETED" as any, {
         totalFound: verifiedCount,
         stoppingReason,
-        cancellationRequested: effectivelyCancelled,
+        cancellationRequested: false,
         completedAt: new Date(),
       }).catch((err) => {
         console.warn(`[SearchWorker] Final state transition warning for ${executionId}:`, err);
@@ -239,7 +356,7 @@ export async function processSearchDiscoveryJob(job: Job<SearchDiscoveryJobPaylo
     }
 
     // 6. Emit Completion / Final Event to SSE
-    await emitStageEvent(effectivelyCancelled ? "cancelled" : "complete", {
+    await emitStageEvent("complete", {
       verifiedCount,
       requestedCount: effectiveRequestedCount,
       status,
@@ -250,7 +367,7 @@ export async function processSearchDiscoveryJob(job: Job<SearchDiscoveryJobPaylo
     console.log(`[SearchWorker] Job ${executionId} finished successfully with ${verifiedCount} opportunities (status: ${status})`);
 
     return {
-      success: !effectivelyCancelled,
+      success: true,
       executionId,
       status,
       verifiedCount,
@@ -259,12 +376,21 @@ export async function processSearchDiscoveryJob(job: Job<SearchDiscoveryJobPaylo
   } catch (err: unknown) {
     console.error(`[SearchWorker] Execution error for job ${executionId}:`, err);
     const failure = classifySearchFailure(err, { operation: "processSearchDiscoveryJob" });
-    const isCancelled = failure.category === "CANCELLED" || executionAbort.signal.aborted;
+    const isCancelled = failure.category === "CANCELLED" ||
+      executionAbort.signal.aborted ||
+      executionKeyRegistry.isKeyRevoked(executionId) ||
+      Boolean((globalThis as any).__browserpilot_cancelled_executions?.has(executionId));
 
     const finalState = isCancelled ? "STOPPED" : "FAILED";
+    if (isCancelled) {
+      await executionKeyRegistry.killExecutionKey(executionId, "CANCELLED_BY_USER", userId);
+      await prisma.searchResult.deleteMany({ where: { searchId: executionId } }).catch(() => {});
+    }
     await executionLifecycleManager.transitionState(executionId, finalState, {
       failureReason: failure.userMessage,
-      stoppingReason: isCancelled ? "CANCELLED" : "FAILURE",
+      stoppingReason: isCancelled ? "CANCELLED_BY_USER" : "FAILURE",
+      totalFound: 0,
+      cancellationRequested: isCancelled,
       completedAt: new Date(),
     }).catch(() => {});
 

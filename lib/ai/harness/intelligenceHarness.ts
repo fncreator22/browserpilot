@@ -34,6 +34,9 @@ import { rankOpportunities } from "@/lib/scraper/ranker";
 import { evidenceVerificationEngine } from "@/lib/ai/evidence";
 import { correctionLoopController } from "./correction";
 import { globalVerificationSandbox, type VerificationRequest } from "@/lib/ai/verification";
+import { executionKeyRegistry } from "@/lib/discovery/execution/executionKeyRegistry";
+import { executeDeepReachScan } from "@/lib/discovery/deepreach/deepReachService";
+import { type RawJobCandidate } from "@/lib/scraper/providers/baseProvider";
 
 import {
   classifySearchFailure,
@@ -59,8 +62,20 @@ export class IntelligenceHarness {
       stageTimings[stage] = duration;
     };
 
+    const checkCancelled = (): boolean => {
+      if (options.signal?.aborted) return true;
+      const targetId = options.executionId || harnessId;
+      if (targetId) {
+        if (executionKeyRegistry.isKeyRevoked(targetId)) return true;
+        if ((globalThis as any).__browserpilot_cancelled_executions?.has(targetId)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
     // Pre-flight cancellation check
-    if (options.signal?.aborted) {
+    if (checkCancelled()) {
       const abortContext: HarnessContext = {
         harnessId,
         userId,
@@ -118,22 +133,25 @@ export class IntelligenceHarness {
       apiKey: options.apiKey,
       puterToken: options.puterToken,
       filterOverrides: options.explicitFilters,
-      signal: options.signal,
     });
+    recordStage("INTENT", Date.now() - tIntentStart);
+
     const explicitConstraints = {
       roles: parsedIntent.roles || (parsedIntent.role ? [parsedIntent.role] : []),
       locations: parsedIntent.locations || (parsedIntent.location ? [parsedIntent.location] : []),
       workModes: parsedIntent.workModes || (parsedIntent.workMode ? [parsedIntent.workMode] : []),
       freshnessWindowHours: parsedIntent.freshnessWindowHours,
       postedWithinDays: parsedIntent.postedWithinDays,
-      requestedCount: parsedIntent.requestedCount || 10,
+      requestedCount: parsedIntent.requestedCount || 6,
       isExplicitFreshness: parsedIntent.isExplicitFreshness,
       targetCompanies: parsedIntent.companies || (parsedIntent.company ? [parsedIntent.company] : []),
     };
-    recordStage("INTENT", Date.now() - tIntentStart);
+    if (typeof options.maxResultsBudget === "number" && options.maxResultsBudget > 0) {
+      explicitConstraints.requestedCount = Math.min(explicitConstraints.requestedCount, options.maxResultsBudget);
+    }
 
     // Cancellation check after intent
-    if (options.signal?.aborted) {
+    if (checkCancelled()) {
       const abortContext: HarnessContext = {
         harnessId,
         userId,
@@ -244,6 +262,28 @@ export class IntelligenceHarness {
       },
     };
 
+    const makeCancelledResult = (rationale: string): HarnessResult => {
+      context.currentStage = "FAILED";
+      context.telemetry.status = "CANCELLED";
+      context.telemetry.terminalState = "CANCELLED";
+      context.telemetry.errorCategory = "CANCELLED";
+      return {
+        harnessId,
+        success: false,
+        rankedOpportunities: [],
+        context,
+        telemetry: context.telemetry,
+        decision: {
+          outcome: "PARTIAL",
+          rationale,
+          verifiedCount: 0,
+          requestedCount: explicitConstraints.requestedCount,
+          canContinue: false,
+          userExplanation: "Search execution was cancelled.",
+        },
+      };
+    };
+
     // -------------------------------------------------------------------------
     // STAGE 3: PLAN & VALIDATE PLAN
     // -------------------------------------------------------------------------
@@ -289,26 +329,8 @@ export class IntelligenceHarness {
     }
 
     // Check cancellation before planning
-    if (options.signal?.aborted) {
-      context.currentStage = "FAILED";
-      context.telemetry.status = "CANCELLED";
-      context.telemetry.terminalState = "CANCELLED";
-      context.telemetry.errorCategory = "CANCELLED";
-      return {
-        harnessId,
-        success: false,
-        rankedOpportunities: [],
-        context,
-        telemetry: context.telemetry,
-        decision: {
-          outcome: "PARTIAL",
-          rationale: "Execution cancelled before plan generation.",
-          verifiedCount: 0,
-          requestedCount: explicitConstraints.requestedCount,
-          canContinue: false,
-          userExplanation: "Search execution was cancelled.",
-        },
-      };
+    if (checkCancelled()) {
+      return makeCancelledResult("Execution cancelled before plan generation.");
     }
 
     // Generate Typed Search Action Plan using SearchPlanner & BrainContext (TASK-050 & TASK-063)
@@ -333,26 +355,8 @@ export class IntelligenceHarness {
         correlationId,
       });
 
-      if (options.signal?.aborted || failure.category === "CANCELLED") {
-        context.currentStage = "FAILED";
-        context.telemetry.status = "CANCELLED";
-        context.telemetry.terminalState = "CANCELLED";
-        context.telemetry.errorCategory = "CANCELLED";
-        return {
-          harnessId,
-          success: false,
-          rankedOpportunities: [],
-          context,
-          telemetry: context.telemetry,
-          decision: {
-            outcome: "PARTIAL",
-            rationale: "Execution cancelled during search planning.",
-            verifiedCount: 0,
-            requestedCount: explicitConstraints.requestedCount,
-            canContinue: false,
-            userExplanation: "Search execution was cancelled.",
-          },
-        };
+      if (checkCancelled() || failure.category === "CANCELLED") {
+        return makeCancelledResult("Execution cancelled during search planning.");
       }
 
       context.telemetry.modelFailures = (context.telemetry.modelFailures || 0) + 1;
@@ -458,26 +462,8 @@ export class IntelligenceHarness {
     }
 
     // Check cancellation signal before execution begins
-    if (options.signal?.aborted) {
-      context.currentStage = "FAILED";
-      context.telemetry.status = "CANCELLED";
-      context.telemetry.terminalState = "CANCELLED";
-      context.telemetry.errorCategory = "CANCELLED";
-      return {
-        harnessId,
-        success: false,
-        rankedOpportunities: [],
-        context,
-        telemetry: context.telemetry,
-        decision: {
-          outcome: "PARTIAL",
-          rationale: "Execution cancelled before execution stage.",
-          verifiedCount: 0,
-          requestedCount: explicitConstraints.requestedCount,
-          canContinue: false,
-          userExplanation: "Search execution was cancelled.",
-        },
-      };
+    if (checkCancelled()) {
+      return makeCancelledResult("Execution cancelled before execution stage.");
     }
 
     // -------------------------------------------------------------------------
@@ -544,6 +530,10 @@ export class IntelligenceHarness {
 
     // Safety fallback: if no candidates harvested by individual actions, run discovery search pipeline
     if (harvestedCandidates.length === 0) {
+      if (checkCancelled()) {
+        return makeCancelledResult("Execution cancelled before fallback harvest.");
+      }
+
       const discoveryPlan = buildDiscoveryPlan(rawQuery, {
         freshnessWindowHours: explicitConstraints.freshnessWindowHours,
         roles: explicitConstraints.roles,
@@ -555,6 +545,7 @@ export class IntelligenceHarness {
       const pipelineResult = await executeSearchPipeline(discoveryPlan as any, {
         userId,
         rawQuery,
+        executionId: options.executionId || harnessId,
         persistToDb: false,
         maxResults: explicitConstraints.requestedCount,
         customProviders: options.customProviders,
@@ -587,11 +578,99 @@ export class IntelligenceHarness {
       context.telemetry.toolsExecuted.push("discovery.search_pipeline");
     }
 
+    // -------------------------------------------------------------------------
+    // R1: Cross-Platform Social Media Discovery (DeepReach: X, Reddit, YouTube, LinkedIn)
+    // -------------------------------------------------------------------------
+    if (!checkCancelled() && (!options.customProviders || options.customProviders.length === 0)) {
+      try {
+        options.onStageTransition?.("deepreach", { label: "Scouting Social Channels (Reddit, X, YouTube, LinkedIn)" });
+        const tDeepReachStart = Date.now();
+
+        const harvestedCompanyNames = Array.from(
+          new Set(
+            harvestedCandidates
+              .map((c) => c.companyName)
+              .filter((c): c is string => Boolean(c && c.length >= 2 && !c.toLowerCase().includes("unknown")))
+          )
+        ).slice(0, 2);
+
+        const targetCompaniesToScan = explicitConstraints.targetCompanies && explicitConstraints.targetCompanies.length > 0
+          ? explicitConstraints.targetCompanies.slice(0, 2)
+          : (contextualIntent.companies && contextualIntent.companies.length > 0
+            ? contextualIntent.companies.slice(0, 2)
+            : (harvestedCompanyNames.length > 0
+              ? harvestedCompanyNames
+              : ["Stripe", "OpenAI"]));
+
+        const primaryRole = explicitConstraints.roles[0] || "Software Engineer";
+
+        // Query DeepReach across target companies in parallel with error isolation
+        const deepReachScans = await Promise.allSettled(
+          targetCompaniesToScan.map((company) =>
+            executeDeepReachScan({
+              companyName: company,
+              roleTitle: primaryRole,
+              skills: contextualIntent.skills,
+              maxCandidates: 5,
+              includeRecruiters: true,
+              timeoutMs: 5000,
+              checkLiveness: false, // will be verified unified in Stage 5
+            })
+          )
+        );
+
+        let totalSocialHarvested = 0;
+        for (const scanRes of deepReachScans) {
+          if (scanRes.status === "fulfilled" && scanRes.value) {
+            const deepResult = scanRes.value;
+            for (const deepJob of deepResult.jobs || []) {
+              const platformKey = deepJob.sourcePlatform === "TWITTER" ? "X" : deepJob.sourcePlatform;
+              const socialCandidate: RawJobCandidate = {
+                sourcePlatform: platformKey,
+                sourceUrl: deepJob.sourceUrl || deepJob.applyUrl,
+                applyUrl: deepJob.applyUrl,
+                externalJobId: `dr_${Math.random().toString(36).slice(2, 9)}`,
+                title: deepJob.title,
+                companyName: deepJob.companyName,
+                location: deepJob.location || "Remote",
+                workMode: deepJob.workMode || "REMOTE",
+                opportunityType: "FULL_TIME",
+                description: deepJob.description || `${deepJob.title} opportunity discovered on ${platformKey}`,
+                rawSnippet: deepJob.description,
+                discoveredAt: new Date(),
+                postedAt: new Date(),
+              };
+              harvestedCandidates.push(socialCandidate);
+              totalSocialHarvested++;
+            }
+          }
+        }
+
+        if (totalSocialHarvested > 0) {
+          context.toolExecutions.push({
+            toolName: "discovery.deepreach",
+            status: "SUCCESS",
+            durationMs: Date.now() - tDeepReachStart,
+            inputPayload: { companies: targetCompaniesToScan, role: primaryRole },
+            outputSummary: `DeepReach harvested ${totalSocialHarvested} social opportunities across Reddit, X, YouTube, and LinkedIn.`,
+            candidatesHarvested: totalSocialHarvested,
+            rawCandidates: [],
+          });
+          context.telemetry.toolsExecuted.push("discovery.deepreach");
+        }
+      } catch (deepReachErr) {
+        console.warn("[IntelligenceHarness] DeepReach social scan warning:", deepReachErr);
+      }
+    }
+
     recordStage("EXECUTE", Date.now() - tExecStart);
 
     // -------------------------------------------------------------------------
     // STAGE 5: VERIFY & EVIDENCE QUALITY GATE EVALUATION (TASK-051)
     // -------------------------------------------------------------------------
+    if (checkCancelled()) {
+      return makeCancelledResult("Execution cancelled before verification stage.");
+    }
     options.onStageTransition?.("verify", { label: "Verifying URLs" });
     const tVerifyStart = Date.now();
     context.currentStage = "VERIFY";
@@ -639,6 +718,9 @@ export class IntelligenceHarness {
     // -------------------------------------------------------------------------
     // STAGE 6: DECIDE & AUTONOMOUS CORRECTION LOOP (TASK-052)
     // -------------------------------------------------------------------------
+    if (checkCancelled()) {
+      return makeCancelledResult("Execution cancelled before correction loop.");
+    }
     options.onStageTransition?.("rank", { label: "Scoring & Ranking" });
     const tDecideStart = Date.now();
     context.currentStage = "DECIDE";
@@ -647,8 +729,12 @@ export class IntelligenceHarness {
     let finalRanked = ranked;
     let finalEligibleCandidates = eligibleCandidates;
 
-    // Enter autonomous correction loop if initial search produced a shortfall
-    if (finalEligibleCandidates.length < requestedCount && !options.dryRunPlanOnly) {
+    // Enter autonomous correction loop if initial search produced a shortfall (< 5 or < requestedCount)
+    if ((finalEligibleCandidates.length < requestedCount || finalEligibleCandidates.length < 5) && !options.dryRunPlanOnly) {
+      if (checkCancelled()) {
+        return makeCancelledResult("Execution cancelled before correction loop iteration.");
+      }
+
       const loopRes = await correctionLoopController.runLoop(
         harvestedCandidates,
         batchVerification.verificationResults,
@@ -675,7 +761,7 @@ export class IntelligenceHarness {
     const terminalEval = evaluateSearchTerminalState({
       verifiedCount,
       requestedCount,
-      isCancelled: options.signal?.aborted || context.telemetry.status === "CANCELLED",
+      isCancelled: checkCancelled() || context.telemetry.status === "CANCELLED",
       isFailed: context.telemetry.status === "FAILED",
     });
 
@@ -695,14 +781,22 @@ export class IntelligenceHarness {
     context.decision = decision;
     recordStage("DECIDE", Date.now() - tDecideStart);
 
+    if (checkCancelled()) {
+      return makeCancelledResult("Execution cancelled before completion.");
+    }
+
     // Finalize Telemetry & Status
     const totalDurationMs = Date.now() - startTime;
+    const isCancelled = checkCancelled() || options.signal?.aborted || context.telemetry.status === "CANCELLED";
+    if (isCancelled) {
+      return makeCancelledResult("Execution cancelled before completion.");
+    }
+
     context.currentStage = "COMPLETE";
     options.onStageTransition?.("complete", { label: "Complete", count: finalRanked.length });
     context.telemetry.totalDurationMs = totalDurationMs;
-    const isCancelled = options.signal?.aborted || context.telemetry.status === "CANCELLED";
-    context.telemetry.status = isCancelled ? "CANCELLED" : verifiedCount > 0 ? "SUCCESS" : "PARTIAL";
-    context.telemetry.terminalState = isCancelled ? "CANCELLED" : terminalEval.terminalState;
+    context.telemetry.status = verifiedCount > 0 ? "SUCCESS" : "PARTIAL";
+    context.telemetry.terminalState = terminalEval.terminalState;
 
     // Deep secret-safe sanitization
     const sanitizedTelemetry = sanitizeSearchTelemetry(context.telemetry);

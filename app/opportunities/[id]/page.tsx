@@ -30,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InfoBadge } from "@/components/ui/info-badge";
 import { OpportunityActionToolbar } from "@/components/result/opportunity-action-toolbar";
-import { getAtsSourceInfo } from "@/components/result/job-dossier-deck";
+import { getAtsSourceInfo } from "@/lib/ats/atsSourceInfo";
 import type { PipelineStage } from "@/app/app/saved/page";
 
 export const dynamic = "force-dynamic";

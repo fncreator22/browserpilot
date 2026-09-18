@@ -171,54 +171,70 @@ export async function upsertPuterConnection(
     throw new Error("INVALID_PUTER_USERNAME: Username is required.");
   }
 
+  // Verify that the user actually exists in the database to prevent P2003 foreign key constraint errors
+  const userExists = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+  if (!userExists) {
+    throw new Error(`USER_NOT_FOUND: User ${userId} does not exist in database.`);
+  }
+
   const encryptedToken = input.token ? encryptCredential(input.token) : null;
   const maskedToken = input.token ? maskCredential(input.token) : null;
 
-  const record = await prisma.providerConnection.upsert({
-    where: {
-      userId_provider: {
+  try {
+    const record = await prisma.providerConnection.upsert({
+      where: {
+        userId_provider: {
+          userId,
+          provider: "PUTER",
+        },
+      },
+      create: {
         userId,
         provider: "PUTER",
+        connectionMethod: "PUTER_OAUTH",
+        status: "CONNECTED",
+        providerUsername: cleanUsername,
+        maskedCredential: maskedToken,
+        encryptedCredential: encryptedToken,
+        lastVerifiedAt: new Date(),
+        lastVerificationStatus: "VALID",
+        metadata: JSON.stringify(input.metadata || {}),
       },
-    },
-    create: {
-      userId,
-      provider: "PUTER",
-      connectionMethod: "PUTER_OAUTH",
-      status: "CONNECTED",
-      providerUsername: cleanUsername,
-      maskedCredential: maskedToken,
-      encryptedCredential: encryptedToken,
-      lastVerifiedAt: new Date(),
-      lastVerificationStatus: "VALID",
-      metadata: JSON.stringify(input.metadata || {}),
-    },
-    update: {
-      status: "CONNECTED",
-      providerUsername: cleanUsername,
-      ...(encryptedToken ? { encryptedCredential: encryptedToken, maskedCredential: maskedToken } : {}),
-      lastVerifiedAt: new Date(),
-      lastVerificationStatus: "VALID",
-      metadata: JSON.stringify(input.metadata || {}),
-      updatedAt: new Date(),
-    },
-  });
+      update: {
+        status: "CONNECTED",
+        providerUsername: cleanUsername,
+        ...(encryptedToken ? { encryptedCredential: encryptedToken, maskedCredential: maskedToken } : {}),
+        lastVerifiedAt: new Date(),
+        lastVerificationStatus: "VALID",
+        metadata: JSON.stringify(input.metadata || {}),
+        updatedAt: new Date(),
+      },
+    });
 
-  return {
-    id: record.id,
-    userId: record.userId,
-    provider: "PUTER",
-    connectionMethod: record.connectionMethod,
-    status: record.status as ProviderStatus,
-    providerUsername: record.providerUsername,
-    maskedCredential: record.maskedCredential,
-    lastVerifiedAt: record.lastVerifiedAt,
-    lastVerificationStatus: record.lastVerificationStatus,
-    usageAvailability: "AVAILABLE_VIA_PUTER",
-    metadata: input.metadata || {},
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
-  };
+    return {
+      id: record.id,
+      userId: record.userId,
+      provider: "PUTER",
+      connectionMethod: record.connectionMethod,
+      status: record.status as ProviderStatus,
+      providerUsername: record.providerUsername,
+      maskedCredential: record.maskedCredential,
+      lastVerifiedAt: record.lastVerifiedAt,
+      lastVerificationStatus: record.lastVerificationStatus,
+      usageAvailability: "AVAILABLE_VIA_PUTER",
+      metadata: input.metadata || {},
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
+  } catch (err: any) {
+    if (err.code === "P2003" || err.message?.includes("P2003") || err.message?.includes("Foreign key constraint")) {
+      throw new Error(`USER_NOT_FOUND: Foreign key constraint violation for user ${userId}.`);
+    }
+    throw err;
+  }
 }
 
 /**

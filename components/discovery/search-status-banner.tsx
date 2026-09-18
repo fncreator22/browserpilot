@@ -72,8 +72,11 @@ export function SearchStatusBanner({
   isPuterAuthenticating,
   className = "",
 }: SearchStatusBannerProps) {
+  const upperStatus = (status || "").toUpperCase();
+  const upperErrorCode = (errorCode || "").toUpperCase();
+
   // Case 0: MODEL_CONFIGURATION_REQUIRED (Strict AI mode enforcement)
-  if (errorCode === "MODEL_CONFIGURATION_REQUIRED" || status === "MODEL_CONFIGURATION_REQUIRED") {
+  if (upperErrorCode === "MODEL_CONFIGURATION_REQUIRED" || upperStatus === "MODEL_CONFIGURATION_REQUIRED") {
     return (
       <div className={`rounded-xl border border-amber-500/40 bg-amber-500/10 p-5 space-y-4 ${className}`}>
         <div className="flex items-start gap-3.5">
@@ -133,8 +136,9 @@ export function SearchStatusBanner({
       </div>
     );
   }
+
   // Case 1: Unauthorized 401
-  if (errorCode === "UNAUTHORIZED" || status === "UNAUTHORIZED") {
+  if (upperErrorCode === "UNAUTHORIZED" || upperStatus === "UNAUTHORIZED") {
     return (
       <div className={`rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-3 ${className}`}>
         <div className="flex items-start gap-3">
@@ -157,7 +161,7 @@ export function SearchStatusBanner({
   }
 
   // Case 2: COMPLETE or NO_RESULTS with 0 verifiedCount
-  if (status === "COMPLETE" && verifiedCount === 0) {
+  if ((upperStatus === "COMPLETE" || upperStatus === "COMPLETED" || upperStatus === "NO_RESULTS") && verifiedCount === 0) {
     return (
       <div className={`rounded-xl border border-border/80 bg-card p-6 text-center space-y-3 ${className}`}>
         <div className="flex justify-center">
@@ -181,8 +185,8 @@ export function SearchStatusBanner({
     );
   }
 
-  // Case 2b: COMPLETE with verifiedCount > 0
-  if (status === "COMPLETE") {
+  // Case 2b: COMPLETE / COMPLETED with verifiedCount > 0
+  if (upperStatus === "COMPLETE" || upperStatus === "COMPLETED") {
     return (
       <div className={`rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 space-y-2 ${className}`}>
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -210,7 +214,7 @@ export function SearchStatusBanner({
   }
 
   // Case 3: PARTIAL (0 < verifiedCount < requestedCount)
-  if (status === "PARTIAL") {
+  if (upperStatus === "PARTIAL") {
     const shortfall = Math.max(0, (requestedCount || 0) - verifiedCount);
     const friendlyReason = formatStoppingReason(stoppingReason);
 
@@ -244,8 +248,8 @@ export function SearchStatusBanner({
     );
   }
 
-  // Case 4: NO_RESULTS
-  if (status === "NO_RESULTS") {
+  // Case 4: NO_RESULTS fallback
+  if (upperStatus === "NO_RESULTS") {
     return (
       <div className={`rounded-xl border border-border/80 bg-card p-6 text-center space-y-3 ${className}`}>
         <div className="flex justify-center">
@@ -270,7 +274,7 @@ export function SearchStatusBanner({
   }
 
   // Case 5: FAILED / Error
-  if (status === "FAILED") {
+  if (upperStatus === "FAILED" || upperStatus === "ERROR") {
     return (
       <div className={`rounded-xl border border-destructive/30 bg-destructive/10 p-4 space-y-3 ${className}`}>
         <div className="flex items-start justify-between gap-3">
@@ -281,6 +285,9 @@ export function SearchStatusBanner({
               <p className="text-xs text-muted-foreground font-sans">
                 {explanation || "An unexpected error occurred during search execution. Please verify your query and try again."}
               </p>
+              <div className="pt-1 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+                <span>Suggestions: Check keywords, verify internet connectivity, or retry below.</span>
+              </div>
             </div>
           </div>
           {onRetry && (
@@ -299,18 +306,27 @@ export function SearchStatusBanner({
     );
   }
 
-  // Case 6: CANCELLED
-  if (status === "CANCELLED") {
+  // Case 6: STOPPED or CANCELLED
+  if (upperStatus === "STOPPED" || upperStatus === "CANCELLED") {
+    const friendlyReason = formatStoppingReason(stoppingReason);
     return (
       <div className={`rounded-xl border border-muted-foreground/30 bg-muted/20 p-4 space-y-3 ${className}`}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-2.5">
             <Clock className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <h4 className="text-xs font-semibold text-foreground font-sans">Search Cancelled</h4>
+              <h4 className="text-xs font-semibold text-foreground font-sans">
+                {upperStatus === "STOPPED" ? "Search Stopped" : "Search Cancelled"}
+              </h4>
               <p className="text-xs text-muted-foreground font-sans">
-                {explanation || "Search execution was cancelled. Resources have been safely released."}
+                {explanation || `Search stopped: ${friendlyReason}. Resources have been safely released.`}
               </p>
+              <div className="pt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground font-sans">
+                <span>Actionable suggestions:</span>
+                <span className="px-1.5 py-0.5 rounded bg-muted/80 text-foreground font-medium">Re-run query</span>
+                <span className="px-1.5 py-0.5 rounded bg-muted/80 text-foreground font-medium">Widen date boundary</span>
+                <span className="px-1.5 py-0.5 rounded bg-muted/80 text-foreground font-medium">Try remote search</span>
+              </div>
             </div>
           </div>
           {onRetry && (
@@ -329,5 +345,55 @@ export function SearchStatusBanner({
     );
   }
 
-  return null;
+  // Case 7: Default fallback (Never render null if status is present)
+  if (status) {
+    return (
+      <div className={`rounded-xl border border-border/80 bg-card p-4 space-y-2 ${className}`}>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5">
+            <Info className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-xs sm:text-sm font-medium text-foreground">
+              {explanation || `Discovery completed with status: ${status}.`}
+            </span>
+          </div>
+          {onRetry && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRetry}
+              className="h-7 font-sans font-medium text-xs gap-1 cursor-pointer"
+            >
+              <RotateCw className="h-3 w-3" />
+              Restart Search
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Case 8: Zero-void fallback (Never render null when SearchStatusBanner is mounted)
+  return (
+    <div className={`rounded-xl border border-border/80 bg-card p-4 space-y-2 ${className}`}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5">
+          <Info className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="text-xs sm:text-sm font-medium text-foreground">
+            {explanation || (verifiedCount === 0 ? "No verified opportunities found matching criteria." : `Found ${verifiedCount} verified opportunities.`)}
+          </span>
+        </div>
+        {onRetry && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRetry}
+            className="h-7 font-sans font-medium text-xs gap-1 cursor-pointer"
+          >
+            <RotateCw className="h-3 w-3" />
+            Restart Search
+          </Button>
+        )}
+      </div>
+    </div>
+  );
 }

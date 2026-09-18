@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { 
   Sparkles, 
   Search,
@@ -17,13 +17,19 @@ import {
   Square,
   AlertTriangle,
   SlidersHorizontal,
-  ImagePlus
+  ImagePlus,
+  Plus,
+  Mic,
+  MicOff,
+  Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { PromptEnhancer } from "@/components/prompt/prompt-enhancer";
 import { parseSearchIntent } from "@/lib/scraper/intentParser";
 import { toast } from "sonner";
+import { useSession } from "next-auth/react";
+import { useUIState } from "@/components/providers/ui-state-provider";
+import { SearchAccessGateModal } from "@/components/auth/search-access-gate-modal";
 
 export interface OpportunitySearchResultPayload {
   searchId: string;
@@ -75,9 +81,11 @@ interface TaskInputProps {
   isCompact?: boolean;
   hasSearchHistory?: boolean;
   isSearching?: boolean;
+  executionId?: string | null;
   onOpportunitySearchResult?: (result: OpportunitySearchResultPayload | null) => void;
   onSearchingChange?: (isSearching: boolean) => void;
   onExecutionQueued?: (executionId: string, query: string) => void;
+  onCancel?: () => void;
 }
 
 const PLACEHOLDER_IDEAS = [
@@ -118,63 +126,7 @@ const PRESET_TEMPLATES = [
   },
 ];
 
-export interface DetailedPromptPreset {
-  id: string;
-  category: string;
-  label: string;
-  prompt: string;
-  targetRole: string;
-  howItWorks: string;
-  backendAction: string;
-}
 
-export const DETAILED_PROMPTS: DetailedPromptPreset[] = [
-  {
-    id: "remote-ai-internships",
-    category: "Early Career & Internships",
-    label: "Remote AI Internships (2026 Batch)",
-    prompt: "Find remote AI and Machine Learning internships for 2026 graduates in India and US at high-growth startups.",
-    targetRole: "AI / ML Intern",
-    howItWorks: "Concurrently queries Greenhouse and Lever ATS boards for AI/ML student openings, filtering for 2026 graduation criteria and remote work mode.",
-    backendAction: "Direct ATS extraction -> Gemini intent parsing -> Truth gate verification -> Persistence to searches & opportunities tables.",
-  },
-  {
-    id: "yc-fullstack",
-    category: "Startup Engineering",
-    label: "YC Startup Full Stack Roles",
-    prompt: "Discover entry-level full stack and frontend engineering opportunities at Y Combinator companies with React and TypeScript.",
-    targetRole: "Full Stack Engineer",
-    howItWorks: "Targets Y Combinator portfolio company ATS endpoints for React/Next.js/Node roles, cross-referencing salary transparency minimums.",
-    backendAction: "ATS scraper swarm -> Multi-source deduplication -> Ghost job screening -> Ingestion to opportunity store.",
-  },
-  {
-    id: "data-analyst-fresh",
-    category: "Location & Freshness Focus",
-    label: "Data Analyst in Bengaluru (Last 48 Hours)",
-    prompt: "Find data analyst roles in Bengaluru posted in the last 48 hours with SQL and Python.",
-    targetRole: "Data Analyst",
-    howItWorks: "Applies hard freshness cutoffs (<= 48h) across Indian startup ATS endpoints, screening out stale reposts.",
-    backendAction: "Time-bounded discovery -> Posting date validation -> Fit score computation -> Instant notification alert.",
-  },
-  {
-    id: "lead-frontend-staff",
-    category: "Senior & Staff Roles",
-    label: "Lead / Staff Frontend (React & Next.js)",
-    prompt: "Search for lead or staff frontend engineer opportunities with React, Next.js, and TypeScript offering above $150,000.",
-    targetRole: "Lead Frontend Engineer",
-    howItWorks: "Extracts high-compensation senior engineering requisitions, parsing compensation bands and recruiter credentials.",
-    backendAction: "Recruiter personnel enrichment -> Salary range normalization -> Dossier compilation.",
-  },
-  {
-    id: "autonomous-watch-seed",
-    category: "Autonomous Intelligence",
-    label: "Autonomous Watch: Distributed Systems",
-    prompt: "Monitor Golang and Rust distributed systems engineer roles at Series A-C startups with remote work option.",
-    targetRole: "Distributed Systems Engineer",
-    howItWorks: "Instantiates a continuous background discovery watch that rescans ATS feeds every 4h and sends notification alerts when new matches appear.",
-    backendAction: "DiscoveryWatch scheduler registration -> BullMQ worker claiming -> Autonomous alert dispatch.",
-  },
-];
 
 export interface RecommendationItem {
   label: string;
@@ -189,13 +141,15 @@ export function TaskInput({
   isCompact = false,
   hasSearchHistory = false,
   isSearching = false,
+  executionId,
   onOpportunitySearchResult,
   onSearchingChange,
   onExecutionQueued,
+  onCancel,
 }: TaskInputProps) {
   const router = useRouter();
+  const shouldReduceMotion = useReducedMotion();
   const [prompt, setPrompt] = useState(initialPrompt);
-  const [showPrompts, setShowPrompts] = useState(false);
   const prevInitialPromptRef = useRef(initialPrompt);
 
   useEffect(() => {
@@ -214,11 +168,239 @@ export function TaskInput({
     return () => clearInterval(interval);
   }, []);
 
+  const { data: session } = useSession();
+  const { openProfileModal } = useUIState();
+  const [showAccessGate, setShowAccessGate] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isBusy = isSubmitting || Boolean(isSearching);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [attachedImage, setAttachedImage] = useState<{ base64: string; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // R2: Unified "+" Action Menu state
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const plusMenuRef = useRef<HTMLDivElement>(null);
+
+  // R3: Speech-to-Text Voice Recording & Audio Metering state (100% client-side)
+  const [isListening, setIsListening] = useState(false);
+  const isListeningRef = useRef(false);
+  const [audioLevel, setAudioLevel] = useState<number>(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const basePromptRef = useRef<string>("");
+  const recognitionRef = useRef<any>(null);
+
+  // Close plus menu on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(e.target as Node)) {
+        setShowPlusMenu(false);
+      }
+    }
+    if (showPlusMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showPlusMenu]);
+
+  // Clean up recognition on unmount
+  useEffect(() => {
+    return () => {
+      isListeningRef.current = false;
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {}
+      }
+    };
+  }, []);
+
+  const stopAudioTracking = () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      try {
+        audioContextRef.current.close();
+      } catch {}
+      audioContextRef.current = null;
+    }
+    setAudioLevel(0);
+  };
+
+  const startVoiceRecording = async () => {
+    const SpeechRecognition =
+      typeof window !== "undefined"
+        ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        : null;
+
+    if (!SpeechRecognition) {
+      toast.error("Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.");
+      return;
+    }
+
+    basePromptRef.current = prompt;
+
+    // Connect to Web Audio API for live loudness/softness audio metering
+    if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaStreamRef.current = stream;
+
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const audioCtx = new AudioCtx();
+          audioContextRef.current = audioCtx;
+          const source = audioCtx.createMediaStreamSource(stream);
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 256;
+          analyser.smoothingTimeConstant = 0.4;
+          source.connect(analyser);
+
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          const meterLoop = () => {
+            if (!isListeningRef.current) return;
+            analyser.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+              sum += dataArray[i];
+            }
+            const avg = sum / dataArray.length;
+            const normalized = Math.min(1, Math.max(0, avg / 65));
+            setAudioLevel((prev) => prev * 0.25 + normalized * 0.75);
+            animFrameRef.current = requestAnimationFrame(meterLoop);
+          };
+          animFrameRef.current = requestAnimationFrame(meterLoop);
+        }
+      } catch (mediaErr: any) {
+        console.warn("[TaskInput] Microphone audio permission denied:", mediaErr);
+        isListeningRef.current = false;
+        setIsListening(false);
+        stopAudioTracking();
+        toast.info("Microphone Access Needed", {
+          description: "Microphone permission was denied. Click the lock or site settings icon in your browser URL bar to allow microphone access, then try again.",
+        });
+        return;
+      }
+    }
+
+    try {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {}
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+
+      recognition.onresult = (event: any) => {
+        let finalSentence = "";
+        let interimSentence = "";
+
+        for (let i = 0; i < event.results.length; i++) {
+          const item = event.results[i];
+          const text = (item[0]?.transcript || "").trim();
+          if (!text) continue;
+
+          if (item.isFinal) {
+            finalSentence = finalSentence ? `${finalSentence} ${text}` : text;
+          } else {
+            interimSentence = interimSentence ? `${interimSentence} ${text}` : text;
+          }
+        }
+
+        const speechCombined = [finalSentence, interimSentence].filter(Boolean).join(" ").trim();
+        if (!speechCombined) return;
+        const base = basePromptRef.current.trim();
+        const nextPrompt = base
+          ? `${base} ${speechCombined}`
+          : speechCombined;
+
+        setPrompt(nextPrompt);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn("Speech recognition error:", event.error);
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          isListeningRef.current = false;
+          setIsListening(false);
+          stopAudioTracking();
+          toast.info("Microphone Permission Required", {
+            description: "Microphone access was denied. Click the lock icon in your browser URL bar to allow microphone permissions, then try again.",
+          });
+          return;
+        }
+        if (event.error !== "no-speech" && event.error !== "aborted") {
+          toast.error(`Speech recognition notice: ${event.error}`);
+          isListeningRef.current = false;
+          setIsListening(false);
+          stopAudioTracking();
+        }
+      };
+
+      recognition.onend = () => {
+        if (isListeningRef.current) {
+          setPrompt((currentPrompt) => {
+            basePromptRef.current = currentPrompt.trim();
+            return currentPrompt;
+          });
+          try {
+            recognition.start();
+          } catch {
+            isListeningRef.current = false;
+            setIsListening(false);
+            stopAudioTracking();
+          }
+        }
+      };
+
+      recognition.start();
+      recognitionRef.current = recognition;
+      isListeningRef.current = true;
+      setIsListening(true);
+    } catch (err: any) {
+      console.error("Failed to start speech recognition:", err);
+      isListeningRef.current = false;
+      setIsListening(false);
+      stopAudioTracking();
+      toast.error("Could not activate microphone. Please check browser permissions.");
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    isListeningRef.current = false;
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+    }
+    stopAudioTracking();
+    setIsListening(false);
+    setPrompt((current) => {
+      const clean = current.trim();
+      basePromptRef.current = clean;
+      return clean;
+    });
+    const textarea = document.getElementById("task-goal") as HTMLTextAreaElement | null;
+    textarea?.focus();
+  };
+
+  const toggleVoiceRecording = () => {
+    if (isListening) {
+      stopVoiceRecording();
+    } else {
+      startVoiceRecording();
+    }
+  };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData?.items;
@@ -324,11 +506,46 @@ export function TaskInput({
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentExecutionIdRef = useRef<string | null>(null);
 
+  useEffect(() => {
+    if (executionId) {
+      currentExecutionIdRef.current = executionId;
+    }
+  }, [executionId]);
+
+  // Immediate UI reset and controller abort upon search cancellation
+  useEffect(() => {
+    if (!isSearching) {
+      setIsSubmitting(false);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      currentExecutionIdRef.current = null;
+    }
+  }, [isSearching]);
+
+  useEffect(() => {
+    const handleCancelledEvent = () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      currentExecutionIdRef.current = null;
+      setIsSubmitting(false);
+      if (onSearchingChange) onSearchingChange(false);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("browserai:search-cancelled", handleCancelledEvent);
+      return () => {
+        window.removeEventListener("browserai:search-cancelled", handleCancelledEvent);
+      };
+    }
+  }, [onSearchingChange]);
+
   const handleCancelSearch = async () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    const execId = currentExecutionIdRef.current;
+    const execId = currentExecutionIdRef.current || executionId;
     if (execId) {
       try {
         await fetch("/api/search/cancel", {
@@ -338,13 +555,19 @@ export function TaskInput({
         });
       } catch {}
     }
+    currentExecutionIdRef.current = null;
     setIsSubmitting(false);
     if (onSearchingChange) onSearchingChange(false);
+    if (onOpportunitySearchResult) onOpportunitySearchResult(null);
+    if (onCancel) onCancel();
     toast.info("Search Cancelled", { description: "Search execution was cancelled by user request." });
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isListening) {
+      stopVoiceRecording();
+    }
     let text = prompt.trim();
     if (!text && !attachedImage) return;
 
@@ -359,6 +582,22 @@ export function TaskInput({
     const clientPuterToken = typeof window !== "undefined"
       ? (localStorage.getItem("puter.auth.token.v2") || (window as any).puter?.authToken || undefined)
       : undefined;
+
+    // Check for stored client BYOK keys
+    const localGeminiKey = typeof window !== "undefined"
+      ? (localStorage.getItem("browserpilot_gemini_key") || undefined)
+      : undefined;
+    const localDeepseekKey = typeof window !== "undefined"
+      ? (localStorage.getItem("browserpilot_deepseek_key") || undefined)
+      : undefined;
+
+    const hasAuthOrKey = Boolean(session?.user || clientPuterToken || localGeminiKey || localDeepseekKey);
+
+    // Pre-flight check: If no authenticated session and no AI keys configured, intercept with access gate modal
+    if (!hasAuthOrKey) {
+      setShowAccessGate(true);
+      return;
+    }
 
     // 1. If an image is attached, run DeepReach Vision Multi-Platform Discovery
     if (attachedImage) {
@@ -386,19 +625,6 @@ export function TaskInput({
           }),
         });
         const deepData = await deepRes.json();
-        if (!deepRes.ok && deepData.error === "UPGRADE_REQUIRED") {
-          toast.warning("DeepReach Pro Feature", {
-            description: "Cross-platform recruiter scouting and flyer scanning requires a Pro subscription.",
-            action: {
-              label: "Upgrade",
-              onClick: () => {
-                if (typeof window !== "undefined") {
-                  window.location.hash = "settings?tab=subscription";
-                }
-              },
-            },
-          });
-        }
 
         if (deepRes.ok && deepData.data) {
           // Listing Trust Advisory Toast for ghost jobs or undisclosed employers
@@ -465,26 +691,6 @@ export function TaskInput({
             setAttachedImage(null);
             // Fall through to mainline search
           }
-        } else if (deepData.error === "UPGRADE_REQUIRED") {
-          toast.warning("DeepReach Pro Feature", {
-            description: deepData.message || "DeepReach multi-platform intelligence is a Pro feature.",
-            action: {
-              label: "Upgrade Plan",
-              onClick: () => {
-                window.location.href = "/app#settings?tab=subscription";
-              },
-            },
-          });
-          setIsSubmitting(false);
-          if (onSearchingChange) onSearchingChange(false);
-          return;
-        } else if (deepData.error === "AI_CONFIGURATION_REQUIRED" || deepData.error === "AI_KEY_REQUIRED") {
-          toast.warning("AI Provider Required", {
-            description: "Connect Puter (free 1-click) or add a Gemini API key in Settings (Tab 1: AI Providers & Keys).",
-          });
-          setIsSubmitting(false);
-          if (onSearchingChange) onSearchingChange(false);
-          return;
         } else {
           toast.error(deepData.message || "DeepReach extraction failed");
           setIsSubmitting(false);
@@ -503,11 +709,17 @@ export function TaskInput({
     if (onSearchingChange) onSearchingChange(true);
     setSubmitError(null);
 
+    const clientExecutionId = `search_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    currentExecutionIdRef.current = clientExecutionId;
+    if (onExecutionQueued) {
+      onExecutionQueued(clientExecutionId, text);
+    }
+
     const abortCtrl = new AbortController();
     abortControllerRef.current = abortCtrl;
     const timeoutId = setTimeout(() => {
       abortCtrl.abort(new Error("Search timed out: Upstream ATS connectors took too long to respond. Try narrowing your query or retrying."));
-    }, 25000);
+    }, 300000);
 
     let searchHandedOffToQueue = false;
     try {
@@ -533,16 +745,21 @@ export function TaskInput({
 
       const res = await fetch("/api/search", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-execution-id": clientExecutionId,
+        },
         body: JSON.stringify({ 
+          executionId: clientExecutionId,
           query: text,
           filters: Object.keys(filters).length > 0 ? filters : undefined,
           puterToken: clientPuterToken,
+          allowDeterministicFallback: true,
         }),
         signal: abortCtrl.signal,
       });
 
-      const execIdHeader = res.headers.get("x-execution-id");
+      const execIdHeader = res.headers.get("x-execution-id") || clientExecutionId;
       if (execIdHeader) {
         currentExecutionIdRef.current = execIdHeader;
       }
@@ -554,25 +771,26 @@ export function TaskInput({
       }
 
       if (!res.ok) {
-        if (res.status === 401) {
-          if (onOpportunitySearchResult) {
-            onOpportunitySearchResult({
-              searchId: "",
-              status: "UNAUTHORIZED",
-              query: text,
-              errorCode: "UNAUTHORIZED",
-              explanation: data.message || "Authentication required. Please sign in to search.",
-              results: [],
-              metadata: { totalUniqueOpportunities: 0, returnedCount: 0, durationMs: 0, providersAttempted: 0, providersSucceeded: 0, explanation: "" },
-            });
-          }
-          throw new Error(data.message || "Authentication required to search opportunities. Please sign in.");
+        if (res.status === 401 || data.error === "AUTH_OR_KEY_REQUIRED") {
+          setShowAccessGate(true);
+          setIsSubmitting(false);
+          if (onSearchingChange) onSearchingChange(false);
+          toast.warning("Sign In or AI Key Required", {
+            description: "Please sign in or configure an AI API key to execute discovery searches.",
+          });
+          return;
         }
         if (res.status === 429) {
           toast.error(data.message || "Rate limit reached. Please wait a moment before trying again.");
           return;
         }
         if (res.status === 499) {
+          if (onOpportunitySearchResult) {
+            onOpportunitySearchResult(null);
+          }
+          if (onCancel) {
+            onCancel();
+          }
           return;
         }
         throw new Error(data.message || "Failed to execute opportunity discovery search.");
@@ -596,15 +814,15 @@ export function TaskInput({
         (window as any).__lastDeepReachContacts = undefined;
       }
 
-      if (onOpportunitySearchResult) {
-        onOpportunitySearchResult(data);
-      }
-
       if (data.status === "MODEL_CONFIGURATION_REQUIRED" || data.errorCode === "MODEL_CONFIGURATION_REQUIRED") {
         toast.warning("AI Provider Configuration Required", {
           description: "Connect free Puter AI or add your Gemini API key to run autonomous AI searches.",
         });
         return;
+      }
+
+      if (onOpportunitySearchResult) {
+        onOpportunitySearchResult(data);
       }
 
       const foundCount = data.metadata?.totalUniqueOpportunities ?? data.results?.length ?? 0;
@@ -657,14 +875,13 @@ export function TaskInput({
 
   return (
     <div className="w-full space-y-3">
-      {/* Omni-Command Bar Shell */}
       <form
         id="task-input-form"
         onSubmit={handleSubmit}
-        className={`max-w-3xl mx-auto rounded-2xl border bg-card p-3.5 sm:p-4 shadow-sm transition-all space-y-3 ${
+        className={`max-w-3xl mx-auto rounded-2xl border bg-card p-4 sm:p-5 shadow-marble-2 transition-all space-y-3 ${
           isBusy
-            ? "border-foreground/40 animate-glow-active shadow-md"
-            : "border-border/80 hover:border-foreground/30 focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20"
+            ? "border-primary/50 animate-glow-active shadow-marble-3"
+            : "border-border hover:border-primary/30 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
         }`}
       >
         {/* Textarea: Clean, borderless with dynamic rotating placeholder */}
@@ -673,13 +890,13 @@ export function TaskInput({
             Describe your career discovery query
           </label>
           {attachedImage && (
-            <div className="mb-2 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-300">
+            <div className="mb-2 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-xs text-primary">
               <span className="font-medium text-[11px]">DeepReach Vision:</span>
               <span className="font-mono text-[11px] truncate max-w-[180px]">{attachedImage.name}</span>
               <button
                 type="button"
                 onClick={() => setAttachedImage(null)}
-                className="p-0.5 hover:bg-emerald-200 dark:hover:bg-emerald-800 rounded cursor-pointer"
+                className="p-0.5 hover:bg-primary/20 rounded cursor-pointer"
                 title="Remove attachment"
               >
                 <X className="h-3 w-3" />
@@ -689,7 +906,17 @@ export function TaskInput({
           <Textarea
             id="task-goal"
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            readOnly={isListening}
+            onClick={() => {
+              if (isListening) {
+                stopVoiceRecording();
+              }
+            }}
+            onChange={(e) => {
+              const val = e.target.value;
+              setPrompt(val);
+              basePromptRef.current = val;
+            }}
             onPaste={handlePaste}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -697,9 +924,16 @@ export function TaskInput({
                 handleSubmit();
               }
             }}
-            placeholder={attachedImage ? "Add any additional context or hit Discover to parse image..." : PLACEHOLDER_IDEAS[placeholderIndex]}
+            placeholder={
+              isListening
+                ? "Listening to voice input... Click mic or text box to stop and edit."
+                : attachedImage
+                ? "Add any additional context or hit Discover to parse image..."
+                : PLACEHOLDER_IDEAS[placeholderIndex]
+            }
+            title={isListening ? "Listening... Click to stop recording and edit prompt" : undefined}
             rows={isCompact ? 2 : 3}
-            className="text-sm sm:text-base leading-relaxed placeholder:text-muted-foreground/50 resize-none min-h-[70px] focus:outline-none bg-transparent w-full p-0 border-0 shadow-none focus-visible:ring-0 font-sans"
+            className="text-sm sm:text-base leading-relaxed placeholder:text-muted-foreground/50 resize-none min-h-[70px] max-h-[160px] sm:max-h-[180px] overflow-y-auto focus:outline-none bg-transparent w-full p-0 border-0 shadow-none focus-visible:ring-0 font-sans"
           />
         </div>
 
@@ -722,21 +956,67 @@ export function TaskInput({
           </div>
         )}
 
+
         {/* Action Bar (Bottom of Textarea) */}
         <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
-          {/* Left Actions: Prompt Enhancer + Filters Toggle Button */}
+          {/* Left Actions: Unified Plus Menu + Filters + Voice Recording (R2 & R3) */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <PromptEnhancer
-              currentPrompt={prompt}
-              onApplyPrompt={(newP) => setPrompt(newP)}
-            />
+            {/* Unified "+" Action Menu */}
+            <div className="relative" ref={plusMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowPlusMenu(!showPlusMenu)}
+                aria-expanded={showPlusMenu}
+                aria-label="Add action or context"
+                className={`inline-flex items-center justify-center h-8 w-8 rounded-lg text-xs font-sans font-medium transition-colors cursor-pointer border ${
+                  showPlusMenu || attachedImage
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border-border"
+                }`}
+                title="Upload screenshot or media"
+              >
+                <Plus className={`h-4 w-4 transition-transform duration-200 ${showPlusMenu ? "rotate-45" : ""}`} />
+              </button>
+
+              <AnimatePresence>
+                {showPlusMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute left-0 bottom-full mb-2 w-56 rounded-xl border border-border bg-popover/95 backdrop-blur-md p-1.5 shadow-marble-2 z-50 flex flex-col gap-1 text-xs font-sans"
+                  >
+                    {/* Media / Screenshot Upload */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPlusMenu(false);
+                        fileInputRef.current?.click();
+                      }}
+                      className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left hover:bg-muted transition-colors text-foreground cursor-pointer group w-full"
+                    >
+                      <div className="p-1 rounded-md bg-primary/10 text-primary group-hover:bg-primary/20">
+                        <ImagePlus className="h-3.5 w-3.5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-xs leading-none">Upload Flyer / Screenshot</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">DeepReach Vision flyer parsing</div>
+                      </div>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Filters Toggle Button */}
             <button
               type="button"
               onClick={() => setShowRefine(!showRefine)}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-sans font-medium transition-colors cursor-pointer border ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-sans font-medium transition-colors cursor-pointer border ${
                 showRefine || hasActiveFilters
                   ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border-border/70"
+                  : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border-border"
               }`}
             >
               <SlidersHorizontal className="h-3.5 w-3.5 stroke-[1.75]" />
@@ -746,33 +1026,59 @@ export function TaskInput({
               )}
               {showRefine ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-sans font-medium transition-colors cursor-pointer border ${
-                attachedImage
-                  ? "bg-primary/10 text-primary border-primary/40"
-                  : "bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border-border/70"
-              }`}
-              title="Upload job flyer or screenshot (DeepReach Vision)"
-            >
-              <ImagePlus className="h-3.5 w-3.5 stroke-[1.75]" />
-              <span className="hidden sm:inline">Image</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowPrompts(!showPrompts)}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-sans font-medium transition-colors cursor-pointer border ${
-                showPrompts
-                  ? "bg-emerald-600 text-white border-emerald-500"
-                  : "bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border-border/70"
-              }`}
-              title="Toggle Curated Discovery Prompts"
-            >
-              <Sparkles className="h-3.5 w-3.5 stroke-[1.75]" />
-              <span className="hidden sm:inline">Prompts</span>
-              {showPrompts ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            </button>
+
+            {/* Speech-to-Text Microphone Button & Volume-Reactive Waveform */}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={toggleVoiceRecording}
+                aria-label={isListening ? "Stop voice recording" : "Record voice input"}
+                className={`inline-flex items-center justify-center h-8 w-8 rounded-lg text-xs font-sans font-medium transition-all cursor-pointer border ${
+                  isListening
+                    ? "bg-primary text-primary-foreground border-primary shadow-marble-1"
+                    : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border-border"
+                }`}
+                title={isListening ? "Stop recording (speaking writes to prompt directly)" : "Voice input (Speech to Text)"}
+              >
+                {isListening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5 stroke-[1.75]" />}
+              </button>
+
+              {/* Compact Dynamic Volume-Reactive Level Meter with 1-Click Stop & Save */}
+              {isListening && (
+                <button 
+                  type="button"
+                  onClick={stopVoiceRecording}
+                  className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/25 text-primary text-xs font-sans transition-all cursor-pointer animate-in fade-in-50 duration-200 shadow-xs"
+                  title="Click to stop recording and edit prompt"
+                >
+                  <div className="flex items-center gap-0.5 h-3.5">
+                    <span 
+                      className="w-1 bg-primary rounded-full transition-all duration-75" 
+                      style={{ height: `${Math.max(3, Math.min(14, audioLevel * 16 + 3))}px` }} 
+                    />
+                    <span 
+                      className="w-1 bg-primary rounded-full transition-all duration-75" 
+                      style={{ height: `${Math.max(4, Math.min(14, audioLevel * 22 + 4))}px` }} 
+                    />
+                    <span 
+                      className="w-1 bg-primary rounded-full transition-all duration-75" 
+                      style={{ height: `${Math.max(3, Math.min(14, audioLevel * 18 + 3))}px` }} 
+                    />
+                    <span 
+                      className="w-1 bg-primary rounded-full transition-all duration-75" 
+                      style={{ height: `${Math.max(2, Math.min(14, audioLevel * 12 + 2))}px` }} 
+                    />
+                  </div>
+                  <span className="text-[11px] font-medium hidden sm:inline">
+                    {audioLevel > 0.4 ? "Speaking..." : "Listening..."}
+                  </span>
+                  <span className="text-[10px] text-primary font-semibold ml-0.5 bg-primary/20 px-1.5 py-0.5 rounded">
+                    Stop & Edit
+                  </span>
+                </button>
+              )}
+            </div>
+
             <input
               ref={fileInputRef}
               type="file"
@@ -783,15 +1089,15 @@ export function TaskInput({
           </div>
 
           {/* Right Actions: Stop Search + Primary Discover Button */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {isBusy && (
               <Button
                 type="button"
                 variant="destructive"
                 onClick={handleCancelSearch}
-                className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl h-9 px-3 font-medium flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors text-xs font-sans"
+                className="bg-rose-600 hover:bg-rose-700 text-white rounded-lg h-9 px-2.5 sm:px-3 font-medium flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors text-xs font-sans shrink-0"
               >
-                <Square className="h-3.5 w-3.5 fill-current" />
+                <Square className="h-3 w-3 fill-current" />
                 <span>Stop</span>
               </Button>
             )}
@@ -799,12 +1105,12 @@ export function TaskInput({
             <Button
               type="submit"
               disabled={isBusy || (!prompt.trim() && !attachedImage)}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl h-9 px-4 font-semibold flex items-center gap-x-2 cursor-pointer shadow-xs transition-all disabled:opacity-50 text-xs sm:text-sm font-sans"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg h-9 px-3.5 sm:px-5 font-semibold flex items-center gap-x-1.5 sm:gap-x-2 cursor-pointer shadow-marble-1 transition-all disabled:opacity-50 text-xs sm:text-sm font-sans shrink-0"
             >
               {isBusy ? (
                 <>
                   <div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                  <span>Searching...</span>
+                  <span className="hidden sm:inline">Searching...</span>
                 </>
               ) : (
                 <>
@@ -820,10 +1126,10 @@ export function TaskInput({
         <AnimatePresence>
           {showRefine && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2, ease: "easeInOut" }}
+              initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, clipPath: "inset(0 0 100% 0)" }}
+              animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, clipPath: "inset(0 0 0% 0)" }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, clipPath: "inset(0 0 100% 0)" }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
               className="overflow-hidden"
             >
               <div className="pt-3 mt-1 border-t border-border/50 space-y-3 font-sans text-xs">
@@ -942,113 +1248,16 @@ export function TaskInput({
         </AnimatePresence>
       </form>
 
-      {/* Detailed Prompts Panel */}
-      <AnimatePresence>
-        {showPrompts && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.25, ease: "easeInOut" }}
-            className="max-w-3xl mx-auto overflow-hidden pt-2"
-          >
-            <div className="rounded-2xl border border-border/80 bg-card p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between pb-3 border-b border-border/60">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-sans font-bold text-foreground">Discovery Prompt Library</h3>
-                  <span className="text-[11px] font-mono text-muted-foreground hidden sm:inline">Explore prompts and system pipeline flow</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPrompts(false)}
-                  className="text-muted-foreground hover:text-foreground text-xs p-1 rounded-md cursor-pointer"
-                  aria-label="Close prompts"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
 
-              <div className="grid grid-cols-1 gap-3 max-h-[380px] overflow-y-auto pr-1">
-                {DETAILED_PROMPTS.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-3.5 rounded-xl border border-border/70 bg-background/60 hover:border-primary/40 transition-all space-y-2.5 shadow-2xs"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="space-y-0.5">
-                        <span className="text-[10px] font-mono text-primary font-semibold uppercase tracking-wider block">
-                          {item.category}
-                        </span>
-                        <h4 className="text-xs font-bold text-foreground">{item.label}</h4>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setPrompt(item.prompt);
-                            setShowPrompts(false);
-                            toast.success("Prompt loaded into search input");
-                          }}
-                          className="h-7 px-2.5 font-mono text-[11px] cursor-pointer"
-                        >
-                          Use Prompt
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => {
-                            setPrompt(item.prompt);
-                            setShowPrompts(false);
-                            handleSelectPreset({ label: item.label, goal: item.prompt });
-                          }}
-                          className="h-7 px-2.5 font-mono text-[11px] bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer shadow-xs"
-                        >
-                          Run Discovery
-                        </Button>
-                      </div>
-                    </div>
 
-                    <p className="text-xs font-mono text-muted-foreground bg-muted/30 p-2 rounded-lg border border-border/40">
-                      &ldquo;{item.prompt}&rdquo;
-                    </p>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono pt-1 text-muted-foreground border-t border-border/30">
-                      <div>
-                        <span className="text-foreground font-semibold block text-[10px]">What It Discovers:</span>
-                        <span>{item.howItWorks}</span>
-                      </div>
-                      <div>
-                        <span className="text-foreground font-semibold block text-[10px]">System Pipeline:</span>
-                        <span>{item.backendAction}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Preset Recommendation Chips: Displayed when prompt is empty */}
-      {!prompt.trim() && (
+      {/* Preset Recommendation Chips: Displayed when prompt is empty and not actively searching */}
+      {!prompt.trim() && !isSearching && (
         <div className="max-w-3xl mx-auto space-y-2 pt-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-xs font-sans text-muted-foreground font-medium">
               <Sparkles className="h-3 w-3 text-foreground" />
               <span>{isPersonalized ? "Recommended for you:" : "Sample discovery queries:"}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowPrompts(!showPrompts)}
-              className="text-[11px] font-mono text-primary hover:underline cursor-pointer flex items-center gap-1"
-            >
-              <span>{showPrompts ? "Hide prompt library" : "Show all prompts"}</span>
-              <Sparkles className="h-3 w-3" />
-            </button>
           </div>
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
             {recommendations.map((preset) => {
@@ -1058,7 +1267,7 @@ export function TaskInput({
                   type="button"
                   key={preset.label}
                   onClick={() => handleSelectPreset(preset)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-border/80 bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/60 hover:border-foreground/40 transition-all cursor-pointer shrink-0 shadow-2xs"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted/70 hover:border-primary/40 transition-all cursor-pointer shrink-0 shadow-marble-1"
                 >
                   <Icon className="h-3 w-3 text-muted-foreground" />
                   <span>{preset.label}</span>
@@ -1068,6 +1277,14 @@ export function TaskInput({
           </div>
         </div>
       )}
+
+      {/* Access Gate Modal: Prompted when user searches without active session or AI keys */}
+      <SearchAccessGateModal
+        isOpen={showAccessGate}
+        onClose={() => setShowAccessGate(false)}
+        onOpenProviders={() => openProfileModal("PROVIDERS")}
+        queryAttempted={prompt}
+      />
     </div>
   );
 }

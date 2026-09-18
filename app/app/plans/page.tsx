@@ -250,13 +250,13 @@ export default function PlansPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-[#F6F6F4]">
+    <div className="flex-1 flex flex-col min-w-0 bg-background text-foreground transition-colors duration-200">
       {/* Top Header Bar */}
-      <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-[#E6E6E3] dark:border-slate-800 px-4 sm:px-8 py-4 flex items-center justify-between gap-4 shadow-2xs">
+      <header className="sticky top-0 z-30 bg-card/90 backdrop-blur-md border-b border-border/80 px-4 sm:px-8 py-4 flex items-center justify-between gap-4 shadow-2xs">
         <div className="flex items-center gap-3">
           <Link
             href="/app"
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-slate-100 transition-colors"
+            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             title="Return to Discovery Engine"
           >
             <ArrowLeft className="h-4 w-4 stroke-[2]" />
@@ -266,7 +266,7 @@ export default function PlansPage() {
               <h1 className="text-base sm:text-lg font-sans font-bold text-foreground">
                 Subscription Plans & Limits
               </h1>
-              <Badge variant="outline" className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 border-emerald-500/20 bg-emerald-500/5">
+              <Badge variant="outline" className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
                 Server Verified
               </Badge>
             </div>
@@ -282,7 +282,7 @@ export default function PlansPage() {
             size="sm"
             onClick={() => fetchBillingData()}
             disabled={isLoading}
-            className="text-xs font-sans font-medium text-muted-foreground hover:text-foreground gap-1.5"
+            className="text-xs font-sans font-medium text-muted-foreground hover:text-foreground gap-1.5 border-border/80 cursor-pointer"
           >
             <RotateCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline">Refresh</span>
@@ -291,7 +291,7 @@ export default function PlansPage() {
             variant="ghost"
             size="sm"
             onClick={() => openProfileModal("BILLING")}
-            className="text-xs font-sans text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5"
+            className="text-xs font-sans text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
           >
             Settings Modal
           </Button>
@@ -302,8 +302,8 @@ export default function PlansPage() {
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-8 py-6 sm:py-8 space-y-8">
         
         {/* Active Subscription Banner */}
-        <section className="bg-white rounded-2xl border border-[#E6E6E3] p-5 sm:p-6 shadow-xs">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-border/40">
+        <section className="bg-card rounded-2xl border border-border/80 p-5 sm:p-6 shadow-xs text-card-foreground">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-border/60">
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
@@ -318,10 +318,10 @@ export default function PlansPage() {
                 <Badge
                   className={`font-mono text-xs ${
                     currentPlan?.code === "ENTERPRISE"
-                      ? "bg-purple-100 text-purple-800 border-purple-200"
+                      ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30"
                       : currentPlan?.code === "PREMIUM"
-                      ? "bg-emerald-100 text-emerald-800 border-emerald-200"
-                      : "bg-slate-100 text-slate-700 border-slate-200"
+                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                      : "bg-muted text-muted-foreground border-border"
                   }`}
                 >
                   {currentPlan?.code || "FREE"}
@@ -333,10 +333,10 @@ export default function PlansPage() {
             </div>
 
             {/* Interval & Renewal Badge */}
-            <div className="bg-[#FBFBFA] border border-[#EBEBE8] rounded-xl p-3 text-xs font-sans space-y-1 min-w-[220px]">
+            <div className="bg-muted/40 border border-border/80 rounded-xl p-3.5 text-xs font-sans space-y-1.5 min-w-[220px]">
               <div className="flex items-center justify-between text-muted-foreground">
                 <span className="flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5" />
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                   Billing Interval:
                 </span>
                 <span className="font-semibold text-foreground capitalize font-mono">
@@ -346,7 +346,7 @@ export default function PlansPage() {
               {subscription?.currentPeriodEnd && (
                 <div className="flex items-center justify-between text-muted-foreground">
                   <span className="flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5" />
+                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                     Period Ends:
                   </span>
                   <span className="font-medium text-foreground font-mono">
@@ -359,49 +359,49 @@ export default function PlansPage() {
 
           {/* Quota Telemetry Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 text-xs">
-            <div className="bg-[#FBFBFA] rounded-xl p-3 border border-border/40">
+            <div className="bg-muted/30 rounded-xl p-3.5 border border-border/70 hover:border-border transition-colors">
               <span className="text-[11px] text-muted-foreground font-sans block">Autonomous Watches</span>
-              <span className="text-sm font-bold font-mono text-foreground mt-0.5 block">
+              <span className="text-base sm:text-lg font-bold font-mono text-foreground mt-0.5 block">
                 {quota?.activeWatches.used || 0} / {currentPlan?.maxWatches || 1}
               </span>
-              <span className="text-[10px] text-emerald-700 font-sans">Active Monitoring</span>
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-sans font-medium">Active Monitoring</span>
             </div>
 
-            <div className="bg-[#FBFBFA] rounded-xl p-3 border border-border/40">
+            <div className="bg-muted/30 rounded-xl p-3.5 border border-border/70 hover:border-border transition-colors">
               <span className="text-[11px] text-muted-foreground font-sans block">Daily Discovery</span>
-              <span className="text-sm font-bold font-mono text-foreground mt-0.5 block">
+              <span className="text-base sm:text-lg font-bold font-mono text-foreground mt-0.5 block">
                 {quota?.dailyDiscoveries.used || 0} / {currentPlan?.maxDailyDiscoveries || 10}
               </span>
               <span className="text-[10px] text-muted-foreground font-sans">Resets every 24h</span>
             </div>
 
-            <div className="bg-[#FBFBFA] rounded-xl p-3 border border-border/40">
+            <div className="bg-muted/30 rounded-xl p-3.5 border border-border/70 hover:border-border transition-colors">
               <span className="text-[11px] text-muted-foreground font-sans block">Monthly AI Ops</span>
-              <span className="text-sm font-bold font-mono text-foreground mt-0.5 block">
+              <span className="text-base sm:text-lg font-bold font-mono text-foreground mt-0.5 block">
                 {quota?.monthlyAIOperations.used || 0} / {(currentPlan?.maxMonthlyAIOperations || 100).toLocaleString()}
               </span>
               <span className="text-[10px] text-muted-foreground font-sans">Monthly Quota</span>
             </div>
 
-            <div className="bg-[#FBFBFA] rounded-xl p-3 border border-border/40">
+            <div className="bg-muted/30 rounded-xl p-3.5 border border-border/70 hover:border-border transition-colors">
               <span className="text-[11px] text-muted-foreground font-sans block">Daily Token Cap</span>
-              <span className="text-sm font-bold font-mono text-foreground mt-0.5 block">
+              <span className="text-base sm:text-lg font-bold font-mono text-foreground mt-0.5 block">
                 {(currentPlan?.dailyTokenLimit || 10000).toLocaleString()}
               </span>
-              <span className="text-[10px] text-purple-700 font-sans">Gemini AI Tokens/Day</span>
+              <span className="text-[10px] text-purple-600 dark:text-purple-400 font-sans font-medium">Gemini AI Tokens/Day</span>
             </div>
           </div>
         </section>
 
         {/* Monthly vs Yearly Billing Interval Switch */}
         <section className="flex flex-col items-center justify-center space-y-3 pt-2">
-          <div className="inline-flex items-center bg-[#ECECE9] p-1 rounded-full border border-[#DFDFDC]">
+          <div className="inline-flex items-center bg-muted/60 p-1 rounded-full border border-border/80 shadow-2xs">
             <button
               type="button"
               onClick={() => setBillingInterval("MONTHLY")}
               className={`px-5 py-2 text-xs font-sans font-semibold rounded-full transition-all cursor-pointer ${
                 billingInterval === "MONTHLY"
-                  ? "bg-white text-foreground shadow-xs"
+                  ? "bg-card text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -412,13 +412,13 @@ export default function PlansPage() {
               onClick={() => setBillingInterval("YEARLY")}
               className={`px-5 py-2 text-xs font-sans font-semibold rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
                 billingInterval === "YEARLY"
-                  ? "bg-emerald-600 text-white shadow-xs"
+                  ? "bg-primary text-white shadow-marble-1"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <span>Yearly Billing</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
-                billingInterval === "YEARLY" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
+                billingInterval === "YEARLY" ? "bg-white/20 text-white" : "bg-primary/10 text-primary"
               }`}>
                 Save 17-20%
               </span>
@@ -431,7 +431,7 @@ export default function PlansPage() {
 
         {/* Active Discount Coupon Alert Banner */}
         {appliedCoupon && (
-          <section className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <section className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
             <div className="flex items-center gap-3">
               <div className="h-8 w-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
                 <Tag className="h-4 w-4" />
@@ -441,7 +441,7 @@ export default function PlansPage() {
                   <span className="text-xs font-sans font-bold text-emerald-600 dark:text-emerald-400">
                     Coupon Applied: {appliedCoupon.code}
                   </span>
-                  <Badge className="text-[10px] font-mono bg-emerald-700 text-white border-none">
+                  <Badge className="text-[10px] font-mono bg-emerald-600 text-white border-none">
                     {appliedCoupon.discountType === "PLAN_ACCESS"
                       ? "100% OFF (Full Access)"
                       : appliedCoupon.discountType === "FIXED_AMOUNT"
@@ -524,34 +524,34 @@ export default function PlansPage() {
             return (
               <div
                 key={p.id || p.code}
-                className={`relative rounded-2xl bg-white border flex flex-col justify-between transition-all duration-200 shadow-xs ${
+                className={`relative rounded-3xl bg-card text-card-foreground border flex flex-col justify-between transition-all duration-200 ${
                   isCurrent
-                    ? "border-emerald-500 ring-2 ring-emerald-500/20"
+                    ? "border-primary ring-2 ring-primary/20 shadow-marble-2"
                     : isPro
-                    ? "border-emerald-300 ring-1 ring-emerald-300"
-                    : "border-border/70 hover:border-border"
+                    ? "border-primary ring-2 ring-primary/30 shadow-marble-2 scale-[1.02]"
+                    : "border-border hover:border-primary/40 shadow-marble-1 hover:shadow-marble-2"
                 }`}
               >
                 {/* Popular / Current Ribbon */}
                 {isCurrent ? (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-3 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider font-semibold shadow-xs flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3 text-emerald-300" />
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white px-3.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider font-semibold shadow-marble-1 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3 text-white" />
                     Current Plan
                   </div>
                 ) : isPro ? (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-700 text-white px-3 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider font-semibold shadow-xs flex items-center gap-1">
-                    <Sparkles className="h-3 w-3 text-amber-300" />
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white px-3.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider font-semibold shadow-marble-1 flex items-center gap-1">
+                    <Sparkles className="h-3 w-3 text-white" />
                     Most Popular
                   </div>
                 ) : null}
 
-                <div className="p-6 space-y-5">
+                <div className="p-6 sm:p-7 space-y-5">
                   <div>
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-sans font-bold text-foreground">
+                      <h3 className="text-xl font-sans font-bold text-foreground">
                         {p.name}
                       </h3>
-                      <Badge variant="outline" className="font-mono text-[10px]">
+                      <Badge variant="outline" className="font-mono text-[10px] rounded-full border-border">
                         {p.code}
                       </Badge>
                     </div>
@@ -561,14 +561,14 @@ export default function PlansPage() {
                   </div>
 
                   {/* Pricing Display */}
-                  <div className="pt-2 border-t border-border/40">
+                  <div className="pt-2 border-t border-border">
                     <div className="flex items-baseline gap-2 flex-wrap">
                       {cutPrice !== null && (
                         <span className="text-xl sm:text-2xl font-sans font-bold text-muted-foreground line-through decoration-rose-500/80 decoration-2">
                           ${cutPrice}
                         </span>
                       )}
-                      <span className={`text-3xl sm:text-4xl font-sans font-bold ${cutPrice !== null ? "text-emerald-700" : "text-foreground"}`}>
+                      <span className="text-4xl sm:text-5xl font-sans font-extrabold tracking-tight text-foreground">
                         ${finalPrice % 1 === 0 ? finalPrice : finalPrice.toFixed(2)}
                       </span>
                       <span className="text-xs font-mono text-muted-foreground">
@@ -578,11 +578,11 @@ export default function PlansPage() {
 
                     {discountTag && (
                       <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
+                        <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
                           {discountTag}
                         </span>
                         {cutPrice !== null && dollarSaved > 0 && (
-                          <span className="text-[10px] font-mono text-emerald-700 font-semibold">
+                          <span className="text-[10px] font-mono text-primary font-semibold">
                             (You save ${dollarSaved.toFixed(2)})
                           </span>
                         )}
@@ -590,14 +590,14 @@ export default function PlansPage() {
                     )}
 
                     {!discountTag && billingInterval === "YEARLY" && annualSavings > 0 && (
-                      <span className="inline-block mt-1 text-[11px] font-sans font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      <span className="inline-block mt-1 text-[11px] font-sans font-semibold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
                         Save ${annualSavings}/year ({Math.round((annualSavings / (p.priceMonthly * 12)) * 100)}% discount)
                       </span>
                     )}
                   </div>
 
                   {/* Quota Highlights */}
-                  <div className="bg-[#FBFBFA] rounded-xl p-3.5 border border-[#EBEBE8] space-y-2 text-xs font-mono">
+                  <div className="bg-muted/40 rounded-2xl p-4 border border-border space-y-2 text-xs font-mono">
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground font-sans">Autonomous Watches:</span>
                       <span className="font-bold text-foreground">{p.maxWatches}</span>
@@ -624,7 +624,7 @@ export default function PlansPage() {
                         "Standard Monitoring Intervals",
                       ]).map((feat, idx) => (
                         <li key={idx} className="flex items-start gap-2">
-                          <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5 stroke-[2.5]" />
+                          <Check className="h-4 w-4 text-primary shrink-0 mt-0.5 stroke-[2.5]" />
                           <span>{feat}</span>
                         </li>
                       ))}
@@ -633,11 +633,11 @@ export default function PlansPage() {
                 </div>
 
                 {/* Plan Card Action Button */}
-                <div className="p-6 pt-0">
+                <div className="p-6 sm:p-7 pt-0">
                   {isCurrent ? (
                     <Button
                       disabled
-                      className="w-full bg-slate-100 text-slate-600 font-sans text-xs font-semibold cursor-not-allowed border border-slate-200"
+                      className="w-full bg-muted text-muted-foreground font-sans text-xs font-semibold cursor-not-allowed border border-border rounded-lg h-10"
                     >
                       Active Subscription
                     </Button>
@@ -646,7 +646,7 @@ export default function PlansPage() {
                       variant="outline"
                       disabled={isUpgradingCode !== null}
                       onClick={() => handleSelectPlan(p)}
-                      className="w-full font-sans text-xs font-semibold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5 cursor-pointer"
+                      className="w-full font-sans text-xs font-semibold border-border text-foreground hover:bg-muted cursor-pointer rounded-lg h-10"
                     >
                       Switch to Starter
                     </Button>
@@ -654,11 +654,7 @@ export default function PlansPage() {
                     <Button
                       disabled={isUpgradingCode !== null}
                       onClick={() => handleSelectPlan(p)}
-                      className={`w-full font-sans text-xs font-semibold text-white shadow-xs cursor-pointer ${
-                        isEnterprise
-                          ? "bg-purple-900 hover:bg-purple-950"
-                          : "bg-emerald-600 hover:bg-emerald-700"
-                      }`}
+                      className="w-full font-sans text-xs font-semibold text-white bg-primary hover:bg-primary/90 cursor-pointer rounded-lg h-10 shadow-marble-1 transition-all"
                     >
                       {isUpgradingCode === p.code ? (
                         <span className="flex items-center gap-1.5">
@@ -681,7 +677,7 @@ export default function PlansPage() {
         </section>
 
         {/* Promotional Coupons Redemption Section */}
-        <section className="bg-white rounded-2xl border border-[#E6E6E3] p-6 shadow-xs space-y-4">
+        <section className="bg-card rounded-2xl border border-border/80 p-6 shadow-xs space-y-4 text-card-foreground">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
@@ -695,7 +691,7 @@ export default function PlansPage() {
               </p>
             </div>
 
-            <Badge variant="outline" className="text-[10px] font-mono text-emerald-800 bg-emerald-50 border-emerald-200 shrink-0">
+            <Badge variant="outline" className="text-[10px] font-mono text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/30 shrink-0">
               Single-Use per Account Guarantee
             </Badge>
           </div>
@@ -705,7 +701,7 @@ export default function PlansPage() {
               value={couponCode}
               onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
               placeholder="e.g. LAUNCH2026, STUDENT50, PRO_VIP"
-              className="font-mono text-xs uppercase bg-[#FBFBFA] border-border/80"
+              className="font-mono text-xs uppercase bg-background border-border/80 text-foreground"
               disabled={isRedeemingCoupon}
             />
             <Button
@@ -726,10 +722,10 @@ export default function PlansPage() {
         </section>
 
         {/* Delegated Billing Portal & Past Invoices Section */}
-        <section className="bg-white dark:bg-slate-900 rounded-2xl border border-[#E6E6E3] dark:border-slate-800 p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <section className="bg-card rounded-2xl border border-border/80 p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-card-foreground">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-emerald-600 dark:text-emerald-400 dark:text-emerald-400" />
+              <CreditCard className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               <h3 className="text-sm font-sans font-bold text-foreground">
                 Invoices, Receipts & Card Management
               </h3>
@@ -754,7 +750,7 @@ export default function PlansPage() {
 
         {/* Monthly vs Yearly Limits Explanatory FAQ */}
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          <div className="bg-white rounded-xl p-4 border border-[#E6E6E3] space-y-1.5">
+          <div className="bg-card rounded-xl p-4 border border-border/80 space-y-1.5 text-card-foreground">
             <div className="flex items-center gap-2 text-foreground font-sans font-bold text-xs">
               <Calendar className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               Monthly vs. Yearly Quotas
@@ -764,9 +760,9 @@ export default function PlansPage() {
             </p>
           </div>
 
-          <div className="bg-white rounded-xl p-4 border border-[#E6E6E3] space-y-1.5">
+          <div className="bg-card rounded-xl p-4 border border-border/80 space-y-1.5 text-card-foreground">
             <div className="flex items-center gap-2 text-foreground font-sans font-bold text-xs">
-              <ShieldCheck className="h-4 w-4 text-emerald-700" />
+              <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               Server-Authoritative Enforcement
             </div>
             <p className="text-[11px] text-muted-foreground font-sans leading-relaxed">
@@ -774,9 +770,9 @@ export default function PlansPage() {
             </p>
           </div>
 
-          <div className="bg-white rounded-xl p-4 border border-[#E6E6E3] space-y-1.5">
+          <div className="bg-card rounded-xl p-4 border border-border/80 space-y-1.5 text-card-foreground">
             <div className="flex items-center gap-2 text-foreground font-sans font-bold text-xs">
-              <Sparkles className="h-4 w-4 text-amber-600" />
+              <Sparkles className="h-4 w-4 text-amber-500" />
               Admin Telemetry & Visibility
             </div>
             <p className="text-[11px] text-muted-foreground font-sans leading-relaxed">

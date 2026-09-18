@@ -110,7 +110,7 @@ async function runPhase3PipelineSSETest() {
       if (url.includes("linkedin.com")) {
         return `
 # Search Results
-[Sarah Jenkins - Technical Recruiter - Acme Corp | LinkedIn](https://www.linkedin.com/in/sarahjenkins)
+[Rachel Adams - Technical Recruiter - Acme Corp | LinkedIn](https://www.linkedin.com/in/racheladams)
 Technical Recruiter at Acme Corp. We are hiring Frontend and Fullstack Engineers!
         `;
       }

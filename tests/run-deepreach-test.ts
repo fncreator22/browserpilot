@@ -21,7 +21,7 @@ async function runDeepReachTests() {
     const sampleText = `
       Stripe is hiring a Remote Staff Frontend Engineer!
       Must have strong experience with TypeScript, React, and Next.js.
-      Recruiter: Sarah Jenkins
+      Recruiter: Rachel Adams
       Apply here: https://stripe.com/jobs/12345
     `;
     const parsed = extractHeuristicCareerIntent(sampleText);
@@ -96,10 +96,10 @@ async function runDeepReachTests() {
     console.log("\nTest 3: Recruiter Contacts Anti-Hallucination Gate");
     const contacts: VerifiableRecruiterContact[] = [
       {
-        fullName: "Sarah Jenkins",
+        fullName: "Rachel Adams",
         roleTitle: "Lead Technical Recruiter",
         companyName: "Stripe",
-        profileUrl: "https://linkedin.com/in/sarah-jenkins-talent",
+        profileUrl: "https://linkedin.com/in/rachel-adams-talent",
         sourcePlatform: "LINKEDIN",
       },
       {
@@ -132,7 +132,7 @@ async function runDeepReachTests() {
 
     if (
       report.verified.length === 2 &&
-      report.verified[0].fullName === "Sarah Jenkins" &&
+      report.verified[0].fullName === "Rachel Adams" &&
       report.verified[1].fullName === "Alex Rivera" &&
       report.rejectedCount === 2
     ) {

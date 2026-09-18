@@ -27,6 +27,7 @@ import {
   getOpportunityByCanonicalHash,
 } from "@/lib/db/opportunities";
 import { prisma } from "@/lib/db/prisma";
+import { executionKeyRegistry } from "@/lib/discovery/execution/executionKeyRegistry";
 
 export interface SearchDiagnostics {
   requestedCount: number;
@@ -58,6 +59,7 @@ export interface DiscoveryResult {
 }
 
 export interface PipelineExecutionOptions {
+  executionId?: string;
   userId?: string | null;
   rawQuery?: string;
   persistToDb?: boolean;
@@ -317,8 +319,9 @@ export async function executeSearchPipeline(
     allRanked = allRanked.filter((item) => item.totalScore >= minScore);
   }
 
-  // Fallback to verified database opportunities if live aggregator yielded 0 eligible results
-  if (allRanked.length === 0) {
+  // Autonomous Query Broadening & Typo Tolerance (TASK-R5):
+  // When initial strict matching yields fewer than 5 candidates, broaden keywords & harvest
+  if (allRanked.length < 5 && (!options.customProviders || options.customProviders.length === 0)) {
     try {
       const searchRole = intent.role || intent.roles?.[0] || "";
       const searchLoc = intent.location || intent.locations?.[0] || "";
@@ -326,7 +329,7 @@ export async function executeSearchPipeline(
       if (searchRole) {
         whereClauses.push({ title: { contains: searchRole, mode: "insensitive" } });
         whereClauses.push({ description: { contains: searchRole, mode: "insensitive" } });
-        const tokens = searchRole.split(/\s+/).filter((t) => t.length > 3 && !["engineer", "engineering", "jobs", "role", "roles"].includes(t.toLowerCase()));
+        const tokens = searchRole.split(/\s+/).filter((t) => t.length > 2 && !["jobs", "role", "roles", "for", "with", "and"].includes(t.toLowerCase()));
         for (const tok of tokens) {
           whereClauses.push({ title: { contains: tok, mode: "insensitive" } });
         }
@@ -344,6 +347,9 @@ export async function executeSearchPipeline(
           whereClauses.push({ skills: { contains: s, mode: "insensitive" } });
         }
       }
+      if (intent.workMode === "REMOTE") {
+        whereClauses.push({ workMode: "REMOTE" });
+      }
 
       if (whereClauses.length > 0) {
         const dbMatches = await prisma.opportunity.findMany({
@@ -355,7 +361,7 @@ export async function executeSearchPipeline(
             sourceListings: true,
             companyContacts: true,
           },
-          take: 20,
+          take: Math.max(35, plan.requestedCount || options.maxResults || 30),
         });
 
         const fallbackOpps: DeduplicatedOpportunity[] = [];
@@ -405,9 +411,17 @@ export async function executeSearchPipeline(
           const rankedFallback = rankOpportunities(fallbackOpps, intent, {
             sortMode: plan.sortMode,
           });
-          allRanked = typeof minScore === "number" && minScore > 0
+          const eligibleFallback = typeof minScore === "number" && minScore > 0
             ? rankedFallback.filter((item) => item.totalScore >= minScore)
             : rankedFallback;
+
+          const existingHashes = new Set(allRanked.map((item) => item.opportunity.canonicalHash));
+          for (const item of eligibleFallback) {
+            if (!existingHashes.has(item.opportunity.canonicalHash)) {
+              existingHashes.add(item.opportunity.canonicalHash);
+              allRanked.push(item);
+            }
+          }
         }
       }
     } catch (dbFallbackErr) {
@@ -433,16 +447,41 @@ export async function executeSearchPipeline(
     candidatePool = novelRanked;
   }
 
-  // Respect target requestedCount / maxResults limit
-  const requestedCount = plan.requestedCount || options.maxResults || 10;
+  // Prioritize active plugins with higher percentage of data collection over extra supplemental sources
+  const pluginSources = new Set([
+    "greenhouse", "lever", "ashby", "ycombinator", "y combinator", 
+    "hackernews", "hacker news", "wellfound", "google_jobs", "google jobs", 
+    "linkedin", "x", "reddit"
+  ]);
+  const isPluginSource = (item: RankedOpportunity) => {
+    const plat = (item.opportunity.sourceListings?.[0]?.sourcePlatform || "").toLowerCase();
+    const url = (item.opportunity.primaryApplyUrl || item.opportunity.sourceListings?.[0]?.sourceUrl || "").toLowerCase();
+    return pluginSources.has(plat) || Array.from(pluginSources).some((ps) => url.includes(ps.replace(/\s+/g, "")));
+  };
+
+  candidatePool.sort((a, b) => {
+    const aPlugin = isPluginSource(a);
+    const bPlugin = isPluginSource(b);
+    if (aPlugin && !bPlugin) return -1;
+    if (!aPlugin && bPlugin) return 1;
+    return b.totalScore - a.totalScore;
+  });
+
+  // Respect target requestedCount / maxResults limit (Supports scaling search outputs up to 30 verified results)
+  const requestedCount = plan.requestedCount || options.maxResults || 30;
   let ranked = typeof requestedCount === "number" && requestedCount > 0
     ? candidatePool.slice(0, requestedCount)
-    : candidatePool;;
+    : candidatePool;
 
   let searchId: string | undefined;
 
   // 6. Persistence via Opportunity DAL (TASK-002 & TASK-008)
-  if (options.persistToDb) {
+  const isCancelledMidFlight = Boolean(
+    options.signal?.aborted ||
+    (options.executionId && executionKeyRegistry.isKeyRevoked(options.executionId))
+  );
+
+  if (options.persistToDb && !isCancelledMidFlight) {
     const searchRecord = await createSearch({
       userId: options.userId || null,
       rawQuery: options.rawQuery || plan.rawQuery || intent.queryHint || intent.role || "Job Search",
@@ -457,7 +496,16 @@ export async function executeSearchPipeline(
     });
     searchId = searchRecord.id;
 
+    let wasCancelledInLoop = false;
     for (const rankedItem of ranked) {
+      if (
+        options.signal?.aborted ||
+        (searchId && executionKeyRegistry.isKeyRevoked(searchId)) ||
+        (options.executionId && executionKeyRegistry.isKeyRevoked(options.executionId))
+      ) {
+        wasCancelledInLoop = true;
+        break;
+      }
       const opp = rankedItem.opportunity;
 
       // Upsert canonical opportunity
@@ -500,6 +548,23 @@ export async function executeSearchPipeline(
         matchScore: rankedItem.totalScore,
         rankPosition: rankedItem.rankPosition,
       });
+    }
+
+    if (wasCancelledInLoop && searchId) {
+      await prisma.searchResult.deleteMany({ where: { searchId } }).catch(() => {});
+      await prisma.search.update({
+        where: { id: searchId },
+        data: {
+          status: "STOPPED",
+          cancellationRequested: true,
+          stoppingReason: "CANCELLED_BY_USER",
+          totalFound: 0,
+          completedAt: new Date(),
+        },
+      }).catch(() => {});
+      if (options.executionId) {
+        await executionKeyRegistry.killExecutionKey(options.executionId, "CANCELLED_BY_USER", options.userId);
+      }
     }
   }
 

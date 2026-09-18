@@ -12,6 +12,7 @@ import { validateAndNormalizeExtractionBatch } from "./extractionContract";
 import { deduplicateCandidates, type DeduplicatedOpportunity } from "./deduplicator";
 import { rankOpportunities, type RankedOpportunity } from "./ranker";
 import { isWithinFreshnessWindow } from "./freshnessExtractor";
+import { evaluateLocationCompatibility } from "./searchQualityGate";
 import {
   getDiscoveryWatch,
   upsertOpportunity,
@@ -156,18 +157,27 @@ export class AutonomousDiscoveryEngine {
       runRecordId = createdRun.id;
 
       // 4. Build Discovery Plan from Watch Configuration
+      // Sanitize watch criteria: "Remote" is a work mode, not a geographic city/region
+      const rawWatchLocations = watch.locations || [];
+      const hasRemoteInLocations = rawWatchLocations.some((l) => /^(remote|fully\s*remote|remote-first)$/i.test(l.trim()));
+      const sanitizedLocations = rawWatchLocations.filter((l) => !/^(remote|fully\s*remote|remote-first)$/i.test(l.trim()));
+      const sanitizedWorkModes = [...(watch.workModes || [])];
+      if (hasRemoteInLocations && !sanitizedWorkModes.includes("REMOTE")) {
+        sanitizedWorkModes.push("REMOTE");
+      }
+
       const plan = buildDiscoveryPlan(
         watch.roles.join(" ") || "Software Developer",
         {
           role: watch.roles[0],
           roles: watch.roles,
           skills: watch.skills,
-          location: watch.locations[0],
-          locations: watch.locations,
+          location: sanitizedLocations[0],
+          locations: sanitizedLocations,
           companies: watch.companies,
           company: watch.companies[0],
-          workMode: watch.workModes[0] as any,
-          workModes: watch.workModes as any,
+          workMode: sanitizedWorkModes[0] as any,
+          workModes: sanitizedWorkModes as any,
           opportunityType: watch.opportunityTypes[0] as any,
           opportunityTypes: watch.opportunityTypes as any,
           experienceLevel: watch.experienceLevels[0] as any,
@@ -176,13 +186,14 @@ export class AutonomousDiscoveryEngine {
           isExplicitFreshness: Boolean(watch.latestOnly),
           freshnessWindowHours: watch.freshnessWindowHours,
           sources: watch.preferredSources,
+          requestedCount: 30, // Request 30+ candidates to guarantee high 15-20+ verified yield
         },
         {
           targetRoles: watch.roles,
           skills: watch.skills,
-          preferredLocations: watch.locations,
+          preferredLocations: sanitizedLocations,
           targetCompanies: watch.companies,
-          preferredWorkMode: watch.workModes[0] as any,
+          preferredWorkMode: sanitizedWorkModes[0] as any,
           preferredOpportunityType: watch.opportunityTypes[0],
           experienceLevel: watch.experienceLevels[0],
           freshnessWindowHours: watch.freshnessWindowHours,
@@ -233,15 +244,12 @@ export class AutonomousDiscoveryEngine {
           )
         : cleanCandidates;
 
-      // Filter by watch target locations when specified (strict exclusion of on-site geographic mismatches)
-      const targetLocations = (watch?.locations || []).map((l: string) => l.trim().toLowerCase()).filter(Boolean);
+      // Filter by watch target locations when specified (strict exclusion of on-site & cross-border foreign mismatches)
+      const targetLocations = sanitizedLocations.map((l: string) => l.trim().toLowerCase()).filter(Boolean);
       const locationFilteredCandidates = targetLocations.length > 0
         ? validFreshCandidates.filter((c) => {
-            const loc = (c.location || "").toLowerCase().trim();
-            const isRemote = (c.workMode || "").toUpperCase() === "REMOTE" || loc.includes("remote");
-            if (isRemote) return true;
-            if (!loc) return true; // Keep unspecified locations for ranking
-            return targetLocations.some((tl) => loc.includes(tl) || tl.includes(loc));
+            const locEval = evaluateLocationCompatibility(c.location, targetLocations, c.workMode, true);
+            return locEval.isMatch;
           })
         : validFreshCandidates;
 

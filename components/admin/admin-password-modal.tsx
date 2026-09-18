@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { ShieldAlert, KeyRound, Lock, AlertTriangle, CheckCircle2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -32,8 +33,6 @@ export function AdminPasswordModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
   const phraseMatches =
     !expectedConfirmationPhrase ||
     typedPhrase.trim().toUpperCase() === expectedConfirmationPhrase.toUpperCase();
@@ -60,16 +59,26 @@ export function AdminPasswordModal({
   };
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="admin-modal-title"
-    >
-      <div 
-        className="w-full max-w-md rounded-2xl border border-red-500/30 dark:border-red-500/40 bg-white dark:bg-slate-900 shadow-2xl p-6 text-foreground animate-in zoom-in-95 duration-150"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="admin-modal-title"
+        >
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full max-w-md rounded-2xl border border-red-500/30 dark:border-red-500/40 bg-white dark:bg-slate-900 shadow-2xl p-6 text-foreground"
+            onClick={(e) => e.stopPropagation()}
+          >
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -177,7 +186,9 @@ export function AdminPasswordModal({
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+        </motion.div>
+      </motion.div>
+    )}
+  </AnimatePresence>
   );
 }

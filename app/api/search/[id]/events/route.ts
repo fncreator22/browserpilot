@@ -28,6 +28,29 @@ export async function GET(
     userId = request.headers.get("x-test-user-id") || request.headers.get("x-user-id");
   }
 
+  // Pre-validate search record & multi-tenant permissions BEFORE creating stream
+  const preCheckRecord = await prisma.search.findUnique({
+    where: { id: executionId },
+    select: { id: true, userId: true },
+  });
+
+  if (!preCheckRecord) {
+    return NextResponse.json(
+      { error: "NOT_FOUND", message: `Search execution '${executionId}' not found.` },
+      { status: 404 }
+    );
+  }
+
+  const isAdmin = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.role === "SUPERADMIN";
+  if (!isAdmin) {
+    if (preCheckRecord.userId && (!userId || preCheckRecord.userId !== userId)) {
+      return NextResponse.json(
+        { error: "FORBIDDEN", message: "You do not have access to subscribe to this search execution." },
+        { status: 403 }
+      );
+    }
+  }
+
   // 2. Set up SSE Stream
   const responseStream = new TransformStream();
   const writer = responseStream.writable.getWriter();
@@ -95,6 +118,19 @@ export async function GET(
         return;
       }
 
+      const isAdmin = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.role === "SUPERADMIN";
+      if (!isAdmin) {
+        if (searchRecord.userId && (!userId || searchRecord.userId !== userId)) {
+          await sendEvent("error", {
+            executionId,
+            error: "FORBIDDEN",
+            message: "You do not have access to subscribe to this search execution.",
+          });
+          await cleanup();
+          return;
+        }
+      }
+
       // Initial state snapshot
       await sendEvent("snapshot", {
         executionId: searchRecord.id,
@@ -104,15 +140,35 @@ export async function GET(
         rawQuery: searchRecord.rawQuery,
       });
 
-      // If search is already completed or stopped, emit complete and finish
+      // If search is already completed or stopped, emit appropriate terminal event and finish
       const isTerminal = ["COMPLETED", "PARTIAL", "STOPPED", "FAILED"].includes(searchRecord.status);
       if (isTerminal) {
-        await sendEvent("complete", {
-          executionId,
-          status: searchRecord.status,
-          totalFound: searchRecord.totalFound,
-          stoppingReason: searchRecord.stoppingReason,
-        });
+        if (
+          searchRecord.status === "STOPPED" ||
+          searchRecord.stoppingReason === "CANCELLED_BY_USER" ||
+          searchRecord.stoppingReason === "CANCELLED"
+        ) {
+          await sendEvent("cancelled", {
+            executionId,
+            status: "STOPPED",
+            totalFound: 0,
+            stoppingReason: searchRecord.stoppingReason || "CANCELLED_BY_USER",
+          });
+        } else if (searchRecord.status === "FAILED") {
+          await sendEvent("error", {
+            executionId,
+            status: "FAILED",
+            totalFound: 0,
+            message: searchRecord.stoppingReason || "Search execution failed.",
+          });
+        } else {
+          await sendEvent("complete", {
+            executionId,
+            status: searchRecord.status,
+            totalFound: searchRecord.totalFound,
+            stoppingReason: searchRecord.stoppingReason,
+          });
+        }
         await cleanup();
         return;
       }

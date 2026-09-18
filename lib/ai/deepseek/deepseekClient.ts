@@ -154,9 +154,12 @@ export async function callDeepSeekChatCompletion(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+  const { sanitizeSearchTelemetry } = await import("@/lib/ai/errors/searchFailureModel");
+  const sanitizedMessages = sanitizeSearchTelemetry(messages);
+
   const payload = {
     model,
-    messages,
+    messages: sanitizedMessages,
     temperature: model === "deepseek-reasoner" ? undefined : temperature,
     max_tokens: maxTokens,
   };

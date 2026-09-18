@@ -106,10 +106,19 @@ async function resolveCompanyIntel(companyName: string): Promise<CompanyIntelCac
         take: 8,
       });
 
-      // Filter for valid named individual contacts (exclude legacy generic teams and empty email records)
-      const validDbContacts = dbContacts.filter(
-        (c) => c.fullName && !c.fullName.includes("Team") && !c.fullName.includes("Hiring") && (c.email || c.personalEmail)
-      );
+      const FORBIDDEN_SYNTHETIC_NAMES = new Set([
+        "sarah jenkins", "alex morgan", "elena rostova", "david chen", "marcus vance",
+        "claire beaumont", "ananya deshmukh", "arun kumar", "sneha rao", "vikram patel", "divya menon"
+      ]);
+
+      // Filter for valid verified individual contacts or official company teams (exclude legacy fake personas)
+      const validDbContacts = dbContacts.filter((c) => {
+        if (!c.fullName) return false;
+        const lower = c.fullName.toLowerCase().trim();
+        if (FORBIDDEN_SYNTHETIC_NAMES.has(lower)) return false;
+        if (c.phone && c.phone.includes("555")) return false;
+        return Boolean(c.email || c.personalEmail || c.profileUrl);
+      });
 
       if (validDbContacts.length > 0) {
         for (const c of validDbContacts) {

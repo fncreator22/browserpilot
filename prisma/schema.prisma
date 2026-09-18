@@ -292,7 +292,7 @@ model DiscoveryWatch {
   id                   String    @id @default(cuid())
   userId               String
   name                 String    @default("Autonomous Watch")
-  enabled              Boolean   @default(true)
+  enabled              Boolean   @default(false)
   roles                String    @default("[]")
   skills               String    @default("[]")
   locations            String    @default("[]")

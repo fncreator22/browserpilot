@@ -148,7 +148,7 @@ Active public job posting at NexusAI.
       if (decoded.includes("linkedin")) {
         return `
 # Search Results
-[Elena Rostova - Talent Acquisition Lead - NexusAI | LinkedIn](https://www.linkedin.com/in/elenarostova)
+[Diana Prince - Talent Acquisition Lead - NexusAI | LinkedIn](https://www.linkedin.com/in/dianaprince)
 Talent Acquisition Lead at NexusAI. Scaling Core Distributed Systems & Applied AI teams!
         `;
       }

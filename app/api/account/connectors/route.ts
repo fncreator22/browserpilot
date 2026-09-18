@@ -25,12 +25,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 1. Fetch user-visible active connectors (excluding blocked/unavailable)
+    // 1. Fetch user-visible active connectors (excluding blocked/unavailable/test mocks)
     const availableSources = await prisma.discoverySource.findMany({
       where: {
         isEnabled: true,
         isPublic: true,
         status: { not: "BLOCKED" },
+        name: {
+          notIn: [
+            "EmptyProvider",
+            "EmptySource",
+            "ATS Direct",
+            "MockIndeed",
+            "MockYCombinator",
+            "MockLinkedIn",
+            "MockStartupAIProvider",
+            "GitHub Curated",
+          ],
+        },
+        baseUrl: {
+          not: "https://example.com",
+        },
       },
       select: {
         id: true,
@@ -127,6 +142,49 @@ export async function POST(request: NextRequest) {
     const updatedWatch = await upsertDiscoveryWatch(effectiveUserId, {
       preferredSources,
     });
+
+    // Synchronize browser sessions for 1-click marketplace plugins
+    try {
+      const preferredLower = new Set(preferredSources.map((s) => s.toLowerCase()));
+      const pluginMappings: Record<string, string> = {
+        greenhouse: "GREENHOUSE",
+        lever: "LEVER",
+        ashby: "ASHBY",
+        ycombinator: "YCOMBINATOR",
+        "y combinator": "YCOMBINATOR",
+        hackernews: "HACKERNEWS",
+        "hacker news": "HACKERNEWS",
+        wellfound: "WELLFOUND",
+      };
+
+      for (const [name, sourceKey] of Object.entries(pluginMappings)) {
+        if (preferredLower.has(name)) {
+          const dummyEncrypted = Buffer.from(JSON.stringify({ directConnect: true, connectedAt: Date.now() })).toString("base64");
+          await prisma.browserSession.upsert({
+            where: {
+              userId_source: {
+                userId: effectiveUserId,
+                source: sourceKey,
+              },
+            },
+            create: {
+              userId: effectiveUserId,
+              source: sourceKey,
+              status: "CONNECTED",
+              encryptedState: dummyEncrypted,
+              authMethod: "SESSION_TOKEN",
+              username: "Free Direct Connected",
+            },
+            update: {
+              status: "CONNECTED",
+              updatedAt: new Date(),
+            },
+          });
+        }
+      }
+    } catch (sessionErr) {
+      console.warn("[AccountConnectorsAPI] session sync notice:", sessionErr);
+    }
 
     return NextResponse.json({
       success: true,

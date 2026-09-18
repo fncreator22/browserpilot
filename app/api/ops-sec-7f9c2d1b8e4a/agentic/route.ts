@@ -135,8 +135,41 @@ export async function GET(request: NextRequest) {
     const rankingEvents = todayUsageEvents.filter((e) => e.operation === "DISCOVERY_RANKING");
 
     const totalOpportunitiesDiscovered = recentSearches.reduce((acc, s) => acc + s.totalFound, 0);
+
+    // Auto-reconcile searches marked as cancellation requested with CANCELLED_BY_USER
+    await prisma.search.updateMany({
+      where: {
+        status: { in: ["CREATED", "QUEUED", "RUNNING"] },
+        cancellationRequested: true,
+      },
+      data: {
+        status: "STOPPED",
+        stoppingReason: "CANCELLED_BY_USER",
+        totalFound: 0,
+        completedAt: new Date(),
+      },
+    }).catch(() => {});
+
+    // Auto-reconcile searches exceeding the 300s ceiling that were not explicitly cancelled
+    const activeLeaseCutoff = new Date(Date.now() - 300 * 1000);
+    await prisma.search.updateMany({
+      where: {
+        status: { in: ["CREATED", "QUEUED", "RUNNING"] },
+        createdAt: { lt: activeLeaseCutoff },
+        cancellationRequested: false,
+      },
+      data: {
+        status: "STOPPED",
+        stoppingReason: "ORPHANED_TIMEOUT",
+        completedAt: new Date(),
+      },
+    }).catch(() => {});
+
     const activeSearchesCount = await prisma.search.count({
-      where: { status: "SEARCHING" },
+      where: {
+        status: { in: ["CREATED", "QUEUED", "RUNNING"] },
+        cancellationRequested: false,
+      },
     });
 
     const pipelineStages = [

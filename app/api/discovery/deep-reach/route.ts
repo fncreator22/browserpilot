@@ -51,32 +51,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { imageBase64, mimeType, prompt, companyName, roleTitle, apiKey, puterToken, ocrText, channels } = body;
 
-    // 1. Subscription & Entitlement Gate Check
-    if (userId) {
-      const entitlement = await checkCapabilityEntitlement(userId, "PREMIUM_DEEP_REACH");
-      if (!entitlement.allowed) {
-        const { recordLifecycleAlert } = await import("@/lib/db/opportunities");
-        recordLifecycleAlert({
-          userId,
-          transitionType: "UPGRADE_RECOMMENDED",
-          previousStatus: "FREE_TIER",
-          newStatus: "UPGRADE_REQUIRED",
-          title: "DeepReach Pro Feature Available",
-          companyName: "BrowserPilot Pro",
-          message: "DeepReach multi-platform intelligence & recruiter discovery is a Pro feature. Upgrade your subscription to unlock cross-platform scraping.",
-          idempotencyKey: `${userId}_upgrade_deepreach_${new Date().toISOString().slice(0, 10)}`,
-        }).catch(() => {});
-
-        return NextResponse.json(
-          {
-            error: "UPGRADE_REQUIRED",
-            message: "DeepReach multi-platform intelligence & recruiter discovery is a Pro feature. Please upgrade your subscription to unlock cross-platform scraping.",
-            upgradeUrl: "/app#settings?tab=subscription",
-          },
-          { status: 403 }
-        );
-      }
-    }
+    // 1. Free Built-in DeepReach Architecture (100% accessible to all users on free tier)
+    // DeepReach is BrowserAI's native internal crawler, no paywall or subscription check needed.
 
     // 2. Resolve Effective AI Credentials (Dual Provider: Gemini BYOK or Puter AI)
     const effectiveApiKey = await resolveGeminiApiKey(apiKey, userId);
@@ -105,16 +81,6 @@ export async function POST(req: NextRequest) {
     let parsedIntent: ParsedMultimodalIntent | undefined;
 
     if (imageBase64) {
-      if (!hasAiConfigured) {
-        return NextResponse.json(
-          {
-            error: "AI_CONFIGURATION_REQUIRED",
-            message: "DeepReach Vision requires either a connected Puter account (free 1-click) or a Gemini API Key to inspect screenshots. Please connect Puter or add your key in Settings (Tab 1: AI Providers & Keys).",
-          },
-          { status: 400 }
-        );
-      }
-
       parsedIntent = await parseMultimodalCareerInput({
         base64Data: imageBase64,
         mimeType: mimeType || "image/png",

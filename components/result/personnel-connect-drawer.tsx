@@ -19,6 +19,7 @@ import { LinkedInIcon, TwitterIcon, GitHubIcon } from "@/components/ui/social-ic
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { resolveCompanyPersonnel } from "@/lib/discovery/personnel/companyPersonnelDirectory";
 
 export interface ContactPersonnelItem {
   id?: string;
@@ -57,6 +58,80 @@ export function PersonnelConnectDrawer({
   const [filterType, setFilterType] = useState<"ALL" | "HR" | "ENGINEERING">("ALL");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
+  const defaultDirectory = resolveCompanyPersonnel(companyName) as ContactPersonnelItem[];
+
+  // Merge and deduplicate by email, profileUrl, or fullName
+  const contactsMap = new Map<string, ContactPersonnelItem>();
+
+  for (const c of contacts || []) {
+    const key = (c.email || c.profileUrl || c.fullName || "").toLowerCase().trim();
+    if (key) contactsMap.set(key, c);
+  }
+
+  const isHRContact = (c: ContactPersonnelItem): boolean => {
+    const type = (c.contactType || "").toUpperCase();
+    const role = (c.roleTitle || "").toLowerCase();
+    const dept = (c.department || "").toLowerCase();
+    return (
+      type === "HR_RECRUITER" ||
+      type === "RECRUITER" ||
+      role.includes("recruiter") ||
+      role.includes("recruiting") ||
+      role.includes("talent") ||
+      role.includes("people") ||
+      role.includes("careers") ||
+      role.includes("sourcing") ||
+      /\b(hr|human resources)\b/i.test(role) ||
+      dept.includes("talent") ||
+      dept.includes("people") ||
+      dept.includes("recruiting") ||
+      /\b(hr|human resources)\b/i.test(dept)
+    );
+  };
+
+  const isEngineeringContact = (c: ContactPersonnelItem): boolean => {
+    const type = (c.contactType || "").toUpperCase();
+    const role = (c.roleTitle || "").toLowerCase();
+    const dept = (c.department || "").toLowerCase();
+    return (
+      type === "ENGINEERING_LEAD" ||
+      type === "EMPLOYEE" ||
+      role.includes("lead") ||
+      role.includes("engineer") ||
+      role.includes("developer") ||
+      role.includes("director") ||
+      role.includes("cto") ||
+      role.includes("founder") ||
+      role.includes("tech") ||
+      role.includes("hiring") ||
+      role.includes("manager") ||
+      role.includes("architect") ||
+      dept.includes("eng") ||
+      dept.includes("tech") ||
+      dept.includes("software")
+    );
+  };
+
+  // Guarantee neither category is empty - supplement from verified official directory
+  for (const d of defaultDirectory) {
+    const key = (d.email || d.profileUrl || d.fullName || "").toLowerCase().trim();
+    if (key && !contactsMap.has(key)) {
+      const currentHasHR = Array.from(contactsMap.values()).some(isHRContact);
+      const currentHasEng = Array.from(contactsMap.values()).some(isEngineeringContact);
+      if (!currentHasHR && isHRContact(d)) {
+        contactsMap.set(key, d);
+      } else if (!currentHasEng && isEngineeringContact(d)) {
+        contactsMap.set(key, d);
+      } else if (contactsMap.size < 3) {
+        contactsMap.set(key, d);
+      }
+    }
+  }
+
+  const effectiveContacts = Array.from(contactsMap.values());
+  const hrCount = effectiveContacts.filter(isHRContact).length;
+  const engCount = effectiveContacts.filter(isEngineeringContact).length;
+
   if (!isOpen) return null;
 
   const handleCopy = (text: string, label: string, key: string) => {
@@ -70,27 +145,10 @@ export function PersonnelConnectDrawer({
     }, 2000);
   };
 
-  const filteredContacts = contacts.filter((c) => {
+  const filteredContacts = effectiveContacts.filter((c) => {
     if (filterType === "ALL") return true;
-    if (filterType === "HR") {
-      return (
-        c.contactType === "HR_RECRUITER" ||
-        c.roleTitle.toLowerCase().includes("recruiter") ||
-        c.roleTitle.toLowerCase().includes("talent") ||
-        c.roleTitle.toLowerCase().includes("people") ||
-        c.roleTitle.toLowerCase().includes("hr")
-      );
-    }
-    if (filterType === "ENGINEERING") {
-      return (
-        c.contactType === "ENGINEERING_LEAD" ||
-        c.roleTitle.toLowerCase().includes("lead") ||
-        c.roleTitle.toLowerCase().includes("engineer") ||
-        c.roleTitle.toLowerCase().includes("director") ||
-        c.roleTitle.toLowerCase().includes("cto") ||
-        c.roleTitle.toLowerCase().includes("founder")
-      );
-    }
+    if (filterType === "HR") return isHRContact(c);
+    if (filterType === "ENGINEERING") return isEngineeringContact(c);
     return true;
   });
 
@@ -101,7 +159,7 @@ export function PersonnelConnectDrawer({
 
       {/* Drawer Container: Slide-over on Desktop (>=768px), Bottom Sheet on Mobile (<768px) */}
       <div 
-        className="relative z-10 flex flex-col bg-card border-border shadow-2xl w-full max-w-lg h-full md:h-full md:border-l overflow-hidden animate-in md:slide-in-from-right slide-in-from-bottom duration-300"
+        className="relative z-10 flex flex-col bg-card border-border shadow-marble-3 w-full max-w-lg h-full md:h-full md:border-l md:rounded-l-3xl overflow-hidden animate-in md:slide-in-from-right slide-in-from-bottom duration-300"
         role="dialog"
         aria-modal="true"
         aria-label="Direct Recruiter and Employee Outreach"
@@ -120,7 +178,7 @@ export function PersonnelConnectDrawer({
                 {companyName} Outreach
               </h2>
               <Badge variant="outline" className="text-[10px] font-mono border-border">
-                {contacts.length} Found
+                {effectiveContacts.length} Found
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -141,9 +199,9 @@ export function PersonnelConnectDrawer({
         {/* Filter Tabs */}
         <div className="px-4 sm:px-5 py-2.5 border-b border-border/60 bg-muted/20 flex items-center gap-1.5 shrink-0">
           {[
-            { id: "ALL", label: `All (${contacts.length})` },
-            { id: "HR", label: "Talent & HR" },
-            { id: "ENGINEERING", label: "Engineering & Leads" },
+            { id: "ALL", label: `All (${effectiveContacts.length})` },
+            { id: "HR", label: `Talent & HR (${hrCount})` },
+            { id: "ENGINEERING", label: `Engineering & Leads (${engCount})` },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -151,7 +209,7 @@ export function PersonnelConnectDrawer({
               onClick={() => setFilterType(tab.id as any)}
               className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
                 filterType === tab.id
-                  ? "bg-primary text-primary-foreground border-primary font-semibold"
+                  ? "bg-primary text-primary-foreground border-primary font-semibold shadow-marble-1"
                   : "bg-muted/40 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted"
               }`}
             >
@@ -170,7 +228,7 @@ export function PersonnelConnectDrawer({
                 variant="outline"
                 size="sm"
                 onClick={() => setFilterType("ALL")}
-                className="text-xs h-7 mt-2"
+                className="text-xs h-7 mt-2 rounded-lg"
               >
                 Show All Personnel
               </Button>
@@ -178,12 +236,12 @@ export function PersonnelConnectDrawer({
           ) : (
             filteredContacts.map((contact, idx) => {
               const cleanPhone = contact.phone?.replace(/[^\d+]/g, "");
-              const isHR = contact.contactType === "HR_RECRUITER" || contact.roleTitle.toLowerCase().includes("talent") || contact.roleTitle.toLowerCase().includes("recruiter");
+              const isHR = isHRContact(contact);
 
               return (
                 <div
                   key={contact.id || `${contact.fullName}-${idx}`}
-                  className="rounded-xl border border-border/80 bg-background/50 hover:bg-muted/30 p-3.5 space-y-3 transition-colors shadow-2xs"
+                  className="rounded-2xl border border-border bg-card hover:bg-muted/30 p-3.5 space-y-3 transition-all shadow-marble-1 hover:shadow-marble-2"
                 >
                   {/* Personnel Info Header */}
                   <div className="flex items-start justify-between gap-2">
@@ -371,7 +429,7 @@ export function PersonnelConnectDrawer({
         {/* Drawer Footer Note */}
         <div className="p-3 border-t border-border/70 bg-card text-[11px] text-muted-foreground flex items-center justify-between shrink-0">
           <span>Encrypted via BrowserPilot DeepReach Personnel Engine</span>
-          <Button variant="outline" size="sm" onClick={onClose} className="h-7 text-xs">
+          <Button variant="outline" size="sm" onClick={onClose} className="h-7 text-xs rounded-lg cursor-pointer">
             Done
           </Button>
         </div>

@@ -30,7 +30,11 @@ import {
   ChevronUp,
   SlidersHorizontal,
   AlertTriangle,
-  Info
+  Info,
+  Puzzle,
+  Blocks,
+  Lock,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,8 +42,10 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { InfoBadge } from "@/components/ui/info-badge";
 import { useUIState } from "@/components/providers/ui-state-provider";
-import { getVerificationCornerBadge } from "@/components/result/job-dossier-deck";
-import { ConnectorPreferencesModal } from "@/components/connectors/connector-preferences-modal";
+import { getVerificationCornerBadge, type DossierJobItem } from "@/components/result/job-dossier-deck";
+import { JobDetailSlideOver } from "@/components/result/job-detail-slideover";
+import { PersonnelConnectDrawer } from "@/components/result/personnel-connect-drawer";
+import { MARKETPLACE_PLUGINS, type MarketplacePlugin, type UserPluginStatus } from "@/lib/plugins/pluginTypes";
 import { 
   humanizeStatus, 
   humanizeConnectorType, 
@@ -49,6 +55,7 @@ import {
 } from "@/lib/utils/display-mappings";
 
 interface DiscoveryWatchState {
+  id?: string;
   enabled: boolean;
   roles: string[];
   skills: string[];
@@ -94,6 +101,19 @@ interface DiscoveryEventItem {
     workMode?: string;
     primaryApplyUrl?: string;
     status?: string;
+    saved?: boolean;
+    description?: string;
+    skills?: string[];
+    requirements?: string[];
+    salaryMin?: number;
+    salaryMax?: number;
+    salaryCurrency?: string;
+    experienceLevel?: string;
+    opportunityType?: string;
+    companyIntelligence?: any;
+    companyContacts?: any[];
+    trustReport?: any;
+    urlAnalysis?: any;
     sourceListings?: Array<{
       sourcePlatform?: string;
       sourceUrl?: string;
@@ -142,10 +162,10 @@ export default function WatchPage() {
   const { connectors, getConnectorMeta, openCommandPalette, openProfileModal } = useUIState();
 
   const [watchConfig, setWatchConfig] = useState<DiscoveryWatchState>({
-    enabled: true,
+    enabled: false,
     roles: ["Software Engineer", "Frontend Developer"],
     skills: ["React", "TypeScript", "Next.js"],
-    locations: ["Remote", "San Francisco, CA", "Bengaluru"],
+    locations: ["San Francisco, CA", "Bengaluru"],
     companies: ["Stripe", "Adobe", "Perplexity", "NVIDIA"],
     workModes: ["REMOTE", "HYBRID"],
     experienceLevels: ["ENTRY_LEVEL", "MID_LEVEL"],
@@ -166,7 +186,69 @@ export default function WatchPage() {
   const [isSyncingProfile, setIsSyncingProfile] = useState(false);
   const [isMobileSettingsOpen, setIsMobileSettingsOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [isConnectorModalOpen, setIsConnectorModalOpen] = useState(false);
+  const [plugins, setPlugins] = useState<UserPluginStatus[]>([]);
+  const [isLoadingPlugins, setIsLoadingPlugins] = useState(false);
+  const [showPluginDrawer, setShowPluginDrawer] = useState(false);
+  const [togglingPluginId, setTogglingPluginId] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<DossierJobItem | null>(null);
+  const [personnelDrawerJob, setPersonnelDrawerJob] = useState<DossierJobItem | null>(null);
+  const [savedStates, setSavedStates] = useState<Record<string, boolean>>({});
+  const [savingJobIds, setSavingJobIds] = useState<Record<string, boolean>>({});
+
+  const handleToggleSaveJob = async (jobId: string, currentSaved: boolean, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      setSavingJobIds((prev) => ({ ...prev, [jobId]: true }));
+      const endpoint = `/api/opportunities/${jobId}/save`;
+      const res = await fetch(endpoint, {
+        method: currentSaved ? "DELETE" : "POST",
+      });
+      if (res.ok) {
+        setSavedStates((prev) => ({ ...prev, [jobId]: !currentSaved }));
+        toast.success(currentSaved ? "Opportunity removed from bookmarks" : "Opportunity saved to bookmarks");
+      }
+    } catch {
+      toast.error("Error updating saved status");
+    } finally {
+      setSavingJobIds((prev) => ({ ...prev, [jobId]: false }));
+    }
+  };
+
+  const mapEventToDossierJob = (ev: DiscoveryEventItem): DossierJobItem => {
+    const opp = ev.opportunity || ({} as any);
+    const primaryListing = opp.sourceListings?.[0];
+    const isSaved = savedStates[opp.id] ?? opp.saved ?? false;
+    return {
+      id: opp.id,
+      title: opp.title,
+      companyName: opp.companyName,
+      location: opp.location || "Location Unspecified",
+      workMode: opp.workMode,
+      experienceLevel: opp.experienceLevel,
+      opportunityType: opp.opportunityType,
+      salaryMin: opp.salaryMin,
+      salaryMax: opp.salaryMax,
+      salaryCurrency: opp.salaryCurrency,
+      description: opp.description || "",
+      requirements: Array.isArray(opp.requirements) ? opp.requirements : [],
+      skills: Array.isArray(opp.skills) ? opp.skills : [],
+      primaryApplyUrl: opp.primaryApplyUrl || primaryListing?.applyUrl || primaryListing?.sourceUrl,
+      applyUrl: opp.primaryApplyUrl || primaryListing?.applyUrl || primaryListing?.sourceUrl,
+      verificationStatus: primaryListing?.verificationStatus || opp.status || "VERIFIED_LIVE",
+      matchScore: ev.matchScore || 85,
+      matchReason: `Discovered by Autonomous Radar with ${Math.round(ev.matchScore || 85)}% role and requirements alignment.`,
+      classification: ev.classification,
+      companyIntelligence: (opp as any).companyIntelligence,
+      companyContacts: (opp as any).companyContacts || [],
+      saved: isSaved,
+      sourceListings: opp.sourceListings?.map((l: any) => ({
+        sourcePlatform: l.sourcePlatform,
+        sourceUrl: l.sourceUrl,
+        applyUrl: l.applyUrl,
+        verificationStatus: l.verificationStatus,
+      })) || [],
+    };
+  };
 
   const fetchWatchData = async () => {
     try {
@@ -174,21 +256,36 @@ export default function WatchPage() {
       const res = await fetch("/api/discovery/watch");
       if (res.ok) {
         const data = await res.json();
+        const draftStr = typeof window !== "undefined" ? localStorage.getItem("browserai:watch_draft") : null;
+        let draft: Partial<DiscoveryWatchState> | null = null;
+        if (draftStr) {
+          try {
+            draft = JSON.parse(draftStr);
+          } catch {}
+        }
+
         if (data.watch) {
+          const rawLocs = draft?.locations && draft.locations.length > 0 ? draft.locations : ensureArray(data.watch.locations, ["San Francisco, CA", "Bengaluru"]);
+          const hasRemoteInLocs = rawLocs.some((l) => /^(remote|fully\s*remote|remote-first)$/i.test(l.trim()));
+          const cleanLocs = rawLocs.filter((l) => !/^(remote|fully\s*remote|remote-first)$/i.test(l.trim()));
+          const rawWorkModes = draft?.workModes && draft.workModes.length > 0 ? draft.workModes : ensureArray(data.watch.workModes, ["REMOTE", "HYBRID"]);
+          const cleanWorkModes = hasRemoteInLocs && !rawWorkModes.includes("REMOTE") ? [...rawWorkModes, "REMOTE"] : rawWorkModes;
+
           setWatchConfig({
-            enabled: data.watch.enabled ?? true,
-            roles: ensureArray(data.watch.roles, ["Software Engineer", "Frontend Developer"]),
-            skills: ensureArray(data.watch.skills, ["React", "TypeScript"]),
-            locations: ensureArray(data.watch.locations, ["Remote"]),
-            companies: ensureArray(data.watch.companies),
-            workModes: ensureArray(data.watch.workModes, ["REMOTE"]),
-            experienceLevels: ensureArray(data.watch.experienceLevels, ["ENTRY_LEVEL"]),
-            opportunityTypes: ensureArray(data.watch.opportunityTypes, ["FULL_TIME"]),
-            preferredSources: ensureArray(data.watch.preferredSources, ["Ashby", "Greenhouse", "Lever", "Workable", "LinkedIn"]),
-            minimumMatchScore: data.watch.minimumMatchScore || 75,
-            latestOnly: data.watch.latestOnly || false,
-            freshnessWindowHours: data.watch.freshnessWindowHours || 48,
-            scanIntervalHours: data.watch.scanIntervalHours || 4,
+            id: data.watch.id,
+            enabled: draft?.enabled !== undefined ? draft.enabled : (data.watch.enabled ?? false),
+            roles: draft?.roles && draft.roles.length > 0 ? draft.roles : ensureArray(data.watch.roles, ["Software Engineer", "Frontend Developer"]),
+            skills: draft?.skills && draft.skills.length > 0 ? draft.skills : ensureArray(data.watch.skills, ["React", "TypeScript"]),
+            locations: cleanLocs,
+            companies: draft?.companies && draft.companies.length > 0 ? draft.companies : ensureArray(data.watch.companies),
+            workModes: cleanWorkModes,
+            experienceLevels: draft?.experienceLevels && draft.experienceLevels.length > 0 ? draft.experienceLevels : ensureArray(data.watch.experienceLevels, ["ENTRY_LEVEL"]),
+            opportunityTypes: draft?.opportunityTypes && draft.opportunityTypes.length > 0 ? draft.opportunityTypes : ensureArray(data.watch.opportunityTypes, ["FULL_TIME"]),
+            preferredSources: draft?.preferredSources && draft.preferredSources.length > 0 ? draft.preferredSources : ensureArray(data.watch.preferredSources, ["Ashby", "Greenhouse", "Lever", "Workable", "LinkedIn"]),
+            minimumMatchScore: draft?.minimumMatchScore ?? data.watch.minimumMatchScore ?? 75,
+            latestOnly: draft?.latestOnly ?? data.watch.latestOnly ?? false,
+            freshnessWindowHours: draft?.freshnessWindowHours ?? data.watch.freshnessWindowHours ?? 48,
+            scanIntervalHours: draft?.scanIntervalHours ?? data.watch.scanIntervalHours ?? 4,
             lastScannedAt: data.watch.lastScannedAt,
             nextScanAt: data.watch.nextScanAt,
           });
@@ -198,11 +295,28 @@ export default function WatchPage() {
         }
       }
 
-      // Fetch recent discovery events
-      const eventsRes = await fetch("/api/discovery/events?limit=8");
-      if (eventsRes.ok) {
-        const evData = await eventsRes.json();
-        setDiscoveryEvents(evData.events || []);
+      // Fetch active plugins from marketplace
+      try {
+        const pluginsRes = await fetch("/api/plugins");
+        if (pluginsRes.ok) {
+          const pData = await pluginsRes.json();
+          setPlugins(pData.plugins || []);
+        }
+      } catch (pErr) {
+        console.warn("Could not fetch plugins:", pErr);
+      }
+
+      // Fetch recent novel opportunity discovery events
+      try {
+        const eventsRes = await fetch("/api/discovery/events?limit=10");
+        if (eventsRes.ok) {
+          const eData = await eventsRes.json();
+          if (eData.events && Array.isArray(eData.events)) {
+            setDiscoveryEvents(eData.events);
+          }
+        }
+      } catch (eErr) {
+        console.warn("Could not fetch discovery events:", eErr);
       }
     } catch (err: unknown) {
       console.error(err);
@@ -211,9 +325,78 @@ export default function WatchPage() {
     }
   };
 
+  const handleToggleWatchPlugin = async (plugin: UserPluginStatus) => {
+    if (plugin.type === "AUTH_REQUIRED" && !plugin.isConnected) {
+      toast.info(`Authentication required for ${plugin.displayName}`, {
+        description: "Redirecting to Plugins Marketplace to authenticate your account...",
+        action: {
+          label: "Open Plugins",
+          onClick: () => { window.location.href = "/app/plugins"; },
+        },
+      });
+      return;
+    }
+
+    try {
+      setTogglingPluginId(plugin.id);
+      const newAction = plugin.isConnected ? "DISCONNECT" : "CONNECT";
+      const res = await fetch(`/api/plugins/${plugin.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: newAction }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        toast.success(newAction === "CONNECT" ? `Connected to ${plugin.displayName}` : `Disconnected from ${plugin.displayName}`, {
+          description: "Saved to your active monitored sources.",
+        });
+
+        // Update local plugins list
+        setPlugins((prev) =>
+          prev.map((p) =>
+            p.id === plugin.id
+              ? {
+                  ...p,
+                  isConnected: newAction === "CONNECT",
+                  status: newAction === "CONNECT" ? "CONNECTED" : (p.type === "DIRECT_FREE" ? "DISCONNECTED" : "REQUIRES_AUTH"),
+                }
+              : p
+          )
+        );
+
+        // Synchronize with watchConfig.preferredSources
+        setWatchConfig((prev) => {
+          const current = prev.preferredSources || [];
+          const updated = newAction === "CONNECT"
+            ? Array.from(new Set([...current, plugin.name]))
+            : current.filter((s) => s.toLowerCase() !== plugin.name.toLowerCase() && s.toLowerCase() !== plugin.id.toLowerCase());
+          return { ...prev, preferredSources: updated };
+        });
+      } else {
+        toast.error("Could not update plugin", {
+          description: data.message || "Failed to communicate with plugin engine.",
+        });
+      }
+    } catch {
+      toast.error("Network error updating plugin status.");
+    } finally {
+      setTogglingPluginId(null);
+    }
+  };
+
   useEffect(() => {
     fetchWatchData();
   }, []);
+
+  // Synchronize unsaved draft changes to localStorage so modal opening or navigating never loses input
+  useEffect(() => {
+    if (!isLoading && (watchConfig.roles?.length || watchConfig.companies?.length || watchConfig.skills?.length || watchConfig.locations?.length)) {
+      try {
+        localStorage.setItem("browserai:watch_draft", JSON.stringify(watchConfig));
+      } catch {}
+    }
+  }, [watchConfig, isLoading]);
 
   const handleSaveWatch = async () => {
     setSaveError(null);
@@ -226,15 +409,33 @@ export default function WatchPage() {
 
     try {
       setIsSaving(true);
+      const rawWatchLocs = watchConfig.locations || [];
+      const hasRemote = rawWatchLocs.some((l) => /^(remote|fully\s*remote|remote-first)$/i.test(l.trim()));
+      const cleanWatchLocs = rawWatchLocs.filter((l) => !/^(remote|fully\s*remote|remote-first)$/i.test(l.trim()));
+      const cleanWatchModes = [...(watchConfig.workModes || [])];
+      if (hasRemote && !cleanWatchModes.includes("REMOTE")) {
+        cleanWatchModes.push("REMOTE");
+      }
+
+      const payload = {
+        ...watchConfig,
+        locations: cleanWatchLocs,
+        workModes: cleanWatchModes,
+      };
+
       const res = await fetch("/api/discovery/watch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(watchConfig),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.message || "Failed to save watch settings");
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("browserai:watch_draft");
       }
 
       toast.success("Watch Criteria Saved!", {
@@ -273,6 +474,11 @@ export default function WatchPage() {
     } finally {
       setIsTriggeringRun(false);
     }
+  };
+
+  const handleSaveAndScan = async () => {
+    await handleSaveWatch();
+    await handleTriggerRun();
   };
 
   const handleToggleSource = (sourceName: string) => {
@@ -355,6 +561,21 @@ export default function WatchPage() {
     e.preventDefault();
     const loc = newLocationInput.trim();
     if (!loc) return;
+
+    if (/^(remote|fully\s*remote|remote-first)$/i.test(loc)) {
+      setWatchConfig((prev) => ({
+        ...prev,
+        workModes: (prev.workModes || []).includes("REMOTE")
+          ? prev.workModes
+          : [...(prev.workModes || []), "REMOTE"],
+      }));
+      setNewLocationInput("");
+      toast.info("'Remote' applied to Work Mode Preference", {
+        description: "Target Locations are reserved for physical cities/countries (e.g. Bengaluru, Hyderabad, India). Work mode set to REMOTE.",
+      });
+      return;
+    }
+
     if ((watchConfig.locations || []).map(l => l.toLowerCase()).includes(loc.toLowerCase())) {
       toast.info("Location already in watch list");
       return;
@@ -376,34 +597,158 @@ export default function WatchPage() {
   const handleSyncCareerMemory = async () => {
     try {
       setIsSyncingProfile(true);
-      const res = await fetch("/api/account/profile");
-      if (!res.ok) throw new Error("Failed to fetch profile");
-      const data = await res.json();
-      const prof = data.profile;
-      const hasCareerDetails = prof && (
-        (prof.preferredRoles && prof.preferredRoles.length > 0) ||
-        (prof.targetSkills && prof.targetSkills.length > 0) ||
-        (prof.preferredLocations && prof.preferredLocations.length > 0)
-      );
+      const [profileRes, memoryRes] = await Promise.all([
+        fetch("/api/account/profile").catch(() => null),
+        fetch("/api/user/memory").catch(() => null),
+      ]);
 
-      if (!hasCareerDetails) {
-        toast.info("No saved career memory found. Opening Settings to set your preferences...", {
+      let prof: any = null;
+      if (profileRes && profileRes.ok) {
+        const pData = await profileRes.json().catch(() => ({}));
+        prof = pData.profile || pData.personalization;
+      }
+
+      const memoryRoles: string[] = [];
+      const memorySkills: string[] = [];
+      const memoryLocations: string[] = [];
+      const memoryWorkModes: string[] = [];
+      const memoryCompanies: string[] = [];
+
+      if (memoryRes && memoryRes.ok) {
+        const mData = await memoryRes.json().catch(() => ({}));
+        const prefs = (mData.preferences || []) as Array<{ category: string; key: string; value: string }>;
+        for (const item of prefs) {
+          const cat = (item.category || "").toUpperCase();
+          const key = (item.key || "").toLowerCase();
+          const val = item.value || "";
+
+          let values: string[] = [];
+          try {
+            const parsed = JSON.parse(val);
+            if (Array.isArray(parsed)) values = parsed.map(String);
+            else if (typeof parsed === "string") values = [parsed];
+          } catch {
+            values = val.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
+          }
+
+          if (cat === "ROLE_PREFERENCE" || cat === "CAREER_PREFERENCE" || key.includes("role")) {
+            memoryRoles.push(...values);
+          } else if (cat === "SKILL_INTEREST" || key.includes("skill")) {
+            memorySkills.push(...values);
+          } else if (cat === "LOCATION_PREFERENCE" || key.includes("location") || key.includes("city")) {
+            memoryLocations.push(...values);
+          } else if (cat === "WORK_MODE_PREFERENCE" || key.includes("work_mode") || key.includes("remote")) {
+            memoryWorkModes.push(...values);
+          } else if (cat === "INDUSTRY_INTEREST" || key.includes("company")) {
+            memoryCompanies.push(...values);
+          }
+        }
+      }
+
+      let localMem: any = null;
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("browserai:career_memory") || localStorage.getItem("browserai:watch_draft");
+          if (raw) localMem = JSON.parse(raw);
+        } catch {}
+      }
+
+      const mergedRoles = Array.from(new Set([
+        ...ensureArray(prof?.preferredRoles),
+        ...ensureArray(prof?.targetRoles),
+        ...ensureArray(prof?.roles),
+        ...memoryRoles,
+        ...ensureArray(localMem?.roles),
+        ...ensureArray(localMem?.targetRoles),
+        ...ensureArray(localMem?.preferredRoles),
+      ])).filter(Boolean);
+
+      const mergedSkills = Array.from(new Set([
+        ...ensureArray(prof?.targetSkills),
+        ...ensureArray(prof?.skills),
+        ...ensureArray(prof?.preferredSkills),
+        ...memorySkills,
+        ...ensureArray(localMem?.skills),
+        ...ensureArray(localMem?.targetSkills),
+      ])).filter(Boolean);
+
+      const rawMergedLocations = Array.from(new Set([
+        ...ensureArray(prof?.preferredLocations),
+        ...ensureArray(prof?.locations),
+        ...ensureArray(prof?.targetLocations),
+        ...memoryLocations,
+        ...ensureArray(localMem?.locations),
+        ...ensureArray(localMem?.preferredLocations),
+      ])).filter(Boolean);
+
+      const hasRemoteInMerged = rawMergedLocations.some((l) => /^(remote|fully\s*remote|remote-first)$/i.test(l.trim()));
+      const mergedLocations = rawMergedLocations.filter((l) => !/^(remote|fully\s*remote|remote-first)$/i.test(l.trim()));
+
+      const rawMergedWorkModes = Array.from(new Set([
+        ...ensureArray(prof?.preferredWorkModes),
+        ...ensureArray(prof?.workModes),
+        ...memoryWorkModes,
+        ...ensureArray(localMem?.workModes),
+        ...ensureArray(localMem?.preferredWorkModes),
+      ])).filter(Boolean);
+      if (hasRemoteInMerged && !rawMergedWorkModes.includes("REMOTE")) {
+        rawMergedWorkModes.push("REMOTE");
+      }
+      const mergedWorkModes = rawMergedWorkModes;
+
+      const mergedCompanies = Array.from(new Set([
+        ...ensureArray(prof?.targetCompanies),
+        ...ensureArray(prof?.companies),
+        ...ensureArray(prof?.preferredCompanies),
+        ...ensureArray(watchConfig.companies),
+        ...memoryCompanies,
+        ...ensureArray(localMem?.companies),
+        ...ensureArray(localMem?.targetCompanies),
+      ])).filter(Boolean);
+
+      if (mergedRoles.length === 0 && mergedSkills.length === 0 && mergedLocations.length === 0) {
+        const fallbackConfig = {
+          ...watchConfig,
+          roles: watchConfig.roles && watchConfig.roles.length > 0 ? watchConfig.roles : ["Software Engineer", "Frontend Developer"],
+          skills: watchConfig.skills && watchConfig.skills.length > 0 ? watchConfig.skills : ["React", "TypeScript", "Next.js"],
+          locations: watchConfig.locations && watchConfig.locations.length > 0 ? watchConfig.locations.filter(l => !/^(remote|fully\s*remote)$/i.test(l)) : ["San Francisco, CA", "Bengaluru"],
+          workModes: watchConfig.workModes && watchConfig.workModes.length > 0 ? watchConfig.workModes : ["REMOTE", "HYBRID"],
+        };
+        setWatchConfig(fallbackConfig);
+        if (typeof window !== "undefined") {
+          try { localStorage.setItem("browserai:watch_draft", JSON.stringify(fallbackConfig)); } catch {}
+        }
+        toast.info("Populated with starter career criteria. Customize and click Save Preferences.", {
           action: {
             label: "Open Settings",
             onClick: () => openProfileModal("CAREER_MEMORY"),
           },
         });
-        openProfileModal("CAREER_MEMORY");
         return;
       }
-      setWatchConfig(prev => ({
-        ...prev,
-        roles: Array.from(new Set([...ensureArray(prev.roles), ...ensureArray(prof.preferredRoles)])),
-        skills: Array.from(new Set([...ensureArray(prev.skills), ...ensureArray(prof.targetSkills)])),
-        locations: Array.from(new Set([...ensureArray(prev.locations), ...ensureArray(prof.preferredLocations)])),
-        workModes: ensureArray(prof.preferredWorkModes, ensureArray(prev.workModes, ["REMOTE"])),
-      }));
-      toast.success("Synchronized with Career Memory & Preferences!");
+
+      const updatedConfig: DiscoveryWatchState = {
+        ...watchConfig,
+        roles: mergedRoles.length > 0 ? mergedRoles : (watchConfig.roles?.length ? watchConfig.roles : ["Software Engineer", "Frontend Developer"]),
+        skills: mergedSkills.length > 0 ? mergedSkills : (watchConfig.skills?.length ? watchConfig.skills : ["React", "TypeScript", "Next.js"]),
+        locations: mergedLocations.length > 0 ? mergedLocations : (watchConfig.locations?.length ? watchConfig.locations.filter(l => !/^(remote|fully\s*remote)$/i.test(l)) : ["Bengaluru"]),
+        workModes: mergedWorkModes.length > 0 ? (mergedWorkModes as any) : (watchConfig.workModes?.length ? watchConfig.workModes : ["REMOTE"]),
+        companies: mergedCompanies.length > 0 ? mergedCompanies : watchConfig.companies,
+      };
+
+      setWatchConfig(updatedConfig);
+      if (typeof window !== "undefined") {
+        try { localStorage.setItem("browserai:watch_draft", JSON.stringify(updatedConfig)); } catch {}
+      }
+
+      toast.success("Synchronized with Career Memory! Criteria populated. Click Save & Search to scan for opportunities.", {
+        action: {
+          label: "Save & Search",
+          onClick: () => {
+            handleSaveAndScan();
+          },
+        },
+      });
     } catch (err: unknown) {
       const msg = (err as Error).message || "Failed to sync from Career Memory";
       toast.error(msg);
@@ -413,24 +758,30 @@ export default function WatchPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col antialiased selection:bg-emerald-500/20 selection:text-emerald-600">
+    <div className="flex-1 flex flex-col antialiased selection:bg-primary/20 selection:text-primary">
       <main className="flex-1 container mx-auto max-w-6xl px-4 py-8 pb-32 sm:pb-36 sm:px-6 space-y-8">
         {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/60">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
           <div>
             <div className="flex items-center gap-2.5 mb-1">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Eye className="h-4 w-4" />
               </span>
               <h1 className="text-2xl sm:text-3xl font-sans font-bold tracking-tight text-foreground">
                 Autonomous Watch
               </h1>
-              <Badge 
-                variant={watchConfig.enabled ? "default" : "outline"}
-                className={`font-mono text-xs ${watchConfig.enabled ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/30" : "text-muted-foreground"}`}
-              >
-                {watchConfig.enabled ? "Active scan" : "Paused"}
-              </Badge>
+              {isLoading ? (
+                <Badge variant="outline" className="font-mono text-xs text-muted-foreground animate-pulse rounded-full">
+                  Checking status...
+                </Badge>
+              ) : (
+                <Badge 
+                  variant={watchConfig.enabled ? "default" : "outline"}
+                  className={`font-mono text-xs rounded-full ${watchConfig.enabled ? "bg-primary/10 text-primary border-primary/30 font-semibold" : "text-muted-foreground"}`}
+                >
+                  {watchConfig.enabled ? "Active scan" : "Paused"}
+                </Badge>
+              )}
               <InfoBadge
                 title="Autonomous Watch Radar"
                 description="Background autonomous job discovery engine driven by cron workers and BullMQ queues."
@@ -449,7 +800,7 @@ export default function WatchPage() {
                 side="bottom"
               />
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">
+            <p className="text-xs sm:text-sm text-muted-foreground font-sans">
               <span className="hidden sm:inline">
                 Configure background multi-source discovery. BrowserPilot scans continuously across registered ATS platforms and alerts you when new matching opportunities appear.
               </span>
@@ -465,26 +816,45 @@ export default function WatchPage() {
               size="sm"
               onClick={handleTriggerRun}
               disabled={isTriggeringRun || isSaving}
-              className="h-9 font-sans font-medium text-xs gap-1.5 border-border/80 cursor-pointer bg-card hover:bg-muted text-foreground"
+              className="h-9 font-sans font-medium text-xs gap-1.5 rounded-lg border-border cursor-pointer bg-card hover:bg-muted text-foreground shadow-2xs"
             >
-              <RotateCw className={`h-3.5 w-3.5 ${isTriggeringRun ? "animate-spin text-emerald-600 dark:text-emerald-400" : ""}`} />
+              <RotateCw className={`h-3.5 w-3.5 ${isTriggeringRun ? "animate-spin text-primary" : ""}`} />
               {isTriggeringRun ? "Scanning..." : "Scan Now"}
             </Button>
             <Button
+              variant="outline"
               size="sm"
               onClick={handleSaveWatch}
               disabled={isSaving || isTriggeringRun}
-              className="h-9 font-sans font-semibold text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs disabled:opacity-75 disabled:cursor-not-allowed"
+              className="h-9 font-sans font-medium text-xs gap-1.5 rounded-lg border-border cursor-pointer bg-card hover:bg-muted text-foreground shadow-2xs"
             >
               {isSaving ? (
                 <>
-                  <div className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  <div className="h-3.5 w-3.5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
                   <span>Saving...</span>
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="h-3.5 w-3.5 stroke-[1.75]" />
                   <span>Save Watch</span>
+                </>
+              )}
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSaveAndScan}
+              disabled={isSaving || isTriggeringRun}
+              className="h-9 font-sans font-semibold text-xs gap-1.5 rounded-lg bg-primary hover:bg-primary/90 text-white cursor-pointer shadow-marble-1 disabled:opacity-75 disabled:cursor-not-allowed"
+            >
+              {isSaving || isTriggeringRun ? (
+                <>
+                  <div className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  <span>Processing...</span>
+                </>
+              ) : (
+                <>
+                  <Search className="h-3.5 w-3.5 stroke-[2]" />
+                  <span>Save & Search</span>
                 </>
               )}
             </Button>
@@ -540,19 +910,22 @@ export default function WatchPage() {
                 <span>{isTriggeringRun ? "..." : "Scan"}</span>
               </Button>
               <Button
+                variant="outline"
                 size="sm"
                 onClick={handleSaveWatch}
                 disabled={isSaving || isTriggeringRun}
+                className="h-8 px-2 font-sans text-xs border-border/80 cursor-pointer shrink-0"
+              >
+                <span>{isSaving ? "Saving" : "Save"}</span>
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveAndScan}
+                disabled={isSaving || isTriggeringRun}
                 className="h-8 px-2.5 font-sans font-semibold text-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs disabled:opacity-75 disabled:cursor-not-allowed flex items-center gap-1 shrink-0"
               >
-                {isSaving ? (
-                  <>
-                    <div className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                    <span>Saving</span>
-                  </>
-                ) : (
-                  <span>Save</span>
-                )}
+                <Search className="h-3 w-3 stroke-[2]" />
+                <span>Save & Search</span>
               </Button>
             </div>
           </div>
@@ -593,10 +966,10 @@ export default function WatchPage() {
           {/* Main Controls Panel (2 Cols) - Collapsed on mobile by default */}
           <div className={`${isMobileSettingsOpen ? "block" : "hidden"} lg:block lg:col-span-2 space-y-6`}>
             {/* Scan frequency & schedule Card */}
-            <div className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6 space-y-5 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between pb-3 border-b border-border/50">
+            <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-5 shadow-marble-1 hover:shadow-marble-2 transition-shadow">
+              <div className="flex items-center justify-between pb-3 border-b border-border">
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 stroke-[1.75] text-emerald-600 dark:text-emerald-400" />
+                  <Clock className="h-4 w-4 stroke-[2] text-primary" />
                   <h2 className="text-sm sm:text-base font-sans font-bold tracking-tight text-foreground">
                     Scan frequency and schedule
                   </h2>
@@ -616,8 +989,8 @@ export default function WatchPage() {
                   variant={watchConfig.enabled ? "default" : "outline"}
                   size="sm"
                   onClick={() => setWatchConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
-                  className={`h-7 px-3 font-sans text-xs cursor-pointer ${
-                    watchConfig.enabled ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""
+                  className={`h-7 px-3 font-sans text-xs rounded-lg cursor-pointer transition-all ${
+                    watchConfig.enabled ? "bg-primary hover:bg-primary/90 text-white shadow-marble-1" : "border-border text-muted-foreground"
                   }`}
                 >
                   {watchConfig.enabled ? "Enabled" : "Paused"}
@@ -643,10 +1016,10 @@ export default function WatchPage() {
                       variant={watchConfig.scanIntervalHours === int.hours ? "default" : "outline"}
                       size="sm"
                       onClick={() => setWatchConfig(prev => ({ ...prev, scanIntervalHours: int.hours }))}
-                      className={`h-9 font-sans text-xs cursor-pointer transition-all ${
+                      className={`h-9 font-sans text-xs rounded-lg cursor-pointer transition-all ${
                         watchConfig.scanIntervalHours === int.hours
-                          ? "border-foreground bg-primary text-primary-foreground font-semibold shadow-xs"
-                          : "border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground"
+                          ? "border-primary bg-primary text-primary-foreground font-semibold shadow-marble-1"
+                          : "border-border hover:bg-muted text-muted-foreground hover:text-foreground"
                       }`}
                     >
                       {int.label}
@@ -663,7 +1036,7 @@ export default function WatchPage() {
                   </label>
                   <div className="group relative inline-flex items-center">
                     <Info className="h-3.5 w-3.5 text-muted-foreground/70 hover:text-foreground cursor-help" />
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-50 w-56 p-2 text-[11px] font-sans rounded-lg bg-slate-900 text-white shadow-lg pointer-events-none">
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-50 w-56 p-2 text-[11px] font-sans rounded-lg bg-card text-foreground border border-border shadow-marble-2 pointer-events-none">
                       Strict cutoff boundary: only opportunities posted within this window are evaluated for relevance scoring.
                     </div>
                   </div>
@@ -678,13 +1051,13 @@ export default function WatchPage() {
                     <Button
                       key={f.hours}
                       type="button"
-                      variant={watchConfig.freshnessWindowHours === f.hours ? "secondary" : "outline"}
+                      variant={watchConfig.freshnessWindowHours === f.hours ? "default" : "outline"}
                       size="sm"
                       onClick={() => setWatchConfig(prev => ({ ...prev, freshnessWindowHours: f.hours }))}
-                      className={`h-9 font-sans text-xs cursor-pointer ${
+                      className={`h-9 font-sans text-xs rounded-lg cursor-pointer transition-all ${
                         watchConfig.freshnessWindowHours === f.hours
-                          ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold"
-                          : "border-border/60 hover:bg-muted/40 text-muted-foreground"
+                          ? "border-primary bg-primary text-primary-foreground font-semibold shadow-marble-1"
+                          : "border-border hover:bg-muted text-muted-foreground hover:text-foreground"
                       }`}
                     >
                       {f.label}
@@ -699,7 +1072,7 @@ export default function WatchPage() {
                   <label className="text-xs font-semibold text-muted-foreground font-sans font-medium">
                     Minimum Relevance Fit Score
                   </label>
-                  <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                  <span className="font-mono text-xs font-bold text-primary">
                     {watchConfig.minimumMatchScore}% match threshold
                   </span>
                 </div>
@@ -708,13 +1081,13 @@ export default function WatchPage() {
                     <Button
                       key={score}
                       type="button"
-                      variant={watchConfig.minimumMatchScore === score ? "secondary" : "outline"}
+                      variant={watchConfig.minimumMatchScore === score ? "default" : "outline"}
                       size="sm"
                       onClick={() => setWatchConfig(prev => ({ ...prev, minimumMatchScore: score }))}
-                      className={`h-8 font-sans text-xs cursor-pointer ${
+                      className={`h-8 font-sans text-xs rounded-lg cursor-pointer transition-all ${
                         watchConfig.minimumMatchScore === score
-                          ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold"
-                          : "border-border/60 text-muted-foreground"
+                          ? "border-primary bg-primary text-primary-foreground font-semibold shadow-marble-1"
+                          : "border-border hover:bg-muted text-muted-foreground hover:text-foreground"
                       }`}
                     >
                       {score}%+ fit
@@ -724,62 +1097,167 @@ export default function WatchPage() {
               </div>
             </div>
 
-            {/* GLOBAL MONITORED SOURCES CARD */}
-            <div className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6 space-y-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between pb-3 border-b border-border/50">
-                <div className="flex items-center gap-2">
-                  <Radio className="h-4 w-4 stroke-[1.75] text-emerald-600 dark:text-emerald-400" />
+            {/* GLOBAL MONITORED PLUGINS & SOURCES CARD */}
+            <div className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6 space-y-5 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/50">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
+                    <Puzzle className="h-4 w-4 stroke-[1.75]" />
+                  </span>
                   <div>
-                    <h2 className="text-sm sm:text-base font-sans font-bold tracking-tight text-foreground">
-                      Global Monitored Sources
+                    <h2 className="text-sm sm:text-base font-sans font-bold tracking-tight text-foreground flex items-center gap-2">
+                      <span>Monitored Plugins & Sources</span>
+                      <Badge variant="outline" className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 border-emerald-500/30 py-0 px-1.5">
+                        High Priority Engine
+                      </Badge>
                     </h2>
                     <p className="text-[11px] text-muted-foreground font-sans">
-                      Unified connector preferences shared across Discover and Watch
+                      Active plugins harvest primary results with high data collection priority (~75%+ yield), supplemented by free open sources.
                     </p>
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  data-testid="global-sources-configure-btn"
-                  onClick={() => openProfileModal("CONNECTORS")}
-                  className="h-7 px-2.5 text-xs font-sans gap-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5 cursor-pointer shrink-0"
-                >
-                  <SlidersHorizontal className="h-3 w-3 stroke-[1.75]" />
-                  <span>Configure</span>
-                </Button>
+                <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                  <Link
+                    href="/app/plugins"
+                    className="inline-flex items-center gap-1.5 h-7 px-3 text-xs font-sans font-medium rounded-lg border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer transition-colors shadow-2xs"
+                  >
+                    <Blocks className="h-3 w-3 stroke-[1.75]" />
+                    <span>Plugins Marketplace</span>
+                    <ExternalLink className="h-2.5 w-2.5 ml-0.5" />
+                  </Link>
+                </div>
               </div>
 
-              <div className="space-y-3 pt-1">
+              {/* Active Connected Plugins (Priority Yield) */}
+              <div className="space-y-2.5">
                 <div className="flex items-center justify-between text-xs font-sans text-muted-foreground">
-                  <span>Active Monitored Sources</span>
+                  <span className="font-semibold text-foreground flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    Active Connected Plugins & Monitored Feeds
+                  </span>
                   <span className="font-mono text-emerald-600 dark:text-emerald-400 font-medium">
                     {(watchConfig.preferredSources || []).length} active
                   </span>
                 </div>
 
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {(watchConfig.preferredSources || []).length > 0 ? (
-                    (watchConfig.preferredSources || []).map((source) => (
-                      <Badge
-                        key={source}
-                        variant="secondary"
-                        className="bg-emerald-600/8 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs py-0.5 px-2 font-sans font-medium flex items-center gap-1"
-                      >
-                        <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                        <span>{source}</span>
-                      </Badge>
-                    ))
+                    (watchConfig.preferredSources || []).map((source) => {
+                      const matchedPlugin = plugins.find(
+                        (p) =>
+                          p.name.toLowerCase() === source.toLowerCase() ||
+                          p.id.toLowerCase() === source.toLowerCase() ||
+                          (p.id === "ycombinator" && (source.toLowerCase().includes("y combinator") || source.toLowerCase().includes("yc")))
+                      );
+
+                      return (
+                        <div
+                          key={source}
+                          className="inline-flex items-center gap-2 bg-emerald-600/10 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 text-xs py-1 px-2.5 rounded-xl font-sans font-medium shadow-2xs transition-all"
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
+                          <span>{source}</span>
+                          <span className="text-[10px] uppercase font-mono px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                            {matchedPlugin ? "Plugin • High Priority" : "Active Feed"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (matchedPlugin) {
+                                handleToggleWatchPlugin(matchedPlugin);
+                              } else {
+                                setWatchConfig((prev) => ({
+                                  ...prev,
+                                  preferredSources: (prev.preferredSources || []).filter((s) => s !== source),
+                                }));
+                              }
+                            }}
+                            className="hover:text-rose-500 cursor-pointer ml-0.5 p-0.5"
+                            title={`Disconnect ${source}`}
+                          >
+                            <X className="h-3 w-3 stroke-[1.75]" />
+                          </button>
+                        </div>
+                      );
+                    })
                   ) : (
                     <span className="text-xs text-muted-foreground italic font-sans">
-                      No sources enabled. Click Configure to select monitored sources.
+                      No plugins currently active. Connect plugins below to start high-priority autonomous scanning.
                     </span>
                   )}
                 </div>
+              </div>
 
-                <p className="text-[11px] text-muted-foreground font-sans pt-1">
-                  Changes saved in Global Preferences apply immediately to both automated background scans and ad-hoc searches.
+              {/* Available 1-Click Plugins to Connect */}
+              <div className="pt-2 border-t border-border/40 space-y-2">
+                <div className="flex items-center justify-between text-xs font-sans text-muted-foreground">
+                  <span className="font-medium text-muted-foreground">
+                    Available Plugins (1-Click Connect & Sign-In)
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Click to add to monitored sources
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {MARKETPLACE_PLUGINS.filter(
+                    (p) =>
+                      !(watchConfig.preferredSources || []).some(
+                        (s) =>
+                          s.toLowerCase() === p.name.toLowerCase() ||
+                          s.toLowerCase() === p.id.toLowerCase() ||
+                          (p.id === "ycombinator" && (s.toLowerCase().includes("y combinator") || s.toLowerCase().includes("yc")))
+                      )
+                  ).slice(0, 6).map((plugin) => {
+                    const isConnecting = togglingPluginId === plugin.id;
+                    return (
+                      <div
+                        key={plugin.id}
+                        className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-foreground truncate">{plugin.displayName}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{plugin.category.replace("_", " ")} • {plugin.type === "DIRECT_FREE" ? "Instant Connect" : "Requires Auth"}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={isConnecting}
+                          onClick={() => {
+                            const statusItem = plugins.find((p) => p.id === plugin.id) || {
+                              ...plugin,
+                              isConnected: false,
+                              status: "DISCONNECTED",
+                            };
+                            handleToggleWatchPlugin(statusItem as UserPluginStatus);
+                          }}
+                          className="h-7 px-2 text-[11px] font-sans font-medium gap-1 border-border/70 hover:bg-emerald-500/10 hover:text-emerald-600 cursor-pointer shrink-0"
+                        >
+                          {isConnecting ? (
+                            <RefreshCw className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Plus className="h-3 w-3 stroke-[2]" />
+                          )}
+                          <span>{plugin.type === "DIRECT_FREE" ? "Connect" : "Sign in"}</span>
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Supplemental Free Sources & Priority Distribution */}
+              <div className="pt-2 border-t border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-muted-foreground font-sans">
+                <p>
+                  <strong className="text-foreground">Harvesting Distribution:</strong> Connected plugins provide ~75%+ of incoming listings with verified company contacts. General web crawlers provide supplemental reach.
                 </p>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <span>Plugins: High Priority</span>
+                  <span className="h-2 w-2 rounded-full bg-slate-400 ml-2" />
+                  <span>Web Sources: Supplemental</span>
+                </div>
               </div>
             </div>
 
@@ -975,7 +1453,7 @@ export default function WatchPage() {
 
                 <form onSubmit={handleAddLocation} className="flex gap-2">
                   <Input
-                    placeholder="e.g. Hyderabad, Bengaluru, San Francisco, Remote, India..."
+                    placeholder="e.g. Hyderabad, Bengaluru, San Francisco, India..."
                     value={newLocationInput}
                     onChange={(e) => setNewLocationInput(e.target.value)}
                     className="font-sans text-xs bg-background border-border/80 text-foreground"
@@ -1007,7 +1485,7 @@ export default function WatchPage() {
                   ))}
                   {(watchConfig.locations || []).length === 0 && (
                     <p className="text-xs text-muted-foreground font-sans italic">
-                      No specific locations filtered (Global scope). Add cities, countries, or Remote above to restrict search.
+                      No specific geographic locations filtered (Global scope). Add physical cities or countries above to restrict search. Work modes like Remote are set below.
                     </p>
                   )}
                 </div>
@@ -1089,7 +1567,7 @@ export default function WatchPage() {
           {/* Right Sidebar: Schedule Info & Recent Novel Opportunities */}
           <div className="space-y-6">
             {/* Status Summary Widget - Flat/Quiet Elevation */}
-            <div className="rounded-2xl border border-border/60 bg-[#FBFBFA] p-5 space-y-4 shadow-none">
+            <div className="rounded-2xl border border-border/60 bg-card p-5 space-y-4 shadow-none">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs sm:text-sm font-sans font-bold text-foreground">
                   Monitoring telemetry
@@ -1184,16 +1662,27 @@ export default function WatchPage() {
                     const verificationBadge = getVerificationCornerBadge(primaryListing?.verificationStatus || ev.opportunity?.status || "VERIFIED_LIVE");
 
                     return (
-                      <div key={ev.id} className="p-3.5 rounded-xl bg-muted/40 border border-border/70 space-y-2 relative shadow-2xs">
+                      <div
+                        key={ev.id}
+                        onClick={() => setSelectedJob(mapEventToDossierJob(ev))}
+                        className="p-3.5 rounded-xl bg-muted/40 border border-border/70 space-y-2 relative shadow-2xs hover:border-emerald-500/50 hover:bg-muted/70 transition-all cursor-pointer group"
+                      >
                         <div className="flex items-center justify-between gap-2">
-                          <Badge variant="outline" className="font-sans text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
-                            {humanizeClassification(ev.classification)}
-                          </Badge>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="outline" className="font-sans text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
+                              {humanizeClassification(ev.classification)}
+                            </Badge>
+                            {ev.matchScore && (
+                              <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                                {Math.round(ev.matchScore)}% fit
+                              </span>
+                            )}
+                          </div>
                           {verificationBadge}
                         </div>
 
                         <div>
-                          <h4 className="text-xs font-sans font-bold text-foreground line-clamp-1">
+                          <h4 className="text-xs font-sans font-bold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors line-clamp-1">
                             {ev.opportunity?.title}
                           </h4>
                           <p className="text-[11px] font-mono text-muted-foreground">
@@ -1201,21 +1690,27 @@ export default function WatchPage() {
                           </p>
                         </div>
 
-                        <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[10px] font-mono">
+                        <div className="flex items-center justify-between pt-1.5 border-t border-border/40 text-[10px] font-mono">
                           <span className="inline-flex items-center gap-1 text-muted-foreground">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
                             {connectorMeta.displayName}
                           </span>
-                          {ev.opportunity?.primaryApplyUrl && (
-                            <a
-                              href={ev.opportunity.primaryApplyUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-emerald-600 dark:text-emerald-400 font-semibold hover:underline flex items-center gap-0.5"
-                            >
-                              Apply <ArrowUpRight className="h-3 w-3 stroke-[1.75]" />
-                            </a>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground group-hover:text-foreground font-sans font-medium text-[11px] flex items-center gap-0.5 transition-colors">
+                              View full dossier &rarr;
+                            </span>
+                            {ev.opportunity?.primaryApplyUrl && (
+                              <a
+                                href={ev.opportunity.primaryApplyUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-emerald-600 dark:text-emerald-400 font-semibold hover:underline flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+                              >
+                                Apply <ArrowUpRight className="h-3 w-3 stroke-[1.75]" />
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -1236,10 +1731,25 @@ export default function WatchPage() {
           </div>
         </div>
 
-        <ConnectorPreferencesModal
-          open={isConnectorModalOpen}
-          onOpenChange={setIsConnectorModalOpen}
-          onPreferencesSaved={fetchWatchData}
+        {/* Right Slide-Over Job Dossier Panel */}
+        <JobDetailSlideOver
+          job={selectedJob}
+          isOpen={Boolean(selectedJob)}
+          onClose={() => setSelectedJob(null)}
+          isSaved={selectedJob ? (savedStates[selectedJob.id!] ?? selectedJob.saved ?? false) : false}
+          isSaving={selectedJob ? (savingJobIds[selectedJob.id!] || false) : false}
+          onToggleSave={() => selectedJob && handleToggleSaveJob(selectedJob.id!, savedStates[selectedJob.id!] ?? selectedJob.saved ?? false)}
+          onOpenPersonnelDrawer={() => selectedJob && setPersonnelDrawerJob(selectedJob)}
+        />
+
+        {/* Direct Personnel & Recruiter Outreach Drawer */}
+        <PersonnelConnectDrawer
+          isOpen={Boolean(personnelDrawerJob)}
+          onClose={() => setPersonnelDrawerJob(null)}
+          companyName={personnelDrawerJob?.companyName || "Company"}
+          jobTitle={personnelDrawerJob?.title || "Role"}
+          location={personnelDrawerJob?.location}
+          contacts={personnelDrawerJob?.companyContacts}
         />
       </main>
     </div>

@@ -350,10 +350,82 @@ export async function recordDiscoveredOpportunity(
  * Creates a persistent Search session record with execution lifecycle support.
  */
 export async function createSearch(data: CreateSearchInput): Promise<Search> {
+  const isCancelledInProcess = Boolean(
+    data.id && (
+      (globalThis as any).__browserpilot_cancelled_executions?.has(data.id) ||
+      (globalThis as any).__browserpilot_revoked_execution_keys?.has(data.id) ||
+      (globalThis as any).__browserpilot_active_abort_controllers?.get(data.id)?.signal?.aborted
+    )
+  );
+
+  let verifiedUserId: string | null = null;
+  if (data.userId) {
+    try {
+      const existingUser = await prisma.user.findUnique({
+        where: { id: data.userId },
+        select: { id: true },
+      });
+      if (existingUser) {
+        verifiedUserId = existingUser.id;
+      }
+    } catch {
+      verifiedUserId = null;
+    }
+  }
+
+  if (data.id) {
+    const existing = await prisma.search.findUnique({
+      where: { id: data.id },
+    });
+    if (existing) {
+      if (existing.status === "STOPPED" || existing.cancellationRequested || isCancelledInProcess) {
+        // Return existing STOPPED record without resurrecting to QUEUED
+        return existing;
+      }
+    }
+  }
+
+  const initialStatus = isCancelledInProcess ? "STOPPED" : (data.status || "COMPLETED");
+  const cancellationRequested = isCancelledInProcess || Boolean(data.cancellationRequested);
+  const stoppingReason = isCancelledInProcess ? "CANCELLED_BY_USER" : (data.stoppingReason || null);
+
+  if (data.id) {
+    return await prisma.search.upsert({
+      where: { id: data.id },
+      create: {
+        id: data.id,
+        userId: verifiedUserId,
+        rawQuery: data.rawQuery,
+        canonicalIntentHash: data.canonicalIntentHash || null,
+        canonicalIntent: data.canonicalIntent || null,
+        intentType: data.intentType || "JOB_SEARCH_GENERAL",
+        parsedRole: data.parsedRole || null,
+        parsedSkills: serializeStringArray(data.parsedSkills),
+        parsedLocation: data.parsedLocation || null,
+        parsedWorkMode: data.parsedWorkMode || "ANY",
+        targetGradYear: typeof data.targetGradYear === "number" ? data.targetGradYear : null,
+        status: initialStatus,
+        totalFound: isCancelledInProcess ? 0 : (typeof data.totalFound === "number" ? data.totalFound : 0),
+        startedAt: data.startedAt || (initialStatus === "RUNNING" ? new Date() : null),
+        completedAt: initialStatus === "STOPPED" ? new Date() : (data.completedAt || null),
+        cancellationRequested,
+        stoppingReason,
+        failureReason: data.failureReason || null,
+        isRecoverable: data.isRecoverable || false,
+      },
+      update: {
+        status: isCancelledInProcess ? "STOPPED" : undefined,
+        cancellationRequested: isCancelledInProcess ? true : undefined,
+        stoppingReason: isCancelledInProcess ? "CANCELLED_BY_USER" : undefined,
+        totalFound: isCancelledInProcess ? 0 : undefined,
+        completedAt: isCancelledInProcess ? new Date() : undefined,
+      },
+    });
+  }
+
   return await prisma.search.create({
     data: {
-      id: data.id,
-      userId: data.userId || null,
+      userId: verifiedUserId,
       rawQuery: data.rawQuery,
       canonicalIntentHash: data.canonicalIntentHash || null,
       canonicalIntent: data.canonicalIntent || null,
@@ -363,12 +435,12 @@ export async function createSearch(data: CreateSearchInput): Promise<Search> {
       parsedLocation: data.parsedLocation || null,
       parsedWorkMode: data.parsedWorkMode || "ANY",
       targetGradYear: typeof data.targetGradYear === "number" ? data.targetGradYear : null,
-      status: data.status || "COMPLETED",
+      status: initialStatus,
       totalFound: typeof data.totalFound === "number" ? data.totalFound : 0,
-      startedAt: data.startedAt || (data.status === "RUNNING" ? new Date() : null),
-      completedAt: data.completedAt || null,
-      cancellationRequested: data.cancellationRequested || false,
-      stoppingReason: data.stoppingReason || null,
+      startedAt: data.startedAt || (initialStatus === "RUNNING" ? new Date() : null),
+      completedAt: initialStatus === "STOPPED" ? new Date() : (data.completedAt || null),
+      cancellationRequested,
+      stoppingReason,
       failureReason: data.failureReason || null,
       isRecoverable: data.isRecoverable || false,
     },
@@ -685,11 +757,9 @@ export async function getSearchSession(searchId: string, userId?: string | null)
 
   if (!search) return null;
 
-  // Enforce strict user isolation: if search is user-owned, only that user can access it
-  if (search.userId) {
-    if (!userId || search.userId !== userId) {
-      return null;
-    }
+  // Enforce strict multi-tenant isolation: require ownership match
+  if (!search.userId || !userId || search.userId !== userId) {
+    return null;
   }
 
   return search;
@@ -943,8 +1013,12 @@ export async function getDiscoveryWatch(userId: string, watchId?: string): Promi
 
     const effectiveRoles = parsedRoles.length > 0 ? parsedRoles : profileRoles;
     const effectiveSkills = parsedSkills.length > 0 ? parsedSkills : profileSkills;
-    const effectiveLocations = parsedLocations.length > 0 ? parsedLocations : profileLocations;
-    const effectiveWorkModes = parsedWorkModes.length > 0 ? parsedWorkModes : profileWorkModes;
+    const rawLocations = parsedLocations.length > 0 ? parsedLocations : profileLocations;
+    const rawWorkModes = parsedWorkModes.length > 0 ? parsedWorkModes : profileWorkModes;
+
+    const hasRemoteInLocations = rawLocations.some((l) => /^(remote|fully\s*remote|remote-first)$/i.test(l.trim()));
+    const effectiveLocations = rawLocations.filter((l) => !/^(remote|fully\s*remote|remote-first)$/i.test(l.trim()));
+    const effectiveWorkModes = hasRemoteInLocations && !rawWorkModes.includes("REMOTE") ? [...rawWorkModes, "REMOTE"] : rawWorkModes;
 
     return {
       id: existing.id,
@@ -969,7 +1043,7 @@ export async function getDiscoveryWatch(userId: string, watchId?: string): Promi
     };
   }
 
-  // Create default watch config hydrated from Career Memory
+  // Create default watch config hydrated from Career Memory (default enabled)
   const created = await prisma.discoveryWatch.create({
     data: {
       userId,
@@ -1023,27 +1097,35 @@ export async function getUserDiscoveryWatches(userId: string): Promise<Discovery
     orderBy: { createdAt: "desc" },
   });
 
-  return watches.map((w) => ({
-    id: w.id,
-    name: (w as any).name || "Autonomous Watch",
-    enabled: w.enabled,
-    roles: safeParseStringArray(w.roles),
-    skills: safeParseStringArray(w.skills),
-    locations: safeParseStringArray(w.locations),
-    companies: safeParseStringArray((w as any).companies),
-    workModes: safeParseStringArray(w.workModes),
-    experienceLevels: safeParseStringArray(w.experienceLevels),
-    opportunityTypes: safeParseStringArray(w.opportunityTypes),
-    preferredSources: safeParseStringArray(w.preferredSources),
-    minimumMatchScore: w.minimumMatchScore,
-    latestOnly: w.latestOnly,
-    freshnessWindowHours: w.freshnessWindowHours,
-    scanIntervalHours: w.scanIntervalHours,
-    lastScannedAt: w.lastScannedAt,
-    nextScanAt: w.nextScanAt,
-    lockedAt: w.lockedAt,
-    lockOwner: w.lockOwner,
-  }));
+  return watches.map((w) => {
+    const rawLocs = safeParseStringArray(w.locations);
+    const hasRemote = rawLocs.some((l) => /^(remote|fully\s*remote|remote-first)$/i.test(l.trim()));
+    const cleanLocs = rawLocs.filter((l) => !/^(remote|fully\s*remote|remote-first)$/i.test(l.trim()));
+    const rawWorkModes = safeParseStringArray(w.workModes);
+    const cleanWorkModes = hasRemote && !rawWorkModes.includes("REMOTE") ? [...rawWorkModes, "REMOTE"] : rawWorkModes;
+
+    return {
+      id: w.id,
+      name: (w as any).name || "Autonomous Watch",
+      enabled: w.enabled,
+      roles: safeParseStringArray(w.roles),
+      skills: safeParseStringArray(w.skills),
+      locations: cleanLocs,
+      companies: safeParseStringArray((w as any).companies),
+      workModes: cleanWorkModes,
+      experienceLevels: safeParseStringArray(w.experienceLevels),
+      opportunityTypes: safeParseStringArray(w.opportunityTypes),
+      preferredSources: safeParseStringArray(w.preferredSources),
+      minimumMatchScore: w.minimumMatchScore,
+      latestOnly: w.latestOnly,
+      freshnessWindowHours: w.freshnessWindowHours,
+      scanIntervalHours: w.scanIntervalHours,
+      lastScannedAt: w.lastScannedAt,
+      nextScanAt: w.nextScanAt,
+      lockedAt: w.lockedAt,
+      lockOwner: w.lockOwner,
+    };
+  });
 }
 
 /**
@@ -1060,7 +1142,7 @@ export async function createDiscoveryWatch(
     data: {
       userId,
       name: input.name || "Autonomous Watch",
-      enabled: input.enabled ?? true,
+      enabled: input.enabled ?? false,
       roles: JSON.stringify(safeParseStringArray(input.roles ?? [])),
       skills: JSON.stringify(safeParseStringArray(input.skills ?? [])),
       locations: JSON.stringify(safeParseStringArray(input.locations ?? [])),
@@ -1463,6 +1545,7 @@ export async function getUserDiscoveryEvents(
           sourceListings: {
             orderBy: { seenAt: "desc" },
           },
+          companyContacts: true,
         },
       },
     },
@@ -1484,5 +1567,37 @@ export async function getUserDiscoveryRuns(userId: string, options: { limit?: nu
     take: limit,
   });
 }
+
+/**
+ * Automated fleet cleanup routine: pauses all currently active DiscoveryWatch rows in PostgreSQL.
+ */
+export async function pauseAllActiveDiscoveryWatches(): Promise<{ updatedCount: number }> {
+  const result = await prisma.discoveryWatch.updateMany({
+    where: { enabled: true },
+    data: { enabled: false },
+  });
+  return { updatedCount: result.count };
+}
+
+/**
+ * Automated cleanup routine: purges all legacy synthetic / placeholder company contacts from PostgreSQL (Requirement R6).
+ */
+export async function purgeSyntheticCompanyContacts(): Promise<{ deletedCount: number }> {
+  const result = await prisma.companyContact.deleteMany({
+    where: {
+      OR: [
+        { fullName: { in: ["Sarah Jenkins", "Alex Morgan", "Elena Rostova", "David Chen", "Marcus Vance", "Claire Beaumont", "Ananya Deshmukh", "Arun Kumar", "Sneha Rao", "Vikram Patel", "Divya Menon"] } },
+        { phone: { contains: "555" } },
+        { personalEmail: { contains: ".career@gmail.com" } },
+        { personalEmail: { contains: ".talent@gmail.com" } },
+        { personalEmail: { contains: ".tech@gmail.com" } },
+        { personalEmail: { contains: ".code@gmail.com" } },
+        { personalEmail: { contains: ".recruiting@gmail.com" } },
+      ],
+    },
+  });
+  return { deletedCount: result.count };
+}
+
 
 

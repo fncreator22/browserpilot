@@ -538,6 +538,9 @@ export function sanitizeSearchTelemetry<T>(value: T): T {
     /AIza[0-9A-Za-z\-_]{35}/i,
     /password\s*=\s*['"]?[^'"\s]+/i,
     /api[_-]?key\s*[:=]\s*['"]?[^'"\s]+/i,
+    /postgres(ql)?:\/\/[^\s'"]+/i,
+    /mongodb(\+srv)?:\/\/[^\s'"]+/i,
+    /redis:\/\/[^\s'"]+/i,
   ];
 
   if (typeof value === "string") {

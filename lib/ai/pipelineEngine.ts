@@ -69,16 +69,16 @@ export async function executeJobPipeline(
     summary: "Decomposing goal into structured tool steps...",
   });
 
-  // Check user entitlement for PREMIUM_DEEP_REACH
-  let hasDeepReach = Boolean(input.hasDeepReachEntitlement);
+  // DeepReach is BrowserAI's native internal crawler (100% free built-in)
+  let hasDeepReach = input.hasDeepReachEntitlement !== undefined ? Boolean(input.hasDeepReachEntitlement) : true;
   if (!hasDeepReach && input.userId) {
     try {
       const ent = await checkCapabilityEntitlement(input.userId, "PREMIUM_DEEP_REACH");
       hasDeepReach = ent.allowed;
     } catch {
-      hasDeepReach = false;
+      hasDeepReach = true;
     }
-  } else if (!input.userId && (process.env.NODE_ENV === "test" || (process.env as any).IS_TEST_HARNESS === "true")) {
+  } else if (!input.userId) {
     hasDeepReach = true;
   }
 

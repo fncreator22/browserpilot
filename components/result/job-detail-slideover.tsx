@@ -33,7 +33,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useUIState } from "@/components/providers/ui-state-provider";
-import { getVerificationCornerBadge, getAtsSourceInfo, type DossierJobItem } from "@/components/result/job-dossier-deck";
+import { getVerificationCornerBadge, type DossierJobItem } from "@/components/result/job-dossier-deck";
+import { getAtsSourceInfo, getSocialAuthorHandle } from "@/lib/ats/atsSourceInfo";
 import { TrustScoreBadge } from "@/components/result/trust-score-badge";
 import { GhostJobBanner } from "@/components/result/ghost-job-banner";
 import { CompanyIntelligencePill } from "@/components/result/company-intelligence-pill";
@@ -52,6 +53,7 @@ interface JobDetailSlideOverProps {
   onToggleSave?: () => void;
   onRevalidate?: () => void;
   isRevalidating?: boolean;
+  onOpenPersonnelDrawer?: () => void;
 }
 
 export function JobDetailSlideOver({
@@ -63,6 +65,7 @@ export function JobDetailSlideOver({
   onToggleSave,
   onRevalidate,
   isRevalidating = false,
+  onOpenPersonnelDrawer,
 }: JobDetailSlideOverProps) {
   const { getConnectorMeta } = useUIState();
   const [showShareMenu, setShowShareMenu] = React.useState(false);
@@ -96,6 +99,10 @@ export function JobDetailSlideOver({
   const effectiveUrl = job.applyUrl || job.primaryApplyUrl || job.sourceListings?.[0]?.applyUrl;
   const conn = getConnectorMeta(effectivePlatform, effectiveUrl);
   const atsInfo = getAtsSourceInfo(effectivePlatform, effectiveUrl, job.sourceListings);
+  const isSocialMedia = ["REDDIT", "X", "TWITTER", "YOUTUBE", "LINKEDIN"].includes(
+    (effectivePlatform || "").toUpperCase()
+  ) || /reddit\.com|x\.com|twitter\.com|youtube\.com|youtu\.be/i.test(effectiveUrl || "");
+  const socialHandle = isSocialMedia ? getSocialAuthorHandle(job) : null;
   const verificationBadge = getVerificationCornerBadge(job.verificationStatus);
 
   const parsedSkills = Array.isArray(job.skills) 
@@ -121,15 +128,20 @@ export function JobDetailSlideOver({
 
       <div className="fixed inset-y-0 right-0 flex max-w-full pl-0 sm:pl-10">
         {/* Slide-over Panel (Full width on mobile, max-w-xl on desktop) */}
-        <div className="w-screen max-w-full sm:max-w-lg md:max-w-xl bg-white shadow-2xl flex flex-col h-full border-l border-border animate-in slide-in-from-right duration-200">
+        <div className="w-screen max-w-full sm:max-w-lg md:max-w-xl bg-card text-card-foreground shadow-marble-3 sm:rounded-l-3xl flex flex-col h-full border-l border-border animate-in slide-in-from-right duration-200">
           
           {/* Top Header Bar */}
-          <div className="px-5 py-4 border-b border-border/70 flex items-center justify-between bg-slate-50/60 shrink-0">
+          <div className="px-5 py-4 border-b border-border/70 flex items-center justify-between bg-muted/40 shrink-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-sans font-medium border ${atsInfo.className}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${atsInfo.dotColor}`} />
                 {atsInfo.name}
               </span>
+              {socialHandle && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono bg-muted/80 text-foreground font-medium border border-border/60">
+                  {socialHandle}
+                </span>
+              )}
               {job.trustReport && (
                 <TrustScoreBadge
                   score={job.trustReport.trustScore}
@@ -143,7 +155,7 @@ export function JobDetailSlideOver({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-slate-200/60 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
               aria-label="Close panel"
             >
               <X className="h-5 w-5" />
@@ -155,7 +167,7 @@ export function JobDetailSlideOver({
             {/* Title & Company Block */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-xs font-sans text-muted-foreground">
-                <Building2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
                 <span className="font-semibold text-foreground text-sm">{job.companyName}</span>
                 {job.postedAgoText && (
                   <>
@@ -210,9 +222,13 @@ export function JobDetailSlideOver({
                     href={effectiveUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 min-w-[150px] inline-flex items-center justify-center gap-2 h-9 px-3.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-sans font-semibold text-xs shadow-xs transition-colors cursor-pointer"
+                    className="flex-1 min-w-[150px] inline-flex items-center justify-center gap-2 h-9 px-3.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-sans font-semibold text-xs shadow-marble-1 transition-colors cursor-pointer"
                   >
-                    <span>Apply on {atsInfo.name}</span>
+                    <span>
+                      {isSocialMedia
+                        ? (atsInfo.name === "YOUTUBE" ? "Watch Video on YouTube" : `View Post on ${atsInfo.name}`)
+                        : `Apply on ${atsInfo.name}`}
+                    </span>
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 ) : (
@@ -343,27 +359,27 @@ export function JobDetailSlideOver({
             {typeof job.matchScore === "number" && (
               <div className={`rounded-xl border p-4 space-y-2 ${
                 job.matchBadge?.label === "Recommendation" || job.matchType?.startsWith("RECOMMENDED")
-                  ? "border-amber-200/80 bg-amber-50/50"
-                  : "border-emerald-200/80 bg-emerald-50/50"
+                  ? "border-amber-500/30 bg-amber-500/10"
+                  : "border-emerald-500/30 bg-emerald-500/10"
               }`}>
                 <div className="flex items-center justify-between">
                   <span className={`text-xs font-sans font-semibold flex items-center gap-1.5 ${
                     job.matchBadge?.label === "Recommendation" || job.matchType?.startsWith("RECOMMENDED")
-                      ? "text-amber-900"
-                      : "text-emerald-900"
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-emerald-600 dark:text-emerald-400"
                   }`}>
                     <Sparkles className="h-3.5 w-3.5 stroke-[1.75]" />
                     {job.matchBadge?.label === "Recommendation" ? "AI Recommendation Match" : "Verified Direct Match"}
                   </span>
-                  <span className="text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-white border border-border px-2 py-0.5 rounded-md">
+                  <span className="text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-background/80 border border-border px-2 py-0.5 rounded-md">
                     {Math.round(job.matchScore)}% fit
                   </span>
                 </div>
                 {job.matchBadge?.tagline && (
                   <p className={`text-xs font-sans font-medium ${
                     job.matchBadge?.label === "Recommendation" || job.matchType?.startsWith("RECOMMENDED")
-                      ? "text-amber-950/80"
-                      : "text-emerald-950/80"
+                      ? "text-amber-700 dark:text-amber-300"
+                      : "text-emerald-700 dark:text-emerald-300"
                   }`}>
                     {job.matchBadge.tagline}
                   </p>
@@ -377,7 +393,7 @@ export function JobDetailSlideOver({
             )}
 
             {/* Trust & Verification Audit Section */}
-            <div className="rounded-xl border border-border/70 bg-slate-50/60 p-4 space-y-3.5">
+            <div className="rounded-xl border border-border/70 bg-muted/30 p-4 space-y-3.5">
               <div className="flex items-center justify-between pb-2 border-b border-border/40">
                 <div className="flex items-center gap-1.5">
                   <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -497,7 +513,7 @@ export function JobDetailSlideOver({
                   {parsedSkills.map((skill: string, i: number) => (
                     <span 
                       key={i} 
-                      className="px-2.5 py-1 rounded-md text-xs font-sans bg-slate-100 text-slate-800 border border-slate-200/80"
+                      className="px-2.5 py-1 rounded-md text-xs font-sans bg-muted text-foreground border border-border/70"
                     >
                       {skill}
                     </span>
@@ -514,7 +530,7 @@ export function JobDetailSlideOver({
                 </h4>
                 <ul className="space-y-1.5 list-disc list-inside text-xs font-sans text-muted-foreground">
                   {parsedRequirements.map((req: string, i: number) => (
-                    <li key={i} className="leading-relaxed text-slate-700">
+                    <li key={i} className="leading-relaxed text-foreground/90">
                       {req}
                     </li>
                   ))}
@@ -522,17 +538,30 @@ export function JobDetailSlideOver({
               </div>
             )}
 
-            {/* Key Company Contacts & Hiring Team (DeepReach Pro) */}
+            {/* Key Company Contacts & Hiring Team (DeepReach Verified) */}
             {job.companyContacts && job.companyContacts.length > 0 && (
               <div className="space-y-3 pt-2 border-t border-border/40">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-sans font-bold text-foreground flex items-center gap-1.5">
-                    <UserCheck className="h-3.5 w-3.5 text-emerald-700" />
+                    <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                     Key company contacts & hiring team
                   </h4>
-                  <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-800 border-emerald-300">
-                    DeepReach Verified
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono">
+                      DeepReach Verified
+                    </Badge>
+                    {onOpenPersonnelDrawer && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={onOpenPersonnelDrawer}
+                        className="h-6 px-2 text-[11px] font-sans gap-1 text-primary border-primary/30 hover:bg-primary/10 cursor-pointer"
+                      >
+                        <UserCheck className="h-3 w-3" />
+                        Outreach Drawer
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2.5">
                   {job.companyContacts.map((contact, idx) => {
@@ -646,13 +675,58 @@ export function JobDetailSlideOver({
               </div>
             )}
 
+            {/* DeepReach Hiring Team & Direct Outreach (100% Free Built-in Intelligence) */}
+            {(!job.companyContacts || job.companyContacts.length === 0) && (
+              <div className="p-3.5 rounded-xl border border-border/70 bg-gradient-to-br from-card to-muted/20 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-sans font-semibold text-xs text-foreground">
+                    <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    Key company contacts & hiring team
+                  </div>
+                  <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono">
+                    DeepReach Verified
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Direct recruiter profiles, talent acquisition managers, and outreach shortcuts for {job.companyName} are free and available via built-in DeepReach intelligence.
+                </p>
+                <div className="flex items-center gap-2 pt-0.5 flex-wrap">
+                  {onOpenPersonnelDrawer ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={onOpenPersonnelDrawer}
+                      className="h-7 text-xs font-sans gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 cursor-pointer hover:bg-emerald-500/10"
+                    >
+                      <UserCheck className="h-3 w-3" />
+                      Direct Recruiter Outreach
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        toast.info("DeepReach Intelligence", {
+                          description: `DeepReach verified intelligence active for ${job.companyName}.`,
+                        });
+                      }}
+                      className="h-7 text-xs font-sans gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 cursor-pointer hover:bg-emerald-500/10"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      View Recruiter Network
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Job Description */}
             {job.description && (
               <div className="space-y-2 pt-2 border-t border-border/40">
                 <h4 className="text-xs font-sans font-bold text-foreground">
                   Role overview and description
                 </h4>
-                <div className="text-xs font-sans text-slate-700 leading-relaxed whitespace-pre-line bg-slate-50/40 p-4 rounded-xl border border-border/60">
+                <div className="text-xs font-sans text-foreground/90 leading-relaxed whitespace-pre-line bg-muted/30 p-4 rounded-xl border border-border/60">
                   {job.description}
                 </div>
               </div>
@@ -660,7 +734,7 @@ export function JobDetailSlideOver({
           </div>
 
           {/* Sticky Bottom Footer: Action Bar */}
-          <div className="p-4 border-t border-border/70 bg-white flex items-center justify-between gap-3 shrink-0">
+          <div className="p-4 border-t border-border/70 bg-card flex items-center justify-between gap-3 shrink-0">
             {onToggleSave && (
               <Button
                 variant="outline"
@@ -703,10 +777,10 @@ export function JobDetailSlideOver({
                 target="_blank"
                 rel="noopener noreferrer"
                 title={job.urlAnalysis?.isAffiliateTrap ? "Redirects to third-party registration" : undefined}
-                className={`flex-1 inline-flex items-center justify-center gap-2 h-11 sm:h-10 px-5 rounded-lg font-sans font-semibold text-xs shadow-xs transition-colors ${
+                className={`flex-1 inline-flex items-center justify-center gap-2 h-11 sm:h-10 px-5 rounded-lg font-sans font-semibold text-xs shadow-marble-1 transition-colors ${
                   job.urlAnalysis?.isAffiliateTrap
                     ? "bg-amber-600 hover:bg-amber-700 text-white border-2 border-amber-400"
-                    : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                    : "bg-primary hover:bg-primary/90 text-primary-foreground"
                 }`}
               >
                 {job.urlAnalysis?.isAffiliateTrap ? (

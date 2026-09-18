@@ -64,13 +64,16 @@ export async function callPuterChatCompletion(options: PuterChatOptions): Promis
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+  const { sanitizeSearchTelemetry } = await import("@/lib/ai/errors/searchFailureModel");
+  const sanitizedMessages = sanitizeSearchTelemetry(messages);
+
   const payload = {
     interface: "puter-chat-completion",
     driver: "ai-chat",
     test_mode: false,
     method: "complete",
     args: {
-      messages,
+      messages: sanitizedMessages,
       ...(model ? { model } : {}),
     },
     auth_token: token,

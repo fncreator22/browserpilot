@@ -133,13 +133,13 @@ export function ResultCard({
   const isMediumConfidence = confidence >= 0.4 && status !== "BLOCKED" && status !== "FAILED";
 
   return (
-    <div className="rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-md transition-all space-y-6">
+    <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-marble-2 transition-all space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-border/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-border">
         <div>
           <div className="flex items-center gap-2">
             {isHighConfidence ? (
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               </span>
             ) : isMediumConfidence ? (
@@ -155,25 +155,25 @@ export function ResultCard({
               {title}
             </h3>
             {isHighConfidence ? (
-              <Badge variant="outline" className="text-[10px] font-mono text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300">
+              <Badge variant="outline" className="text-[10px] font-mono text-primary bg-primary/10 border-primary/30 rounded-full">
                 {Math.round(confidence * 100)}% Confident
               </Badge>
             ) : isMediumConfidence ? (
-              <Badge variant="outline" className="text-[10px] font-mono text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-300">
+              <Badge variant="outline" className="text-[10px] font-mono text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-300 rounded-full">
                 {Math.round(confidence * 100)}% Partial
               </Badge>
             ) : status === "BLOCKED" ? (
-              <Badge variant="outline" className="text-[10px] font-mono text-destructive bg-destructive/10 border-destructive/30">
+              <Badge variant="outline" className="text-[10px] font-mono text-destructive bg-destructive/10 border-destructive/30 rounded-full">
                 Blocked / 0% Confident
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-[10px] font-mono text-muted-foreground bg-muted border-border">
+              <Badge variant="outline" className="text-[10px] font-mono text-muted-foreground bg-muted border-border rounded-full">
                 Unverified ({Math.round(confidence * 100)}%)
               </Badge>
             )}
           </div>
           {displaySummary && (
-            <p className="text-xs text-muted-foreground mt-2 leading-relaxed max-w-4xl">
+            <p className="text-xs text-muted-foreground mt-2 leading-relaxed max-w-4xl font-sans">
               {displaySummary.length > 300 && hasDossier ? displaySummary.slice(0, 300) + "..." : displaySummary}
             </p>
           )}
@@ -184,16 +184,16 @@ export function ResultCard({
             variant="outline"
             size="sm"
             onClick={handleCopyJson}
-            className="font-mono text-xs gap-1.5 h-9 min-h-[44px] sm:min-h-[36px] border-border/80 text-muted-foreground hover:text-foreground cursor-pointer focus-visible:ring-2 focus-visible:ring-emerald-500"
+            className="font-mono text-xs gap-1.5 h-9 min-h-[44px] sm:min-h-[36px] rounded-lg border-border text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer focus-visible:ring-2 focus-visible:ring-primary shadow-2xs"
           >
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "Copied" : "Copy Payload"}
           </Button>
           {(hasDossier || isArrayData) && (
             <Button
               size="sm"
               onClick={handleExportCsv}
-              className="font-mono text-xs gap-1.5 h-9 min-h-[44px] sm:min-h-[36px] px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer focus-visible:ring-2 focus-visible:ring-emerald-500"
+              className="font-mono text-xs gap-1.5 h-9 min-h-[44px] sm:min-h-[36px] px-3.5 rounded-lg bg-primary hover:bg-primary/90 text-white shadow-marble-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-primary"
             >
               <Download className="h-3.5 w-3.5" />
               Export CSV

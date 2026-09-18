@@ -370,6 +370,13 @@ export const KNOWN_GEO_REGIONS: Record<string, GeoLocationInfo> = {
     continent: "Middle East",
     synonyms: ["dubai", "uae", "abu dhabi"],
   },
+
+  // Israel Hubs
+  israel: {
+    country: "Israel",
+    continent: "Middle East",
+    synonyms: ["israel", "tel aviv", "jerusalem", "haifa", "herzliya"],
+  },
 };
 
 export function resolveLocationGeo(locationStr?: string | null): {
@@ -411,6 +418,7 @@ export function resolveLocationGeo(locationStr?: string | null): {
   if (/\b(germany|deutschland)\b/i.test(clean)) return { normalized: "Germany", country: "Germany", continent: "Europe", isRemoteOnly };
   if (/\b(canada)\b/i.test(clean)) return { normalized: "Canada", country: "Canada", continent: "North America", isRemoteOnly };
   if (/\b(australia)\b/i.test(clean)) return { normalized: "Australia", country: "Australia", continent: "Oceania", isRemoteOnly };
+  if (/\b(israel|tel aviv|jerusalem)\b/i.test(clean)) return { normalized: "Israel", country: "Israel", continent: "Middle East", isRemoteOnly };
 
   return { normalized: clean, isRemoteOnly };
 }

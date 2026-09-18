@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sparkles, CheckCircle2, Clock, Layers, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -27,12 +27,37 @@ interface CompactExecutionPillProps {
   } | null;
 }
 
+const SEARCH_STAGES = [
+  "Scouting verified company boards...",
+  "Harvesting live listings from LinkedIn, ATS & YC...",
+  "Applying deduplication & quality verification...",
+  "Ranking and assembling match results...",
+];
+
 export function CompactExecutionPill({ isSearching, searchResult }: CompactExecutionPillProps) {
+  const [stageIdx, setStageIdx] = useState(0);
+
+  useEffect(() => {
+    if (!isSearching) {
+      setStageIdx(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setStageIdx((prev) => (prev + 1) % SEARCH_STAGES.length);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [isSearching]);
+
   if (isSearching) {
     return (
-      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border/80 bg-card text-foreground shadow-xs text-xs font-mono animate-pulse">
-        <span className="h-2 w-2 rounded-full bg-foreground animate-ping" />
-        <span className="text-xs font-medium">Scouting multi-source pipeline...</span>
+      <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-foreground shadow-xs text-xs font-sans transition-all duration-300">
+        <span className="flex h-2 w-2 relative">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+        </span>
+        <span className="text-xs font-medium text-foreground tracking-tight">
+          {SEARCH_STAGES[stageIdx]}
+        </span>
       </div>
     );
   }

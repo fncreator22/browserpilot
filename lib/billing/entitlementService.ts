@@ -14,8 +14,6 @@ export const LEGACY_PLAN_CAPABILITY_MAP: Record<string, keyof Plan> = {
   supportsPuterPremium: "supportsPuterPremium",
   PRIORITY_EXECUTION: "supportsPriorityExecution",
   supportsPriorityExecution: "supportsPriorityExecution",
-  PREMIUM_DEEP_REACH: "supportsCompanyTargeting",
-  DEEP_REACH: "supportsCompanyTargeting",
 };
 
 export interface CapabilityEntitlementResult {
@@ -48,6 +46,26 @@ export async function checkCapabilityEntitlement(
   capabilityKey: string
 ): Promise<CapabilityEntitlementResult> {
   const normKey = normalizeCapabilityKey(capabilityKey);
+
+  // Built-in DeepReach crawler and Discovery are 100% free and accessible for all users and plans unconditionally
+  if (normKey === "PREMIUM_DEEP_REACH" || normKey === "DEEP_REACH" || normKey === "DISCOVERY") {
+    let resolvedPlanCode = "FREE";
+    if (userId && userId !== "FREE") {
+      try {
+        const { getUserEffectivePlan } = await import("./planService");
+        const effective = await getUserEffectivePlan(userId);
+        if (effective?.plan?.code) {
+          resolvedPlanCode = effective.plan.code.toUpperCase();
+        }
+      } catch {}
+    }
+    return {
+      allowed: true,
+      planCode: resolvedPlanCode,
+      capabilityKey: normKey,
+      source: "EXPLICIT_ROW",
+    };
+  }
 
   // 1. Resolve effective plan
   const { getUserEffectivePlan } = await import("./planService");
@@ -86,16 +104,6 @@ export async function checkCapabilityEntitlement(
       capabilityKey: normKey,
       source: "EXPLICIT_ROW",
       limitValue: explicitRow.limitValue,
-    };
-  }
-
-  // 2b. Check legacy Plan boolean columns fallback
-  if (normKey === "DISCOVERY") {
-    return {
-      allowed: true,
-      planCode,
-      capabilityKey: normKey,
-      source: "LEGACY_COLUMN",
     };
   }
 

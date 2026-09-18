@@ -80,8 +80,8 @@ export function AdminObservabilityDeck({ adminKey }: { adminKey?: string | null 
 
   if (loading && !data) {
     return (
-      <div className="rounded-xl border border-border/40 bg-card/60 p-6 backdrop-blur-sm animate-pulse">
-        <div className="h-6 w-48 bg-muted rounded mb-4" />
+      <div className="rounded-xl border border-border/40 bg-card/60 p-6 backdrop-blur-sm">
+        <div className="h-6 w-48 bg-muted/60 rounded mb-4" />
         <div className="grid grid-cols-4 gap-4">
           <div className="h-20 bg-muted/50 rounded" />
           <div className="h-20 bg-muted/50 rounded" />

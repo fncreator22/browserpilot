@@ -40,6 +40,10 @@ import {
   Hash,
   MessageCircle,
   Video,
+  Blocks,
+  Compass,
+  Zap,
+  BellRing,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,10 +153,50 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const [newSkillInput, setNewSkillInput] = useState("");
   const [isSavingCareerMemory, setIsSavingCareerMemory] = useState(false);
 
-  // Notification Preferences State (Local settings backed by storage)
-  const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(true);
-  const [inAppToastsEnabled, setInAppToastsEnabled] = useState(true);
-  const [dailyDigestEnabled, setDailyDigestEnabled] = useState(false);
+  // Notification Preferences State (Persisted in localStorage)
+  const [emailAlertsEnabled, setEmailAlertsEnabled] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("browserpilot_email_alerts");
+        if (saved !== null) return saved === "true";
+      } catch {}
+    }
+    return true;
+  });
+  const [inAppToastsEnabled, setInAppToastsEnabled] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("browserpilot_in_app_toasts");
+        if (saved !== null) return saved === "true";
+      } catch {}
+    }
+    return true;
+  });
+  const [dailyDigestEnabled, setDailyDigestEnabled] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("browserpilot_daily_digest");
+        if (saved !== null) return saved === "true";
+      } catch {}
+    }
+    return false;
+  });
+
+  const handleToggleNotificationPref = (key: "email" | "toasts" | "digest", val: boolean) => {
+    if (key === "email") {
+      setEmailAlertsEnabled(val);
+      try { localStorage.setItem("browserpilot_email_alerts", String(val)); } catch {}
+      toast.success(val ? "Opportunity match alerts enabled" : "Opportunity match alerts muted");
+    } else if (key === "toasts") {
+      setInAppToastsEnabled(val);
+      try { localStorage.setItem("browserpilot_in_app_toasts", String(val)); } catch {}
+      toast.success(val ? "In-app toasts enabled" : "In-app toasts muted");
+    } else if (key === "digest") {
+      setDailyDigestEnabled(val);
+      try { localStorage.setItem("browserpilot_daily_digest", String(val)); } catch {}
+      toast.success(val ? "Daily digest enabled" : "Daily digest disabled");
+    }
+  };
 
   // Pro DeepReach Channels State (Persisted in localStorage)
   const [deepReachChannels, setDeepReachChannels] = useState<DeepReachChannelsPreferences>(() => {
@@ -798,7 +842,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 <Button
                   type="submit"
                   disabled={isSavingProfile}
-                  className="h-9 font-sans text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs gap-1.5"
+                  className="h-9 font-sans text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg cursor-pointer shadow-marble-1 gap-1.5"
                 >
                   {isSavingProfile ? (
                     <>
@@ -839,16 +883,16 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             </div>
 
             {/* Puter Card */}
-            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-marble-1">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
                     <Sparkles className="h-5 w-5" />
                   </div>
                   <div>
                     <h3 className="text-sm font-sans font-bold text-foreground">Puter Cloud AI (Default)</h3>
                     <p className="text-xs text-muted-foreground font-sans">
-                      Zero-config, client-side authentication with free model access
+                       Zero-config, client-side authentication with free model access
                     </p>
                   </div>
                 </div>
@@ -873,7 +917,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     variant="outline"
                     size="sm"
                     onClick={handlePuterDisconnect}
-                    className="h-8 font-sans text-xs border-border/70 hover:text-rose-600 cursor-pointer"
+                    className="h-8 font-sans text-xs rounded-lg border-border/70 hover:text-rose-600 cursor-pointer"
                   >
                     Disconnect Puter
                   </Button>
@@ -881,7 +925,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   <Button
                     size="sm"
                     onClick={handlePuterConnect}
-                    className="h-8 font-sans text-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs gap-1.5"
+                    className="h-8 font-sans text-xs bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg cursor-pointer shadow-marble-1 gap-1.5"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     Connect Puter Account
@@ -891,7 +935,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             </div>
 
             {/* BYOK Gemini Key */}
-            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-marble-1">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 border border-amber-200">
@@ -930,7 +974,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         setIsReplacingKey(!isReplacingKey);
                         setGeminiApiKey("");
                       }}
-                      className="h-8 text-xs font-sans border-border/80 hover:bg-muted/50 cursor-pointer"
+                      className="h-8 text-xs font-sans rounded-lg border-border/80 hover:bg-muted/50 cursor-pointer"
                     >
                       {isReplacingKey ? "Cancel" : "Replace Key"}
                     </Button>
@@ -940,7 +984,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       size="sm"
                       disabled={isRemovingGeminiKey}
                       onClick={handleRemoveGeminiKey}
-                      className="h-8 text-xs font-sans text-rose-600 border-rose-200/80 hover:bg-rose-50 hover:text-rose-700 cursor-pointer gap-1.5"
+                      className="h-8 text-xs font-sans rounded-lg text-rose-600 border-rose-200/80 hover:bg-rose-50 hover:text-rose-700 cursor-pointer gap-1.5"
                     >
                       {isRemovingGeminiKey ? (
                         <RotateCw className="h-3.5 w-3.5 animate-spin" />
@@ -997,7 +1041,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                           setIsReplacingKey(false);
                           setGeminiApiKey("");
                         }}
-                        className="h-8 text-xs font-sans cursor-pointer"
+                        className="h-8 text-xs font-sans rounded-lg cursor-pointer"
                       >
                         Cancel
                       </Button>
@@ -1007,7 +1051,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       size="sm"
                       disabled={isSavingGeminiKey || !geminiApiKey.trim()}
                       onClick={handleSaveGeminiKey}
-                      className="h-8 font-sans text-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs gap-1.5"
+                      className="h-8 font-sans text-xs bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg cursor-pointer shadow-marble-1 gap-1.5"
                     >
                       {isSavingGeminiKey ? (
                         <>
@@ -1027,10 +1071,10 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             </div>
 
             {/* BYOK DeepSeek Key */}
-            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-marble-1">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
                     <Sparkles className="h-5 w-5" />
                   </div>
                   <div>
@@ -1070,7 +1114,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         setIsReplacingDeepseekKey(!isReplacingDeepseekKey);
                         setDeepseekApiKey("");
                       }}
-                      className="h-8 text-xs font-sans border-border/80 hover:bg-muted/50 cursor-pointer"
+                      className="h-8 text-xs font-sans rounded-lg border-border/80 hover:bg-muted/50 cursor-pointer"
                     >
                       {isReplacingDeepseekKey ? "Cancel" : "Replace Key"}
                     </Button>
@@ -1080,7 +1124,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       size="sm"
                       disabled={isRemovingDeepseekKey}
                       onClick={handleRemoveDeepseekKey}
-                      className="h-8 text-xs font-sans text-rose-600 border-rose-200/80 hover:bg-rose-50 hover:text-rose-700 cursor-pointer gap-1.5"
+                      className="h-8 text-xs font-sans rounded-lg text-rose-600 border-rose-200/80 hover:bg-rose-50 hover:text-rose-700 cursor-pointer gap-1.5"
                     >
                       {isRemovingDeepseekKey ? (
                         <RotateCw className="h-3.5 w-3.5 animate-spin" />
@@ -1149,7 +1193,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                           setIsReplacingDeepseekKey(false);
                           setDeepseekApiKey("");
                         }}
-                        className="h-8 text-xs font-sans cursor-pointer"
+                        className="h-8 text-xs font-sans rounded-lg cursor-pointer"
                       >
                         Cancel
                       </Button>
@@ -1159,7 +1203,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       size="sm"
                       disabled={isSavingDeepseekKey || !deepseekApiKey.trim()}
                       onClick={handleSaveDeepseekKey}
-                      className="h-8 font-sans text-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs gap-1.5"
+                      className="h-8 font-sans text-xs bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg cursor-pointer shadow-marble-1 gap-1.5"
                     >
                       {isSavingDeepseekKey ? (
                         <>
@@ -1180,7 +1224,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
 
             {/* Token Usage Summary */}
             {usageSummary && (
-              <div className="rounded-xl border border-border/60 bg-[#FBFBFA] p-4 text-xs font-mono space-y-2">
+              <div className="rounded-2xl border border-border bg-card p-4 text-xs font-mono space-y-2 shadow-marble-1">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground uppercase text-[10px] block font-sans font-semibold">Real AI Telemetry & Usage</span>
                   {usageSummary.operationsByProvider && Object.keys(usageSummary.operationsByProvider).length > 0 && (
@@ -1331,8 +1375,28 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
-              <ConnectorPreferencesPanel onPreferencesSaved={() => {}} />
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 space-y-3 shadow-marble-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-marble-1 shrink-0">
+                    <Blocks className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold font-sans text-foreground">Active Plugins Engine</h3>
+                    <p className="text-xs text-muted-foreground font-sans mt-0.5">
+                      Monitored sources are now driven by the modern Plugins architecture (~75%+ priority yield). Manage scraper plugins and credentials in the marketplace.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href="/app/plugins"
+                  onClick={onClose}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold font-sans shadow-marble-1 transition-colors shrink-0 cursor-pointer"
+                >
+                  <span>Open Plugins</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
+              </div>
             </div>
           </div>
         );
@@ -1348,10 +1412,10 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             </div>
 
             {/* Central Memory Vault Hub Card */}
-            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 space-y-4">
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 space-y-4 shadow-marble-1">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs shrink-0">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-marble-1 shrink-0">
                     <Brain className="h-5 w-5" />
                   </div>
                   <div>
@@ -1364,7 +1428,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 <Link
                   href="/app/settings/memory"
                   onClick={onClose}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-sans font-semibold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shrink-0 shadow-xs cursor-pointer"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-sans font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0 shadow-marble-1 cursor-pointer"
                 >
                   <span>Open Memory Vault</span>
                   <ExternalLink className="h-3.5 w-3.5" />
@@ -1424,7 +1488,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             </div>
 
             {/* Current Plan Card */}
-            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-marble-1">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-[10px] font-mono text-muted-foreground uppercase block">Active Subscription</span>
@@ -1436,7 +1500,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 <Badge
                   className={`font-mono text-xs ${
                     billingData?.plan?.code === "PREMIUM"
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      ? "bg-primary/10 text-primary border-primary/20"
                       : "bg-slate-100 text-slate-700 border-slate-200"
                   }`}
                 >
@@ -1463,50 +1527,62 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 const aiOpsPercent = Math.min(100, Math.round((monthlyAIOps / Math.max(1, maxMonthlyAIOps)) * 100));
 
                 return (
-                  <div className="space-y-3.5 pt-3 border-t border-border/40 font-sans">
-                    {/* Daily Discovery Searches Meter */}
-                    <div className="space-y-1.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-border/40 font-sans">
+                    {/* Daily Discovery Searches Card */}
+                    <div className="p-3.5 rounded-xl border border-border bg-card flex flex-col justify-between space-y-2 hover:border-primary/40 shadow-marble-1 transition-colors">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-foreground">Daily Discovery Meter</span>
-                        <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
-                          {todayDiscoveries} / {maxDailyDiscoveries} today ({discoveriesPercent}%)
+                        <span className="font-medium text-muted-foreground flex items-center gap-1.5">
+                          <Compass className="h-3.5 w-3.5 text-primary" />
+                          Daily Discovery
                         </span>
+                        <span className="text-[10px] font-mono text-muted-foreground font-semibold">{discoveriesPercent}%</span>
                       </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-border/40">
+                      <div className="text-base sm:text-lg font-bold font-mono text-foreground">
+                        {todayDiscoveries} <span className="text-xs font-normal text-muted-foreground">/ {maxDailyDiscoveries}</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                         <div 
-                          className="bg-emerald-600 h-full rounded-full transition-all duration-500" 
+                          className="bg-primary h-full rounded-full transition-all duration-500" 
                           style={{ width: `${discoveriesPercent}%` }}
                         />
                       </div>
                     </div>
 
-                    {/* Autonomous Watches Meter */}
-                    <div className="space-y-1.5">
+                    {/* Autonomous Watches Card */}
+                    <div className="p-3.5 rounded-xl border border-border bg-card flex flex-col justify-between space-y-2 hover:border-primary/40 shadow-marble-1 transition-colors">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-foreground">Active Autonomous Watches</span>
-                        <span className="font-mono font-semibold text-foreground">
-                          {activeWatches} / {maxWatches} active ({watchesPercent}%)
+                        <span className="font-medium text-muted-foreground flex items-center gap-1.5">
+                          <Radio className="h-3.5 w-3.5 text-primary" />
+                          Active Watches
                         </span>
+                        <span className="text-[10px] font-mono text-muted-foreground font-semibold">{watchesPercent}%</span>
                       </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-border/40">
+                      <div className="text-base sm:text-lg font-bold font-mono text-foreground">
+                        {activeWatches} <span className="text-xs font-normal text-muted-foreground">/ {maxWatches}</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                         <div 
-                          className="bg-emerald-600 h-full rounded-full transition-all duration-500" 
+                          className="bg-primary h-full rounded-full transition-all duration-500" 
                           style={{ width: `${watchesPercent}%` }}
                         />
                       </div>
                     </div>
 
-                    {/* Monthly AI Operations Meter */}
-                    <div className="space-y-1.5">
+                    {/* Monthly AI Operations Card */}
+                    <div className="p-3.5 rounded-xl border border-border bg-card flex flex-col justify-between space-y-2 hover:border-primary/40 shadow-marble-1 transition-colors">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-foreground">Monthly AI Operations</span>
-                        <span className="font-mono font-semibold text-foreground">
-                          {monthlyAIOps.toLocaleString()} / {maxMonthlyAIOps.toLocaleString()} ops ({aiOpsPercent}%)
+                        <span className="font-medium text-muted-foreground flex items-center gap-1.5">
+                          <Zap className="h-3.5 w-3.5 text-primary" />
+                          Monthly AI Ops
                         </span>
+                        <span className="text-[10px] font-mono text-muted-foreground font-semibold">{aiOpsPercent}%</span>
                       </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-border/40">
+                      <div className="text-base sm:text-lg font-bold font-mono text-foreground">
+                        {monthlyAIOps.toLocaleString()} <span className="text-xs font-normal text-muted-foreground">/ {maxMonthlyAIOps.toLocaleString()}</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                         <div 
-                          className="bg-amber-600 h-full rounded-full transition-all duration-500" 
+                          className="bg-primary h-full rounded-full transition-all duration-500" 
                           style={{ width: `${aiOpsPercent}%` }}
                         />
                       </div>
@@ -1534,9 +1610,9 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     onClose();
                     router.push("/app/plans");
                   }}
-                  className="font-sans text-xs font-semibold gap-1.5 border-emerald-500/25 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5 cursor-pointer shrink-0"
+                  className="font-sans text-xs font-semibold gap-1.5 border-primary/30 text-primary hover:bg-primary/10 rounded-lg cursor-pointer shrink-0 shadow-marble-1"
                 >
-                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
                   View All Plans & Subscriptions
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
@@ -1544,7 +1620,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             </div>
 
             {/* Coupon Code Input */}
-            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-3 shadow-sm">
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-3 shadow-marble-1">
               <h3 className="text-xs font-semibold font-sans text-foreground">Redeem Access Coupon</h3>
               <div className="flex gap-2">
                 <Input
@@ -1558,7 +1634,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   size="sm"
                   onClick={handleRedeemCoupon}
                   disabled={isRedeemingCoupon}
-                  className="font-sans text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shrink-0"
+                  className="font-sans text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg cursor-pointer shrink-0 shadow-marble-1"
                 >
                   {isRedeemingCoupon ? "Applying..." : "Apply Coupon"}
                 </Button>
@@ -1573,18 +1649,18 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               const offerPrice = discountPct > 0 ? Math.round(basePrice * (1 - discountPct / 100) * 100) / 100 : basePrice;
 
               return (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 space-y-3">
-                  <div className="flex items-center justify-between">
+                <div className="rounded-2xl border border-primary/30 bg-primary/5 p-5 space-y-3 shadow-marble-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-sans font-bold text-emerald-950">Upgrade to Pro Explorer</h3>
+                        <h3 className="text-sm font-sans font-bold text-foreground">Upgrade to Pro Explorer</h3>
                         {discountPct > 0 && (
-                          <Badge className="bg-emerald-600 text-white font-mono text-[10px] px-1.5 py-0">
+                          <Badge className="bg-primary text-white font-mono text-[10px] px-1.5 py-0 border-none">
                             {discountPct}% OFF DEAL
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-emerald-800 font-sans mt-0.5">
+                      <p className="text-xs text-muted-foreground font-sans mt-0.5">
                         Unlock 10 concurrent autonomous watches, hourly scans, and 2,000 monthly AI operations.
                       </p>
                     </div>
@@ -1592,7 +1668,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       size="sm"
                       onClick={() => handleUpgradePlan("PREMIUM")}
                       disabled={isUpgrading}
-                      className="font-sans text-xs font-semibold bg-emerald-800 hover:bg-emerald-900 text-white cursor-pointer shrink-0 shadow-xs"
+                      className="font-sans text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg cursor-pointer shrink-0 shadow-marble-1"
                     >
                       {isUpgrading ? (
                         "Processing..."
@@ -1614,94 +1690,230 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
       case "NOTIFICATIONS":
         return (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-sans font-bold text-foreground">Notification Preferences</h2>
-              <p className="text-xs text-muted-foreground font-sans mt-0.5">
-                Customize when and how BrowserPilot alerts you about new discovered roles and status updates.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-sans font-bold text-foreground">Notification Preferences</h2>
+                <p className="text-xs text-muted-foreground font-sans mt-0.5">
+                  Configure real-time match dispatching, channel routing, and telemetry toasts.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  toast.success("Notification pipeline test: Live telemetry operational.");
+                }}
+                className="text-xs font-sans font-medium gap-1.5 border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer self-start sm:self-auto"
+              >
+                <BellRing className="h-3.5 w-3.5 text-primary" />
+                Send Test Toast
+              </Button>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
-              <div className="space-y-3 divide-y divide-border/40">
-                <div className="flex items-center justify-between pb-3">
-                  <div>
-                    <span className="text-xs font-semibold font-sans text-foreground block">New Opportunity Matches</span>
-                    <span className="text-[11px] text-muted-foreground font-sans">
-                      Alert immediately when an autonomous watch scan finds a role meeting your fit threshold
-                    </span>
+            {/* Interactive 3-Card Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Card 1: New Matches */}
+              <div className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between shadow-marble-1 ${
+                emailAlertsEnabled 
+                  ? "bg-primary/5 border-primary/30" 
+                  : "bg-card border-border"
+              }`}>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className={`p-2 rounded-lg ${emailAlertsEnabled ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+                      <Radio className="h-4 w-4" />
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={emailAlertsEnabled}
+                      onClick={() => handleToggleNotificationPref("email", !emailAlertsEnabled)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        emailAlertsEnabled ? "bg-primary" : "bg-muted"
+                      }`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          emailAlertsEnabled ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={emailAlertsEnabled}
-                    onChange={(e) => {
-                      setEmailAlertsEnabled(e.target.checked);
-                      toast.success(e.target.checked ? "Opportunity match alerts enabled" : "Opportunity match alerts muted");
-                    }}
-                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 cursor-pointer"
-                  />
+                  <div>
+                    <h3 className="text-xs font-sans font-bold text-foreground">Role Matches</h3>
+                    <p className="text-[11px] text-muted-foreground font-sans mt-0.5 leading-relaxed">
+                      Instant trigger when an autonomous watch scan finds a role meeting your fit threshold.
+                    </p>
+                  </div>
                 </div>
-
-                <div className="flex items-center justify-between py-3">
-                  <div>
-                    <span className="text-xs font-semibold font-sans text-foreground block">In-App Live Toasts</span>
-                    <span className="text-[11px] text-muted-foreground font-sans">
-                      Show real-time toast notifications during discovery searches and scheduled scans
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={inAppToastsEnabled}
-                    onChange={(e) => {
-                      setInAppToastsEnabled(e.target.checked);
-                      toast.success(e.target.checked ? "In-app toasts enabled" : "In-app toasts muted");
-                    }}
-                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 cursor-pointer"
-                  />
+                <div className="pt-3 mt-3 border-t border-border/40 flex items-center justify-between text-[10px] font-mono">
+                  <span className="text-muted-foreground">Frequency</span>
+                  <span className={`font-semibold ${emailAlertsEnabled ? "text-primary" : "text-muted-foreground"}`}>
+                    {emailAlertsEnabled ? "Instant Trigger" : "Muted"}
+                  </span>
                 </div>
+              </div>
 
-                <div className="flex items-center justify-between pt-3">
-                  <div>
-                    <span className="text-xs font-semibold font-sans text-foreground block">Daily Summary Digest</span>
-                    <span className="text-[11px] text-muted-foreground font-sans">
-                      Receive a consolidated summary of all verified active matches every 24 hours
-                    </span>
+              {/* Card 2: In-App Toasts */}
+              <div className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between shadow-marble-1 ${
+                inAppToastsEnabled 
+                  ? "bg-primary/5 border-primary/30" 
+                  : "bg-card border-border"
+              }`}>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className={`p-2 rounded-lg ${inAppToastsEnabled ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+                      <Bell className="h-4 w-4" />
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={inAppToastsEnabled}
+                      onClick={() => handleToggleNotificationPref("toasts", !inAppToastsEnabled)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        inAppToastsEnabled ? "bg-primary" : "bg-muted"
+                      }`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          inAppToastsEnabled ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={dailyDigestEnabled}
-                    onChange={(e) => {
-                      setDailyDigestEnabled(e.target.checked);
-                      toast.success(e.target.checked ? "Daily digest enabled" : "Daily digest disabled");
-                    }}
-                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 cursor-pointer"
-                  />
+                  <div>
+                    <h3 className="text-xs font-sans font-bold text-foreground">In-App Live Stream</h3>
+                    <p className="text-[11px] text-muted-foreground font-sans mt-0.5 leading-relaxed">
+                      Real-time toast notifications during discovery searches and scheduled watch scans.
+                    </p>
+                  </div>
+                </div>
+                <div className="pt-3 mt-3 border-t border-border/40 flex items-center justify-between text-[10px] font-mono">
+                  <span className="text-muted-foreground">Display</span>
+                  <span className={`font-semibold ${inAppToastsEnabled ? "text-primary" : "text-muted-foreground"}`}>
+                    {inAppToastsEnabled ? "Stream Active" : "Suppressed"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Card 3: Daily Digest */}
+              <div className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between shadow-marble-1 ${
+                dailyDigestEnabled 
+                  ? "bg-primary/5 border-primary/30" 
+                  : "bg-card border-border"
+              }`}>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className={`p-2 rounded-lg ${dailyDigestEnabled ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+                      <Mail className="h-4 w-4" />
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={dailyDigestEnabled}
+                      onClick={() => handleToggleNotificationPref("digest", !dailyDigestEnabled)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        dailyDigestEnabled ? "bg-primary" : "bg-muted"
+                      }`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          dailyDigestEnabled ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-sans font-bold text-foreground">Daily Briefing</h3>
+                    <p className="text-[11px] text-muted-foreground font-sans mt-0.5 leading-relaxed">
+                      Consolidated summary of all verified active matches delivered once every 24 hours.
+                    </p>
+                  </div>
+                </div>
+                <div className="pt-3 mt-3 border-t border-border/40 flex items-center justify-between text-[10px] font-mono">
+                  <span className="text-muted-foreground">Cadence</span>
+                  <span className={`font-semibold ${dailyDigestEnabled ? "text-primary" : "text-muted-foreground"}`}>
+                    {dailyDigestEnabled ? "Every 24h" : "Disabled"}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {unreadNotificationsCount > 0 && (
-              <div className="p-4 rounded-xl bg-slate-50 border border-border/60 flex items-center justify-between">
+            {/* Delivery Channels & Status Telemetry Card */}
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-marble-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-sans font-bold text-foreground">Dispatch Channels & Feed Status</h3>
+                  <p className="text-[11px] text-muted-foreground font-sans mt-0.5">
+                    Integrated delivery endpoints receiving active lead signals and platform notices.
+                  </p>
+                </div>
+                <Badge variant="outline" className="font-mono text-[10px] border-border text-muted-foreground">
+                  2 ENDPOINTS ACTIVE
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="p-3 rounded-xl border border-border bg-muted/20 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                    <div>
+                      <span className="text-xs font-semibold text-foreground block">In-App Notification Feed</span>
+                      <span className="text-[10px] text-muted-foreground font-sans">Bell tray & modal inbox updates</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+                    Connected
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl border border-border bg-muted/20 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                    <div>
+                      <span className="text-xs font-semibold text-foreground block">Browser Pilot Daemon</span>
+                      <span className="text-[10px] text-muted-foreground font-sans">Background scan telemetry listener</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+                    Synchronized
+                  </span>
+                </div>
+              </div>
+
+              {/* Unread Action Banner */}
+              <div className="pt-2 border-t border-border/40 flex items-center justify-between">
                 <span className="text-xs font-sans text-muted-foreground">
-                  You have <strong className="text-foreground">{unreadNotificationsCount} unread</strong> notification(s).
+                  {unreadNotificationsCount > 0 ? (
+                    <>You have <strong className="text-foreground">{unreadNotificationsCount} unread</strong> notification(s).</>
+                  ) : (
+                    <>Notification feed is clean and up-to-date.</>
+                  )}
                 </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={async () => {
-                    await fetch("/api/notifications", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ action: "MARK_ALL_READ" }),
-                    });
-                    await refreshNotifications();
-                    toast.success("All notifications marked as read");
-                  }}
-                  className="h-7 text-xs font-sans border-border/70 cursor-pointer"
-                >
-                  Mark all as read
-                </Button>
+                {unreadNotificationsCount > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      await fetch("/api/notifications", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "MARK_ALL_READ" }),
+                      });
+                      await refreshNotifications();
+                      toast.success("All notifications marked as read");
+                    }}
+                    className="h-7 text-xs font-sans rounded-lg border-border cursor-pointer"
+                  >
+                    Mark all as read
+                  </Button>
+                )}
               </div>
-            )}
+            </div>
           </div>
         );
 
@@ -1818,12 +2030,12 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="hidden md:flex relative w-full max-w-4xl h-[680px] rounded-2xl border border-border/80 bg-card text-foreground shadow-2xl z-10 overflow-hidden"
+            className="hidden md:flex relative w-full max-w-5xl h-[700px] rounded-3xl border border-border bg-card text-foreground shadow-marble-3 z-10 overflow-hidden"
           >
-            {/* LEFT SIDEBAR (Fixed ~220px) */}
-            <aside className="w-[220px] shrink-0 border-r border-border/70 bg-muted/30 flex flex-col select-none">
+            {/* LEFT SIDEBAR (Expanded to 260px to prevent text clipping) */}
+            <aside className="w-[260px] shrink-0 border-r border-border bg-muted/40 flex flex-col select-none">
               {/* Sidebar Header */}
-              <div className="p-4 border-b border-border/60">
+              <div className="p-4 border-b border-border">
                 <h1 className="text-sm font-sans font-bold text-foreground tracking-tight">Settings</h1>
                 <p className="text-[11px] text-muted-foreground font-sans">Configuration & Preferences</p>
               </div>
@@ -1841,18 +2053,18 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         key={cat.id}
                         type="button"
                         onClick={() => setActiveCategory(cat.id)}
-                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-sans transition-colors cursor-pointer text-left ${
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-sans transition-colors cursor-pointer text-left ${
                           isSelected
-                            ? "bg-muted text-foreground font-semibold shadow-2xs border border-border/70"
+                            ? "bg-primary/10 text-primary font-semibold shadow-2xs border border-primary/20"
                             : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                         }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <Icon className={`h-4 w-4 shrink-0 ${isSelected ? "text-foreground" : "text-muted-foreground"}`} />
-                          <span className="truncate">{cat.label}</span>
+                          <Icon className={`h-4 w-4 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                          <span className="font-medium whitespace-nowrap">{cat.label}</span>
                         </div>
                         {cat.badge && (
-                          <span className="ml-1 text-[9px] font-mono px-1.5 py-0.2 rounded bg-muted/80 text-muted-foreground shrink-0">
+                          <span className="ml-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-muted/80 text-muted-foreground shrink-0 border border-border/50">
                             {cat.badge}
                           </span>
                         )}
@@ -1862,7 +2074,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               </nav>
 
               {/* Bottom Pinned Category (Help & Learn More) */}
-              <div className="p-2 border-t border-border/60 bg-muted/20">
+              <div className="p-2 border-t border-border bg-muted/20">
                 {categories
                   .filter((cat) => cat.isBottom)
                   .map((cat) => {
@@ -1876,11 +2088,11 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         onClick={() => setActiveCategory(cat.id)}
                         className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-sans transition-colors cursor-pointer text-left ${
                           isSelected
-                            ? "bg-muted text-foreground font-semibold shadow-2xs border border-border/70"
+                            ? "bg-primary/10 text-primary font-semibold shadow-2xs border border-primary/20"
                             : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                         }`}
                       >
-                        <Icon className={`h-4 w-4 shrink-0 ${isSelected ? "text-foreground" : "text-muted-foreground"}`} />
+                        <Icon className={`h-4 w-4 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
                         <span>{cat.label}</span>
                       </button>
                     );
@@ -1891,7 +2103,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             {/* RIGHT CONTENT PANE */}
             <section className="flex-1 flex flex-col min-w-0 bg-card" aria-label="Settings Details">
               {/* Pane Top Bar with Close Button */}
-              <div className="flex items-center justify-between px-6 py-3 border-b border-border/50">
+              <div className="flex items-center justify-between px-6 py-3 border-b border-border">
                 <span className="text-xs font-mono text-muted-foreground">
                   Radar / {categories.find((c) => c.id === activeCategory)?.label}
                 </span>

@@ -368,18 +368,40 @@ export async function verifyRecruiterContactsMidway(
       continue;
     }
 
-    // Filter out common bot tokens or placeholders
+    // Filter out known synthetic persona pools or fake phone/email artifacts (Requirement R6 Zero Dummy Data)
+    const FORBIDDEN_SYNTHETIC_NAMES = new Set([
+      "sarah jenkins", "alex morgan", "elena rostova", "david chen", "marcus vance",
+      "claire beaumont", "ananya deshmukh", "arun kumar", "sneha rao", "vikram patel", "divya menon"
+    ]);
     const lowerName = trimmedName.toLowerCase();
     if (
-      lowerName.includes("recruiter") ||
-      lowerName.includes("hiring manager") ||
-      lowerName.includes("hr team") ||
-      lowerName.includes("talent team") ||
-      lowerName.includes("unknown") ||
-      lowerName.includes("anonymous")
+      FORBIDDEN_SYNTHETIC_NAMES.has(lowerName) ||
+      (contact.phone && contact.phone.includes("555")) ||
+      (contact.personalEmail && (
+        contact.personalEmail.includes(".career@gmail.com") ||
+        contact.personalEmail.includes(".talent@gmail.com") ||
+        contact.personalEmail.includes(".tech@gmail.com") ||
+        contact.personalEmail.includes(".code@gmail.com") ||
+        contact.personalEmail.includes(".recruiting@gmail.com")
+      ))
     ) {
-      rejectionReasons.push(`Omitted non-individual contact handle: "${contact.fullName}".`);
+      rejectionReasons.push(`Omitted synthetic dummy persona: "${contact.fullName}".`);
       continue;
+    }
+
+    // Filter out common bot tokens or placeholders (except verified official company portals)
+    if (contact.sourcePlatform !== "OFFICIAL_PORTAL") {
+      if (
+        lowerName.includes("recruiter") ||
+        lowerName.includes("hiring manager") ||
+        lowerName.includes("hr team") ||
+        lowerName.includes("talent team") ||
+        lowerName.includes("unknown") ||
+        lowerName.includes("anonymous")
+      ) {
+        rejectionReasons.push(`Omitted non-individual contact handle: "${contact.fullName}".`);
+        continue;
+      }
     }
 
     // 2. Profile URL check (supports HTTP/HTTPS profile URLs and mailto direct contacts)

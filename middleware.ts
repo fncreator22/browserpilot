@@ -57,12 +57,27 @@ export async function middleware(req: NextRequest) {
       process.env.NODE_ENV === "development" ||
       process.env.NODE_ENV === "test" ||
       (process.env as any).IS_TEST_HARNESS === "true";
+    const hasApiKeyHeader = Boolean(req.headers.get("x-api-key") || req.headers.get("x-puter-token"));
+    if (pathname.startsWith("/api/search") && hasApiKeyHeader) {
+      return NextResponse.next();
+    }
+
     const hasTestUserHeader =
       isTestOrDev &&
       Boolean(req.headers.get("x-test-user-id") || req.headers.get("x-user-id"));
 
     if (hasTestUserHeader) {
       return NextResponse.next();
+    }
+
+    if (pathname.startsWith("/api/search")) {
+      return NextResponse.json(
+        { 
+          error: "AUTH_OR_KEY_REQUIRED", 
+          message: "Authentication or AI key required. Please sign in or provide your AI API key." 
+        },
+        { status: 401 }
+      );
     }
 
     return NextResponse.json(

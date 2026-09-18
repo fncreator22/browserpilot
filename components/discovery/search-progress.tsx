@@ -60,6 +60,7 @@ const STAGE_INDEX_MAP: Record<string, number> = {
   intent: 0,
   plan: 1,
   harvest: 2,
+  deepreach: 2,
   verify: 3,
   rank: 4,
 };
@@ -179,6 +180,10 @@ export function SearchProgress({
     }));
 
     appendLog("cancel", "Search execution and DeepReach scrapers cancellation requested by user", "warn");
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("browserai:search-cancelled", { detail: { executionId } }));
+    }
 
     if (executionId) {
       try {
@@ -341,7 +346,12 @@ export function SearchProgress({
       es.addEventListener("cancelled", () => {
         setCurrentStageIndex(5);
         appendLog("cancelled", "Search stopped by worker lifecycle", "warn");
-        fetchFinalResults();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("browserai:search-cancelled", { detail: { executionId } }));
+        }
+        if (onCancel) {
+          onCancel();
+        }
         es.close();
       });
 

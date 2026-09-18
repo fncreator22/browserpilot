@@ -36,6 +36,24 @@ export class PluginMarketplaceService {
         }).catch(() => [])
       : [];
 
+    let preferredSources: string[] = [];
+    if (userId) {
+      try {
+        const watch = await prisma.discoveryWatch.findFirst({
+          where: { userId },
+          select: { preferredSources: true },
+        });
+        if (watch?.preferredSources) {
+          try {
+            const parsed = JSON.parse(watch.preferredSources);
+            if (Array.isArray(parsed)) {
+              preferredSources = parsed.map((s) => (typeof s === "string" ? s.toLowerCase() : ""));
+            }
+          } catch {}
+        }
+      } catch {}
+    }
+
     const activeSourceMap = new Map<string, any>();
     for (const sess of userSessions) {
       activeSourceMap.set(sess.source.toLowerCase(), sess);
@@ -43,14 +61,20 @@ export class PluginMarketplaceService {
 
     return MARKETPLACE_PLUGINS.map((plugin) => {
       const session = activeSourceMap.get(plugin.id.toLowerCase());
-      const isConnected = Boolean(session);
+      const isPreferred =
+        preferredSources.includes(plugin.name.toLowerCase()) ||
+        preferredSources.includes(plugin.id.toLowerCase()) ||
+        (plugin.id === "ycombinator" && (preferredSources.includes("y combinator") || preferredSources.includes("ycombinator"))) ||
+        (plugin.id === "hackernews" && preferredSources.includes("hacker news"));
+
+      const isConnected = Boolean(session) || isPreferred;
 
       return {
         ...plugin,
         isConnected,
         status: isConnected ? "CONNECTED" : plugin.type === "DIRECT_FREE" ? "DISCONNECTED" : "REQUIRES_AUTH",
-        connectedAt: session?.createdAt?.toISOString() || null,
-        maskedAccount: session?.username || null,
+        connectedAt: session?.createdAt?.toISOString() || (isConnected ? new Date().toISOString() : null),
+        maskedAccount: session?.username || (isConnected ? "Active in Discovery" : null),
         expiresAt: session?.expiresAt?.toISOString() || null,
       };
     });
@@ -109,6 +133,27 @@ export class PluginMarketplaceService {
         }
       } catch (dbErr: any) {
         console.warn(`[PluginMarketplaceService] BrowserSession connect notice:`, dbErr?.message || dbErr);
+      }
+
+      // Synchronize with user's DiscoveryWatch preferredSources
+      try {
+        const watch = await prisma.discoveryWatch.findFirst({ where: { userId } });
+        if (watch) {
+          let sources: string[] = [];
+          try {
+            const parsed = JSON.parse(watch.preferredSources || "[]");
+            if (Array.isArray(parsed)) sources = parsed;
+          } catch {}
+          if (!sources.some((s) => s.toLowerCase() === plugin.name.toLowerCase())) {
+            sources.push(plugin.name);
+            await prisma.discoveryWatch.update({
+              where: { id: watch.id },
+              data: { preferredSources: JSON.stringify(sources) },
+            });
+          }
+        }
+      } catch (err: any) {
+        console.warn("[PluginMarketplaceService] DiscoveryWatch sync notice:", err?.message || err);
       }
 
       return {
@@ -207,6 +252,31 @@ export class PluginMarketplaceService {
         updatedAt: new Date(),
       },
     });
+
+    // Also remove from DiscoveryWatch preferredSources
+    if (plugin) {
+      try {
+        const watch = await prisma.discoveryWatch.findFirst({ where: { userId } });
+        if (watch) {
+          let sources: string[] = [];
+          try {
+            const parsed = JSON.parse(watch.preferredSources || "[]");
+            if (Array.isArray(parsed)) sources = parsed;
+          } catch {}
+          const filtered = sources.filter(
+            (s) =>
+              s.toLowerCase() !== plugin.name.toLowerCase() &&
+              s.toLowerCase() !== plugin.id.toLowerCase()
+          );
+          await prisma.discoveryWatch.update({
+            where: { id: watch.id },
+            data: { preferredSources: JSON.stringify(filtered) },
+          });
+        }
+      } catch (err: any) {
+        console.warn("[PluginMarketplaceService] DiscoveryWatch disconnect sync notice:", err?.message || err);
+      }
+    }
 
     return {
       success: true,

@@ -247,7 +247,7 @@ export default function SavedOpportunitiesPage() {
               onClick={() => setSelectedStageTab(tab.id)}
               className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer border ${
                 selectedStageTab === tab.id
-                  ? "bg-emerald-600 text-white border-emerald-500 shadow-2xs font-semibold"
+                  ? "bg-primary text-primary-foreground border-primary shadow-marble-1 font-semibold"
                   : "bg-card text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/40"
               }`}
             >
@@ -271,7 +271,7 @@ export default function SavedOpportunitiesPage() {
                 placeholder="Filter saved roles, companies, skills..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full h-10 pl-9 pr-3 text-xs font-mono rounded-lg border border-border/70 bg-card text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full h-10 pl-9 pr-3 text-xs font-mono rounded-lg border border-border/70 bg-card text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
               />
             </div>
           </div>
@@ -280,7 +280,7 @@ export default function SavedOpportunitiesPage() {
         {/* Opportunities List */}
         {isLoading ? (
           <div className="py-16 text-center space-y-3">
-            <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+            <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             <p className="text-xs font-mono text-muted-foreground">Loading saved opportunities...</p>
           </div>
         ) : filteredRecords.length > 0 ? (
@@ -291,7 +291,7 @@ export default function SavedOpportunitiesPage() {
               return (
                 <div
                   key={savedId}
-                  className="rounded-xl border border-border/70 bg-card p-5 space-y-3.5 hover:border-emerald-500/40 transition-all flex flex-col justify-between shadow-xs"
+                  className="rounded-2xl border border-border bg-card p-5 space-y-3.5 hover:border-primary/40 transition-all flex flex-col justify-between shadow-marble-1 hover:shadow-marble-2"
                 >
                   <div className="space-y-3">
                     {/* Top Row: ATS Chip + Verification Badge + Remove Action */}
@@ -307,7 +307,7 @@ export default function SavedOpportunitiesPage() {
                       <button
                         type="button"
                         onClick={() => handleRemoveBookmark(opp.id, opp.companyName, opp.title)}
-                        className="text-muted-foreground hover:text-rose-600 transition-colors p-1.5 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer rounded-md focus-visible:ring-2 focus-visible:ring-emerald-500"
+                        className="text-muted-foreground hover:text-rose-600 transition-colors p-1.5 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer rounded-md focus-visible:ring-2 focus-visible:ring-primary"
                         title="Remove from saved"
                         aria-label="Remove bookmark"
                       >
@@ -318,12 +318,12 @@ export default function SavedOpportunitiesPage() {
                     {/* Title & Company */}
                     <div className="space-y-1">
                       <Link href={`/app/opportunities/${opp.id}`} className="group">
-                        <h3 className="font-sans text-base font-bold text-foreground line-clamp-2 leading-snug group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                        <h3 className="font-sans text-base font-bold text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">
                           {opp.title}
                         </h3>
                       </Link>
                       <p className="text-xs font-semibold text-foreground/80 font-sans flex items-center gap-1.5">
-                        <Building className="h-3 w-3 text-emerald-600 dark:text-emerald-400 dark:text-emerald-400 shrink-0" aria-hidden="true" />
+                        <Building className="h-3 w-3 text-primary shrink-0" aria-hidden="true" />
                         {opp.companyName}
                       </p>
                     </div>
@@ -335,7 +335,7 @@ export default function SavedOpportunitiesPage() {
                         <span className="truncate">{opp.location || "Location unlisted"} {opp.workMode && `• ${opp.workMode}`}</span>
                       </div>
                       <div className="flex items-center gap-1.5 truncate">
-                        <DollarSign className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" aria-hidden="true" />
+                        <DollarSign className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
                         <span className="font-semibold text-foreground truncate">
                           {opp.salaryMin && opp.salaryMax 
                             ? `${opp.salaryCurrency || "$"}${Math.round(opp.salaryMin / 1000)}k - ${Math.round(opp.salaryMax / 1000)}k` 
@@ -374,7 +374,7 @@ export default function SavedOpportunitiesPage() {
                               onClick={() => handleUpdateStage(opp.id, opp.companyName, opp.title, stage)}
                               className={`py-1 text-[10px] font-mono font-medium rounded-md border transition-all text-center cursor-pointer ${
                                 isCurrent
-                                  ? STAGE_CONFIG[stage].activeClass + " shadow-2xs font-bold ring-1 ring-emerald-500/30"
+                                  ? STAGE_CONFIG[stage].activeClass + " shadow-2xs font-bold ring-1 ring-primary/30"
                                   : STAGE_CONFIG[stage].inactiveClass
                               }`}
                               title={`Move to ${STAGE_CONFIG[stage].label}`}
@@ -396,7 +396,7 @@ export default function SavedOpportunitiesPage() {
 
                     <div className="flex items-center gap-2">
                       <Link href={`/app/opportunities/${opp.id}`}>
-                        <Button variant="outline" size="sm" className="h-9 min-h-[44px] sm:min-h-[32px] px-2.5 font-mono text-xs text-muted-foreground hover:text-foreground cursor-pointer focus-visible:ring-2 focus-visible:ring-emerald-500">
+                        <Button variant="outline" size="sm" className="h-9 min-h-[44px] sm:min-h-[32px] px-2.5 font-mono text-xs text-muted-foreground hover:text-foreground cursor-pointer rounded-lg focus-visible:ring-2 focus-visible:ring-primary">
                           Dossier
                         </Button>
                       </Link>
@@ -408,7 +408,7 @@ export default function SavedOpportunitiesPage() {
                           rel="noopener noreferrer"
                           className="inline-flex"
                         >
-                          <Button size="sm" className="h-9 min-h-[44px] sm:min-h-[32px] px-3 font-mono text-xs gap-1 bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer shadow-xs focus-visible:ring-2 focus-visible:ring-emerald-500">
+                          <Button size="sm" className="h-9 min-h-[44px] sm:min-h-[32px] px-3 font-mono text-xs gap-1 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer rounded-lg shadow-marble-1 focus-visible:ring-2 focus-visible:ring-primary">
                             <span>Apply</span>
                             <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
                           </Button>
@@ -433,7 +433,7 @@ export default function SavedOpportunitiesPage() {
               </p>
             </div>
             <Link href="/app">
-              <Button size="sm" className="font-sans font-semibold text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs">
+              <Button size="sm" className="font-sans font-semibold text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer rounded-lg shadow-marble-1">
                 <Compass className="h-3.5 w-3.5" />
                 Start Opportunity Discovery
               </Button>

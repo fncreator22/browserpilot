@@ -260,6 +260,31 @@ export function classifyJobUrl(rawUrl?: string | null): JobUrlType {
       if (path.includes("/jobs")) return "COMPANY_CAREER_ROOT";
     }
 
+    // Social & DeepReach platforms (Reddit, X/Twitter, YouTube)
+    if (host.includes("reddit.com")) {
+      if (path.includes("/comments/")) {
+        return "JOB_DETAIL";
+      }
+      if (path.includes("/r/")) {
+        return "SEARCH_RESULTS";
+      }
+      return "SOURCE_HOME";
+    }
+
+    if (host.includes("twitter.com") || host.includes("x.com")) {
+      if (path.includes("/status/")) {
+        return "JOB_DETAIL";
+      }
+      return "SOURCE_HOME";
+    }
+
+    if (host.includes("youtube.com") || host.includes("youtu.be")) {
+      if (path.includes("/watch") || parsed.searchParams.has("v") || host.includes("youtu.be") || path.includes("/shorts/")) {
+        return "JOB_DETAIL";
+      }
+      return "SOURCE_HOME";
+    }
+
     // Generic company portals: single segment like /careers, /jobs, /join-us, /openings
     if (segments.length === 1 && /^(careers?|jobs?|join-us|work-with-us|openings?|opportunities|positions)$/i.test(segments[0])) {
       return "COMPANY_CAREER_ROOT";

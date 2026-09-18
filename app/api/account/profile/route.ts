@@ -78,10 +78,12 @@ export async function GET(request: NextRequest) {
       maskedKey,
       createdAt: user.createdAt,
       personalization,
+      profile: personalization,
     });
   } catch (err: unknown) {
+    console.error("[GET /api/account/profile] Error:", err);
     return NextResponse.json(
-      { error: "SERVER_ERROR", message: (err as Error).message },
+      { error: "SERVER_ERROR", message: process.env.NODE_ENV === "production" ? "Failed to retrieve user profile." : (err as Error).message },
       { status: 500 }
     );
   }
@@ -219,8 +221,9 @@ export async function PATCH(request: NextRequest) {
       personalization: updatedPersonalization,
     });
   } catch (err: unknown) {
+    console.error("[PATCH /api/account/profile] Error:", err);
     return NextResponse.json(
-      { error: "SERVER_ERROR", message: (err as Error).message },
+      { error: "SERVER_ERROR", message: process.env.NODE_ENV === "production" ? "Failed to update profile." : (err as Error).message },
       { status: 500 }
     );
   }
