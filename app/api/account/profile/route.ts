@@ -7,6 +7,8 @@ import { maskCredential } from "@/lib/security/credentialEncryption";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
+import { userMemoryVault } from "@/lib/ai/memory/userMemoryVault";
+
 export const dynamic = "force-dynamic";
 
 const UpdateAccountProfileSchema = z.object({
@@ -26,6 +28,10 @@ const UpdateAccountProfileSchema = z.object({
   organizationSize: z.enum(ORGANIZATION_SIZES).or(z.string().max(50)).optional(),
   graduationYear: z.string().trim().max(20).optional(),
   autoPersonalize: z.boolean().optional(),
+  degree: z.string().trim().max(100).optional(),
+  coreSubject: z.string().trim().max(100).optional(),
+  yearsOfExperience: z.union([z.number(), z.string()]).optional(),
+  cgpaBand: z.string().trim().max(50).optional(),
 });
 
 /**
@@ -69,6 +75,19 @@ export async function GET(request: NextRequest) {
 
     const personalization = await getUserProfile(user.id);
 
+    // Retrieve durable career memory attributes
+    const careerMemory: Record<string, any> = {};
+    try {
+      const memoryResult = await userMemoryVault.getMemories({ userId: user.id, limit: 30 });
+      for (const m of memoryResult.memories) {
+        if (m.key === "degree") careerMemory.degree = m.value;
+        if (m.key === "core_subject") careerMemory.coreSubject = m.value;
+        if (m.key === "years_of_experience") careerMemory.yearsOfExperience = m.value;
+        if (m.key === "graduation_year") careerMemory.graduationYear = m.value;
+        if (m.key === "cgpa_band") careerMemory.cgpaBand = m.value;
+      }
+    } catch {}
+
     return NextResponse.json({
       id: user.id,
       name: user.name || sessionUser?.name || null,
@@ -79,6 +98,7 @@ export async function GET(request: NextRequest) {
       createdAt: user.createdAt,
       personalization,
       profile: personalization,
+      careerMemory,
     });
   } catch (err: unknown) {
     console.error("[GET /api/account/profile] Error:", err);
@@ -202,6 +222,68 @@ export async function PATCH(request: NextRequest) {
       });
     } else {
       updatedPersonalization = await getUserProfile(user.id);
+    }
+
+    // Update career memory attributes in userMemoryVault if provided
+    if (data.degree !== undefined) {
+      await userMemoryVault.storeMemory({
+        userId: user.id,
+        category: "CAREER_PREFERENCE",
+        key: "degree",
+        value: data.degree,
+        confidence: "EXPLICIT",
+        importance: 0.9,
+        isExplicit: true,
+        sourceContext: "Profile update",
+      }).catch(() => {});
+    }
+    if (data.coreSubject !== undefined) {
+      await userMemoryVault.storeMemory({
+        userId: user.id,
+        category: "CAREER_PREFERENCE",
+        key: "core_subject",
+        value: data.coreSubject,
+        confidence: "EXPLICIT",
+        importance: 0.9,
+        isExplicit: true,
+        sourceContext: "Profile update",
+      }).catch(() => {});
+    }
+    if (data.yearsOfExperience !== undefined) {
+      await userMemoryVault.storeMemory({
+        userId: user.id,
+        category: "CAREER_PREFERENCE",
+        key: "years_of_experience",
+        value: String(data.yearsOfExperience),
+        confidence: "EXPLICIT",
+        importance: 0.95,
+        isExplicit: true,
+        sourceContext: "Profile update",
+      }).catch(() => {});
+    }
+    if (data.cgpaBand !== undefined) {
+      await userMemoryVault.storeMemory({
+        userId: user.id,
+        category: "CAREER_PREFERENCE",
+        key: "cgpa_band",
+        value: data.cgpaBand,
+        confidence: "EXPLICIT",
+        importance: 0.85,
+        isExplicit: true,
+        sourceContext: "Profile update",
+      }).catch(() => {});
+    }
+    if (data.graduationYear !== undefined) {
+      await userMemoryVault.storeMemory({
+        userId: user.id,
+        category: "CAREER_PREFERENCE",
+        key: "graduation_year",
+        value: data.graduationYear,
+        confidence: "EXPLICIT",
+        importance: 0.9,
+        isExplicit: true,
+        sourceContext: "Profile update",
+      }).catch(() => {});
     }
 
     const hasKey = !!updatedUser.geminiApiKey;
