@@ -8,10 +8,20 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions).catch(() => null);
-    let userId = (session?.user as { id?: string })?.id || null;
+    const sessionUser = session?.user as { id?: string; email?: string } | undefined;
+    let userId = sessionUser?.id || null;
+
+    if (!userId && sessionUser?.email) {
+      const { prisma } = await import("@/lib/db/prisma");
+      const dbUser = await prisma.user.findUnique({
+        where: { email: sessionUser.email.toLowerCase().trim() },
+        select: { id: true },
+      });
+      if (dbUser) userId = dbUser.id;
+    }
 
     if (!userId && (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test")) {
-      userId = request.headers.get("x-test-user-id") || request.headers.get("x-user-id");
+      userId = request.headers.get("x-test-user-id") || request.headers.get("x-user-id") || "dev_user";
     }
 
     const plugins = await pluginMarketplaceService.listPlugins(userId);

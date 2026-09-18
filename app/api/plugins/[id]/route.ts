@@ -14,7 +14,17 @@ export async function POST(
     const pluginId = params.id;
 
     const session = await getServerSession(authOptions).catch(() => null);
-    let userId = (session?.user as { id?: string })?.id;
+    const sessionUser = session?.user as { id?: string; email?: string } | undefined;
+    let userId = sessionUser?.id;
+
+    if (!userId && sessionUser?.email) {
+      const { prisma } = await import("@/lib/db/prisma");
+      const dbUser = await prisma.user.findUnique({
+        where: { email: sessionUser.email.toLowerCase().trim() },
+        select: { id: true },
+      });
+      if (dbUser) userId = dbUser.id;
+    }
 
     if (!userId) {
       userId = request.headers.get("x-test-user-id") || request.headers.get("x-user-id") || (process.env.NODE_ENV !== "production" ? "dev_user" : undefined);
