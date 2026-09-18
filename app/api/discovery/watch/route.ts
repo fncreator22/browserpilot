@@ -22,22 +22,43 @@ export const dynamic = "force-dynamic";
  */
 async function resolveAuthUserId(request?: NextRequest): Promise<string | null> {
   const session = await getServerSession(authOptions).catch(() => null);
-  const sessionUserId = (session?.user as { id?: string })?.id;
-  if (sessionUserId) return sessionUserId;
+  const sessionUser = session?.user as { id?: string; email?: string } | undefined;
+  let userId = sessionUser?.id || null;
 
-  if (
-    process.env.IS_TEST_HARNESS === "true" ||
-    process.env.NODE_ENV === "test" ||
-    process.env.NODE_ENV === "development"
-  ) {
-    return (
-      request?.headers.get("x-user-id") ||
-      request?.headers.get("x-test-user-id") ||
-      null
-    );
+  if (!userId && sessionUser?.email) {
+    const dbUser = await prisma.user.findUnique({
+      where: { email: sessionUser.email.toLowerCase().trim() },
+      select: { id: true },
+    }).catch(() => null);
+    if (dbUser) userId = dbUser.id;
   }
 
-  return null;
+  if (
+    !userId &&
+    (process.env.IS_TEST_HARNESS === "true" ||
+      process.env.NODE_ENV === "test" ||
+      process.env.NODE_ENV === "development")
+  ) {
+    const headerId =
+      request?.headers.get("x-user-id") ||
+      request?.headers.get("x-test-user-id") ||
+      null;
+    if (headerId) {
+      await prisma.user.upsert({
+        where: { id: headerId },
+        update: {},
+        create: {
+          id: headerId,
+          email: `${headerId}@example.com`,
+          name: headerId,
+          passwordHash: "test_dev_hash",
+        },
+      }).catch(() => {});
+      return headerId;
+    }
+  }
+
+  return userId;
 }
 
 /**
