@@ -198,7 +198,7 @@ export class DiscoveryScheduler {
             // Calculate drift-free nextScanAt
             const now = new Date();
             const intervalHours = watch.scanIntervalHours || 6;
-            const baseTime = watch.nextScanAt && watch.nextScanAt.getTime() > now.getTime() - intervalHours * 3600 * 1000
+            const baseTime = watch.nextScanAt && watch.nextScanAt.getTime() > now.getTime() - intervalHours * 3600 * 1000 && watch.nextScanAt.getTime() <= now.getTime()
               ? watch.nextScanAt.getTime()
               : now.getTime();
             let calculatedNext = new Date(baseTime + intervalHours * 3600 * 1000);
