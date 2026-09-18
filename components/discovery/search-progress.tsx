@@ -50,7 +50,7 @@ interface LogEntry {
 
 const STAGES = [
   { id: "intent", label: "Intent", description: "Parsing role & constraints", icon: Compass },
-  { id: "plan", label: "Plan", description: "Selecting ATS connectors", icon: Bot },
+  { id: "plan", label: "Plan", description: "Selecting discovery plugins", icon: Bot },
   { id: "harvest", label: "Harvest", description: "Querying ATS platforms", icon: Search },
   { id: "verify", label: "Verify", description: "Evidence Quality Gate", icon: ShieldCheck },
   { id: "rank", label: "Rank", description: "Scoring & deduplicating", icon: Layers },
@@ -200,9 +200,8 @@ export function SearchProgress({
       } catch {}
     }
 
-    toast.info("Search Cancelled", {
-      description: "Live swarm and DeepReach execution cancelled by user request.",
-    });
+    const { showDeduplicatedCancelToast } = await import("@/lib/utils/toastDebounce");
+    showDeduplicatedCancelToast("Search execution was cancelled by user request.");
 
     if (onCancel) {
       onCancel();
@@ -235,10 +234,13 @@ export function SearchProgress({
       try {
         const res = await fetch(`/api/search/${executionId}`);
         if (res.ok) {
-          const data = await res.json();
-          appendLog("complete", `Search complete - retrieved ${data.metadata?.totalUniqueOpportunities || data.results?.length || 0} opportunities`, "success");
-          if (onComplete) {
-            onComplete(data);
+          const raw = await res.text();
+          const data = raw && raw.trim().length > 0 ? JSON.parse(raw) : null;
+          if (data) {
+            appendLog("complete", `Search complete - retrieved ${data.metadata?.totalUniqueOpportunities || data.results?.length || 0} opportunities`, "success");
+            if (onComplete) {
+              onComplete(data);
+            }
           }
         }
       } catch (fetchErr) {
@@ -370,8 +372,9 @@ export function SearchProgress({
 
       // Immediate check in case search is already complete
       fetch(`/api/search/${executionId}`)
-        .then((res) => res.json())
-        .then((data) => {
+        .then((res) => res.text())
+        .then((raw) => {
+          const data = raw && raw.trim().length > 0 ? JSON.parse(raw) : null;
           if (data && ["COMPLETED", "COMPLETE", "PARTIAL", "STOPPED", "FAILED", "NO_RESULTS"].includes(data.status)) {
             fetchFinalResults();
           }
@@ -387,8 +390,9 @@ export function SearchProgress({
         try {
           const res = await fetch(`/api/search/${executionId}`);
           if (res.ok) {
-            const data = await res.json();
-            if (["COMPLETED", "COMPLETE", "PARTIAL", "STOPPED", "FAILED", "NO_RESULTS"].includes(data.status)) {
+            const raw = await res.text();
+            const data = raw && raw.trim().length > 0 ? JSON.parse(raw) : null;
+            if (data && ["COMPLETED", "COMPLETE", "PARTIAL", "STOPPED", "FAILED", "NO_RESULTS"].includes(data.status)) {
               clearInterval(poll);
               es.close();
               fetchFinalResults();
@@ -544,7 +548,7 @@ export function SearchProgress({
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {stageDetails || "Dispatching multi-source ATS connectors and live verification harness"}
+                {stageDetails || "Dispatching multi-source plugins and live verification harness"}
               </p>
             </div>
           </div>
@@ -610,9 +614,9 @@ export function SearchProgress({
           <div className="flex items-center justify-between text-xs text-muted-foreground font-medium px-0.5">
             <span className="flex items-center gap-1.5">
               <Activity className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 dark:text-emerald-400" />
-              In-Flight ATS Connectors & Quality Gates
+              In-Flight Discovery Plugins & Quality Gates
             </span>
-            <span className="font-mono text-[10px]">3 Connectors</span>
+            <span className="font-mono text-[10px]">Active Plugins</span>
           </div>
 
           <div className="space-y-2">
