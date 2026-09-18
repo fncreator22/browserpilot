@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 import { encode } from 'next-auth/jwt';
-import { prisma } from 'c:/Users/sr2ma/Documents/github/browserAI/lib/db/prisma';
+import { prisma } from '@/lib/db/prisma';
 import path from 'path';
 import fs from 'fs';
 
