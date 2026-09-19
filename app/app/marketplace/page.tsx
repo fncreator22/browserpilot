@@ -63,6 +63,7 @@ interface OpportunityItem {
     sourcePlatform?: string;
   }>;
   status: string;
+  isVerified?: boolean;
   isSaved?: boolean;
   freshness: {
     elapsedHours: number;
@@ -478,9 +479,11 @@ export default function JobMarketplacePage() {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium truncate">
                               <span className="truncate font-semibold text-foreground">{opp.companyName}</span>
-                              <span title="Verified ATS Source" className="inline-flex">
-                                <ShieldCheck className="h-3 w-3 text-emerald-500 shrink-0" />
-                              </span>
+                              {opp.isVerified && (
+                                <span title="Verified ATS Source" className="inline-flex">
+                                  <ShieldCheck className="h-3 w-3 text-emerald-500 shrink-0" />
+                                </span>
+                              )}
                             </div>
                             <h2 
                               className="text-sm font-bold text-foreground tracking-tight line-clamp-1 mt-0.5 cursor-pointer hover:text-primary transition-colors" 

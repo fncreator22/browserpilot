@@ -8,7 +8,6 @@ import {
   Compass, 
   Bookmark, 
   Eye, 
-  History, 
   Bell, 
   Search, 
   User, 
@@ -85,12 +84,6 @@ export function AppSidebar() {
       icon: Bookmark,
       badge: savedCount > 0 ? savedCount : undefined,
       isActive: pathname === "/app/saved",
-    },
-    {
-      href: "/app/history",
-      label: "Search History",
-      icon: History,
-      isActive: pathname === "/app/history",
     },
     {
       href: "/app/notifications",
@@ -268,13 +261,6 @@ export function AppSidebar() {
             <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-muted-foreground">
               Recent Searches
             </span>
-            <Link
-              href="/app/history"
-              prefetch={false}
-              className="text-[10px] font-sans text-primary hover:underline font-medium"
-            >
-              All
-            </Link>
           </div>
 
           <div className="space-y-0.5 max-h-40 overflow-y-auto scrollbar-none pr-0.5">
@@ -340,13 +326,13 @@ export function AppSidebar() {
               </Link>
             </div>
           )}
-          <div className="tooltip tooltip-right w-full" data-tip="Recent Searches">
+          <div className="tooltip tooltip-right w-full" data-tip="Discover">
             <Link
-              href="/app/history"
+              href="/app"
               prefetch={false}
               className="flex items-center justify-center p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
-              <History className="h-4 w-4 stroke-[1.75]" />
+              <Search className="h-4 w-4 stroke-[1.75]" />
             </Link>
           </div>
         </div>

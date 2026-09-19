@@ -29,6 +29,7 @@ function assert(condition: boolean, message: string) {
 }
 
 export async function runNaturalLanguageWorkflowAcceptanceTest() {
+  process.env.IS_TEST_HARNESS = "true";
   console.log("=================================================================");
   console.log("  NATURAL-LANGUAGE USER WORKFLOW BEHAVIORAL ACCEPTANCE TEST      ");
   console.log("=================================================================\n");
@@ -347,13 +348,6 @@ export async function runNaturalLanguageWorkflowAcceptanceTest() {
     assert(otherSearches.length === 0, "Other user must NOT see User A's search history");
     report["Preserves User Isolation"] = "PASS";
 
-    // Cleanup
-    await prisma.discoveryRun.deleteMany({ where: { userId: { in: [testUser.id, otherUser.id] } } });
-    await prisma.discoveryWatch.deleteMany({ where: { userId: { in: [testUser.id, otherUser.id] } } });
-    await prisma.lifecycleAlert.deleteMany({ where: { userId: { in: [testUser.id, otherUser.id] } } });
-    await prisma.search.deleteMany({ where: { userId: { in: [testUser.id, otherUser.id] } } });
-    await prisma.user.deleteMany({ where: { id: { in: [testUser.id, otherUser.id] } } });
-
     console.log("\n=================================================================");
     console.log("  ACCEPTANCE SUMMARY MATRIX                                      ");
     console.log("=================================================================");
@@ -364,6 +358,24 @@ export async function runNaturalLanguageWorkflowAcceptanceTest() {
   } catch (err: unknown) {
     console.error("❌ Acceptance test failed:", err);
     throw err;
+  } finally {
+    // Cleanup all test entities including opportunities
+    await prisma.discoveryRun.deleteMany({ where: { userId: { in: [testUser.id, otherUser.id] } } }).catch(() => {});
+    await prisma.discoveryWatch.deleteMany({ where: { userId: { in: [testUser.id, otherUser.id] } } }).catch(() => {});
+    await prisma.lifecycleAlert.deleteMany({ where: { userId: { in: [testUser.id, otherUser.id] } } }).catch(() => {});
+    await prisma.search.deleteMany({ where: { userId: { in: [testUser.id, otherUser.id] } } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { id: { in: [testUser.id, otherUser.id] } } }).catch(() => {});
+    const testOpps = await prisma.opportunity.findMany({
+      where: { companyName: { in: [compAcme, compHyper, compNewCo] } },
+      select: { id: true },
+    }).catch(() => []);
+    if (testOpps.length > 0) {
+      const oppIds = testOpps.map((o) => o.id);
+      await prisma.sourceListing.deleteMany({ where: { opportunityId: { in: oppIds } } }).catch(() => {});
+      await prisma.searchResult.deleteMany({ where: { opportunityId: { in: oppIds } } }).catch(() => {});
+      await prisma.savedOpportunity.deleteMany({ where: { opportunityId: { in: oppIds } } }).catch(() => {});
+      await prisma.opportunity.deleteMany({ where: { id: { in: oppIds } } }).catch(() => {});
+    }
   }
 }
 

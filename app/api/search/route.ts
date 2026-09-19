@@ -93,13 +93,18 @@ export async function POST(request: NextRequest) {
     const clientPuterToken = body.puterToken?.trim() || request.headers.get("x-puter-token")?.trim();
     const hasClientKey = !!(clientApiKey || clientPuterToken);
 
-    // CASE A — Unauthenticated request without an API key or Puter token
+    // Ephemeral guest search with BYOK key
+    if (!userId && hasClientKey) {
+      userId = `guest_${Date.now()}`;
+      persistToDb = false;
+    }
+
     if (!userId && !hasClientKey) {
       return NextResponse.json(
         {
           error: "UNAUTHORIZED",
           errorCode: "AUTH_OR_KEY_REQUIRED",
-          message: "Authentication or AI key required. Please sign in or provide your AI API key to start discovering opportunities.",
+          message: "Authentication and AI key required. Please sign in or provide your AI API key to start discovering opportunities.",
           remediation: {
             requiresAuth: true,
             allowedOptions: ["SIGN_IN", "BYOK_GEMINI", "BYOK_DEEPSEEK", "PUTER_FREE"],
@@ -109,15 +114,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Ephemeral guest search with BYOK key
-    if (!userId && hasClientKey) {
-      userId = `guest_${Date.now()}`;
-      persistToDb = false;
-    }
+    // Require configured AI Provider (Puter token, Gemini BYOK, or DeepSeek BYOK)
+    const hasDbProvider = userId && !userId.startsWith("guest_") ? await isUserByokOrPuter(userId) : false;
+    const hasConfiguredProvider = hasClientKey || hasDbProvider;
 
-    if (!userId) {
+    if (!hasConfiguredProvider) {
       return NextResponse.json(
-        { error: "UNAUTHORIZED", errorCode: "AUTH_OR_KEY_REQUIRED", message: "Authentication or AI key required." },
+        {
+          error: "UNAUTHORIZED",
+          errorCode: "AUTH_OR_KEY_REQUIRED",
+          message: "AI provider or API key required. Please connect Puter (free) or configure your Gemini / DeepSeek API key in Settings before running searches.",
+          remediation: {
+            requiresAuth: false,
+            requiresAiKey: true,
+            allowedOptions: ["PUTER_FREE", "BYOK_GEMINI", "BYOK_DEEPSEEK"],
+          },
+        },
         { status: 401 }
       );
     }
@@ -155,8 +167,32 @@ export async function POST(request: NextRequest) {
     }
     const customProviders = (request as any)._customProviders || body.customProviders;
     const filters = body.filters || {};
-    const inputPuterToken = body.puterToken?.trim() || undefined;
-    const inputApiKey = body.apiKey?.trim() || undefined;
+    let inputPuterToken = body.puterToken?.trim() || undefined;
+    let inputApiKey = body.apiKey?.trim() || undefined;
+
+    // Resolve user stored credentials from database if omitted from payload
+    if (userId && !userId.startsWith("guest_")) {
+      if (!inputApiKey) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { geminiApiKey: true },
+          });
+          if (dbUser?.geminiApiKey?.trim()) {
+            inputApiKey = dbUser.geminiApiKey.trim();
+          }
+        } catch {}
+      }
+      if (!inputPuterToken) {
+        try {
+          const { getUserPuterToken } = await import("@/lib/ai/governance/providerGovernance");
+          const dbPuterToken = await getUserPuterToken(userId);
+          if (dbPuterToken?.trim()) {
+            inputPuterToken = dbPuterToken.trim();
+          }
+        } catch {}
+      }
+    }
 
     // Auto-persist Puter token to ProviderConnection if provided from client
     if (inputPuterToken && userId) {
@@ -240,7 +276,7 @@ export async function POST(request: NextRequest) {
     const canonicalJson = canonicalNorm.canonicalJson;
 
     // 4. Concurrency Idempotency & In-Flight Attach (TASK-067)
-    const activeHandle = executionLifecycleManager.getActiveExecutionForIntent(userId, canonicalIntentHash);
+    const activeHandle = executionLifecycleManager.getActiveExecutionForIntent(userId || "anonymous", canonicalIntentHash);
     if (activeHandle) {
       if (activeHandle.promise) {
         const sharedResult = await activeHandle.promise;
@@ -649,6 +685,8 @@ export async function POST(request: NextRequest) {
           maxResultsBudget: Math.max(requestedCount, maxResultsCeiling),
           verifyEvidence,
           customProviders,
+          apiKey: inputApiKey,
+          puterToken: inputPuterToken,
           correlationId,
           signal: executionAbort.signal,
         });
@@ -1027,7 +1065,7 @@ export async function POST(request: NextRequest) {
 
     executionLifecycleManager.registerExecution(
       executionId,
-      userId,
+      userId || "anonymous",
       canonicalIntentHash,
       executionAbort,
       executionPromise

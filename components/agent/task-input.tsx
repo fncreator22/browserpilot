@@ -8,15 +8,9 @@ import {
   Search,
   Briefcase,
   Layers,
-  Clock,
-  Globe,
-  Target,
-  ChevronDown,
-  ChevronUp,
   X,
   Square,
   AlertTriangle,
-  SlidersHorizontal,
   ImagePlus,
   Plus,
   Mic,
@@ -494,17 +488,6 @@ export function TaskInput({
     }
   }, [prompt]);
 
-  // Refinement overrides state (progressive disclosure)
-  const [showRefine, setShowRefine] = useState(false);
-  const [customFreshness, setCustomFreshness] = useState<number | null>(null);
-  const [customWorkMode, setCustomWorkMode] = useState<string | null>(null);
-  const [customOppType, setCustomOppType] = useState<string | null>(null);
-  const [customMinScore, setCustomMinScore] = useState<number | null>(null);
-
-  const effectiveFreshnessHours = customFreshness !== null ? customFreshness : parsedIntent?.freshnessWindowHours;
-  const effectiveWorkMode = customWorkMode || parsedIntent?.workMode || "ANY";
-  const effectiveMinScore = customMinScore !== null ? customMinScore : (parsedIntent?.minimumMatchScore || 70);
-
   // Execution concurrency & cancellation controls
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentExecutionIdRef = useRef<string | null>(null);
@@ -595,9 +578,9 @@ export function TaskInput({
       ? (localStorage.getItem("browserpilot_deepseek_key") || undefined)
       : undefined;
 
-    const hasAuthOrKey = Boolean(session?.user || clientPuterToken || localGeminiKey || localDeepseekKey);
+    const hasAuthOrKey = Boolean(clientPuterToken || localGeminiKey || localDeepseekKey);
 
-    // Pre-flight check: If no authenticated session and no AI keys configured, intercept with access gate modal
+    // Pre-flight check: If no AI provider key is configured, intercept with access gate modal
     if (!hasAuthOrKey) {
       setShowAccessGate(true);
       return;
@@ -739,26 +722,6 @@ export function TaskInput({
 
     let searchHandedOffToQueue = false;
     try {
-      const filters: Record<string, any> = {};
-      if (customFreshness !== null) {
-        if (customFreshness > 0) {
-          filters.freshnessWindowHours = customFreshness;
-          filters.isExplicitFreshness = true;
-        } else {
-          filters.freshnessWindowHours = undefined;
-          filters.isExplicitFreshness = false;
-        }
-      }
-      if (customWorkMode && customWorkMode !== "ANY") {
-        filters.workMode = customWorkMode;
-      }
-      if (customOppType && customOppType !== "ANY") {
-        filters.opportunityType = customOppType;
-      }
-      if (customMinScore !== null) {
-        filters.minimumMatchScore = customMinScore;
-      }
-
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { 
@@ -768,7 +731,7 @@ export function TaskInput({
         body: JSON.stringify({ 
           executionId: clientExecutionId,
           query: text,
-          filters: Object.keys(filters).length > 0 ? filters : undefined,
+          apiKey: localGeminiKey || localDeepseekKey,
           puterToken: clientPuterToken,
           allowDeterministicFallback: true,
         }),
@@ -802,12 +765,12 @@ export function TaskInput({
           if (onOpportunitySearchResult) onOpportunitySearchResult(null);
           return;
         }
-        if (res.status === 401 || data?.error === "AUTH_OR_KEY_REQUIRED") {
+        if (res.status === 401 || data?.error === "AUTH_OR_KEY_REQUIRED" || data?.errorCode === "AUTH_OR_KEY_REQUIRED") {
           setShowAccessGate(true);
           setIsSubmitting(false);
           if (onSearchingChange) onSearchingChange(false);
-          toast.warning("Sign In or AI Key Required", {
-            description: "Please sign in or configure an AI API key to execute discovery searches.",
+          toast.warning("AI Provider Required", {
+            description: "Please connect Puter (free) or configure your Gemini / DeepSeek API key to execute searches.",
           });
           return;
         }
@@ -824,7 +787,7 @@ export function TaskInput({
           }
           return;
         }
-        throw new Error(data?.message || "We could not find matching results. Please try a different query or adjust your filters.");
+        throw new Error(data?.message || data?.error || `Search failed with status ${res.status}. Please check your connection and AI provider settings.`);
       }
 
       if (!data) {
@@ -917,8 +880,6 @@ export function TaskInput({
   const handleSelectPreset = (preset: RecommendationItem) => {
     setPrompt(preset.goal);
   };
-
-  const hasActiveFilters = customFreshness !== null || (customWorkMode && customWorkMode !== "ANY") || customMinScore !== null;
 
   return (
     <div className="w-full space-y-3">
@@ -1069,25 +1030,6 @@ export function TaskInput({
               </AnimatePresence>
             </div>
 
-            {/* Filters Toggle Button */}
-            <button
-              type="button"
-              disabled={isBusy}
-              onClick={() => setShowRefine(!showRefine)}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-sans font-medium transition-colors cursor-pointer border ${
-                showRefine || hasActiveFilters
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border-border"
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5 stroke-[1.75]" />
-              <span className="hidden sm:inline">Filters</span>
-              {hasActiveFilters && (
-                <span className="h-1.5 w-1.5 rounded-full bg-background" />
-              )}
-              {showRefine ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            </button>
-
             {/* Speech-to-Text Microphone Button & Volume-Reactive Waveform */}
             <div className="flex items-center gap-1.5">
               <button
@@ -1185,131 +1127,6 @@ export function TaskInput({
             {trailingActions}
           </div>
         </div>
-
-        {/* Progressive Disclosure Filters Panel */}
-        <AnimatePresence>
-          {showRefine && (
-            <motion.div
-              initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, clipPath: "inset(0 0 100% 0)" }}
-              animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, clipPath: "inset(0 0 0% 0)" }}
-              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, clipPath: "inset(0 0 100% 0)" }}
-              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-              className="overflow-hidden"
-            >
-              <div className="pt-3 mt-1 border-t border-border/50 space-y-3 font-sans text-xs">
-                {/* Freshness Row */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5 text-foreground" />
-                    Freshness
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {[
-                      { label: "24h", value: 24 },
-                      { label: "48h", value: 48 },
-                      { label: "7d", value: 168 },
-                      { label: "Any", value: 0 },
-                    ].map((f) => {
-                      const isSelected = effectiveFreshnessHours === f.value || (f.value === 0 && !effectiveFreshnessHours);
-                      return (
-                        <button
-                          type="button"
-                          key={f.label}
-                          onClick={() => setCustomFreshness(f.value)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
-                            isSelected
-                              ? "bg-primary text-primary-foreground border-primary font-semibold"
-                              : "bg-muted/40 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted"
-                          }`}
-                        >
-                          {f.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Work Mode Row */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Globe className="h-3.5 w-3.5 text-foreground" />
-                    Work Mode
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {[
-                      { id: "ANY", label: "Any" },
-                      { id: "REMOTE", label: "Remote" },
-                      { id: "HYBRID", label: "Hybrid" },
-                      { id: "ON_SITE", label: "Onsite" },
-                    ].map((m) => (
-                      <button
-                        type="button"
-                        key={m.id}
-                        onClick={() => setCustomWorkMode(m.id)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
-                          effectiveWorkMode === m.id
-                            ? "bg-primary text-primary-foreground border-primary font-semibold"
-                            : "bg-muted/40 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted"
-                        }`}
-                      >
-                        {m.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Min Match Score Row */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Target className="h-3.5 w-3.5 text-foreground" />
-                    Min Match Score
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {[
-                      { label: "70%", value: 70 },
-                      { label: "80%", value: 80 },
-                      { label: "90%", value: 90 },
-                    ].map((s) => (
-                      <button
-                        type="button"
-                        key={s.label}
-                        onClick={() => setCustomMinScore(s.value)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
-                          effectiveMinScore === s.value
-                            ? "bg-primary text-primary-foreground border-primary font-semibold"
-                            : "bg-muted/40 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted"
-                        }`}
-                      >
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Reset Filters */}
-                {hasActiveFilters && (
-                  <div className="pt-2 flex justify-end border-t border-border/30">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setCustomFreshness(null);
-                        setCustomWorkMode(null);
-                        setCustomOppType(null);
-                        setCustomMinScore(null);
-                      }}
-                      className="h-6 text-[11px] font-sans text-muted-foreground hover:text-foreground gap-1 cursor-pointer"
-                    >
-                      <X className="h-3 w-3" />
-                      Reset filters
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </form>
 
 

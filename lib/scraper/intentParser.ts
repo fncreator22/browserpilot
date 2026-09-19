@@ -1347,12 +1347,17 @@ export async function parseSearchIntentAsync(
     }
   }
 
-  // Check server environment fallback for Gemini
+  // Check server environment fallback for Gemini (strictly only in dev or when explicitly permitted)
+  let isPlatformFallback = false;
   if (!effectiveGeminiKey && !effectivePuterToken) {
-    const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (envKey && envKey.trim() && envKey.trim() !== "your-gemini-api-key") {
-      effectiveGeminiKey = envKey.trim();
-      resolvedProvider = "GEMINI";
+    const allowPlatform = (options as any)?.allowPlatformFallback ?? (process.env.NODE_ENV === "development");
+    if (allowPlatform) {
+      const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+      if (envKey && envKey.trim() && envKey.trim() !== "your-gemini-api-key") {
+        effectiveGeminiKey = envKey.trim();
+        resolvedProvider = "GEMINI";
+        isPlatformFallback = true;
+      }
     }
   }
 
@@ -1407,7 +1412,7 @@ export async function parseSearchIntentAsync(
 
   // 2. Execute via Gemini
   if (resolvedProvider === "GEMINI" && effectiveGeminiKey) {
-    let modelName: string = "gemini-3.7-flash";
+    let modelName: string = "gemini-2.5-flash";
     try {
       const { Type } = await import("@google/genai");
       const { createGeminiClient, detectOptimalGeminiModel, DEFAULT_GEMINI_MODEL, FALLBACK_GEMINI_MODEL, SECONDARY_FALLBACK_GEMINI_MODEL } = await import("@/lib/ai/modelSelector");
@@ -1501,8 +1506,8 @@ Rules:
         const parsed = JSON.parse(text);
         const baseIntent = parseSearchIntent(rawQuery, options?.filterOverrides);
 
-        // Record AI Usage Event if user ID is present and running in Node
-        if (options?.userId && typeof window === "undefined") {
+        // Record AI Usage Event if user ID is present, running in Node, and not platform fallback
+        if (options?.userId && typeof window === "undefined" && !isPlatformFallback) {
           try {
             const { recordAIUsageEvent } = await import("@/lib/ai/governance/providerGovernance");
             const totalTokens = response.usageMetadata?.totalTokenCount || 0;
@@ -1603,7 +1608,7 @@ Rules:
       }
     } catch (llmErr: any) {
       console.warn("[IntentParser] Gemini LLM parsing error, falling back to deterministic parser:", llmErr);
-      if (options?.userId && typeof window === "undefined") {
+      if (options?.userId && typeof window === "undefined" && !isPlatformFallback) {
         try {
           const { recordAIUsageEvent } = await import("@/lib/ai/governance/providerGovernance");
           const isQuota = llmErr?.message?.includes("quota") || llmErr?.status === 429;
@@ -1611,7 +1616,7 @@ Rules:
           await recordAIUsageEvent({
             userId: options.userId,
             provider: "GEMINI_BYOK",
-            model: modelName || "gemini-3.6-flash",
+            model: modelName || "gemini-2.0-flash",
             operation: "INTENT_PARSING",
             inputTokens: 0,
             outputTokens: 0,

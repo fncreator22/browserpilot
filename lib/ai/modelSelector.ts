@@ -6,21 +6,20 @@ import { GoogleGenAI } from "@google/genai";
  * Defaults to gemini-2.5-flash (current generation Google GenAI API endpoint).
  */
 export const SUPPORTED_GEMINI_MODELS = [
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
-  "gemini-3.5-flash-lite",
-  "gemini-2.5-pro",
   "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-2.5-pro",
+  "gemini-1.5-pro",
 ] as const;
 
 export type SupportedGeminiModel = (typeof SUPPORTED_GEMINI_MODELS)[number];
 
-// Flagship agent model: Gemini 3.7 Flash; Recommended stable fallback: Gemini 3.6 Flash (per Google API migration guidance)
-export const DEFAULT_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.7-flash";
-export const FALLBACK_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.6-flash";
-export const SECONDARY_FALLBACK_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.5-flash";
-export const BACKGROUND_GEMINI_MODEL: SupportedGeminiModel = "gemini-3.5-flash-lite";
+// Flagship agent model: Gemini 2.5 Flash; Recommended stable fallback: Gemini 2.0 Flash / 1.5 Flash
+export const DEFAULT_GEMINI_MODEL: SupportedGeminiModel = "gemini-2.5-flash";
+export const FALLBACK_GEMINI_MODEL: SupportedGeminiModel = "gemini-2.0-flash";
+export const SECONDARY_FALLBACK_GEMINI_MODEL: SupportedGeminiModel = "gemini-1.5-flash";
+export const BACKGROUND_GEMINI_MODEL: SupportedGeminiModel = "gemini-1.5-flash";
 export const REASONING_GEMINI_MODEL: SupportedGeminiModel = "gemini-2.5-pro";
 export const EMBEDDING_GEMINI_MODEL = "gemini-embedding-001";
 

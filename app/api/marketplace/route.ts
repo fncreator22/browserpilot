@@ -194,11 +194,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Ensure only genuine verified companies appear (exclude placeholders/demos/frontier tests)
-    const excludePatterns = ["Acme", "Demo", "Test", "Frontier", "Placeholder", "Example"];
+    const excludePatterns = [
+      "Acme", "Demo", "Test", "Frontier", "Placeholder", "Example", 
+      "HyperScale", "NewCo", "Alpha Tech", "Beta Labs", "Razorpay_"
+    ];
     const excludeDemos = [
       ...excludePatterns.map((pat) => ({ companyName: { contains: pat, mode: "insensitive" as const } })),
       { title: { contains: "[Demo]", mode: "insensitive" as const } },
       { title: { contains: "Demo", mode: "insensitive" as const } },
+      { primaryApplyUrl: { contains: "example.com", mode: "insensitive" as const } },
+      { primaryApplyUrl: { contains: "yc-ai-", mode: "insensitive" as const } },
+      { primaryApplyUrl: { contains: "newcodev.com", mode: "insensitive" as const } },
     ];
     if (where.AND) {
       where.AND.push({ NOT: excludeDemos });
@@ -316,6 +322,7 @@ export async function GET(request: NextRequest) {
         rawSnippet: opp.sourceListings[0]?.rawSnippet || null,
         companyContacts: resolvedContacts,
         status: opp.status,
+        isVerified: (opp.status === "VERIFIED" || opp.sourceListings.some((s) => s.verificationStatus === "VERIFIED")) && !/\d{6,}$/.test(opp.companyName),
         freshness,
         isSaved,
         sources: opp.sourceListings.map((s) => ({

@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { TopNavIsland } from "@/components/navigation/top-nav-island";
 import { MobileNavPill } from "@/components/navigation/mobile-nav-pill";
 import { AppSidebar } from "@/components/navigation/app-sidebar";
 import { useUIState } from "@/components/providers/ui-state-provider";
@@ -20,9 +19,6 @@ export function AppLayoutShell({ children }: { children: React.ReactNode }) {
           isSidebarCollapsed ? "lg:pl-[68px]" : "lg:pl-[216px]"
         }`}
       >
-        {/* Top Floating Navigation Island */}
-        <TopNavIsland />
-
         {/* Main Content Viewport */}
         <main className="flex-1 flex flex-col min-w-0 pb-20 lg:pb-8">
           {children}

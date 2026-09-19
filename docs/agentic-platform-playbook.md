@@ -293,6 +293,123 @@ To guarantee zero production regression on Vercel and preserve full bisectabilit
 
 ---
 
+## 10. Architectural Audit: Token Consumption, 50/50 Personalization & Remediation Log
+
+### 10.1 Token Consumption Technical Audit Report
+
+#### Executive Finding
+During the platform audit, a user account with no configured API keys (no Puter connection, no Gemini BYOK, no DeepSeek BYOK) displayed 50 operations and 26,703 tokens in Settings -> AI Providers & Keys.
+
+#### Root Cause Analysis
+1. **Permissive Client Gate (`components/agent/task-input.tsx`)**:
+   - The client-side pre-flight check evaluated:
+     `const hasAuthOrKey = Boolean(session?.user || clientPuterToken || localGeminiKey || localDeepseekKey);`
+   - Because `session?.user` was truthy for any logged-in user, the client allowed searches to execute even when every AI provider key was empty.
+2. **Silent Platform Key Fallback (`lib/scraper/intentParser.ts`)**:
+   - When no client key or user-specific DB key was provided, `parseSearchIntentAsync` evaluated:
+     `if (!effectiveGeminiKey && !effectivePuterToken) { const envKey = process.env.GEMINI_API_KEY ...; effectiveGeminiKey = envKey; }`
+   - The platform deployment key (`process.env.GEMINI_API_KEY`) was automatically attached to the request.
+3. **Misattributed AI Usage Logging (`recordAIUsageEvent`)**:
+   - In `lib/scraper/intentParser.ts` (lines 1509-1523) and `lib/scraper/candidateDiscoveryEngine.ts`:
+     `await recordAIUsageEvent({ userId: options.userId, provider: "GEMINI_BYOK", model: effectiveModelUsed, operation: "INTENT_PARSING", totalTokens, ... });`
+   - Even though the tokens were consumed by the platform environment key, the event was logged with `provider: "GEMINI_BYOK"` tied to `options.userId`.
+   - In Settings, `getUserUsageSummary(userId)` aggregated all `AIUsageEvent` rows where `userId === currentUserId`, summing up the 50 operations and 26,703 tokens.
+4. **Non-Existent Gemini 3.x Models & Retry Cascades**:
+   - `lib/ai/modelSelector.ts` specified `DEFAULT_GEMINI_MODEL = "gemini-3.7-flash"` and fallback `"gemini-3.6-flash"`.
+   - These model names do not exist in Google GenAI API. Each query triggered a 503/404 response followed by exponential backoff retry loops in `@google/genai`.
+   - On Vercel serverless functions with strict 10-15s timeouts, the retries caused gateway timeouts (504), causing the frontend to fall back to the generic error: "We could not find matching results. Please try a different query or adjust your filters."
+
+#### Remediation Implemented
+1. **Strict Client-Side Gate**: `task-input.tsx` requires `Boolean(clientPuterToken || localGeminiKey || localDeepseekKey)`. Logged-in session alone cannot bypass the AI provider gate.
+2. **Server-Side Pre-Flight Provider Gate (`app/api/search/route.ts`)**:
+   - Evaluates `hasConfiguredProvider = hasClientKey || hasDbProvider`.
+   - If neither a client token nor a database-backed provider is found, returns HTTP 401 `AUTH_OR_KEY_REQUIRED`.
+   - No search runs and zero tokens are consumed.
+3. **Usage Attribution Decoupling**:
+   - Platform environment fallback key usage is restricted to development environments and is strictly barred from logging `AIUsageEvent` rows against user accounts.
+4. **GA Model Specification**:
+   - Updated `lib/ai/modelSelector.ts` to official endpoints: `gemini-2.5-flash` (flagship), `gemini-2.0-flash` (fallback), `gemini-1.5-flash` (secondary fallback), and `gemini-2.5-pro` (reasoning).
+
+---
+
+### 10.2 Architectural Design Plan: Isolated 50/50 Personalized Job Market
+
+#### Objective
+Design an isolated, balanced job recommendation feed delivering exactly:
+- **50% Career Memory Match**: Direct relevance to the user's explicit profile, verified skills, preferred roles, and experience level stored in their private Memory Vault.
+- **50% Serendipitous Discovery**: High-growth adjacent opportunities, complementary engineering disciplines, and emergent technical domains that expand candidate horizon without company-targeting bias.
+- **Strict Constraints**: Zero company targeting, role/level/freshness filtering only, complete multi-tenant data isolation.
+
+#### Data Isolation Architecture
+1. **Tenant Sandbox (Private Plane)**:
+   - User profile memories (`UserMemoryItem`), target skills, past queries, and resume vectors are stored with strict foreign keys to `userId`.
+   - Queries to user memory always enforce `WHERE userId = :currentUserId`.
+   - No user career memory data is ever exposed in public feeds or aggregated marketplace listings.
+2. **Public Opportunity Plane**:
+   - Sourced exclusively from verified ATS endpoints (Greenhouse, Lever, Ashby, Workable).
+   - Scrubbed of synthetic, demo, and timestamp-suffixed company names.
+   - Contains only sanitized job metadata: canonical hash, clean company name, title, department, location, work mode, salary range, requirements, verified source URL.
+
+#### Algorithmic Balancing Framework (50/50 Allocation)
+Given a target batch size of $N$ (default $N = 20$ opportunities):
+1. **Career Memory Slot ($N / 2 = 10$ Items)**:
+   - **Vector & Semantic Match**: Embed candidate resume summary and preferred roles. Execute cosine similarity against available marketplace opportunities in PostgreSQL using pgvector.
+   - **Hard Attribute Scoring**:
+     - Role overlap: +40 points
+     - Stated skill overlap (Jaccard similarity): +30 points
+     - Work mode compatibility: +15 points
+     - Experience level alignment: +15 points
+   - Opportunities are ranked and the top 10 unique items are populated.
+2. **Serendipitous Discovery Slot ($N / 2 = 10$ Items)**:
+   - **Cross-Domain Graph Traversal**: Query roles that share 30% to 50% foundational skills with the user's primary stack (e.g. Distributed Systems Engineer for a Backend Node/Go developer; AI Infrastructure for a Systems Engineer).
+   - **Diversity Filter**: Enforce maximum 1 opportunity per company across the serendipitous set to prevent employer clustering.
+   - **Freshness Weighting**: Exponential decay scoring prioritizing listings posted within the last 72 hours.
+   - Company targeting is strictly disabled: Candidate ranking ignores employer brand, prestige tiers, and hardcoded employer lists.
+3. **Interleaving Pipeline**:
+   - The final feed alternates items: [Memory Match 1, Discovery 1, Memory Match 2, Discovery 2, ...].
+   - Each item includes an audit tag: `matchSource: "MEMORY_PROFILE"` vs `matchSource: "SERENDIPITOUS_DISCOVERY"`.
+
+#### Architectural Seams & API Contract
+- New isolated route: `GET /api/marketplace/personalized`
+- Headers: `Authorization` (session cookie)
+- Query parameters:
+  - `page`: number (default 1)
+  - `limit`: number (default 20, max 50)
+  - `role`: optional string filter
+  - `experienceLevel`: optional string filter
+  - `freshnessHours`: optional number filter (e.g. 24, 48, 72, 168)
+  - `workMode`: optional enum (`REMOTE`, `HYBRID`, `ON_SITE`, `ANY`)
+- Response schema:
+  - `items`: Array of DossierJobItem with `personalizationType: "MEMORY_MATCH" | "SERENDIPITY"`
+  - `metadata`: `{ memoryMatchCount: 10, serendipityCount: 10, memoryCategoriesUsed: [...] }`
+- **Implementation Status**: Architectural design finalized in playbook. Backend and UI implementation deferred to dedicated iteration.
+
+---
+
+### 10.3 Defect Remediation and Navigation Hardening Log
+
+1. **Top Navigation Removal (`components/navigation/app-layout-shell.tsx`)**:
+   - Purged `<TopNavIsland />` and its import from the application shell.
+   - The left sidebar (`AppSidebar`) is now the sole navigation mechanism for all `/app/*` routes.
+2. **Search History Redundancy Resolution (`components/navigation/app-sidebar.tsx`)**:
+   - Removed `{ href: "/app/history", label: "Search History", icon: History }` from `navItems`.
+   - Users browse prior queries directly via the persistent "Recent Searches" section in the sidebar, eliminating redundant links.
+   - Cleaned up obsolete `/app/history` links from the sidebar collapse footer.
+3. **TaskInput Declutter & Filter Removal (`components/agent/task-input.tsx`)**:
+   - Removed the "Filters" toggle button from the search action bar.
+   - Purged progressive disclosure filters panel (`{showRefine && (...)}`), removing Freshness, Work Mode, and Min Match Score dropdown controls from the discovery input box.
+   - Removed obsolete filter state variables (`showRefine`, `customFreshness`, `customWorkMode`, `customOppType`, `customMinScore`, `hasActiveFilters`).
+   - Fixed deceptive fallback error message on HTTP failure: displays genuine server status instead of "We could not find matching results. Please try a different query or adjust your filters."
+4. **Verified Live Badge Hardening**:
+   - `components/result/job-dossier-deck.tsx`: In `getVerificationCornerBadge`, replaced the default fallback to "Verified Live" with a neutral "Discovered" badge (`Clock` icon). Only returns "Verified Live" when status is strictly `VERIFIED` or `ACTIVE`.
+   - `app/app/marketplace/page.tsx`: Conditioned `<ShieldCheck />` on `opp.isVerified`, preventing unverified listings from displaying verification badges.
+5. **Database Sanitation & Teardown Guards**:
+   - Purged 16 synthetic test opportunities and 20 source listings from PostgreSQL.
+   - Added automated teardown in `tests/integration/naturalLanguageWorkflowAcceptance.test.ts` to prevent test-generated listings from polluting production tables.
+   - Hardened `SYNTHETIC_OPPORTUNITY_PATTERNS` firewall in `lib/db/opportunities.ts`.
+
+---
+
 *This playbook is maintained as an append-only engineering diary. All future decisions and implementation logs will be recorded herein.*
 
 

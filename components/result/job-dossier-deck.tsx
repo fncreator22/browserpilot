@@ -86,14 +86,24 @@ export function getVerificationCornerBadge(status?: string | null) {
       </Badge>
     );
   }
-  // Default to Verified Live
+  if (s === "VERIFIED" || s === "ACTIVE") {
+    return (
+      <Badge 
+        variant="outline" 
+        className="font-sans text-[10px] font-medium px-2 py-0.5 bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1.5 shrink-0 shadow-xs"
+      >
+        <ShieldCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+        <span>Verified Live</span>
+      </Badge>
+    );
+  }
   return (
     <Badge 
       variant="outline" 
-      className="font-sans text-[10px] font-medium px-2 py-0.5 bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1.5 shrink-0 shadow-xs"
+      className="font-sans text-[10px] font-medium px-2 py-0.5 bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700 flex items-center gap-1.5 shrink-0 shadow-xs"
     >
-      <ShieldCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-      <span>Verified Live</span>
+      <Clock className="h-3 w-3 text-slate-500" />
+      <span>Discovered</span>
     </Badge>
   );
 }
