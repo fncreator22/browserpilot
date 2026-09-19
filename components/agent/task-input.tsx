@@ -479,6 +479,32 @@ export function TaskInput({
     };
   }, []);
 
+  const [hasServerProvider, setHasServerProvider] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function checkServerProviders() {
+      try {
+        const res = await fetch("/api/account/providers");
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && Array.isArray(data.providers)) {
+            const hasActive = data.providers.some((p: any) => p.status === "ACTIVE" || p.isActive);
+            setHasServerProvider(hasActive);
+          } else if (isMounted) {
+            setHasServerProvider(false);
+          }
+        }
+      } catch {
+        // Silently retain null
+      }
+    }
+    checkServerProviders();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const parsedIntent = useMemo(() => {
     if (!prompt.trim()) return null;
     try {
@@ -579,9 +605,25 @@ export function TaskInput({
       : undefined;
 
     const hasAuthOrKey = Boolean(clientPuterToken || localGeminiKey || localDeepseekKey);
+    let userHasKey = hasAuthOrKey || Boolean(hasServerProvider);
 
-    // Pre-flight check: If no AI provider key is configured, intercept with access gate modal
-    if (!hasAuthOrKey) {
+    if (!userHasKey && hasServerProvider === null) {
+      try {
+        const res = await fetch("/api/account/providers");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.providers) && data.providers.some((p: any) => p.status === "ACTIVE" || p.isActive)) {
+            userHasKey = true;
+            setHasServerProvider(true);
+          } else {
+            setHasServerProvider(false);
+          }
+        }
+      } catch {}
+    }
+
+    // Pre-flight check: If no AI provider key is configured on client or server, intercept with access gate modal
+    if (!userHasKey) {
       setShowAccessGate(true);
       return;
     }

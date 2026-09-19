@@ -402,12 +402,6 @@ function DiscoverContent() {
                       {item.rawQuery}
                     </button>
                   ))}
-                  <Link
-                    href="/app/history"
-                    className="text-[11px] text-muted-foreground hover:text-foreground hover:underline ml-1"
-                  >
-                    View history →
-                  </Link>
                 </div>
               )}
             </div>

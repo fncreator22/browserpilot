@@ -7,7 +7,6 @@ import {
   Compass, 
   Radio, 
   Bookmark, 
-  History,
   Plus,
   Search,
   Briefcase
@@ -105,20 +104,6 @@ export function MobileNavPill() {
             </Link>
           );
         })}
-
-        {/* History Trigger Link */}
-        <Link
-          href="/app/history"
-          prefetch={false}
-          className={`relative flex items-center justify-center transition-all duration-200 cursor-pointer ${
-            pathname === "/app/history"
-              ? "w-11 h-11 rounded-full bg-primary text-primary-foreground shadow-marble-1 scale-105" 
-              : "w-10 h-10 rounded-full text-white/70 hover:text-white hover:bg-white/10"
-          }`}
-          aria-label="Search History"
-        >
-          <History className={`${pathname === "/app/history" ? "h-5 w-5 stroke-[2.2]" : "h-4 w-4 stroke-[1.75]"}`} />
-        </Link>
       </div>
 
       {/* Quick Search Circular Trigger Button */}

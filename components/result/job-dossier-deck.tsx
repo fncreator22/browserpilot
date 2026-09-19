@@ -86,7 +86,7 @@ export function getVerificationCornerBadge(status?: string | null) {
       </Badge>
     );
   }
-  if (s === "VERIFIED" || s === "ACTIVE") {
+  if (s === "VERIFIED") {
     return (
       <Badge 
         variant="outline" 

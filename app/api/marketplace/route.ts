@@ -196,7 +196,8 @@ export async function GET(request: NextRequest) {
     // Ensure only genuine verified companies appear (exclude placeholders/demos/frontier tests)
     const excludePatterns = [
       "Acme", "Demo", "Test", "Frontier", "Placeholder", "Example", 
-      "HyperScale", "NewCo", "Alpha Tech", "Beta Labs", "Razorpay_"
+      "HyperScale", "NewCo", "Alpha Tech", "Beta Labs", "Razorpay_",
+      "Apex Technologies", "Scale AI Ops"
     ];
     const excludeDemos = [
       ...excludePatterns.map((pat) => ({ companyName: { contains: pat, mode: "insensitive" as const } })),
@@ -205,6 +206,8 @@ export async function GET(request: NextRequest) {
       { primaryApplyUrl: { contains: "example.com", mode: "insensitive" as const } },
       { primaryApplyUrl: { contains: "yc-ai-", mode: "insensitive" as const } },
       { primaryApplyUrl: { contains: "newcodev.com", mode: "insensitive" as const } },
+      { primaryApplyUrl: { contains: "quantum.careers", mode: "insensitive" as const } },
+      { primaryApplyUrl: { contains: "apex.careers", mode: "insensitive" as const } },
     ];
     if (where.AND) {
       where.AND.push({ NOT: excludeDemos });
@@ -276,7 +279,16 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const items = opportunities.map((opp) => {
+    const items = opportunities
+      .filter((opp) => {
+        if (/\d{6,}$/.test(opp.companyName.trim())) return false;
+        const applyUrl = opp.primaryApplyUrl?.toLowerCase() || "";
+        if (applyUrl.includes("example.com") || applyUrl.includes("yc-ai-") || applyUrl.includes("quantum.careers") || applyUrl.includes("apex.careers")) {
+          return false;
+        }
+        return true;
+      })
+      .map((opp) => {
       // Priority: Compute freshness based on actual external posting date in snippet or firstSeenAt
       const primarySnippet = opp.sourceListings[0]?.rawSnippet || opp.description;
       const originalPostingDate = extractSnippetPostingDate(primarySnippet, opp.firstSeenAt);

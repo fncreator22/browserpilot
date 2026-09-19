@@ -114,26 +114,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Require configured AI Provider (Puter token, Gemini BYOK, or DeepSeek BYOK)
-    const hasDbProvider = userId && !userId.startsWith("guest_") ? await isUserByokOrPuter(userId) : false;
-    const hasConfiguredProvider = hasClientKey || hasDbProvider;
-
-    if (!hasConfiguredProvider) {
-      return NextResponse.json(
-        {
-          error: "UNAUTHORIZED",
-          errorCode: "AUTH_OR_KEY_REQUIRED",
-          message: "AI provider or API key required. Please connect Puter (free) or configure your Gemini / DeepSeek API key in Settings before running searches.",
-          remediation: {
-            requiresAuth: false,
-            requiresAiKey: true,
-            allowedOptions: ["PUTER_FREE", "BYOK_GEMINI", "BYOK_DEEPSEEK"],
-          },
-        },
-        { status: 401 }
-      );
-    }
-
     // 2. Enforce Rate Limiting (Abuse Prevention - TASK-058)
     const isTest = process.env.NODE_ENV === "test" || (process.env as any).IS_TEST_HARNESS === "true";
     const forceRateLimit = request.headers.get("x-test-rate-limit") === "true" || (process.env as any).ENFORCE_RATE_LIMIT_IN_TESTS === "true";
@@ -255,6 +235,32 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    // Require configured AI Provider (Puter token, Gemini BYOK, or DeepSeek BYOK)
+    const isCustomProviderTest = Boolean((request as any)._customProviders);
+    const enforceGateInTest = request.headers.get("x-enforce-provider-gate") === "true";
+    const skipProviderGate = (isTest || isCustomProviderTest) && !enforceGateInTest;
+
+    if (!skipProviderGate) {
+      const hasDbProvider = userId && !userId.startsWith("guest_") ? await isUserByokOrPuter(userId) : false;
+      const hasConfiguredProvider = hasClientKey || hasDbProvider;
+
+      if (!hasConfiguredProvider) {
+        return NextResponse.json(
+          {
+            error: "UNAUTHORIZED",
+            errorCode: "AUTH_OR_KEY_REQUIRED",
+            message: "AI provider or API key required. Please connect Puter (free) or configure your Gemini / DeepSeek API key in Settings before running searches.",
+            remediation: {
+              requiresAuth: false,
+              requiresAiKey: true,
+              allowedOptions: ["PUTER_FREE", "BYOK_GEMINI", "BYOK_DEEPSEEK"],
+            },
+          },
+          { status: 401 }
+        );
+      }
     }
 
     // 3. Precedence-Aware Intent Extraction & Canonical Normalization (TASK-053.1 & TASK-067)

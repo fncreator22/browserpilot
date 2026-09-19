@@ -377,18 +377,31 @@ export async function runAutonomousJobMonitoringSimulation() {
     console.log("   ✓ Verified Partial Provider Failure Resilience & Telemetry Capture");
     console.log("   ✓ Verified Strict Multi-User Data Isolation\n");
 
-    // Cleanup
-    await prisma.discoveryRun.deleteMany({ where: { userId: { in: [testUserA.id, testUserB.id] } } });
-    await prisma.discoveryWatch.deleteMany({ where: { userId: { in: [testUserA.id, testUserB.id] } } });
-    await prisma.lifecycleAlert.deleteMany({ where: { userId: { in: [testUserA.id, testUserB.id] } } });
-    await prisma.user.deleteMany({ where: { id: { in: [testUserA.id, testUserB.id] } } });
-
     console.log("=================================================================");
     console.log("  ALL AUTONOMOUS MONITORING SIMULATION CHECKS PASSED (100% GREEN) ");
     console.log("=================================================================\n");
   } catch (err: unknown) {
-    console.error("❌ Simulation Failed:", err);
+    console.error("Simulation Failed:", err);
     throw err;
+  } finally {
+    try {
+      await prisma.discoveryRun.deleteMany({ where: { userId: { in: [testUserA.id, testUserB.id] } } });
+      await prisma.discoveryWatch.deleteMany({ where: { userId: { in: [testUserA.id, testUserB.id] } } });
+      await prisma.lifecycleAlert.deleteMany({ where: { userId: { in: [testUserA.id, testUserB.id] } } });
+      await prisma.user.deleteMany({ where: { id: { in: [testUserA.id, testUserB.id] } } });
+
+      const testOpps = await prisma.opportunity.findMany({
+        where: { companyName: { in: [compAlpha, compBeta] } },
+        select: { id: true },
+      });
+      const testOppIds = testOpps.map((o) => o.id);
+      if (testOppIds.length > 0) {
+        await prisma.sourceListing.deleteMany({ where: { opportunityId: { in: testOppIds } } });
+        await prisma.opportunity.deleteMany({ where: { id: { in: testOppIds } } });
+      }
+    } catch (cleanupErr) {
+      console.warn("Teardown warning:", cleanupErr);
+    }
   }
 }
 

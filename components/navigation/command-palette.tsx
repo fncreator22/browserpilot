@@ -8,7 +8,6 @@ import {
   Compass, 
   Bookmark, 
   Eye, 
-  History, 
   Bell, 
   User, 
   KeyRound, 
@@ -102,14 +101,6 @@ export function CommandPalette() {
       icon: Bookmark,
       badge: savedCount > 0 ? savedCount : undefined,
       action: () => handleNavigate("/app/saved"),
-    },
-    {
-      id: "nav-history",
-      label: "Search History",
-      sublabel: "Past queries, execution sessions, and dossiers",
-      category: "PAGES",
-      icon: History,
-      action: () => handleNavigate("/app/history"),
     },
     {
       id: "nav-plans",
