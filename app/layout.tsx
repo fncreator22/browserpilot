@@ -8,6 +8,7 @@ import { UIStateProvider } from "@/components/providers/ui-state-provider";
 import { CommandPalette } from "@/components/navigation/command-palette";
 import { GlobalSettingsModal } from "@/components/settings/global-settings-modal";
 import { AuditInteractionListener } from "@/components/audit/audit-interaction-listener";
+import { AnalyticsProvider } from "@/components/analytics/analytics-provider";
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -22,8 +23,54 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Radar | Autonomous Opportunity & Career Intelligence",
-  description: "Distraction-free autonomous opportunity discovery powered by DeepSeek & Gemini reasoning.",
+  metadataBase: new URL(process.env.NEXTAUTH_URL || "https://browserpilot-gold.vercel.app"),
+  title: {
+    default: "Radar | Autonomous Opportunity & Career Intelligence",
+    template: "%s | Radar Intelligence",
+  },
+  description: "Distraction-free autonomous opportunity discovery and career intelligence powered by DeepSeek and Gemini reasoning.",
+  keywords: [
+    "autonomous job search",
+    "career radar",
+    "software engineer jobs",
+    "remote tech jobs",
+    "real-time opportunity intelligence",
+    "generative engine optimization",
+    "GEO",
+  ],
+  authors: [{ name: "BrowserPilot Team" }],
+  creator: "BrowserPilot",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: [
+      { url: "/favicon.svg" },
+    ],
+  },
+  manifest: "/site.webmanifest",
+  openGraph: {
+    title: "Radar | Autonomous Opportunity & Career Intelligence",
+    description: "Autonomous career agent detecting verified, unlisted, and novel opportunities in real time.",
+    url: "https://browserpilot-gold.vercel.app",
+    siteName: "Radar Intelligence",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Radar | Autonomous Opportunity & Career Intelligence",
+    description: "Autonomous career agent detecting verified, unlisted, and novel opportunities in real time.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -36,11 +83,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Script src="https://js.puter.com/v2/" strategy="afterInteractive" />
         <AuthSessionProvider>
           <UIStateProvider>
-            {children}
-            <CommandPalette />
-            <GlobalSettingsModal />
-            <AuditInteractionListener />
-            <ResponsiveToaster />
+            <AnalyticsProvider>
+              {children}
+              <CommandPalette />
+              <GlobalSettingsModal />
+              <AuditInteractionListener />
+              <ResponsiveToaster />
+            </AnalyticsProvider>
           </UIStateProvider>
         </AuthSessionProvider>
       </body>

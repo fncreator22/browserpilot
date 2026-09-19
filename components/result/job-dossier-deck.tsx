@@ -335,21 +335,13 @@ export function JobDossierDeck({
 
   return (
     <div className={`rounded-2xl border border-border bg-card p-4 sm:p-6 space-y-6 shadow-marble-1 ${className}`}>
-      {/* Header & Controls in calm sentence-case */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Briefcase className="h-4 w-4 stroke-[2] text-primary" />
-            <h3 className="text-base sm:text-lg font-sans font-bold text-foreground">
-              Verified opportunity dossiers
-            </h3>
-            <Badge variant="outline" className="font-mono text-xs text-muted-foreground rounded-full">
-              {jobs.length} verified roles
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground font-sans">
-            Ranked by multi-factor student relevance. Every role is verified live against source ATS pages.
-          </p>
+      {/* Filter Controls Bar (Calm sentence-case) */}
+      <div className="flex items-center justify-between gap-4 pb-3 border-b border-border/60">
+        <div className="flex items-center gap-2">
+          <Briefcase className="h-4 w-4 stroke-[2] text-primary" />
+          <span className="font-mono text-xs text-muted-foreground font-semibold">
+            {filteredJobs.length} role{filteredJobs.length === 1 ? "" : "s"}
+          </span>
         </div>
 
         {/* Filter Buttons in calm Inter (font-sans) */}
@@ -416,73 +408,98 @@ export function JobDossierDeck({
               <div
                 key={job.id}
                 onClick={() => setSelectedJob(job)}
-                className="group rounded-2xl border border-border bg-card hover:border-primary/50 shadow-marble-1 hover:shadow-marble-2 transition-all p-3.5 sm:p-4 flex flex-col justify-between gap-2.5 cursor-pointer select-none overflow-hidden"
+                className="group rounded-2xl border border-border bg-card hover:border-primary/50 shadow-marble-1 hover:shadow-marble-2 transition-all p-3.5 sm:p-4 flex flex-col justify-between gap-3 cursor-pointer select-none relative"
               >
-                {/* Top Row: Rank + Company + ATS/Social Badge + Author Handle + Match Fit + Corner Verification Badge */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                {/* Top Section: Company, Badges, Fit Score & Status */}
+                <div className="space-y-2.5">
+                  {/* Row 1: Company + Verification Corner Status */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary font-mono text-[10px] font-bold">
                         #{job.rankPosition || idx + 1}
                       </span>
-                      <span className="flex items-center gap-1.5 font-sans font-semibold text-xs sm:text-sm text-foreground truncate max-w-[140px] sm:max-w-[160px]">
-                        <CompanyAvatar companyName={job.companyName || job.company || "Company"} applyUrl={effectiveUrl} size="sm" className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{job.companyName}</span>
+                      <CompanyAvatar companyName={job.companyName || job.company || "Company"} applyUrl={effectiveUrl} size="sm" className="h-5 w-5 shrink-0" />
+                      <span className="font-sans font-bold text-xs sm:text-sm text-foreground truncate max-w-[160px]">
+                        {job.companyName}
                       </span>
-
-                      {/* Color-coded ATS / Social Platform Badge */}
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-sans font-medium border ${atsInfo.className}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${atsInfo.dotColor}`} />
-                        {atsInfo.name}
-                      </span>
-
-                      {/* Author / Poster Handle Badge */}
-                      {socialHandle && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-muted text-foreground font-medium border border-border">
-                          {socialHandle}
-                        </span>
-                      )}
-
-                      {/* Multi-Source Deduplication Indicator */}
-                      {job.sourceListings && job.sourceListings.length > 1 && (
-                        <span
-                          className="badge badge-xs badge-outline text-[9px] font-sans font-medium px-1.5 py-0.5 border-border text-muted-foreground bg-muted rounded-full"
-                          title={`Also verified across ${job.sourceListings.slice(1).map(s => s.sourcePlatform || "Web").join(", ")}`}
-                        >
-                          +{job.sourceListings.length - 1} sources
-                        </span>
-                      )}
-
-                      {/* Trust Score Badge */}
-                      {job.trustReport && (
-                        <TrustScoreBadge
-                          score={job.trustReport.trustScore}
-                          tier={job.trustReport.trustTier}
-                          isGhostJob={job.trustReport.isGhostJob}
-                        />
-                      )}
                     </div>
 
-                    <div className="flex items-center gap-1.5 ml-auto">
-                      {typeof job.matchScore === "number" && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
-                            {Math.round(job.matchScore)}% fit
-                          </span>
-                          <InfoBadge
-                            title="Relevance & Fit Score"
-                            description={job.matchReason || job.matchBadge?.tagline || "Calculated using semantic role similarity, required technical skills, experience tier, and location constraints."}
-                            details={{
-                              "Fit Score": `${Math.round(job.matchScore)}%`,
-                              "Match Type": job.matchType || job.matchBadge?.label || "SEMANTIC_SIMILARITY",
-                              "Verification": humanizeStatus(job.verificationStatus || "VERIFIED"),
-                              "Company": job.companyName,
-                            }}
-                          />
-                        </div>
-                      )}
+                    <div className="shrink-0">
                       {getVerificationCornerBadge(job.verificationStatus)}
                     </div>
+                  </div>
+
+                  {/* Row 2: Platform + Fit Score (with hover InfoBadge) + Opportunity Tag */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Color-coded ATS / Social Platform Badge */}
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-sans font-medium border shrink-0 ${atsInfo.className}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${atsInfo.dotColor}`} />
+                      {atsInfo.name}
+                    </span>
+
+                    {/* Author / Poster Handle Badge */}
+                    {socialHandle && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-muted text-foreground font-medium border border-border shrink-0">
+                        {socialHandle}
+                      </span>
+                    )}
+
+                    {/* Multi-Source Deduplication Indicator */}
+                    {job.sourceListings && job.sourceListings.length > 1 && (
+                      <span
+                        className="badge badge-xs badge-outline text-[9px] font-sans font-medium px-1.5 py-0.5 border-border text-muted-foreground bg-muted rounded-full shrink-0"
+                        title={`Also verified across ${job.sourceListings.slice(1).map(s => s.sourcePlatform || "Web").join(", ")}`}
+                      >
+                        +{job.sourceListings.length - 1} sources
+                      </span>
+                    )}
+
+                    {/* Trust Score Badge */}
+                    {job.trustReport && (
+                      <TrustScoreBadge
+                        score={job.trustReport.trustScore}
+                        tier={job.trustReport.trustTier}
+                        isGhostJob={job.trustReport.isGhostJob}
+                      />
+                    )}
+
+                    {/* Match Score & Info Badge */}
+                    {typeof job.matchScore === "number" && (
+                      <div className="inline-flex items-center gap-1 shrink-0">
+                        <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
+                          {Math.round(job.matchScore)}% fit
+                        </span>
+                        <InfoBadge
+                          side="bottom"
+                          title="Relevance & Fit Score"
+                          description={job.matchReason || job.matchBadge?.tagline || "Calculated using semantic role similarity, required technical skills, experience tier, and location constraints."}
+                          details={{
+                            "Fit Score": `${Math.round(job.matchScore)}%`,
+                            "Match Type": job.matchType || job.matchBadge?.label || "SEMANTIC_SIMILARITY",
+                            "Verification": humanizeStatus(job.verificationStatus || "VERIFIED"),
+                            "Company": job.companyName,
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Recommendation vs Exact Match Badge */}
+                    {(job.matchBadge?.label === "Recommendation" || job.matchType?.startsWith("RECOMMENDED") || job.matchBadge?.type?.startsWith("RECOMMENDED")) ? (
+                      <Badge variant="outline" className="text-[10px] font-sans font-medium px-2 py-0.5 text-amber-800 border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 flex items-center gap-1 w-fit shrink-0">
+                        <Sparkles className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
+                        <span>{job.matchBadge?.label || "Recommendation"}</span>
+                      </Badge>
+                    ) : (job.matchBadge?.label === "Exact Match" || job.matchBadge?.label === "Direct Match" || job.matchType === "EXACT_MATCH") ? (
+                      <Badge variant="outline" className="text-[10px] font-sans font-medium px-2 py-0.5 text-emerald-800 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1 w-fit shrink-0">
+                        <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
+                        <span>{job.matchBadge?.label || "Exact Match"}</span>
+                      </Badge>
+                    ) : job.classification === "NEW_OPPORTUNITY" ? (
+                      <Badge variant="outline" className="text-[10px] font-sans px-2 py-0.5 text-emerald-700 border-emerald-300 bg-emerald-50 flex items-center gap-1 w-fit shrink-0">
+                        <Sparkles className="h-2.5 w-2.5 text-emerald-600" />
+                        <span>New Opportunity</span>
+                      </Badge>
+                    ) : null}
                   </div>
 
                   {/* Company Intelligence Metadata Pill */}

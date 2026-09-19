@@ -114,18 +114,53 @@ export function normalizeLocation(location?: string | null): string {
  * - Preserves essential query params (id, jk, jobId, view)
  * - Strips trailing slashes
  */
-export function canonicalizeUrl(rawUrl?: string | null): string {
+export function canonicalizeUrl(rawUrl?: string | null, baseUrl?: string | null): string {
   if (!rawUrl || typeof rawUrl !== "string") return "";
 
-  const trimmed = rawUrl.trim();
-  if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
-    return trimmed;
+  let trimmed = rawUrl.trim();
+  if (!trimmed) return "";
+
+  // Strip wrapping quotes, brackets, and markdown links
+  trimmed = trimmed.replace(/^[<"'(]+|[>"')]+$/g, "").trim();
+  trimmed = trimmed.replace(/[.,;]+$/, "").trim();
+
+  if (trimmed.startsWith("//")) {
+    trimmed = `https:${trimmed}`;
+  } else if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+    if (baseUrl && (trimmed.startsWith("/") || !trimmed.includes("."))) {
+      try {
+        const resolved = new URL(trimmed, baseUrl);
+        trimmed = resolved.toString();
+      } catch {
+        // Continue to regex check
+      }
+    }
+
+    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+      if (/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(\/.*)?$/i.test(trimmed)) {
+        trimmed = `https://${trimmed}`;
+      } else if (baseUrl) {
+        try {
+          const resolved = new URL(trimmed, baseUrl);
+          trimmed = resolved.toString();
+        } catch {
+          return trimmed;
+        }
+      } else {
+        return trimmed;
+      }
+    }
   }
 
   try {
     const parsed = new URL(trimmed);
     parsed.protocol = parsed.protocol.toLowerCase();
     parsed.hostname = parsed.hostname.toLowerCase();
+
+    // Auto-upgrade insecure http to https for non-local public URLs
+    if (parsed.protocol === "http:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") {
+      parsed.protocol = "https:";
+    }
 
     // Remove tracking query parameters
     const trackingParams = [

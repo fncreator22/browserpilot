@@ -21,6 +21,7 @@ import {
   type AutonomousDiscoveryOptions,
   type AutonomousDiscoveryRunResult,
 } from "./autonomousDiscovery";
+import { prisma } from "@/lib/db/prisma";
 import { getCapabilityLimit } from "@/lib/billing/entitlementService";
 
 export interface SchedulerOptions {
@@ -30,6 +31,7 @@ export interface SchedulerOptions {
   maxLeaseAgeMs?: number;
   discoveryOptions?: AutonomousDiscoveryOptions;
   customFetch?: typeof fetch;
+  force?: boolean;
 }
 
 export interface ScheduledUserResult {
@@ -90,11 +92,61 @@ export class DiscoveryScheduler {
     let totalReposted = 0;
     let totalNotificationsCreated = 0;
 
-    // 1. Fetch eligible due watches (enabled + nextScanAt <= now + no active unexpired lease)
-    const dueWatches = await getDueDiscoveryWatches(maxWatches, maxLeaseAgeMs);
+    // 1. Fetch eligible due watches (enabled + nextScanAt <= now + no active unexpired lease, or force all enabled)
+    const dueWatches = await getDueDiscoveryWatches(maxWatches, maxLeaseAgeMs, Boolean(options.force));
     const watchesDue = dueWatches.length;
 
     if (watchesDue === 0) {
+      if (options.force) {
+        try {
+          const firstUser = await prisma.user.findFirst({ select: { id: true } });
+          const targetUserId = firstUser?.id;
+          if (targetUserId) {
+            const seedResult = await autonomousDiscoveryEngine.runAutonomousDiscoveryForUser(targetUserId, {
+              totalTimeoutMs: Math.min(maxExecutionBudgetMs, 15000),
+              forceScan: true,
+              customFetch: options.customFetch,
+            });
+            const seedNew = seedResult.telemetry.newOpportunities;
+            const now = new Date();
+            return {
+              schedulerRunId,
+              startedAt: new Date(startTime),
+              completedAt: now,
+              durationMs: Date.now() - startTime,
+              status: "SUCCESS",
+              watchesExamined: 1,
+              watchesDue: 1,
+              watchesClaimed: 1,
+              watchesCompleted: 1,
+              watchesSkipped: 0,
+              watchesFailed: 0,
+              watchesTimedOut: 0,
+              opportunitiesDiscovered: seedResult.telemetry.candidatesFound,
+              newOpportunities: seedNew,
+              newSources: seedResult.telemetry.newSources,
+              alreadyKnown: seedResult.telemetry.alreadyKnown,
+              reposted: seedResult.telemetry.reposted,
+              notificationsCreated: seedResult.telemetry.notificationsCreated,
+              userResults: [
+                {
+                  userId: targetUserId,
+                  status: seedResult.status,
+                  durationMs: seedResult.durationMs,
+                  newOpportunities: seedNew,
+                  newSources: seedResult.telemetry.newSources,
+                  alreadyKnown: seedResult.telemetry.alreadyKnown,
+                  reposted: seedResult.telemetry.reposted,
+                  notificationsCreated: seedResult.telemetry.notificationsCreated,
+                },
+              ],
+            };
+          }
+        } catch (seedErr) {
+          console.warn("[DiscoveryScheduler] Platform seed scan warning:", seedErr);
+        }
+      }
+
       const now = new Date();
       return {
         schedulerRunId,

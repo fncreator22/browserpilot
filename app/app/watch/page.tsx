@@ -180,6 +180,7 @@ export default function WatchPage() {
 
   const [recentRuns, setRecentRuns] = useState<DiscoveryRunItem[]>([]);
   const [discoveryEvents, setDiscoveryEvents] = useState<DiscoveryEventItem[]>([]);
+  const [showAllOpportunities, setShowAllOpportunities] = useState(false);
   const [newCompanyInput, setNewCompanyInput] = useState("");
   const [newRoleInput, setNewRoleInput] = useState("");
   const [newSkillInput, setNewSkillInput] = useState("");
@@ -309,7 +310,7 @@ export default function WatchPage() {
 
       // Fetch recent novel opportunity discovery events
       try {
-        const eventsRes = await fetch("/api/discovery/events?limit=10");
+        const eventsRes = await fetch("/api/discovery/events?limit=50");
         if (eventsRes.ok) {
           const eData = await eventsRes.json();
           if (eData.events && Array.isArray(eData.events)) {
@@ -1602,17 +1603,41 @@ export default function WatchPage() {
             {/* Recent Discovery Activity */}
             <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
               <div className="flex items-center justify-between pb-2 border-b border-border/50">
-                <h3 className="text-xs sm:text-sm font-sans font-bold text-foreground">
-                  Recent novel opportunities
-                </h3>
-                <span className="text-[11px] font-mono text-muted-foreground">
-                  {discoveryEvents.length} detected
-                </span>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs sm:text-sm font-sans font-bold text-foreground">
+                    Recent novel opportunities
+                  </h3>
+                  <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10">
+                    {discoveryEvents.length} detected
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {discoveryEvents.length > 3 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAllOpportunities(!showAllOpportunities)}
+                      className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 hover:bg-emerald-500/10 h-7 px-2 cursor-pointer gap-1 font-semibold"
+                    >
+                      {showAllOpportunities ? "Show less" : `View all (${discoveryEvents.length}) \u2192`}
+                    </Button>
+                  )}
+                  <Link href="/app/history?tab=AUTONOMOUS_RUNS" title="View full history of autonomous discovery runs">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-[11px] font-mono text-muted-foreground hover:text-foreground h-7 px-2 cursor-pointer gap-1"
+                    >
+                      <span>History</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </Button>
+                  </Link>
+                </div>
               </div>
 
               {discoveryEvents.length > 0 ? (
-                <div className="space-y-3">
-                  {discoveryEvents.slice(0, 5).map((ev) => {
+                <div className={`space-y-3 ${showAllOpportunities ? "max-h-[720px] overflow-y-auto pr-1" : ""}`}>
+                  {(showAllOpportunities ? discoveryEvents : discoveryEvents.slice(0, 5)).map((ev) => {
                     const primaryListing = ev.opportunity?.sourceListings?.[0];
                     const connectorMeta = getConnectorMeta(primaryListing?.sourcePlatform, ev.opportunity?.primaryApplyUrl);
                     const verificationBadge = getVerificationCornerBadge(primaryListing?.verificationStatus || ev.opportunity?.status || "VERIFIED_LIVE");
@@ -1673,14 +1698,25 @@ export default function WatchPage() {
                   })}
                 </div>
               ) : (
-                <div className="text-center py-6 px-3 space-y-2 bg-muted/30 rounded-xl border border-dashed border-border/80">
+                <div className="text-center py-6 px-3 space-y-3 bg-muted/30 rounded-xl border border-dashed border-border/80">
                   <ShieldCheck className="h-6 w-6 stroke-[1.75] text-emerald-600 dark:text-emerald-400/60 mx-auto" />
-                  <p className="text-xs font-semibold text-foreground font-sans">
-                    No new opportunities detected yet
-                  </p>
-                  <p className="text-[11px] text-muted-foreground font-sans max-w-xs mx-auto leading-relaxed">
-                    The background engine is active and will crawl across your {watchConfig.preferredSources.length} selected sources every {watchConfig.scanIntervalHours}h. New verified matches will appear here.
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-foreground font-sans">
+                      No new opportunities detected yet
+                    </p>
+                    <p className="text-[11px] text-muted-foreground font-sans max-w-xs mx-auto leading-relaxed">
+                      The background engine is active and will crawl across your {watchConfig.preferredSources.length} selected sources every {watchConfig.scanIntervalHours}h. You can view all prior runs and historical opportunities in History.
+                    </p>
+                  </div>
+                  <Link href="/app/history?tab=AUTONOMOUS_RUNS">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="font-mono text-xs text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 gap-1.5 h-8 mt-1 cursor-pointer"
+                    >
+                      View all in History &rarr;
+                    </Button>
+                  </Link>
                 </div>
               )}
             </div>

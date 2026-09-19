@@ -75,10 +75,11 @@ export function CompactExecutionPill({ isSearching, searchResult }: CompactExecu
     <div className="inline-flex items-center gap-1.5">
       <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border/70 bg-card text-foreground text-xs font-mono shadow-xs">
         <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-        <span className="font-medium text-foreground">{count} verified opportunities</span>
+        <span className="font-medium text-foreground">{count} verified role{count === 1 ? "" : "s"}</span>
         <span className="text-muted-foreground text-[11px] font-sans">({durationSec}s)</span>
       </div>
       <InfoBadge
+        side="bottom"
         title="Execution & Pipeline Telemetry"
         description="Autonomous multi-source search completed with strict quality gating and deduplication."
         details={{

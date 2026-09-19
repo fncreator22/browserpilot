@@ -65,6 +65,11 @@ interface UIStateContextType {
   openProfileModal: (tab?: ProfileTab) => void;
   closeProfileModal: () => void;
 
+  // Active Search & Conversation Streaming
+  isSearching: boolean;
+  activeQuery: string | null;
+  setActiveSearch: (searching: boolean, query?: string | null) => void;
+
   // Subscription Tier & Feature Isolation
   planTier: "FREE" | "PREMIUM" | "ENTERPRISE";
   isPaid: boolean;
@@ -88,6 +93,15 @@ export function UIStateProvider({ children }: { children: React.ReactNode }) {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [profileModalTab, setProfileModalTab] = useState<ProfileTab>("ACCOUNT");
   const [isSidebarCollapsed, setIsSidebarCollapsedState] = useState<boolean>(false);
+  const [isSearchingState, setIsSearchingState] = useState<boolean>(false);
+  const [activeQueryState, setActiveQueryState] = useState<string | null>(null);
+
+  const setActiveSearch = useCallback((searching: boolean, query?: string | null) => {
+    setIsSearchingState(searching);
+    if (query !== undefined) {
+      setActiveQueryState(query);
+    }
+  }, []);
 
   // Subscription Tier & Capabilities
   const [planTier, setPlanTier] = useState<"FREE" | "PREMIUM" | "ENTERPRISE">("FREE");
@@ -482,6 +496,11 @@ export function UIStateProvider({ children }: { children: React.ReactNode }) {
     profileModalTab,
     openProfileModal,
     closeProfileModal,
+
+    // Active Search State
+    isSearching: isSearchingState,
+    activeQuery: activeQueryState,
+    setActiveSearch,
 
     // Subscription Tier & Feature Isolation
     planTier,

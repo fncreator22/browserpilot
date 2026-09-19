@@ -14,7 +14,8 @@ import {
   ShieldCheck,
   Lock,
   Layers,
-  Sparkles
+  Sparkles,
+  Search
 } from "lucide-react";
 import { toast } from "sonner";
 import { type UserPluginStatus } from "@/lib/plugins/pluginTypes";
@@ -44,6 +45,8 @@ export function ConnectorPreferencesPanel({
   const [plugins, setPlugins] = useState<UserPluginStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState<string>("ALL");
 
   const loadData = async () => {
     try {
@@ -147,6 +150,14 @@ export function ConnectorPreferencesPanel({
 
   const connectedCount = plugins.filter((p) => p.isConnected).length;
 
+  const filteredPlugins = plugins.filter((p) => {
+    const matchesCat = activeCategory === "ALL" || p.category === activeCategory;
+    const matchesSearch =
+      (p.displayName || p.name).toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.description || "").toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCat && matchesSearch;
+  });
+
   return (
     <div className="space-y-4 font-sans">
       {isLoading ? (
@@ -160,7 +171,43 @@ export function ConnectorPreferencesPanel({
           <p className="text-xs font-mono">No active plugins available at this time.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3.5">
+          {/* Marketplace Filter Controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {[
+                { id: "ALL", label: "All" },
+                { id: "ATS_BOARD", label: "ATS Boards" },
+                { id: "TECH_COMMUNITY", label: "Tech Communities" },
+                { id: "PROFESSIONAL_NETWORK", label: "Social & Professional" },
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                    activeCategory === cat.id
+                      ? "bg-primary text-primary-foreground border-primary shadow-2xs font-semibold"
+                      : "bg-muted/40 text-muted-foreground hover:text-foreground border-border/70 hover:border-border"
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full sm:w-52">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Filter plugins..."
+                className="w-full h-8 pl-8 pr-3 rounded-lg border border-border bg-card text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+          </div>
+
           <div className="flex items-center justify-between text-xs text-muted-foreground px-1 font-mono">
             <span>
               Connected: <strong className="text-foreground">{connectedCount}</strong> of {plugins.length} plugins & feeds
@@ -170,8 +217,8 @@ export function ConnectorPreferencesPanel({
             </span>
           </div>
 
-          <div className="grid gap-2.5 max-h-[50vh] overflow-y-auto pr-1">
-            {plugins.map((plugin) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {filteredPlugins.map((plugin) => {
               const isSelected = plugin.isConnected;
               const isWorking = connectingId === plugin.id;
 

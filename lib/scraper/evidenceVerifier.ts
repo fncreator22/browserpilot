@@ -248,6 +248,77 @@ export async function revalidateSourceListing(
     };
   }
 
+  // Fast HTTP verification fallback for serverless / Vercel or when headless browser is unavailable
+  const runHttpFallback = async (fallbackErr: Error) => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), Math.max(timeoutMs, 4000));
+      const res = await fetch(targetUrl, {
+        signal: controller.signal,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+      });
+      clearTimeout(timeout);
+
+      if (res.status === 404 || res.status === 410) {
+        return {
+          status: "EXPIRED" as LifecycleStatus,
+          reason: "HTTP_STATUS_NOT_FOUND_OR_EXPIRED",
+          screenshotPath: null,
+          verifiedAt: new Date(),
+        };
+      }
+
+      if (res.status === 401 || res.status === 403) {
+        return {
+          status: "BLOCKED" as LifecycleStatus,
+          reason: "HTTP_AUTH_WALL_OR_RESTRICTED",
+          screenshotPath: null,
+          verifiedAt: new Date(),
+        };
+      }
+
+      const html = await res.text().catch(() => "");
+      const cleanText = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+      const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+      const title = titleMatch ? titleMatch[1].trim() : "";
+
+      const validation = validateJobPageContent(cleanText, title, res.status);
+      const isKnownJobDomain = /greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|smartrecruiters\.com|myworkdayjobs\.com|breezy\.hr|jobvite\.com/i.test(targetUrl);
+      const hasSpaStructure = html.includes("<div id=\"root\"") || html.includes("<div id=\"__next\"") || html.includes("<div id=\"app\"") || html.includes("<script");
+      const isHealthyAtsPortal = (res.status === 200 || res.status === 304) && (isKnownJobDomain || (hasSpaStructure && title.length > 0));
+
+      const effectiveStatus: LifecycleStatus = (validation.isValid || isHealthyAtsPortal)
+        ? "VERIFIED"
+        : validation.status;
+      const effectiveReason = validation.isValid
+        ? (validation.reason || "HTTP_LIVENESS_VERIFIED")
+        : (isHealthyAtsPortal ? "HTTP_ATS_SPA_PORTAL_VERIFIED" : validation.reason);
+
+      return {
+        status: effectiveStatus,
+        reason: effectiveReason,
+        screenshotPath: listing.screenshotPath || null,
+        verifiedAt: new Date(),
+      };
+    } catch (httpErr: any) {
+      const isTimeout = httpErr?.name === "AbortError" || httpErr?.message?.includes("timeout");
+      return {
+        status: (isTimeout ? "TIMEOUT" : "UNVERIFIED") as LifecycleStatus,
+        reason: httpErr?.message || fallbackErr?.message || "HTTP_VERIFICATION_FAILED",
+        screenshotPath: null,
+        verifiedAt: new Date(),
+      };
+    }
+  };
+
+  if (process.env.VERCEL === "1" || process.env.NEXT_SERVERLESS === "1") {
+    return await runHttpFallback(new Error("VERCEL_SERVERLESS_RUNTIME"));
+  }
+
   let session = null;
   try {
     session = await browserPool.createSession({
@@ -310,12 +381,8 @@ export async function revalidateSourceListing(
       verifiedAt: new Date(),
     };
   } catch (err) {
-    return {
-      status: "UNVERIFIED",
-      reason: (err as Error).message || "UNEXPECTED_VERIFICATION_EXCEPTION",
-      screenshotPath: null,
-      verifiedAt: new Date(),
-    };
+    // If browser pool execution fails (e.g. missing browser binary), fall back to HTTP verification
+    return await runHttpFallback(err as Error);
   } finally {
     if (session) {
       await session.close().catch(() => {});

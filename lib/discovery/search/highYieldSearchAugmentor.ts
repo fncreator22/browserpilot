@@ -211,21 +211,35 @@ async function fetchHighRelevanceRecommendations(
   // 2. If still needed, harvest directly from top tech ATS endpoints without narrow keyword rejections
   if (recommendations.length < targetCount && !signal?.aborted) {
     try {
-      const topAtsCompanies = DEFAULT_ATS_COMPANIES.slice(0, 5);
+      const topAtsCompanies = DEFAULT_ATS_COMPANIES.slice(0, 8);
+      const roleVariations = searchRole ? [searchRole] : [];
+      const lowerRole = (searchRole || "").toLowerCase();
+      if (lowerRole.includes("data science") || lowerRole.includes("data scientist")) {
+        roleVariations.push("Data Scientist", "Data Engineer", "Machine Learning Engineer", "Data Analyst");
+      } else if (lowerRole.includes("frontend") || lowerRole.includes("front end")) {
+        roleVariations.push("Frontend Engineer", "UI Engineer", "Software Engineer");
+      } else if (lowerRole.includes("backend") || lowerRole.includes("back end")) {
+        roleVariations.push("Backend Engineer", "Platform Engineer", "Software Engineer");
+      } else if (lowerRole.includes("software")) {
+        roleVariations.push("Software Engineer", "Full Stack Engineer", "Engineer");
+      }
+
       const relaxedIntent: SearchIntent = {
         ...intent,
-        roles: [],
-        role: undefined,
+        companies: topAtsCompanies.map((c) => c.name),
+        roles: roleVariations,
+        role: searchRole || undefined,
         experienceLevel: "ANY",
         opportunityType: "ANY",
-        workMode: "ANY",
-        locations: [],
-        location: undefined,
+        workMode: intent.workMode || "ANY",
+        locations: intent.locations || [],
+        location: intent.location,
+        isExplicitFreshness: false,
       };
 
       const harvested = await atsProvider.harvestCandidates(
         relaxedIntent,
-        { maxCandidates: 25, timeoutMs: 5000 },
+        { maxCandidates: 25, timeoutMs: 7000 },
         { signal }
       );
 
@@ -255,6 +269,46 @@ async function fetchHighRelevanceRecommendations(
             tagline: `Verified opening at ${opp.companyName}`,
           },
         });
+      }
+
+      // 3. If still needed, harvest open high-demand tech roles from top ATS endpoints
+      if (recommendations.length < targetCount && !signal?.aborted) {
+        const broadIntent: SearchIntent = {
+          ...relaxedIntent,
+          roles: [],
+          role: undefined,
+        };
+        const broadHarvested = await atsProvider.harvestCandidates(
+          broadIntent,
+          { maxCandidates: 25, timeoutMs: 5000 },
+          { signal }
+        );
+        for (const opp of deduplicateCandidates(broadHarvested)) {
+          if (recommendations.length >= targetCount) break;
+          if (excludedHashes.has(opp.canonicalHash)) continue;
+          excludedHashes.add(opp.canonicalHash);
+
+          const breakdown: ScoreBreakdown = {
+            role: 20,
+            skills: 15,
+            workMode: opp.workMode === "REMOTE" ? 15 : 10,
+            freshness: 12,
+            verification: 10,
+          };
+
+          recommendations.push({
+            opportunity: opp,
+            totalScore: breakdown.role + breakdown.skills + breakdown.workMode + breakdown.freshness + breakdown.verification,
+            rankPosition: 0,
+            breakdown,
+            matchType: "RECOMMENDED",
+            matchBadge: {
+              type: "RECOMMENDED",
+              label: "High-Growth Employer",
+              tagline: `Verified opening at ${opp.companyName}`,
+            },
+          });
+        }
       }
     } catch (atsErr) {
       console.warn("[HighYieldAugmentor] ATS live harvest warning:", atsErr);

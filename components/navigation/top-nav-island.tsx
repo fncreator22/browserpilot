@@ -102,16 +102,6 @@ export function TopNavIsland() {
 
         {/* Right: Actions, Theme Switcher & User Profile */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Puter Account Status Indicator */}
-          {isSignedIn && puterUser && (
-            <div 
-              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted/50 border border-border text-[11px] font-mono text-muted-foreground shadow-2xs"
-              title="Puter AI Cloud Account"
-            >
-              <Sparkles className="h-3 w-3 text-primary" />
-              <span>{puterUser.username || "Puter"}</span>
-            </div>
-          )}
 
           {/* Global Theme Toggle */}
           <ThemeToggle />

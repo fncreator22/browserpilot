@@ -51,7 +51,7 @@ export async function POST(
     // Execute bounded revalidation
     const summary = await revalidateOpportunity(existing.id, {
       force,
-      timeoutMs: 3000,
+      timeoutMs: 6000,
     });
 
     if (!summary) {

@@ -38,6 +38,7 @@ import { getVerificationCornerBadge, type DossierJobItem } from "@/components/re
 import { getAtsSourceInfo, getSocialAuthorHandle } from "@/lib/ats/atsSourceInfo";
 import { TrustScoreBadge } from "@/components/result/trust-score-badge";
 import { GhostJobBanner } from "@/components/result/ghost-job-banner";
+import { RichJobDescription } from "./rich-job-description";
 import { CompanyIntelligencePill } from "@/components/result/company-intelligence-pill";
 import { CompanyAvatar } from "@/components/ui/company-avatar";
 import { 
@@ -734,8 +735,8 @@ export function JobDetailSlideOver({
                 <h4 className="text-xs font-sans font-bold text-foreground">
                   Role overview and description
                 </h4>
-                <div className="text-xs font-sans text-foreground/90 leading-relaxed whitespace-pre-line bg-muted/30 p-4 rounded-xl border border-border/60">
-                  {job.description}
+                <div className="bg-muted/30 p-4 sm:p-5 rounded-xl border border-border/60">
+                  <RichJobDescription content={job.description} />
                 </div>
               </div>
             )}

@@ -226,7 +226,7 @@ export function validateOpportunityExtraction(
   const rawApplyUrl = String(item.applyUrl || item.primaryApplyUrl || item.sourceUrl || "").trim();
   let canonicalApply = canonicalSource;
   if (rawApplyUrl && rawApplyUrl !== rawSourceUrl) {
-    const cleanedApply = canonicalizeUrl(rawApplyUrl);
+    const cleanedApply = canonicalizeUrl(rawApplyUrl, canonicalSource);
     if (isSafePublicUrl(cleanedApply, options.allowLocalForTests)) {
       canonicalApply = cleanedApply;
     }

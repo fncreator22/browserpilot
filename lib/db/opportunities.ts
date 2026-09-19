@@ -1332,27 +1332,33 @@ export async function upsertDiscoveryWatch(
  */
 export async function getDueDiscoveryWatches(
   limit = 10,
-  maxLeaseAgeMs = 120000
+  maxLeaseAgeMs = 120000,
+  forceAll = false
 ): Promise<Array<{ userId: string; watch: DiscoveryWatchConfig }>> {
   const now = new Date();
   const staleCutoff = new Date(now.getTime() - maxLeaseAgeMs);
 
+  const whereClause: any = {
+    enabled: true,
+    AND: [
+      {
+        OR: [
+          { lockedAt: null },
+          { lockedAt: { lte: staleCutoff } },
+        ],
+      },
+    ],
+  };
+
+  if (!forceAll) {
+    whereClause.OR = [
+      { nextScanAt: null },
+      { nextScanAt: { lte: now } },
+    ];
+  }
+
   const watches = await prisma.discoveryWatch.findMany({
-    where: {
-      enabled: true,
-      OR: [
-        { nextScanAt: null },
-        { nextScanAt: { lte: now } },
-      ],
-      AND: [
-        {
-          OR: [
-            { lockedAt: null },
-            { lockedAt: { lte: staleCutoff } },
-          ],
-        },
-      ],
-    },
+    where: whereClause,
     orderBy: [
       { nextScanAt: "asc" },
       { createdAt: "asc" },

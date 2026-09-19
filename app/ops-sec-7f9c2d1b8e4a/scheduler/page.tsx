@@ -80,6 +80,7 @@ export default function AdminSchedulerPage() {
         body: JSON.stringify({
           maxWatches: 10,
           concurrencyLimit: 2,
+          force: true,
         }),
       });
 
@@ -89,7 +90,12 @@ export default function AdminSchedulerPage() {
       }
 
       setLastTriggerResult(data.telemetry);
-      toast.success(`Cycle executed: ${data.telemetry?.totalWatchesProcessed || 0} watches processed!`);
+      const processed = data.telemetry?.watchesCompleted ?? data.telemetry?.totalWatchesProcessed ?? 0;
+      if (processed === 0) {
+        toast.info("Discovery Cycle executed: 0 enabled watches found in the system. Create a watch in Radar first.");
+      } else {
+        toast.success(`Discovery Cycle executed: ${processed} watches processed (${data.telemetry?.newOpportunities || 0} new opportunities)!`);
+      }
       // Refresh state immediately after run
       fetchSchedulerState();
     } catch (err: any) {

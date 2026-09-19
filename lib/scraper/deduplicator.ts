@@ -112,7 +112,7 @@ function candidateToOpportunity(raw: RawJobCandidate): DeduplicatedOpportunity {
   const seniority = extractSeniority(normTitle);
   const salary = parseSalaryRange(raw.salaryText);
   const canonicalSourceUrl = canonicalizeUrl(raw.sourceUrl);
-  const canonicalApplyUrl = canonicalizeUrl(raw.applyUrl) || canonicalSourceUrl;
+  const canonicalApplyUrl = canonicalizeUrl(raw.applyUrl, canonicalSourceUrl) || canonicalSourceUrl;
 
   return {
     canonicalHash,

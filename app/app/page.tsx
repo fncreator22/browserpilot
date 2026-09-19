@@ -63,12 +63,17 @@ function DiscoverContent() {
   const { openProfileModal } = useUIState();
   const { signIn: puterSignIn, isAuthenticating: isPuterAuthenticating } = usePuter();
 
+  const { setActiveSearch } = useUIState();
   const [opportunityData, setOpportunityData] = useState<OpportunitySearchResultPayload | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [activeExecutionId, setActiveExecutionId] = useState<string | undefined>(undefined);
   const [activeQuery, setActiveQuery] = useState(initialQuery);
   const [searchHistory, setSearchHistory] = useState<Array<{ id: string; rawQuery: string; totalFound: number; createdAt: string }>>([]);
   const [hasCheckedHistory, setHasCheckedHistory] = useState(false);
+
+  useEffect(() => {
+    setActiveSearch(isSearching, activeQuery);
+  }, [isSearching, activeQuery, setActiveSearch]);
 
   const refreshSearchHistory = useCallback(async () => {
     try {
@@ -508,19 +513,21 @@ function DiscoverContent() {
                     </div>
                   </div>
 
-                  {/* Status Banner */}
-                  <SearchStatusBanner
-                    status={opportunityData.status}
-                    requestedCount={opportunityData.requestedCount || opportunityData.canonicalIntent?.requestedCount || 10}
-                    verifiedCount={opportunityData.verifiedCount ?? opportunityData.results?.length ?? 0}
-                    explanation={opportunityData.explanation}
-                    stoppingReason={opportunityData.diagnostics?.stoppingReason}
-                    errorCode={opportunityData.errorCode}
-                    onOpenProviders={() => openProfileModal("PROVIDERS")}
-                    onConnectPuter={puterSignIn}
-                    onRunFallbackScraper={handleRunFallbackScraper}
-                    isPuterAuthenticating={isPuterAuthenticating}
-                  />
+                  {/* Status Banner - Only rendered for non-complete or zero-result states, eliminating redundant banner */}
+                  {(opportunityData.status !== "COMPLETE" || !opportunityData.results || opportunityData.results.length === 0) && (
+                    <SearchStatusBanner
+                      status={opportunityData.status}
+                      requestedCount={opportunityData.requestedCount || opportunityData.canonicalIntent?.requestedCount || 10}
+                      verifiedCount={opportunityData.verifiedCount ?? opportunityData.results?.length ?? 0}
+                      explanation={opportunityData.explanation}
+                      stoppingReason={opportunityData.diagnostics?.stoppingReason}
+                      errorCode={opportunityData.errorCode}
+                      onOpenProviders={() => openProfileModal("PROVIDERS")}
+                      onConnectPuter={puterSignIn}
+                      onRunFallbackScraper={handleRunFallbackScraper}
+                      isPuterAuthenticating={isPuterAuthenticating}
+                    />
+                  )}
 
                   {/* Personalization Indicator (when active user memory applied) */}
                   {opportunityData.personalization?.applied && (

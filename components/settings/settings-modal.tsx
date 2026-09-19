@@ -107,6 +107,17 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
     }
   }, [isOpen, initialTab]);
 
+  // Lock background body scroll while modal is open to prevent home page scrolling
+  useEffect(() => {
+    if (isOpen && typeof document !== "undefined") {
+      const origOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = origOverflow;
+      };
+    }
+  }, [isOpen]);
+
   // Account State
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -1378,44 +1389,21 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-lg font-sans font-bold text-foreground">Plugins & Monitored Sources</h2>
-              <p className="text-xs text-muted-foreground font-sans mt-0.5">
-                Manage all registered job board aggregators, direct ATS platforms, and autonomous intelligence plugins.
-              </p>
+              <h2 className="text-lg font-sans font-bold text-foreground">Plugins & Connectors</h2>
             </div>
 
             {/* Direct & Auth Scraper Plugins */}
-            <div className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-marble-1">
-              <div className="flex items-center justify-between pb-3 border-b border-border/60">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold font-sans text-foreground">Scraper Plugins & Direct ATS Feeds</h3>
-                    <Badge variant="outline" className="text-[10px] uppercase font-mono px-2 py-0.5 bg-primary/10 text-primary border-primary/20">
-                      Active Marketplace
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground font-sans">
-                    Enable authenticated ATS crawlers (Greenhouse, Lever, Workday, Indeed) and social streams.
-                  </p>
-                </div>
-              </div>
+            <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 space-y-3 shadow-marble-1">
               <ConnectorPreferencesPanel showActions={false} />
             </div>
 
             {/* Pro DeepReach Multi-Platform Channels */}
-            <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between pb-3 border-b border-border/60">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold font-sans text-foreground">Pro DeepReach Channels</h3>
-                    <Badge variant="outline" className="text-[10px] uppercase font-mono px-2 py-0.5 bg-emerald-50 text-emerald-700 border-emerald-200">
-                      Zero-Fee Intelligence
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground font-sans">
-                    Autonomous cross-scanners extracting hidden hiring posts, tech talks, and talent acquisition contacts via Jina Reader.
-                  </p>
-                </div>
+            <div className="rounded-2xl border border-border/70 bg-card p-4 sm:p-5 space-y-3 shadow-sm">
+              <div className="flex items-center justify-between pb-2 border-b border-border/60">
+                <h3 className="text-sm font-bold font-sans text-foreground">DeepReach Channels</h3>
+                <Badge variant="outline" className="text-[10px] font-mono px-2 py-0.5 bg-emerald-50 text-emerald-700 border-emerald-200">
+                  Active
+                </Badge>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -2208,13 +2196,13 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: "100%" }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="md:hidden fixed inset-0 z-50 bg-background flex flex-col text-foreground overflow-hidden"
+            className="md:hidden fixed inset-0 z-50 bg-background flex flex-col text-foreground overflow-hidden h-[100dvh] max-h-[100dvh]"
           >
             {mobileDetailView === null ? (
               /* VIEW 1: Mobile Category Menu List */
-              <div className="flex-1 flex flex-col">
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 {/* Mobile Menu Header */}
-                <div className="flex items-center justify-between px-4 py-3.5 border-b border-border/60 bg-card">
+                <div className="flex items-center justify-between px-4 py-3.5 border-b border-border/60 bg-card shrink-0">
                   <div>
                     <h1 className="text-base font-sans font-bold text-foreground">Settings</h1>
                     <p className="text-[11px] text-muted-foreground font-sans">Select a category to view or edit</p>
@@ -2230,7 +2218,10 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 </div>
 
                 {/* Categories List */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                <div 
+                  className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-2 touch-pan-y"
+                  style={{ WebkitOverflowScrolling: "touch" }}
+                >
                   {categories.map((cat) => {
                     const Icon = cat.icon;
                     return (
@@ -2269,9 +2260,9 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               </div>
             ) : (
               /* VIEW 2: Mobile Category Detail View with Back Button */
-              <div className="flex-1 flex flex-col bg-card">
+              <div className="flex-1 min-h-0 flex flex-col bg-card overflow-hidden">
                 {/* Detail Top Bar */}
-                <div className="flex items-center justify-between px-3 py-3 border-b border-border/60 bg-muted/30">
+                <div className="flex items-center justify-between px-3 py-3 border-b border-border/60 bg-muted/30 shrink-0">
                   <button
                     type="button"
                     onClick={handleMobileBack}
@@ -2292,7 +2283,10 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 </div>
 
                 {/* Detail Content */}
-                <div className="flex-1 p-4 overflow-y-auto">
+                <div 
+                  className="flex-1 min-h-0 p-4 overflow-y-auto overscroll-contain touch-pan-y"
+                  style={{ WebkitOverflowScrolling: "touch" }}
+                >
                   {renderContentPane(mobileDetailView)}
                 </div>
               </div>

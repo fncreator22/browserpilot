@@ -34,7 +34,7 @@ export function CompanyAvatar({
       className={`relative inline-flex shrink-0 items-center justify-center rounded-full overflow-hidden border border-border/70 bg-slate-50 dark:bg-slate-800 shadow-2xs font-mono font-bold select-none ${sizeClasses} ${className}`}
       title={effectiveName}
     >
-      {!hasImageError ? (
+      {logoUrl && !hasImageError ? (
         <img
           src={logoUrl}
           alt={effectiveName}

@@ -16,7 +16,8 @@ import {
   PanelLeftOpen,
   Brain,
   ShieldCheck,
-  Puzzle
+  Puzzle,
+  Briefcase
 } from "lucide-react";
 import { useUIState } from "@/components/providers/ui-state-provider";
 import { ADMIN_UI_ROUTES } from "@/lib/admin/adminRoutes";
@@ -30,8 +31,31 @@ export function AppSidebar() {
     openCommandPalette, 
     openProfileModal,
     isSidebarCollapsed,
-    toggleSidebarCollapse
+    toggleSidebarCollapse,
+    isSearching,
+    activeQuery
   } = useUIState();
+
+  const [recentSearches, setRecentSearches] = React.useState<Array<{ id: string; rawQuery: string; createdAt: string; totalFound?: number }>>([]);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    async function loadSearches() {
+      try {
+        const res = await fetch("/api/search/history?limit=8");
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data?.history) {
+            setRecentSearches(data.history);
+          }
+        }
+      } catch {}
+    }
+    loadSearches();
+    return () => {
+      isMounted = false;
+    };
+  }, [isSearching]);
 
   const userRole = (session?.user as any)?.role;
   const isAdmin = userRole === "ADMIN" || userRole === "SUPERADMIN";
@@ -42,6 +66,12 @@ export function AppSidebar() {
       label: "Discover",
       icon: Compass,
       isActive: pathname === "/app",
+    },
+    {
+      href: "/app/marketplace",
+      label: "Job Market",
+      icon: Briefcase,
+      isActive: pathname === "/app/marketplace",
     },
     {
       href: "/app/watch",
@@ -236,6 +266,97 @@ export function AppSidebar() {
           );
         })}
       </nav>
+
+      {/* Recent Searches / Conversations */}
+      {!isSidebarCollapsed ? (
+        <div className="border-t border-border py-2 px-3 flex flex-col min-h-0 shrink-0 bg-background/50">
+          <div className="flex items-center justify-between mb-1.5 px-1">
+            <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-muted-foreground">
+              Recent Searches
+            </span>
+            <Link
+              href="/app/history"
+              prefetch={false}
+              className="text-[10px] font-sans text-primary hover:underline font-medium"
+            >
+              All
+            </Link>
+          </div>
+
+          <div className="space-y-0.5 max-h-40 overflow-y-auto scrollbar-none pr-0.5">
+            {/* Active in-flight search conversation item */}
+            {isSearching && (
+              <Link
+                href="/app"
+                prefetch={false}
+                className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-primary/10 border border-primary/25 text-xs font-sans text-primary group shadow-2xs transition-colors"
+                title={activeQuery || "Active Search"}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <div className="flex items-center gap-0.5 shrink-0 text-primary">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" />
+                  </div>
+                  <span className="truncate text-[11px] font-semibold text-foreground">
+                    {activeQuery || "Searching roles..."}
+                  </span>
+                </div>
+              </Link>
+            )}
+
+            {recentSearches.map((item) => (
+              <Link
+                key={item.id}
+                href={`/app?searchId=${item.id}`}
+                prefetch={false}
+                className="flex items-center justify-between px-2 py-1 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors group"
+                title={item.rawQuery}
+              >
+                <span className="truncate flex-1 font-sans">{item.rawQuery}</span>
+                {item.totalFound !== undefined && item.totalFound > 0 && (
+                  <span className="text-[9px] font-mono text-muted-foreground/70 shrink-0 ml-1">
+                    {item.totalFound}
+                  </span>
+                )}
+              </Link>
+            ))}
+
+            {recentSearches.length === 0 && !isSearching && (
+              <div className="px-2 py-1 text-[11px] text-muted-foreground/60 italic font-sans">
+                No recent searches
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="border-t border-border py-2 px-2 flex flex-col items-center gap-1 shrink-0 bg-background/50">
+          {isSearching && (
+            <div className="tooltip tooltip-right w-full" data-tip={`Searching: ${activeQuery || "Active Search"}`}>
+              <Link
+                href="/app"
+                prefetch={false}
+                className="flex items-center justify-center p-2 rounded-lg bg-primary/10 text-primary"
+              >
+                <div className="flex items-center gap-0.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" />
+                </div>
+              </Link>
+            </div>
+          )}
+          <div className="tooltip tooltip-right w-full" data-tip="Recent Searches">
+            <Link
+              href="/app/history"
+              prefetch={false}
+              className="flex items-center justify-center p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <History className="h-4 w-4 stroke-[1.75]" />
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Pinned User Profile */}
       <div className={`border-t border-border bg-muted/40 ${

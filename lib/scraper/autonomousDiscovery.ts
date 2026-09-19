@@ -240,7 +240,7 @@ export class AutonomousDiscoveryEngine {
       const isExplicitWatchFreshness = Boolean(watch?.latestOnly);
       const validFreshCandidates = isExplicitWatchFreshness
         ? cleanCandidates.filter((c) =>
-            isWithinFreshnessWindow(c.postedAt, watch?.freshnessWindowHours || 48, true, new Date(startTime))
+            isWithinFreshnessWindow(c.postedAt || c.discoveredAt, watch?.freshnessWindowHours || 48, true, new Date(startTime))
           )
         : cleanCandidates;
 

@@ -82,7 +82,14 @@ const CATEGORIES = [
   { id: "AI_ML", label: "AI & Machine Learning" },
   { id: "INFRASTRUCTURE", label: "Cloud & Backend" },
   { id: "FRONTEND", label: "Frontend & Full Stack" },
-  { id: "PRODUCT_DESIGN", label: "Product & Design" },
+  { id: "MARKETING", label: "Marketing & Growth" },
+  { id: "SALES", label: "Sales & RevOps" },
+  { id: "OPERATIONS", label: "Operations & Strategy" },
+  { id: "FINANCE", label: "Finance & Accounting" },
+  { id: "HEALTHCARE", label: "Healthcare & Biotech" },
+  { id: "CUSTOMER_SUCCESS", label: "Customer Success" },
+  { id: "LEGAL", label: "Legal & Compliance" },
+  { id: "DESIGN", label: "Product & UI/UX Design" },
   { id: "FINTECH", label: "FinTech & Payments" },
 ];
 
@@ -124,6 +131,28 @@ export default function JobMarketplacePage() {
   const [totalCount, setTotalCount] = useState(0);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<OpportunityItem | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [hideFilterBar, setHideFilterBar] = useState(false);
+
+  // Auto-hiding filter bar on mobile downward scroll
+  useEffect(() => {
+    let lastScrollY = window.scrollY;
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (window.innerWidth < 768) {
+        if (currentScrollY > lastScrollY && currentScrollY > 80) {
+          setHideFilterBar(true);
+        } else if (currentScrollY < lastScrollY) {
+          setHideFilterBar(false);
+        }
+      } else {
+        setHideFilterBar(false);
+      }
+      lastScrollY = currentScrollY;
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // Debounce search query
   useEffect(() => {
@@ -223,25 +252,55 @@ export default function JobMarketplacePage() {
     return null;
   };
 
+  const activeFiltersCount = 
+    (selectedWorkMode !== "ANY" ? 1 : 0) +
+    (selectedExperience !== "ANY" ? 1 : 0) +
+    (selectedFreshness !== "0" ? 1 : 0) +
+    (selectedCategory !== "ALL" ? 1 : 0);
+
   return (
     <div className="min-h-screen bg-background text-foreground pb-20 font-sans">
-      {/* Top Utility Header */}
-      <div className="border-b border-border bg-background/98 backdrop-blur-md sticky top-16 z-30 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-3">
+      {/* Top Utility Header with auto-hide on mobile scroll */}
+      <div 
+        className={`border-b border-border bg-background/98 backdrop-blur-md sticky top-16 z-30 shadow-xs transition-transform duration-300 ease-in-out ${
+          hideFilterBar ? "-translate-y-full sm:translate-y-0 opacity-0 sm:opacity-100 pointer-events-none sm:pointer-events-auto" : "translate-y-0 opacity-100"
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 space-y-3">
           {/* Main Action Strip */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center border border-primary/20">
-                <Briefcase className="h-4 w-4 stroke-[2.2]" />
+            <div className="flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shrink-0">
+                  <Briefcase className="h-4 w-4 stroke-[2.2]" />
+                </div>
+                <div>
+                  <h1 className="text-base font-bold tracking-tight text-foreground flex items-center gap-2">
+                    Job Market
+                    <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">
+                      {totalCount} Verified Openings
+                    </span>
+                  </h1>
+                </div>
               </div>
-              <div>
-                <h1 className="text-base font-bold tracking-tight text-foreground flex items-center gap-2">
-                  Job Market
-                  <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">
-                    {totalCount} Verified Openings
+
+              {/* Mobile Filter Drawer Toggle Button */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                className="sm:hidden flex items-center gap-1.5 h-8 px-2.5 text-xs font-mono border-border bg-card hover:bg-muted"
+                aria-label="Toggle filter options"
+              >
+                <Filter className="h-3.5 w-3.5" />
+                <span>Filters</span>
+                {activeFiltersCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                    {activeFiltersCount}
                   </span>
-                </h1>
-              </div>
+                )}
+              </Button>
             </div>
 
             {/* Inline Search Bar */}
@@ -266,93 +325,96 @@ export default function JobMarketplacePage() {
             </div>
           </div>
 
-          {/* Category Pills Strip */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => {
-                  setSelectedCategory(cat.id);
-                  setPage(1);
-                }}
-                className={`px-3 py-1 rounded-full text-xs font-medium shrink-0 transition-all cursor-pointer ${
-                  selectedCategory === cat.id
-                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                    : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted border border-border/60"
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Faceted Filter Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/40 text-xs font-mono">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground text-[11px]">Mode:</span>
-                <select
-                  value={selectedWorkMode}
-                  onChange={(e) => {
-                    setSelectedWorkMode(e.target.value);
+          {/* Collapsible Filter Section on Mobile, permanently visible on Desktop */}
+          <div className={`space-y-3 transition-all duration-200 ${isFilterOpen ? "block" : "hidden sm:block"}`}>
+            {/* Category Pills Strip */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategory(cat.id);
                     setPage(1);
                   }}
-                  className="h-7 px-2 text-xs rounded-md bg-background border border-border text-foreground cursor-pointer"
+                  className={`px-3 py-1 rounded-full text-xs font-medium shrink-0 transition-all cursor-pointer ${
+                    selectedCategory === cat.id
+                      ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                      : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted border border-border/60"
+                  }`}
                 >
-                  {WORK_MODES.map((m) => (
-                    <option key={m.id} value={m.id}>{m.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground text-[11px]">Level:</span>
-                <select
-                  value={selectedExperience}
-                  onChange={(e) => {
-                    setSelectedExperience(e.target.value);
-                    setPage(1);
-                  }}
-                  className="h-7 px-2 text-xs rounded-md bg-background border border-border text-foreground cursor-pointer"
-                >
-                  {EXPERIENCE_LEVELS.map((exp) => (
-                    <option key={exp.id} value={exp.id}>{exp.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground text-[11px]">Freshness:</span>
-                <select
-                  value={selectedFreshness}
-                  onChange={(e) => {
-                    setSelectedFreshness(e.target.value);
-                    setPage(1);
-                  }}
-                  className="h-7 px-2 text-xs rounded-md bg-background border border-border text-foreground cursor-pointer"
-                >
-                  {FRESHNESS_WINDOWS.map((f) => (
-                    <option key={f.id} value={f.id}>{f.label}</option>
-                  ))}
-                </select>
-              </div>
+                  {cat.label}
+                </button>
+              ))}
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground text-[11px]">Sort:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => {
-                  setSortBy(e.target.value);
-                  setPage(1);
-                }}
-                className="h-7 px-2 text-xs rounded-md bg-background border border-border text-foreground cursor-pointer"
-              >
-                <option value="latest">Latest Verified</option>
-                <option value="salary">Highest Compensation</option>
-                <option value="oldest">First Discovered</option>
-              </select>
+            {/* Faceted Filter Toolbar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/40 text-xs font-mono">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground text-[11px]">Mode:</span>
+                  <select
+                    value={selectedWorkMode}
+                    onChange={(e) => {
+                      setSelectedWorkMode(e.target.value);
+                      setPage(1);
+                    }}
+                    className="h-7 px-2 text-xs rounded-md bg-background border border-border text-foreground cursor-pointer"
+                  >
+                    {WORK_MODES.map((m) => (
+                      <option key={m.id} value={m.id}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground text-[11px]">Level:</span>
+                  <select
+                    value={selectedExperience}
+                    onChange={(e) => {
+                      setSelectedExperience(e.target.value);
+                      setPage(1);
+                    }}
+                    className="h-7 px-2 text-xs rounded-md bg-background border border-border text-foreground cursor-pointer"
+                  >
+                    {EXPERIENCE_LEVELS.map((exp) => (
+                      <option key={exp.id} value={exp.id}>{exp.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground text-[11px]">Freshness:</span>
+                  <select
+                    value={selectedFreshness}
+                    onChange={(e) => {
+                      setSelectedFreshness(e.target.value);
+                      setPage(1);
+                    }}
+                    className="h-7 px-2 text-xs rounded-md bg-background border border-border text-foreground cursor-pointer"
+                  >
+                    {FRESHNESS_WINDOWS.map((f) => (
+                      <option key={f.id} value={f.id}>{f.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-[11px]">Sort:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => {
+                    setSortBy(e.target.value);
+                    setPage(1);
+                  }}
+                  className="h-7 px-2 text-xs rounded-md bg-background border border-border text-foreground cursor-pointer"
+                >
+                  <option value="latest">Latest Verified</option>
+                  <option value="salary">Highest Compensation</option>
+                  <option value="oldest">First Discovered</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>

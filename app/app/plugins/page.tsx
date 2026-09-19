@@ -127,9 +127,6 @@ export default function PluginsMarketplacePage() {
                 {connectedCount} Connected
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Connect external ATS platforms, recruiter networks, and developer communities.
-            </p>
           </div>
 
           {/* Quick Search */}

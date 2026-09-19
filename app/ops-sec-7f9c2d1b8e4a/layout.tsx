@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -19,9 +19,16 @@ import {
   Cpu,
   Plug,
   Users,
-  ChevronDown,
   Sliders,
-  Brain
+  Brain,
+  ChevronLeft,
+  ChevronRight,
+  Menu,
+  X,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ExternalLink,
+  BarChart3
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,21 +48,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [adminKey, setAdminKey] = useState<string | null>(null);
-  const [opsDropdownOpen, setOpsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
+  // Read sidebar state from localStorage after mount
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setOpsDropdownOpen(false);
+    try {
+      const saved = localStorage.getItem("browserpilot_admin_sidebar_collapsed");
+      if (saved !== null) {
+        setSidebarCollapsed(saved === "true");
       }
+    } catch {
+      // Ignore localStorage access issues
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("browserpilot_admin_sidebar_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  // Close mobile drawer on route navigation
   useEffect(() => {
-    setOpsDropdownOpen(false);
+    setMobileMenuOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -97,11 +117,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [session, status]);
 
-  // Fetch basic system health for header status indicator
+  // Fetch basic system health for status indicator
   useEffect(() => {
     if (isAuthorized) {
-      const adminKey = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("admin_key") : null;
-      const metricsUrl = adminKey ? `${ADMIN_API_ROUTES.METRICS}?admin_key=${encodeURIComponent(adminKey)}` : ADMIN_API_ROUTES.METRICS;
+      const currentKey = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("admin_key") : null;
+      const metricsUrl = currentKey ? `${ADMIN_API_ROUTES.METRICS}?admin_key=${encodeURIComponent(currentKey)}` : ADMIN_API_ROUTES.METRICS;
       fetch(metricsUrl)
         .then((res) => {
           if (res.ok) return res.json();
@@ -152,193 +172,309 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  const directNavItems = [
-    { label: "Overview", href: ADMIN_UI_ROUTES.OVERVIEW, icon: Activity },
-    { label: "Audit Logs", href: ADMIN_UI_ROUTES.LOGS, icon: Terminal },
-    { label: "Agentic Pipeline", href: ADMIN_UI_ROUTES.AGENTIC, icon: Cpu },
-    { label: "Users & Quotas", href: ADMIN_UI_ROUTES.USERS, icon: Users },
-    { label: "Plans & Capabilities", href: ADMIN_UI_ROUTES.PLANS, icon: Sliders },
-    { label: "Job Brain", href: ADMIN_UI_ROUTES.TAXONOMY, icon: Brain },
-    { label: "Plugins & Sources", href: ADMIN_UI_ROUTES.CONNECTORS, icon: Plug },
-  ];
-
-  const dropdownNavItems = [
-    { 
-      label: "Discovery Watches", 
-      href: ADMIN_UI_ROUTES.WATCHES, 
-      icon: Eye,
-      description: "Automated candidate triggers" 
+  // Organized navigation groups for the sidebar
+  const navGroups = [
+    {
+      title: "Control Plane",
+      items: [
+        { label: "Overview", href: ADMIN_UI_ROUTES.OVERVIEW, icon: Activity, description: "Observability & metrics" },
+        { label: "Users & Quotas", href: ADMIN_UI_ROUTES.USERS, icon: Users, description: "Tenants & limits" },
+        { label: "Plans & Tiers", href: ADMIN_UI_ROUTES.PLANS, icon: Sliders, description: "Pricing, gates & analytics" },
+      ],
     },
-    { 
-      label: "Discovery Runs", 
-      href: ADMIN_UI_ROUTES.RUNS, 
-      icon: Layers,
-      description: "Autonomous run execution logs" 
+    {
+      title: "Intelligence & Engines",
+      items: [
+        { label: "Agentic Pipeline", href: ADMIN_UI_ROUTES.AGENTIC, icon: Cpu, description: "DeepSeek & Gemini runtime" },
+        { label: "Job Brain Taxonomy", href: ADMIN_UI_ROUTES.TAXONOMY, icon: Brain, description: "Role & skill knowledge graph" },
+        { label: "Plugins & Sources", href: ADMIN_UI_ROUTES.CONNECTORS, icon: Plug, description: "ATS & scraper connectors" },
+      ],
     },
-    { 
-      label: "Scheduler & Workers", 
-      href: ADMIN_UI_ROUTES.SCHEDULER, 
-      icon: Clock,
-      description: "Background queues & health" 
+    {
+      title: "Operations & Audit",
+      items: [
+        { label: "Discovery Watches", href: ADMIN_UI_ROUTES.WATCHES, icon: Eye, description: "Automated candidate monitors" },
+        { label: "Discovery Runs", href: ADMIN_UI_ROUTES.RUNS, icon: Layers, description: "Execution traces & novelty" },
+        { label: "Scheduler & Health", href: ADMIN_UI_ROUTES.SCHEDULER, icon: Clock, description: "Queues & worker cycles" },
+        { label: "Audit Logs", href: ADMIN_UI_ROUTES.LOGS, icon: Terminal, description: "Security & administrative events" },
+      ],
     },
   ];
 
-  const isOpsActive = dropdownNavItems.some((item) => pathname.startsWith(item.href));
+  // Current section title for top bar
+  const allNavItems = navGroups.flatMap((g) => g.items);
+  const currentItem = allNavItems.find((item) => 
+    item.href === ADMIN_UI_ROUTES.OVERVIEW ? pathname === item.href : pathname.startsWith(item.href)
+  );
+  const currentTitle = currentItem?.label || "Administrative Control Plane";
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Top Administrative Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-border/80 bg-background/95 backdrop-blur-md">
-        <div className="container mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
-          {/* Left: Brand + Status */}
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <Link href={ADMIN_UI_ROUTES.OVERVIEW} className="flex items-center gap-2.5 group">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-600 text-white shadow-md transition-transform group-hover:scale-105">
-                <ShieldCheck className="h-5 w-5" />
+    <div className="min-h-screen bg-background flex flex-col md:flex-row text-foreground">
+      {/* Desktop Left Collapsible Sidebar */}
+      <aside
+        className={`hidden md:flex flex-col border-r border-border/70 bg-card/40 backdrop-blur-xl transition-all duration-300 ease-in-out shrink-0 sticky top-0 h-screen z-40 ${
+          sidebarCollapsed ? "w-16" : "w-64"
+        }`}
+      >
+        {/* Sidebar Header: Brand & Collapse Toggle */}
+        <div className="h-16 flex items-center justify-between px-3.5 border-b border-border/60 shrink-0">
+          {!sidebarCollapsed ? (
+            <Link href={getAdminHref(ADMIN_UI_ROUTES.OVERVIEW)} className="flex items-center gap-2.5 group overflow-hidden">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-600 text-white shadow-sm shrink-0 transition-transform group-hover:scale-105">
+                <ShieldCheck className="h-4 w-4" />
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col truncate">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-bold tracking-tight text-foreground">
+                  <span className="text-xs font-bold tracking-tight text-foreground truncate">
                     BrowserPilot
                   </span>
-                  <Badge variant="outline" className="text-[9px] font-mono border-purple-500/40 text-purple-400 bg-purple-500/10 px-1 py-0">
-                    CONTROL
+                  <Badge variant="outline" className="text-[8px] font-mono border-purple-500/40 text-purple-400 bg-purple-500/10 px-1 py-0 shrink-0">
+                    OPS
                   </Badge>
                 </div>
-                <span className="hidden sm:inline text-[10px] font-mono text-muted-foreground -mt-0.5">
-                  Observatory
+                <span className="text-[10px] font-mono text-muted-foreground -mt-0.5 truncate">
+                  Control Plane
                 </span>
               </div>
             </Link>
-
-            {/* Compact System Health Dot */}
-            {systemHealth && (
-              <div className="hidden lg:flex items-center gap-1.5 pl-3 border-l border-border/60 text-xs font-mono">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" title={`Status: ${systemHealth.status}`} />
-                <span className="text-[11px] text-muted-foreground">{systemHealth.databaseEngine}</span>
+          ) : (
+            <Link href={getAdminHref(ADMIN_UI_ROUTES.OVERVIEW)} className="mx-auto" title="BrowserPilot Control Plane">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-600 text-white shadow-sm hover:scale-105 transition-transform">
+                <ShieldCheck className="h-4 w-4" />
               </div>
-            )}
-          </div>
+            </Link>
+          )}
 
-          {/* Center: Truly Centered Navigation */}
-          <div className="hidden md:flex flex-1 items-center justify-center px-2">
-            <nav className="flex items-center gap-1 bg-muted/30 p-1 rounded-lg border border-border/60">
-              {directNavItems.map((item) => {
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleSidebar}
+            className={`h-7 w-7 p-0 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer ${
+              sidebarCollapsed ? "hidden" : "flex"
+            }`}
+            title="Collapse sidebar"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Collapsed Expand Trigger */}
+        {sidebarCollapsed && (
+          <div className="py-2 flex justify-center border-b border-border/40">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleSidebar}
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground cursor-pointer"
+              title="Expand sidebar"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
+        {/* Sidebar Nav Items */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-4 font-mono">
+          {navGroups.map((group, groupIdx) => (
+            <div key={groupIdx} className="space-y-1">
+              {!sidebarCollapsed ? (
+                <div className="px-2.5 py-1 text-[10px] uppercase font-bold tracking-wider text-muted-foreground/70">
+                  {group.title}
+                </div>
+              ) : (
+                <div className="h-px bg-border/40 my-2 mx-1" />
+              )}
+
+              {group.items.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname === item.href;
+                const isActive = item.href === ADMIN_UI_ROUTES.OVERVIEW 
+                  ? pathname === item.href 
+                  : pathname.startsWith(item.href);
+
                 return (
-                  <Link key={item.href} href={getAdminHref(item.href)}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`font-mono text-xs gap-1.5 px-3 h-8 cursor-pointer ${
+                  <Link 
+                    key={item.href} 
+                    href={getAdminHref(item.href)}
+                    title={sidebarCollapsed ? `${item.label} - ${item.description}` : undefined}
+                    className="block"
+                  >
+                    <div
+                      className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-all cursor-pointer ${
                         isActive
-                          ? "bg-purple-600/20 text-purple-300 font-semibold border border-purple-500/30"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
+                          ? "bg-purple-600/20 text-purple-300 font-semibold border border-purple-500/30 shadow-xs"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                      } ${sidebarCollapsed ? "justify-center px-0 h-10 w-10 mx-auto" : ""}`}
                     >
-                      <Icon className="h-3.5 w-3.5" />
-                      <span>{item.label}</span>
-                    </Button>
+                      <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-purple-400" : "text-muted-foreground"}`} />
+                      
+                      {!sidebarCollapsed && (
+                        <div className="flex flex-col truncate">
+                          <span className="truncate leading-tight">{item.label}</span>
+                          <span className="text-[10px] text-muted-foreground/70 font-sans truncate">
+                            {item.description}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </Link>
                 );
               })}
+            </div>
+          ))}
+        </div>
 
-              {/* Dropdown for Operations */}
-              <div className="relative" ref={dropdownRef}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setOpsDropdownOpen(!opsDropdownOpen)}
-                  className={`font-mono text-xs gap-1.5 px-3 h-8 cursor-pointer ${
-                    isOpsActive
-                      ? "bg-purple-600/20 text-purple-300 font-semibold border border-purple-500/30"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Layers className="h-3.5 w-3.5" />
-                  <span>Operations</span>
-                  <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${opsDropdownOpen ? "rotate-180" : ""}`} />
-                </Button>
-
-                {opsDropdownOpen && (
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 rounded-xl border border-border/80 bg-background/98 backdrop-blur-xl shadow-2xl p-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-muted-foreground font-semibold border-b border-border/40 mb-1">
-                      Engines & Runs
-                    </div>
-                    {dropdownNavItems.map((item) => {
-                      const Icon = item.icon;
-                      const isActive = pathname === item.href;
-                      return (
-                        <Link key={item.href} href={getAdminHref(item.href)}>
-                          <div
-                            className={`flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-xs font-mono transition-colors cursor-pointer ${
-                              isActive
-                                ? "bg-purple-600/20 text-purple-300 font-semibold border border-purple-500/20"
-                                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                            }`}
-                          >
-                            <Icon className={`h-4 w-4 mt-0.5 ${isActive ? "text-purple-400" : "text-muted-foreground"}`} />
-                            <div className="flex flex-col">
-                              <span className="leading-tight">{item.label}</span>
-                              <span className="text-[10px] text-muted-foreground/80 mt-0.5 font-sans">{item.description}</span>
-                            </div>
-                          </div>
-                        </Link>
-                      );
-                    })}
+        {/* Sidebar Footer: Health & Operator Profile */}
+        <div className="p-2 border-t border-border/60 shrink-0 space-y-2 bg-muted/10">
+          {!sidebarCollapsed ? (
+            <>
+              {systemHealth && (
+                <div className="flex items-center justify-between px-2.5 py-1.5 rounded-md bg-muted/30 border border-border/40 text-[11px] font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-muted-foreground">{systemHealth.databaseEngine}</span>
                   </div>
-                )}
+                  <span className="text-[10px] text-emerald-400 font-semibold uppercase">{systemHealth.status}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between px-2 text-xs font-mono">
+                <div className="flex flex-col truncate">
+                  <span className="text-[10px] text-purple-400 font-bold uppercase">
+                    {(session?.user as any)?.role || "ADMIN"}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground truncate max-w-[130px]">
+                    {session?.user?.email?.split("@")[0] || "Operator"}
+                  </span>
+                </div>
+                <Link href="/app" title="Return to Workspace">
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-primary">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Button>
+                </Link>
               </div>
-            </nav>
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-2 py-1">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" title="Database Healthy" />
+              <Link href="/app" title="Return to Workspace">
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-primary">
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Main Content Column */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Minimal Administrative Header */}
+        <header className="sticky top-0 z-30 w-full h-14 border-b border-border/70 bg-background/95 backdrop-blur-md flex items-center justify-between px-4 sm:px-6">
+          {/* Left: Mobile hamburger + Page Title */}
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+            >
+              {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            </Button>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold tracking-tight text-foreground font-mono">
+                {currentTitle}
+              </span>
+              {systemHealth && (
+                <div className="hidden sm:flex items-center gap-1.5 ml-2 pl-3 border-l border-border/60 text-xs font-mono">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[11px] text-muted-foreground">{systemHealth.databaseEngine}</span>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Right: Actions */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Right: Return to Workspace & Role */}
+          <div className="flex items-center gap-2.5">
             <Link href="/app">
               <Button variant="outline" size="sm" className="font-mono text-xs gap-1.5 border-border/80 hover:border-primary/40 h-8 cursor-pointer">
                 <Terminal className="h-3.5 w-3.5 text-primary" />
                 <span className="hidden sm:inline">Workspace</span>
               </Button>
             </Link>
+
             <div className="flex items-center gap-1.5 bg-muted/40 px-2.5 py-1 rounded-md border border-border/60 text-xs font-mono h-8">
               <span className="text-purple-400 font-bold text-[10px] uppercase">
                 {(session?.user as any)?.role || "ADMIN"}
               </span>
-              <span className="text-muted-foreground max-w-[90px] truncate">
+              <span className="text-muted-foreground max-w-[90px] truncate hidden sm:inline">
                 {session?.user?.email?.split("@")[0]}
               </span>
             </div>
           </div>
-        </div>
+        </header>
 
-        {/* Mobile Navigation bar */}
-        <div className="flex md:hidden items-center justify-around border-t border-border/60 bg-muted/20 px-2 py-1.5 overflow-x-auto">
-          {[...directNavItems, ...dropdownNavItems].map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            return (
-              <Link key={item.href} href={getAdminHref(item.href)}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={`font-mono text-[11px] gap-1 px-2 h-7 cursor-pointer ${
-                    isActive ? "text-purple-400 font-bold" : "text-muted-foreground"
-                  }`}
-                >
-                  <Icon className="h-3 w-3" />
-                  {item.label}
-                </Button>
-              </Link>
-            );
-          })}
-        </div>
-      </header>
+        {/* Mobile Slide-over Drawer */}
+        {mobileMenuOpen && (
+          <div className="md:hidden fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-border/60">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-purple-400" />
+                <span className="font-bold font-mono text-sm">Control Plane Navigation</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setMobileMenuOpen(false)}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
 
-      {/* Main Admin Content Body */}
-      <main className="flex-1 container mx-auto max-w-7xl p-4 sm:p-6">
-        {children}
-      </main>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-xs">
+              {navGroups.map((group, groupIdx) => (
+                <div key={groupIdx} className="space-y-1">
+                  <div className="px-2 py-1 text-[10px] uppercase font-bold text-muted-foreground">
+                    {group.title}
+                  </div>
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = pathname.startsWith(item.href);
+                    return (
+                      <Link 
+                        key={item.href} 
+                        href={getAdminHref(item.href)}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        <div
+                          className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-colors ${
+                            isActive
+                              ? "bg-purple-600/20 text-purple-300 font-semibold border border-purple-500/30"
+                              : "text-muted-foreground hover:bg-muted/40"
+                          }`}
+                        >
+                          <Icon className="h-4 w-4 text-purple-400 shrink-0" />
+                          <div>
+                            <div className="text-foreground">{item.label}</div>
+                            <div className="text-[10px] text-muted-foreground font-sans">{item.description}</div>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Main Body */}
+        <main className="flex-1 p-4 sm:p-6 max-w-7xl w-full mx-auto">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
+

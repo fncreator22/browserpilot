@@ -169,6 +169,14 @@ export async function GET(request: NextRequest) {
         FRONTEND: ["Frontend", "React", "Next.js", "Full Stack", "TypeScript", "UI", "Web"],
         PRODUCT_DESIGN: ["Product Manager", "Design", "UX", "UI/UX", "Product"],
         FINTECH: ["Fintech", "Payment", "Risk", "Trading", "Banking"],
+        MARKETING: ["Marketing", "Growth", "SEO", "Content", "Brand", "Campaign"],
+        SALES: ["Sales", "Account Executive", "BDR", "SDR", "RevOps", "Business Development"],
+        OPERATIONS: ["Operations", "Ops", "Chief of Staff", "Strategy", "Logistics", "Program Manager"],
+        FINANCE: ["Finance", "Accounting", "Financial", "Fintech", "Tax", "Audit", "Treasury"],
+        HEALTHCARE: ["Healthcare", "Health", "Clinical", "Biotech", "Medical", "Pharma"],
+        CUSTOMER_SUCCESS: ["Customer Success", "Support", "Client Success", "Account Manager", "CX"],
+        LEGAL: ["Legal", "Counsel", "Compliance", "Regulatory", "Attorney"],
+        DESIGN: ["Design", "Designer", "UX", "UI", "Graphic", "Creative", "Art Director"],
       };
 
       const keywords = categoryKeywords[category];

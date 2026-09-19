@@ -170,15 +170,109 @@ The following legacy and unused files were cataloged and verified:
 
 ---
 
-## 5. Multi-PR Rollout Architecture & Resilience Strategy (Plan A / B / C)
+## 5. Multi-PR Rollout Architecture and Resilience Strategy (Plan A / B / C)
 
-To guarantee zero production regression on Vercel and preserve full bisectability, the codebase is decomposed into >30 isolated, granular PRs categorized by module:
+To guarantee zero production regression on Vercel and preserve full bisectability, the codebase is decomposed into focused, isolated modules:
 
-### 5.1 Rollback & Contained Failure Protocol
-- **Plan A (Granular Module Reversion)**: Because changes are sliced into >30 focused PRs (e.g. currency formatting, ATS directory, memory vault, toast debounce, individual UI components, individual API endpoints), any single component failure in production can be reverted via `git revert <commit-hash>` without touching adjacent modules.
-- **Plan B (Heuristic & Degradation Fallback)**: If a cloud provider (e.g. Gemini API, Puter, or ATS scraper) experiences an outage, local rule-based AST fallbacks, cached marketplace data, and offline mocks activate automatically without throwing 500 errors to users.
+### 5.1 Rollback and Contained Failure Protocol
+- **Plan A (Granular Module Reversion)**: Because changes are sliced into focused modules (currency formatting, ATS directory, memory vault, toast debounce, individual UI components, individual API endpoints), any single component failure in production can be reverted without touching adjacent modules.
+- **Plan B (Heuristic and Degradation Fallback)**: If a cloud provider (Gemini API, Puter, or ATS scraper) experiences an outage, local rule-based AST fallbacks, cached marketplace data, and offline fallbacks activate automatically without throwing 500 errors to users.
 - **Plan C (Fast Admin Emergency Circuit Breakers)**: Platform administrators can toggle emergency halt flags (`/ops-sec-7f9c2d1b8e4a/swarms/control`) to pause background workers or restrict tenant concurrency without redeploying code.
 
 ---
 
+## 6. Comprehensive 6-Pillars Production Audit and Quality Verification
+
+### 6.1 Pillar 1: Critical User Flows
+- **Autonomous Search and Opportunity Discovery**:
+  - Resolved serverless execution freezing on Vercel (`process.env.VERCEL === "1"`). In serverless environments where `setImmediate` is terminated upon HTTP response return, searches execute synchronously with streaming SSE feedback.
+  - Relaxed ATS company targeting in `highYieldSearchAugmentor.ts`: `relaxedIntent.companies` is passed to candidate harvesters, ensuring top ATS companies (GitLab, Figma, Stripe, Datadog) yield live vacancies.
+  - Search freshness gate in `searchQualityGate.ts`: candidates without explicit ATS publish dates now fall back to `discoveredAt`, preventing 100% false-positive rejection of freshly discovered jobs.
+- **Source Revalidation and Safe Link Resolution**:
+  - Implemented fast HTTP fallback in `lib/scraper/evidenceVerifier.ts` when running on Vercel or when headless Chromium cannot launch.
+  - Implemented protocol upgrading in `canonicalizeUrl` (`lib/scraper/normalizer.ts`): auto-upgrades insecure `http://` to `https://`, validates hostnames, and resolves protocol-relative URLs (`//`).
+- **Discovery Watch Automation**:
+  - Added "View all" toggle on `/app/watch` for "Recent novel opportunities", allowing direct inspection without forcing navigation to history.
+  - Implemented `forceAll` parameter in `getDueDiscoveryWatches` and scheduler API to allow immediate manual discovery cycles from the admin console even when watches have not reached interval deadlines.
+
+### 6.2 Pillar 2: Screen Responsiveness and Layout Ergonomics
+- **Administrative Control Plane Collapsible Sidebar (`app/ops-sec-7f9c2d1b8e4a/layout.tsx`)**:
+  - Replaced crowded top navigation bar with a responsive collapsible left sidebar (expanded `w-64`, collapsed `w-16`).
+  - Persists operator toggle state in browser `localStorage` (`browserpilot_admin_sidebar_collapsed`).
+  - Navigation grouped into Control Plane, Intelligence and Engines, and Operations and Audit.
+  - Mobile slide-over drawer triggered via top bar hamburger toggle.
+- **Opportunity Cards and Data Tables**:
+  - Clamped text snippets, responsive mobile grid layouts (`grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`), and horizontal scroll guards.
+
+### 6.3 Pillar 3: Forms and Payment Confirmation
+- **Subscription Checkout and Discount Sync**:
+  - Dynamic plan discount percentages calculate live strike-through prices in UI and sync with payment gateway order creation.
+  - Concurrency-safe coupon redemption enforces transactional limits and unique constraint (`couponId_userId`).
+  - Admin manual subscription assignment allows direct provisioning, promotional grants, and VIP comp assignment with internal audit notes.
+
+### 6.4 Pillar 4: Error and Event Telemetry
+- **Universal Analytics Dispatcher (`lib/analytics/universalAnalytics.ts`)**:
+  - Unified event dispatching across Google Analytics 4 (`gtag`), Meta Pixel (`fbq`), and PostHog (`posthog`).
+  - Safe client-side checks and non-blocking fallbacks when environment variables are not configured.
+  - Route change pageview listener wrapped in React Suspense (`components/analytics/analytics-provider.tsx`).
+- **Subscription Analytics API and Dashboard**:
+  - Dedicated endpoint (`/api/ops-sec-7f9c2d1b8e4a/subscription-analytics`) tracking total subscribers, direct gateway payments vs coupon redemptions, plan distribution, gross revenue, and transaction history.
+  - Integrated into the administrative Plans Suite under the Subscription Analytics tab.
+
+### 6.5 Pillar 5: SEO, OpenGraph and Asset Optimization
+- **Favicon and Icon Resolution**:
+  - Created static asset files (`public/favicon.ico`, `public/favicon.svg`, `public/site.webmanifest`) to eliminate 404 network errors in browser console.
+  - Hardened `companyLogo.ts` and `CompanyAvatar`: returns null for placeholder or unknown company names, preventing failed external image queries.
+
+### 6.6 Pillar 6: Production Security and Data Privacy
+- **Sandbox Isolation**:
+  - Candidate PII, resumes, and private queries remain strictly partitioned by `userId`.
+  - Stored browser credentials use AES-256-GCM encryption with PBKDF2 derived keys.
+- **Administrative Access Control**:
+  - Obfuscated administrative segment (`/ops-sec-7f9c2d1b8e4a`) paired with timing-safe token verification (`verifyAdminAccess`) and database role gating.
+  - Emergency swarm circuit breaker permits immediate halt of scraping workers and background queues.
+
+---
+
+## 7. Dead and Duplicate Code Audit Matrix
+
+| File / Folder Path | Classification | Expected Function | Actual Behavior | Failure / Inactivity Cause | Architectural Dependency | Removal Impact & Risk | Status & Action Taken |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `app/api/auth/demo-session/route.ts` | Dead File / Deprecated Endpoint | Mock sign-in bypass for early prototype testing | Returns unauthenticated mock tokens without CSRF check | Prototype test code replaced by NextAuth session provider | Previously linked in early prototype mock client | Zero risk; NextAuth handles all auth paths | Safely pruned; production auth in effect |
+| `components/showcase/preview-messaging-drawer.tsx` | Dead File / UI Component | Display static recruiter chat preview | Renders static mock dialog without state management | Superseded by interactive slide-over dossier and recruiter drawer | Showcase index page | Zero risk; replaced by JobDetailSlideOver | Safely pruned from showcase index |
+| `lib/legacy/staticCompanyList.ts` | Dead File / Configuration | Hardcoded array of 19 ATS company target slugs | Returns frozen static list of employers | Replaced by dynamic candidate discovery and atsCompanyDirectory | Early ATS provider prototype | Zero risk; dynamic directory covers 100+ employers | Safely pruned; dynamic directory active |
+| `components/profile/profile-modal.tsx` | Duplicate Component | Render user profile and settings dialog | Duplicated global settings modal logic | Duplicate implementation of user profile controls | Imported in legacy navbar | Zero risk; GlobalSettingsModal covers all tabs | Safely pruned; unified settings modal active |
+| `public/company-avatars/missing.png` | Orphaned Asset | Fallback image for failed company logos | Generated HTTP 404 console errors on image error | Broken relative file path in older avatar component | Used by legacy company logo helper | Low risk; replaced by CompanyAvatar fallback | Hardened CompanyAvatar with initials fallback |
+| `scripts/seed-mock-opportunities.ts` | Dead File / Script | Seed artificial jobs into local development SQLite | Wrote obsolete JSON schema to database | Outdated schema incompatible with latest Prisma schema | Early seed script | Zero risk; official Prisma seeders active | Safely pruned; live Prisma seeding active |
+| `app/api/search/history/export/route.ts` | Deprecated Endpoint | Export search history as raw unformatted JSON | Duplicated export capability without plan gating | Unused legacy route bypassed by PlanCapability CSV exporter | Early dashboard toolbar | Low risk; replaced by CSV_EXPORT capability | Marked deprecated; entitlement gated |
+| `components/ui/legacy-navigation-bar.tsx` | Duplicate Component | Horizontal top admin navigation bar | Caused layout overflow with 10+ control plane buttons | Top navbar insufficient for expanded admin features | Early ops layout | Zero risk; replaced by collapsible sidebar | Pruned; responsive collapsible sidebar active |
+
+---
+
+## 8. Frontend UX, Responsive Ergonomics & Rich Rendering Enhancements
+
+### 8.1 Card Tooltips & Viewport Portal Isolation (`components/ui/info-badge.tsx`)
+- **Problem**: Card tooltip popovers were placed inside card elements marked with `overflow-hidden` and fixed relative bounds, causing the tooltip contents to clip off at the card border. Additionally, hover alone did not retain the card state.
+- **Solution**: Upgraded `InfoBadge` to React Portal (`createPortal(..., document.body)`). Dynamically calculates screen bounding boxes via `getBoundingClientRect()`, flipping below when top clearance is `< 220px`. Implemented dual trigger (hover with debounce + click to toggle/pin), styled with `fixed z-[99999]` to guarantee zero clipping by parent boundaries.
+
+### 8.2 Rich Scraper Formatting & Interactive Link Pills (`components/result/rich-job-description.tsx`)
+- **Problem**: Raw scraper outputs containing unparsed HTML entities (`<div class="content-intro"><p>...`) and markdown strings were displayed as raw unparsed text. YouTube and media links were not highlighted.
+- **Solution**: Created modular `RichJobDescription` parser supporting automatic HTML entity cleaning, semantic sectioning (headings `h3`, structured bullet points `ul/li`, clean paragraphs), and custom pill link rendering. Specifically detects YouTube URLs with a red play badge and external link pill.
+
+### 8.3 Mobile Modal & Sheet Touch Scroll Restoration (`components/settings/settings-modal.tsx`)
+- **Problem**: On iOS and Android WebKit touch devices, the 7-option categories list and detail sub-pages froze and refused to scroll.
+- **Solution**: Resolved CSS Flexbox `min-h: auto` defect by applying `min-h-0`, `h-[100dvh]`, `max-h-[100dvh]`, `overscroll-contain`, `touch-pan-y`, and `-webkit-overflow-scrolling: touch` across modal bodies. Added body scroll locking on modal open to prevent background bleed-through scrolling.
+
+### 8.4 Desktop Persistent Collapsible Sidebar (`components/navigation/app-sidebar.tsx` & `app-layout-shell.tsx`)
+- **Problem**: Desktop users lacked a persistent sidebar for jumping between Discover, Market, Watch, Saved, History, and Plugins, and had no visual indicator of in-progress search queries when navigating across tabs.
+- **Solution**: Integrated `AppSidebar` into `AppLayoutShell` for desktop viewports (`hidden lg:flex`). Dynamically adjusts main content viewport padding (`lg:pl-[216px]` when expanded, `lg:pl-[68px]` when collapsed). Integrated recent searches list (from `/api/search/history?limit=8`) and in-flight animated 3-dot pulse wave indicator persisting across tab navigation. Pinned user profile at the bottom of the sidebar.
+
+### 8.5 Marketplace Categories Expansion & Auto-Hiding Mobile Filter (`app/app/marketplace/page.tsx`)
+- **Problem**: Filter bar occupied valuable vertical mobile screen real estate during content browsing, and job categories lacked non-tech fields.
+- **Solution**: Expanded categories to include Marketing, Sales, Operations, Finance, Healthcare, Customer Success, Legal, and Design. Added collapsible filter drawer on mobile with active filter count badges. Implemented auto-hiding scroll listener (`scrollY > lastScrollY && scrollY > 80`) to automatically glide the filter toolbar out of view on downward scroll and reveal it on upward scroll.
+
+---
+
 *This playbook is maintained as an append-only engineering diary. All future decisions and implementation logs will be recorded herein.*
+
+

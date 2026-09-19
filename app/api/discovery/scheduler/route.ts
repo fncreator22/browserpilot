@@ -139,12 +139,14 @@ export async function POST(request: NextRequest) {
     const maxWatches = typeof body.maxWatches === "number" ? Math.min(body.maxWatches, 50) : 10;
     const concurrencyLimit = typeof body.concurrencyLimit === "number" ? Math.min(body.concurrencyLimit, 4) : 2;
     const maxExecutionBudgetMs = typeof body.maxExecutionBudgetMs === "number" ? body.maxExecutionBudgetMs : 30000;
+    const force = Boolean(body.force);
 
     // Execute Autonomous Discovery Scheduler
     const telemetry = await discoveryScheduler.runScheduledDiscovery({
       maxWatchesToProcess: maxWatches,
       concurrencyLimit,
       maxExecutionBudgetMs,
+      force,
     });
 
     return NextResponse.json({

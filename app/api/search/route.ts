@@ -478,7 +478,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const isServerlessOrNoWorker = Boolean(
+      process.env.VERCEL === "1" ||
+      process.env.NEXT_SERVERLESS === "1" ||
+      process.env.AWS_LAMBDA_FUNCTION_NAME
+    );
+
     const isSyncRequested = Boolean(
+      isServerlessOrNoWorker ||
       request.signal?.aborted ||
       customProviders ||
       (body as any).sync === true ||

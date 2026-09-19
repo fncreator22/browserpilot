@@ -48,5 +48,6 @@ export const ADMIN_API_ROUTES = {
   DATA_EXPORT: `/api/${ADMIN_ROUTE_SEGMENT}/data/export`,
   DATA_CLEAN: `/api/${ADMIN_ROUTE_SEGMENT}/data/clean`,
   OBSERVABILITY: `/api/${ADMIN_ROUTE_SEGMENT}/observability`,
+  SUBSCRIPTION_ANALYTICS: `/api/${ADMIN_ROUTE_SEGMENT}/subscription-analytics`,
   LOGS: `/api/${ADMIN_ROUTE_SEGMENT}/logs`,
 } as const;

@@ -33,16 +33,55 @@ const KNOWN_DOMAINS: Record<string, string> = {
   twitter: "x.com",
   x: "x.com",
   linkedin: "linkedin.com",
+  salesforce: "salesforce.com",
+  adobe: "adobe.com",
+  oracle: "oracle.com",
+  ibm: "ibm.com",
+  spotify: "spotify.com",
+  figma: "figma.com",
+  canva: "canva.com",
+  notion: "notion.so",
+  openai: "openai.com",
+  anthropic: "anthropic.com",
+  shopify: "shopify.com",
+  zoom: "zoom.us",
+  twilio: "twilio.com",
+  square: "squareup.com",
+  block: "block.xyz",
+  robinhood: "robinhood.com",
+  coinbase: "coinbase.com",
+  instacart: "instacart.com",
+  doordash: "doordash.com",
+  lyft: "lyft.com",
+  pinterest: "pinterest.com",
+  snapchat: "snapchat.com",
+  ebay: "ebay.com",
+  paypal: "paypal.com",
+  intel: "intel.com",
+  nvidia: "nvidia.com",
+  amd: "amd.com",
+  qualcomm: "qualcomm.com",
+  atlassian: "atlassian.com",
+  datadog: "datadoghq.com",
+  hubspot: "hubspot.com",
+  cloudflare: "cloudflare.com",
+  cisco: "cisco.com",
 };
 
-export function resolveCompanyDomain(companyName: string, applyUrl?: string | null): string {
+export function resolveCompanyDomain(companyName: string, applyUrl?: string | null): string | null {
   if (applyUrl) {
     try {
       const parsed = new URL(applyUrl);
       const hostParts = parsed.hostname.split(".");
       if (hostParts.length >= 2) {
         const cleanHost = hostParts.slice(-2).join(".");
-        if (!["greenhouse.io", "lever.co", "ashbyhq.com", "workable.com", "linkedin.com", "indeed.com"].includes(cleanHost)) {
+        const atsHosts = [
+          "greenhouse.io", "lever.co", "ashbyhq.com", "workable.com", 
+          "linkedin.com", "indeed.com", "glassdoor.com", "smartrecruiters.com",
+          "myworkdayjobs.com", "breezy.hr", "jobvite.com", "bamboohr.com",
+          "ziprecruiter.com", "dice.com", "monster.com"
+        ];
+        if (!atsHosts.includes(cleanHost)) {
           return cleanHost;
         }
       }
@@ -64,11 +103,24 @@ export function resolveCompanyDomain(companyName: string, applyUrl?: string | nu
     return KNOWN_DOMAINS[trimmed];
   }
 
-  return `${clean || "company"}.com`;
+  // Gracefully fallback to null instead of guessing speculative .com domains that fail with 404s
+  return null;
 }
 
-export function getCompanyLogoUrl(companyName: string, applyUrl?: string | null): string {
+export function getCompanyLogoUrl(companyName?: string | null, applyUrl?: string | null): string | null {
+  if (!companyName || !companyName.trim()) return null;
+  const cleanName = companyName.trim().toLowerCase();
+  if (
+    cleanName === "company" || 
+    cleanName === "unknown" || 
+    cleanName === "unknown company" || 
+    cleanName === "various" ||
+    cleanName.includes("confidential")
+  ) {
+    return null;
+  }
   const domain = resolveCompanyDomain(companyName, applyUrl);
+  if (!domain || domain === "company.com" || domain === "unknown.com") return null;
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
 }
 
