@@ -52,8 +52,20 @@ function formatInlineWithLinks(text: string): React.ReactNode[] {
     }
 
     const isMarkdown = Boolean(match[1] && match[2]);
-    const label = isMarkdown ? match[1] : match[3];
-    const href = isMarkdown ? match[2] : match[3];
+    let label = isMarkdown ? match[1] : match[3];
+    let href = isMarkdown ? match[2] : match[3];
+
+    // Trim trailing punctuation from raw URLs so they don't break links or previews
+    let trailingPunct = "";
+    if (!isMarkdown && href) {
+      const punctMatch = href.match(/[.,;:!)]+$/);
+      if (punctMatch) {
+        trailingPunct = punctMatch[0];
+        href = href.slice(0, -trailingPunct.length);
+        label = label.slice(0, -trailingPunct.length);
+      }
+    }
+
     const isYouTube = /youtube\.com|youtu\.be/i.test(href);
 
     if (isYouTube) {
@@ -87,6 +99,10 @@ function formatInlineWithLinks(text: string): React.ReactNode[] {
           <ExternalLink className="h-2.5 w-2.5 shrink-0" />
         </a>
       );
+    }
+
+    if (trailingPunct) {
+      nodes.push(trailingPunct);
     }
 
     lastIndex = linkRegex.lastIndex;
@@ -139,11 +155,14 @@ export function RichJobDescription({ content, className = "" }: RichJobDescripti
     const rawBlocks = raw.split(/\n\s*\n/);
     const elements: React.ReactNode[] = [];
 
+    const bulletRegex = /^(?:[•\-\*]|\(?\d+[\.\)])\s+/;
+    const topicHeadingRegex = /^(?:#{1,6}\s+.*|\*\*[A-Za-z0-9\s/&—–',:?-]{2,60}:?\*\*|[A-Z][A-Za-z0-9\s/&—–',?-]{2,50}:)$/;
+
     rawBlocks.forEach((block, bIdx) => {
       const trimmed = block.trim();
       if (!trimmed) return;
 
-      // Check if block is a Heading
+      // Check if block is an explicit markdown heading
       if (trimmed.startsWith("###") || trimmed.startsWith("##") || trimmed.startsWith("#")) {
         const title = trimmed.replace(/^#+\s*/, "").replace(/<[^>]+>/g, "").trim();
         elements.push(
@@ -180,16 +199,35 @@ export function RichJobDescription({ content, className = "" }: RichJobDescripti
       };
 
       rawLines.forEach((line, lIdx) => {
-        const isBullet = /^[•\-\*\d+\.]\s+/.test(line);
+        const isBullet = bulletRegex.test(line);
         if (isBullet) {
-          currentListItems.push(line.replace(/^[•\-\*\d+\.]\s+/, ""));
+          currentListItems.push(line.replace(bulletRegex, ""));
         } else {
           flushList(`b-${bIdx}-l-${lIdx}`);
-          elements.push(
-            <p key={`p-${bIdx}-${lIdx}`} className="text-xs font-sans text-foreground/90 leading-relaxed mb-2.5 last:mb-0">
-              {formatInlineWithLinks(line)}
-            </p>
-          );
+
+          // Check if line is a semantic topic heading (e.g. "Role Overview:", "Requirements:", "**What you'll do:**")
+          if (topicHeadingRegex.test(line) && line.length < 60) {
+            const cleanTitle = line
+              .replace(/^#+\s*/, "")
+              .replace(/^\*\*|\*\*$/g, "")
+              .replace(/:$/, "")
+              .trim();
+            elements.push(
+              <h4
+                key={`subh-${bIdx}-${lIdx}`}
+                className="text-xs font-sans font-bold text-foreground mt-3 mb-1 first:mt-0 flex items-center gap-1.5 tracking-tight"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-primary/60 shrink-0" />
+                {cleanTitle}
+              </h4>
+            );
+          } else {
+            elements.push(
+              <p key={`p-${bIdx}-${lIdx}`} className="text-xs font-sans text-foreground/90 leading-relaxed mb-2.5 last:mb-0">
+                {formatInlineWithLinks(line)}
+              </p>
+            );
+          }
         }
       });
 

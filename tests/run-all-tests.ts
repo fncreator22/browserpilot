@@ -9,6 +9,7 @@ import { runErrorMapperUnitTests } from "./unit/errorMapper.test";
 import { runGeminiGuardTests } from "./unit/geminiGuard.test";
 import { runCredentialEncryptionTests } from "./unit/credentialEncryption.test";
 import { runAuthTests } from "./unit/auth.test";
+import { runRichJobDescriptionUnitTests } from "./unit/richJobDescription.test";
 import { runCleanupUnitTests } from "./unit/cleanup.test";
 import { runTimeBudgetUnitTests } from "./unit/timeBudget.test";
 import { runExecutorIntegrationTests } from "./integration/executor.test";
@@ -91,6 +92,7 @@ async function runMasterTestSuite() {
     { name: "Unit: Gemini Key Fallback Guard", fn: runGeminiGuardTests },
     { name: "Unit: Credential Encryption & Masking (Part B)", fn: runCredentialEncryptionTests },
     { name: "Unit: Email/Password Auth & Minimal Schema", fn: runAuthTests },
+    { name: "Unit: Rich Job Description Formatting & Links", fn: runRichJobDescriptionUnitTests },
     { name: "Unit: 24-Hour Auto-Purge & Retention", fn: runCleanupUnitTests },
     { name: "Unit: Fast-Calculated Time Budget (Prompt C2)", fn: runTimeBudgetUnitTests },
     { name: "Unit: Normalization & 3-Tier Deduplication (TASK-004)", fn: runDeduplicationUnitTests },
