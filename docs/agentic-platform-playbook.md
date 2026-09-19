@@ -273,6 +273,26 @@ To guarantee zero production regression on Vercel and preserve full bisectabilit
 
 ---
 
+## 9. Adversarial Audit, Touch Scroll Hardening & Direct Profile Plugin Architecture
+
+### 9.1 Viewport-Clamped Popover Coordinates (`components/ui/info-badge.tsx`)
+- **Problem**: Fixed 220px height assumptions caused card and execution pill tooltips with debug JSON payloads (350px+ tall) to extend past the top or bottom edge of the browser viewport, cutting off titles and debug traces.
+- **Solution**: Replaced fixed vertical placement with dynamic clearance calculation comparing `spaceAbove` (`rect.top`) and `spaceBelow` (`window.innerHeight - rect.bottom`). Dynamically clamps `maxHeight` to `spaceAvailable - 16px` and restricts `top` to remain within viewport boundaries with `overflow-y-auto`. Dual hover/click interactions preserved with React Portal rendering.
+
+### 9.2 Direct Profile Plugins Embedding & Removal of Redundant Navigation (`components/settings/settings-modal.tsx`, `components/navigation/app-sidebar.tsx`)
+- **Problem**: The plugins manager was previously accessible via an external redirect button card ("Active Plugins Engine -> Open Plugins"), violating the user requirement for an in-profile direct marketplace. In addition, `/app/plugins` was lingering in the desktop sidebar navigation.
+- **Solution**: Pruned the external redirect button card from `SettingsModal`. The Plugins & Connectors tab directly hosts `ConnectorPreferencesPanel` with categorized filters, search, and session authentication. Pruned `Plugins Marketplace` from the main application sidebar navigation. Cleaned noisy headlines and subheadings from `/app/plugins`.
+
+### 9.3 Mobile Touch Scroll Unlocking & Multi-Directional Gesture Support
+- **Problem**: Tailwind's `touch-pan-y` utility applied to scrollable containers inside transformed Framer Motion elements caused WebKit to discard diagonal touch gestures, creating a severe touch scrolling lock on mobile devices.
+- **Solution**: Removed restrictive `touch-pan-y` classes from mobile drawer and detail containers, allowing natural momentum touch scrolling via `-webkit-overflow-scrolling: touch` and `overscroll-contain`. Swapped dynamic flexbox centering with full-width, full-height absolute layouts on mobile viewports.
+
+### 9.4 Scraper Description HTML Parsing & Emphasis Preservation (`components/result/rich-job-description.tsx`)
+- **Problem**: Scraper descriptions with mixed paragraphs and bullet items failed list parsing (`lines.every`), falling back to unformatted paragraph text. `<b>` and `<strong>` tags were stripped rather than rendered with emphasis.
+- **Solution**: Upgraded parser with line-by-line list clustering that separates bullet items into clean `<ul><li>` blocks while rendering paragraphs with inline bold (`**`) and italic (`*`) text. Maintained custom YouTube badges with hover link previews.
+
+---
+
 *This playbook is maintained as an append-only engineering diary. All future decisions and implementation logs will be recorded herein.*
 
 

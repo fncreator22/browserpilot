@@ -1388,10 +1388,6 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
       case "CONNECTORS":
         return (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-sans font-bold text-foreground">Plugins & Connectors</h2>
-            </div>
-
             {/* Direct & Auth Scraper Plugins */}
             <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 space-y-3 shadow-marble-1">
               <ConnectorPreferencesPanel showActions={false} />
@@ -1490,30 +1486,6 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     className="h-4 w-4 rounded border-gray-300 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 cursor-pointer shrink-0"
                   />
                 </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 space-y-3 shadow-marble-1">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-marble-1 shrink-0">
-                    <Blocks className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold font-sans text-foreground">Active Plugins Engine</h3>
-                    <p className="text-xs text-muted-foreground font-sans mt-0.5">
-                      Monitored sources are driven by our high-yield scraper plugins (~75%+ priority yield). Manage scraper plugins and credentials in the marketplace.
-                    </p>
-                  </div>
-                </div>
-                <Link
-                  href="/app/plugins"
-                  onClick={onClose}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold font-sans shadow-marble-1 transition-colors shrink-0 cursor-pointer"
-                >
-                  <span>Open Plugins</span>
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </Link>
               </div>
             </div>
           </div>
@@ -2196,7 +2168,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: "100%" }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="md:hidden fixed inset-0 z-50 bg-background flex flex-col text-foreground overflow-hidden h-[100dvh] max-h-[100dvh]"
+            className="md:hidden fixed inset-0 z-50 bg-background flex flex-col text-foreground overflow-hidden w-full h-full"
           >
             {mobileDetailView === null ? (
               /* VIEW 1: Mobile Category Menu List */
@@ -2219,7 +2191,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
 
                 {/* Categories List */}
                 <div 
-                  className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-2 touch-pan-y"
+                  className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-2"
                   style={{ WebkitOverflowScrolling: "touch" }}
                 >
                   {categories.map((cat) => {
@@ -2284,7 +2256,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
 
                 {/* Detail Content */}
                 <div 
-                  className="flex-1 min-h-0 p-4 overflow-y-auto overscroll-contain touch-pan-y"
+                  className="flex-1 min-h-0 p-4 overflow-y-auto overscroll-contain"
                   style={{ WebkitOverflowScrolling: "touch" }}
                 >
                   {renderContentPane(mobileDetailView)}

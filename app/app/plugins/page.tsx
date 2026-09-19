@@ -114,19 +114,14 @@ export default function PluginsMarketplacePage() {
     <div className="min-h-screen bg-background text-foreground font-sans antialiased py-6 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/70">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted border border-border text-foreground">
-                <Puzzle className="h-4 w-4" />
-              </span>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-                Plugins Marketplace
-              </h1>
-              <Badge variant="outline" className="text-xs font-medium border-border/80 text-foreground bg-muted/50">
-                {connectedCount} Connected
-              </Badge>
-            </div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-border/70">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted border border-border text-foreground">
+              <Puzzle className="h-4 w-4" />
+            </span>
+            <Badge variant="outline" className="text-xs font-medium border-border/80 text-foreground bg-muted/50 font-mono">
+              {connectedCount} Connected
+            </Badge>
           </div>
 
           {/* Quick Search */}

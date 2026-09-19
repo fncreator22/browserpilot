@@ -93,12 +93,6 @@ export function AppSidebar() {
       isActive: pathname === "/app/history",
     },
     {
-      href: "/app/plugins",
-      label: "Plugins Marketplace",
-      icon: Puzzle,
-      isActive: pathname === "/app/plugins",
-    },
-    {
       href: "/app/notifications",
       label: "Notifications",
       icon: Bell,

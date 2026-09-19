@@ -26,6 +26,19 @@ function decodeHtmlEntities(str: string): string {
     .replace(/&gt;/gi, ">");
 }
 
+function renderFormattedText(str: string): React.ReactNode[] {
+  const parts = str.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={idx} className="font-semibold text-foreground">{decodeHtmlEntities(part.slice(2, -2))}</strong>;
+    }
+    if (part.startsWith("*") && part.endsWith("*")) {
+      return <em key={idx} className="italic text-foreground/90">{decodeHtmlEntities(part.slice(1, -1))}</em>;
+    }
+    return decodeHtmlEntities(part);
+  });
+}
+
 function formatInlineWithLinks(text: string): React.ReactNode[] {
   // Matches markdown links [title](url) or raw URLs
   const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<"']+)/g;
@@ -35,7 +48,7 @@ function formatInlineWithLinks(text: string): React.ReactNode[] {
 
   while ((match = linkRegex.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      nodes.push(decodeHtmlEntities(text.substring(lastIndex, match.index)));
+      nodes.push(...renderFormattedText(text.substring(lastIndex, match.index)));
     }
 
     const isMarkdown = Boolean(match[1] && match[2]);
@@ -80,7 +93,7 @@ function formatInlineWithLinks(text: string): React.ReactNode[] {
   }
 
   if (lastIndex < text.length) {
-    nodes.push(decodeHtmlEntities(text.substring(lastIndex)));
+    nodes.push(...renderFormattedText(text.substring(lastIndex)));
   }
 
   return nodes;
@@ -97,6 +110,10 @@ export function RichJobDescription({ content, className = "" }: RichJobDescripti
     // 1. Convert HTML tags to structured tokens if HTML present
     const hasHtml = /<[a-z][\s\S]*>/i.test(raw);
     if (hasHtml) {
+      // Preserve bold and italics
+      raw = raw.replace(/<(?:strong|b)[^>]*>([\s\S]*?)<\/(?:strong|b)>/gi, "**$1**");
+      raw = raw.replace(/<(?:em|i)[^>]*>([\s\S]*?)<\/(?:em|i)>/gi, "*$1*");
+
       // Replace <a href="...">text</a> with markdown [text](href)
       raw = raw.replace(/<a\s+(?:[^>]*?\s+)?href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, text) => {
         const cleanText = text.replace(/<[^>]+>/g, "").trim() || href;
@@ -140,35 +157,43 @@ export function RichJobDescription({ content, className = "" }: RichJobDescripti
         return;
       }
 
-      // Check if block contains list items (lines starting with • or - or *)
-      const lines = trimmed.split("\n").map((l) => l.trim()).filter(Boolean);
-      const isList = lines.length > 0 && lines.every((l) => /^[•\-\*\d+\.]\s*/.test(l));
+      // Process lines, clustering consecutive list items
+      const rawLines = trimmed.split("\n").map((l) => l.trim()).filter(Boolean);
+      let currentListItems: string[] = [];
 
-      if (isList) {
+      const flushList = (keyPrefix: string) => {
+        if (currentListItems.length === 0) return;
+        const items = [...currentListItems];
+        currentListItems = [];
         elements.push(
-          <ul key={`ul-${bIdx}`} className="space-y-1.5 my-2.5 pl-1 text-xs font-sans text-foreground/90">
-            {lines.map((line, lIdx) => {
-              const cleanLine = line.replace(/^[•\-\*\d+\.]\s*/, "");
-              return (
-                <li key={lIdx} className="flex items-start gap-2 leading-relaxed">
-                  <span className="flex h-1.5 w-1.5 rounded-full bg-primary/70 shrink-0 mt-1.5" />
-                  <div className="flex-1 min-w-0">
-                    {formatInlineWithLinks(cleanLine)}
-                  </div>
-                </li>
-              );
-            })}
+          <ul key={`${keyPrefix}-ul`} className="space-y-1.5 my-2 pl-1 text-xs font-sans text-foreground/90">
+            {items.map((item, lIdx) => (
+              <li key={lIdx} className="flex items-start gap-2 leading-relaxed">
+                <span className="flex h-1.5 w-1.5 rounded-full bg-primary/70 shrink-0 mt-1.5" />
+                <div className="flex-1 min-w-0">
+                  {formatInlineWithLinks(item)}
+                </div>
+              </li>
+            ))}
           </ul>
         );
-        return;
-      }
+      };
 
-      // Default: Paragraph with inline rich links
-      elements.push(
-        <p key={`p-${bIdx}`} className="text-xs font-sans text-foreground/90 leading-relaxed mb-3 last:mb-0">
-          {formatInlineWithLinks(trimmed)}
-        </p>
-      );
+      rawLines.forEach((line, lIdx) => {
+        const isBullet = /^[•\-\*\d+\.]\s+/.test(line);
+        if (isBullet) {
+          currentListItems.push(line.replace(/^[•\-\*\d+\.]\s+/, ""));
+        } else {
+          flushList(`b-${bIdx}-l-${lIdx}`);
+          elements.push(
+            <p key={`p-${bIdx}-${lIdx}`} className="text-xs font-sans text-foreground/90 leading-relaxed mb-2.5 last:mb-0">
+              {formatInlineWithLinks(line)}
+            </p>
+          );
+        }
+      });
+
+      flushList(`b-${bIdx}-end`);
     });
 
     return elements;

@@ -55,10 +55,11 @@ export function InfoBadge({
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number; placement: "top" | "bottom" }>({
+  const [coords, setCoords] = useState<{ top: number; left: number; placement: "top" | "bottom"; maxHeight: number }>({
     top: 0,
     left: 0,
     placement: "bottom",
+    maxHeight: 380,
   });
 
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -72,28 +73,39 @@ export function InfoBadge({
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    const popoverWidth = Math.min(320, typeof window !== "undefined" ? window.innerWidth - 24 : 320);
-    const estimatedHeight = 220;
+    const popoverWidth = Math.min(340, typeof window !== "undefined" ? window.innerWidth - 24 : 340);
+    const winHeight = typeof window !== "undefined" ? window.innerHeight : 800;
 
     let left = rect.left + rect.width / 2 - popoverWidth / 2;
     if (typeof window !== "undefined") {
       left = Math.max(12, Math.min(left, window.innerWidth - popoverWidth - 12));
     }
 
-    // Smart vertical positioning: flip to bottom if top will overflow off screen
-    let placement: "top" | "bottom" = side === "bottom" ? "bottom" : "top";
-    if (placement === "top" && rect.top < estimatedHeight + 20) {
-      placement = "bottom";
+    const spaceAbove = rect.top;
+    const spaceBelow = winHeight - rect.bottom;
+
+    // Smart vertical positioning: choose side with plenty of clearance, never overflow viewport
+    let placement: "top" | "bottom";
+    if (side === "bottom") {
+      placement = spaceBelow >= 200 || spaceBelow >= spaceAbove ? "bottom" : "top";
+    } else if (side === "top") {
+      placement = spaceAbove >= 220 || spaceAbove >= spaceBelow ? "top" : "bottom";
+    } else {
+      placement = spaceBelow >= spaceAbove ? "bottom" : "top";
     }
+
+    const maxHeight = placement === "bottom"
+      ? Math.max(160, spaceBelow - 16)
+      : Math.max(160, spaceAbove - 16);
 
     let top = 0;
     if (placement === "top") {
       top = Math.max(10, rect.top - 8);
     } else {
-      top = rect.bottom + 8;
+      top = Math.min(winHeight - 50, rect.bottom + 8);
     }
 
-    setCoords({ top, left, placement });
+    setCoords({ top, left, placement, maxHeight });
   }, [side]);
 
   // Update position when opened or on window resize/scroll
@@ -190,10 +202,11 @@ export function InfoBadge({
         top: coords.placement === "top" ? undefined : `${coords.top}px`,
         bottom: coords.placement === "top" ? `${typeof window !== "undefined" ? window.innerHeight - coords.top : 0}px` : undefined,
         left: `${coords.left}px`,
-        width: "min(320px, calc(100vw - 24px))",
+        maxHeight: `${coords.maxHeight}px`,
+        width: "min(340px, calc(100vw - 24px))",
         zIndex: 99999,
       }}
-      className="rounded-xl border border-border bg-card/95 backdrop-blur-md p-3.5 shadow-xl text-left animate-in fade-in zoom-in-95 duration-150 max-h-[min(380px,80vh)] overflow-y-auto"
+      className="rounded-xl border border-border bg-card/95 backdrop-blur-md p-3.5 shadow-xl text-left animate-in fade-in zoom-in-95 duration-150 overflow-y-auto"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 border-b border-border/60 pb-2">

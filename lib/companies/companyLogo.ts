@@ -7,6 +7,10 @@
 
 const KNOWN_DOMAINS: Record<string, string> = {
   vsolvit: "vsolvit.com",
+  gitlab: "gitlab.com",
+  provectus: "provectus.com",
+  neuralconcept: "neuralconcept.com",
+  boson: "boson.ai",
   google: "google.com",
   microsoft: "microsoft.com",
   apple: "apple.com",
