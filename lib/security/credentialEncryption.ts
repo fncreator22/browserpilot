@@ -13,12 +13,56 @@ const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12; // 96 bits recommended for GCM
 const PREFIX = "enc:v1:";
 
+export interface ByocSessionPayload {
+  cookies?: Record<string, string>;
+  rawCookieString?: string;
+  token?: string;
+  metadata?: Record<string, unknown>;
+}
+
 /**
  * Checks if a string is in the encrypted format
  */
 export function isEncryptedCredential(value?: string | null): boolean {
   if (!value) return false;
   return value.trim().startsWith(PREFIX);
+}
+
+/**
+ * Parses a standard HTTP Cookie header string into key-value pairs
+ */
+export function parseCookieHeader(cookieString?: string | null): Record<string, string> {
+  if (!cookieString || typeof cookieString !== "string" || !cookieString.trim()) return {};
+  const maxSafeLen = 65536; // 64KB safety limit
+  const sanitizedInput = cookieString.length > maxSafeLen ? cookieString.slice(0, maxSafeLen) : cookieString;
+  const cookies: Record<string, string> = Object.create(null);
+  const pairs = sanitizedInput.split(";");
+  const forbiddenKeys = new Set(["__proto__", "constructor", "prototype"]);
+
+  for (const pair of pairs) {
+    const trimmed = pair.trim();
+    if (!trimmed) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx > 0) {
+      const key = trimmed.slice(0, eqIdx).trim();
+      const val = trimmed.slice(eqIdx + 1).trim();
+      if (key && !forbiddenKeys.has(key)) {
+        cookies[key] = val;
+      }
+    } else if (trimmed && !forbiddenKeys.has(trimmed)) {
+      cookies[trimmed] = "";
+    }
+  }
+  return cookies;
+}
+
+/**
+ * Determines whether a session expiration date has passed
+ */
+export function isSessionExpired(expiresAt?: Date | string | null): boolean {
+  if (!expiresAt) return false;
+  const expDate = typeof expiresAt === "string" ? new Date(expiresAt) : expiresAt;
+  return expDate.getTime() <= Date.now();
 }
 
 /**
@@ -87,6 +131,33 @@ export function decryptCredential(ciphertext?: string | null): string | null {
   } catch (err) {
     console.error("[CredentialEncryption] Decryption failed:", (err as Error).message);
     return null;
+  }
+}
+
+/**
+ * Encrypts a structured BYOC session payload (cookies, tokens, metadata) into an AES-256-GCM ciphertext.
+ */
+export function encryptByocSession(payload: ByocSessionPayload): string | null {
+  if (!payload) return null;
+  const jsonStr = JSON.stringify(payload);
+  return encryptCredential(jsonStr);
+}
+
+/**
+ * Decrypts an AES-256-GCM ciphertext into a structured ByocSessionPayload.
+ */
+export function decryptByocSession(ciphertext?: string | null): ByocSessionPayload | null {
+  if (!ciphertext) return null;
+  const decrypted = decryptCredential(ciphertext);
+  if (!decrypted) return null;
+  try {
+    const parsed = JSON.parse(decrypted);
+    return parsed as ByocSessionPayload;
+  } catch {
+    return {
+      rawCookieString: decrypted,
+      token: decrypted,
+    };
   }
 }
 

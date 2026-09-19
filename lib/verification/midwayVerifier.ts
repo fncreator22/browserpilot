@@ -5,6 +5,8 @@
  * and anti-hallucination filtering for jobs, external URLs, and recruiter contacts.
  */
 
+import dns from "node:dns";
+
 export interface VerifiableJobCandidate {
   title: string;
   companyName: string;
@@ -15,6 +17,8 @@ export interface VerifiableJobCandidate {
   workMode?: string;
   description?: string;
 }
+
+export type EmailVerificationTier = "derived" | "mx_verified" | "directory";
 
 export interface VerifiableRecruiterContact {
   fullName: string;
@@ -31,6 +35,253 @@ export interface VerifiableRecruiterContact {
   contactType?: "RECRUITER" | "EMPLOYEE";
   department?: string;
   sourcePlatform: string;
+  confidenceScore?: number;
+  emailVerificationTier?: EmailVerificationTier;
+  provenance?: string;
+  mxRecords?: string[];
+}
+
+export interface RecruiterDossier extends VerifiableRecruiterContact {
+  confidenceScore: number;
+  emailVerificationTier: EmailVerificationTier;
+  provenance: string;
+  mxRecords?: string[];
+}
+
+export interface DomainMxResult {
+  valid: boolean;
+  domain: string;
+  records: string[];
+  cached: boolean;
+  error?: string;
+}
+
+export class DomainMxCache {
+  private cache = new Map<string, { valid: boolean; records: string[]; error?: string; timestamp: number }>();
+  private readonly maxEntries: number;
+  private readonly ttlMs: number;
+
+  constructor(maxEntries = 1000, ttlMs = 24 * 60 * 60 * 1000) {
+    this.maxEntries = maxEntries;
+    this.ttlMs = ttlMs;
+  }
+
+  get(domain: string) {
+    const key = domain.toLowerCase().trim();
+    const entry = this.cache.get(key);
+    if (!entry) return undefined;
+    if (Date.now() - entry.timestamp > this.ttlMs) {
+      this.cache.delete(key);
+      return undefined;
+    }
+    // Refresh LRU order
+    this.cache.delete(key);
+    this.cache.set(key, entry);
+    return entry;
+  }
+
+  set(domain: string, valid: boolean, records: string[], error?: string) {
+    const key = domain.toLowerCase().trim();
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.maxEntries) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey) this.cache.delete(oldestKey);
+    }
+    this.cache.set(key, {
+      valid,
+      records,
+      error,
+      timestamp: Date.now(),
+    });
+  }
+
+  clear() {
+    this.cache.clear();
+  }
+
+  get size() {
+    return this.cache.size;
+  }
+}
+
+export const domainMxCache = new DomainMxCache();
+
+const inFlightMxQueries = new Map<string, Promise<DomainMxResult>>();
+
+export function extractDomainFromTarget(input: string): string | null {
+  if (!input) return null;
+  const clean = input.trim().toLowerCase();
+  if (clean.includes("@")) {
+    const parts = clean.split("@");
+    const domainPart = parts[parts.length - 1]?.trim() || "";
+    return domainPart.replace(/^\.+/, "").replace(/\.+$/, "") || null;
+  }
+  try {
+    const url = clean.startsWith("http://") || clean.startsWith("https://") ? clean : `https://${clean}`;
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, "").replace(/^\.+/, "").replace(/\.+$/, "");
+    return host || null;
+  } catch {
+    const withoutProtocol = clean.replace(/^[a-z]+:\/\//i, "");
+    const hostOnly = withoutProtocol.split(/[\/?#:]/)[0];
+    return hostOnly.replace(/^www\./, "").replace(/^\.+/, "").replace(/\.+$/, "") || null;
+  }
+}
+
+export async function verifyDomainMx(
+  target: string,
+  options: { timeoutMs?: number } = {}
+): Promise<DomainMxResult> {
+  const domain = extractDomainFromTarget(target);
+  if (!domain || !domain.includes(".")) {
+    return {
+      valid: false,
+      domain: domain || target,
+      records: [],
+      cached: false,
+      error: "Invalid domain format",
+    };
+  }
+
+  const cachedEntry = domainMxCache.get(domain);
+  if (cachedEntry) {
+    return {
+      valid: cachedEntry.valid,
+      domain,
+      records: cachedEntry.records,
+      cached: true,
+      error: cachedEntry.error,
+    };
+  }
+
+  const existingInFlight = inFlightMxQueries.get(domain);
+  if (existingInFlight) {
+    return await existingInFlight;
+  }
+
+  const timeoutMs = options.timeoutMs ?? 1500;
+
+  const queryPromise = (async (): Promise<DomainMxResult> => {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      const executeLookup = async (): Promise<dns.MxRecord[]> => {
+        try {
+          return await dns.promises.resolveMx(domain);
+        } catch (err: any) {
+          // Fallback for sandboxed / container environments where local 127.0.0.1:53 resolver returns ECONNREFUSED
+          if (err?.code === "ECONNREFUSED") {
+            const resolver = new dns.promises.Resolver();
+            resolver.setServers(["8.8.8.8", "1.1.1.1"]);
+            return await resolver.resolveMx(domain);
+          }
+          throw err;
+        }
+      };
+
+      const dnsPromise = executeLookup();
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`DNS MX lookup timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      });
+
+      const rawRecords = await Promise.race([dnsPromise, timeoutPromise]);
+      clearTimeout(timer);
+
+      const records = Array.isArray(rawRecords)
+        ? rawRecords
+            .sort((a, b) => a.priority - b.priority)
+            .map((r) => r.exchange)
+            .filter(Boolean)
+        : [];
+
+      const isValid = records.length > 0;
+      domainMxCache.set(domain, isValid, records);
+
+      return {
+        valid: isValid,
+        domain,
+        records,
+        cached: false,
+        error: isValid ? undefined : "No active MX records found",
+      };
+    } catch (err: any) {
+      if (timer) clearTimeout(timer);
+      const errorMessage = err?.message || String(err);
+      const isTimeout = errorMessage.includes("timed out");
+
+      if (!isTimeout) {
+        domainMxCache.set(domain, false, [], errorMessage);
+      }
+
+      return {
+        valid: false,
+        domain,
+        records: [],
+        cached: false,
+        error: errorMessage,
+      };
+    } finally {
+      inFlightMxQueries.delete(domain);
+    }
+  })();
+
+  inFlightMxQueries.set(domain, queryPromise);
+  return await queryPromise;
+}
+
+export async function createRecruiterDossier(
+  contact: VerifiableRecruiterContact,
+  domainHint?: string
+): Promise<RecruiterDossier> {
+  const isDirectory =
+    contact.sourcePlatform === "OFFICIAL_PORTAL" ||
+    (contact as any).verificationSource === "OFFICIAL_PORTAL" ||
+    contact.fullName.toLowerCase().includes("team") ||
+    contact.fullName.toLowerCase().includes("talent acquisition");
+
+  if (isDirectory) {
+    const domain = contact.email ? extractDomainFromTarget(contact.email) : domainHint;
+    let mxRecords: string[] | undefined;
+    if (domain) {
+      const mx = await verifyDomainMx(domain, { timeoutMs: 1500 });
+      if (mx.valid) {
+        mxRecords = mx.records;
+      }
+    }
+
+    return {
+      ...contact,
+      confidenceScore: contact.confidenceScore ?? 0.95,
+      emailVerificationTier: "directory",
+      provenance: "Company Talent Directory",
+      mxRecords,
+    };
+  }
+
+  if (contact.email) {
+    const domain = extractDomainFromTarget(contact.email) || domainHint;
+    if (domain) {
+      const mx = await verifyDomainMx(domain, { timeoutMs: 1500 });
+      if (mx.valid) {
+        return {
+          ...contact,
+          confidenceScore: contact.confidenceScore ?? 0.85,
+          emailVerificationTier: "mx_verified",
+          provenance: "DNS Validated",
+          mxRecords: mx.records,
+        };
+      }
+    }
+  }
+
+  return {
+    ...contact,
+    confidenceScore: contact.confidenceScore ?? 0.65,
+    emailVerificationTier: "derived",
+    provenance: "Direct Recruiter Slug (Derived Email)",
+  };
 }
 
 export interface MidwayGateReport<T> {
@@ -349,14 +600,15 @@ export async function verifyJobCandidatesMidway(
 }
 
 /**
- * Midway gate for Recruiter & Company Personnel: Filters hallucinations and dead profiles
+ * Midway gate for Recruiter & Company Personnel: Filters hallucinations, dead profiles,
+ * and attaches authentic DNS MX validation and provenance tiers.
  */
 export async function verifyRecruiterContactsMidway(
   contacts: VerifiableRecruiterContact[],
   options: { checkLiveness?: boolean } = {}
-): Promise<MidwayGateReport<VerifiableRecruiterContact>> {
+): Promise<MidwayGateReport<RecruiterDossier>> {
   const { checkLiveness = true } = options;
-  const verified: VerifiableRecruiterContact[] = [];
+  const verified: RecruiterDossier[] = [];
   const rejectionReasons: string[] = [];
   const seenProfiles = new Set<string>();
 
@@ -424,10 +676,12 @@ export async function verifyRecruiterContactsMidway(
       }
     }
 
-    verified.push({
+    const dossier = await createRecruiterDossier({
       ...contact,
       fullName: trimmedName,
     });
+
+    verified.push(dossier);
   }
 
   return {

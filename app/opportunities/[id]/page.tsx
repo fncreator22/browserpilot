@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InfoBadge } from "@/components/ui/info-badge";
 import { OpportunityActionToolbar } from "@/components/result/opportunity-action-toolbar";
+import { RichJobDescription } from "@/components/result/rich-job-description";
 import { getAtsSourceInfo } from "@/lib/ats/atsSourceInfo";
 import type { PipelineStage } from "@/app/app/saved/page";
 
@@ -276,8 +277,8 @@ export default async function OpportunityDetailPage(props: {
             {/* 2. Job Description */}
             <div className="rounded-xl border border-border/70 bg-card p-6 space-y-4">
               <h2 className="text-base font-bold tracking-tight text-foreground">Role Overview</h2>
-              <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed whitespace-pre-line font-sans text-sm">
-                {opp.description || "No extended job description provided."}
+              <div className="bg-muted/20 p-4 rounded-xl border border-border/50">
+                <RichJobDescription content={opp.description || "No extended job description provided."} />
               </div>
             </div>
 

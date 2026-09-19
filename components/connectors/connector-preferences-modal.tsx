@@ -254,14 +254,20 @@ export function ConnectorPreferencesPanel({
                             Direct ATS
                           </span>
                         )}
-                        {!plugin.isPrototype && plugin.type === "AUTH_REQUIRED" && (
+                        {!plugin.isPrototype && plugin.type === "AUTH_REQUIRED" && !plugin.reauthRequired && plugin.status !== "EXPIRED" && (
                           <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
-                            OAuth Session
+                            {plugin.supportedAuthTypes?.includes("BYOC_COOKIE") ? "BYOC / OAuth" : "OAuth Session"}
+                          </span>
+                        )}
+                        {(plugin.status === "EXPIRED" || plugin.reauthRequired) && (
+                          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center gap-1">
+                            <AlertCircle className="h-2.5 w-2.5" />
+                            Expired
                           </span>
                         )}
                       </div>
-                      <span className="text-[11px] text-muted-foreground block truncate max-w-sm">
-                        {plugin.description}
+                      <span className={`text-[11px] block truncate max-w-sm ${plugin.status === "EXPIRED" || plugin.reauthRequired ? "text-rose-600 dark:text-rose-400 font-medium" : "text-muted-foreground"}`}>
+                        {plugin.reauthReason || plugin.description}
                       </span>
                     </div>
                   </div>
@@ -285,6 +291,23 @@ export function ConnectorPreferencesPanel({
                           <X className="h-3.5 w-3.5" />
                         </Button>
                       </div>
+                    ) : (plugin.status === "EXPIRED" || plugin.reauthRequired) ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isWorking}
+                        onClick={() => handleTogglePlugin(plugin)}
+                        className="h-7 text-xs font-mono gap-1 text-rose-600 border-rose-300 hover:bg-rose-50 dark:text-rose-400 dark:border-rose-800 dark:hover:bg-rose-950/40 cursor-pointer"
+                      >
+                        {isWorking ? (
+                          <RotateCw className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <>
+                            <AlertCircle className="h-3 w-3" />
+                            Reconnect
+                          </>
+                        )}
+                      </Button>
                     ) : (
                       <Button
                         variant="outline"

@@ -7,6 +7,7 @@
 
 export type PluginType = "DIRECT_FREE" | "AUTH_REQUIRED";
 export type PluginCategory = "ATS_BOARD" | "TECH_COMMUNITY" | "PROFESSIONAL_NETWORK" | "SEARCH_ENGINE" | "NOTIFICATION_INTEGRATION";
+export type AuthMethodType = "DIRECT_FREE" | "OAUTH" | "BYOC_COOKIE" | "SESSION_TOKEN" | "API_TOKEN";
 
 export interface MarketplacePlugin {
   id: string;
@@ -15,6 +16,7 @@ export interface MarketplacePlugin {
   category: PluginCategory;
   type: PluginType;
   authProvider?: "GOOGLE" | "LINKEDIN" | "TWITTER" | "REDDIT" | "CUSTOM";
+  supportedAuthTypes?: AuthMethodType[];
   iconUrl?: string;
   description: string;
   features: string[];
@@ -25,10 +27,14 @@ export interface MarketplacePlugin {
 
 export interface UserPluginStatus extends MarketplacePlugin {
   isConnected: boolean;
-  status: "CONNECTED" | "DISCONNECTED" | "REQUIRES_AUTH";
+  status: "CONNECTED" | "DISCONNECTED" | "REQUIRES_AUTH" | "EXPIRED" | "REQUIRES_REAUTH";
   connectedAt?: string | null;
   maskedAccount?: string | null;
   expiresAt?: string | null;
+  authMethod?: AuthMethodType | string;
+  reauthRequired?: boolean;
+  reauthReason?: string | null;
+  lastHealthCheck?: string | null;
 }
 
 export const MARKETPLACE_PLUGINS: MarketplacePlugin[] = [
@@ -100,6 +106,7 @@ export const MARKETPLACE_PLUGINS: MarketplacePlugin[] = [
     category: "SEARCH_ENGINE",
     type: "AUTH_REQUIRED",
     authProvider: "GOOGLE",
+    supportedAuthTypes: ["OAUTH"],
     description: "Connect via your Google account to query Google Jobs index with elevated rate limits.",
     features: ["Google Jobs API permission", "Personalized recommendations", "Location radius search"],
     isPopular: true,
@@ -111,6 +118,7 @@ export const MARKETPLACE_PLUGINS: MarketplacePlugin[] = [
     category: "PROFESSIONAL_NETWORK",
     type: "AUTH_REQUIRED",
     authProvider: "LINKEDIN",
+    supportedAuthTypes: ["BYOC_COOKIE", "SESSION_TOKEN", "OAUTH"],
     description: "Search LinkedIn public feeds & recruiter profiles safely using permissioned session grants.",
     features: ["HR & recruiter discovery", "Company headcount intelligence", "Employee profile links"],
     isPopular: true,
@@ -122,6 +130,7 @@ export const MARKETPLACE_PLUGINS: MarketplacePlugin[] = [
     category: "PROFESSIONAL_NETWORK",
     type: "AUTH_REQUIRED",
     authProvider: "TWITTER",
+    supportedAuthTypes: ["BYOC_COOKIE", "SESSION_TOKEN", "OAUTH"],
     description: "Scouts hiring announcements, engineering lead posts, and stealth startup job flyers.",
     features: ["Real-time tweet monitoring", "Engineering manager DMs", "Early stealth roles"],
   },
@@ -132,6 +141,7 @@ export const MARKETPLACE_PLUGINS: MarketplacePlugin[] = [
     category: "TECH_COMMUNITY",
     type: "AUTH_REQUIRED",
     authProvider: "REDDIT",
+    supportedAuthTypes: ["BYOC_COOKIE", "SESSION_TOKEN", "OAUTH"],
     description: "Crawls r/forhire, r/cscareerquestions, r/remotework with anti-bot rate management.",
     features: ["Community job posts", "Freelance & contract roles", "Salary discussions"],
   },

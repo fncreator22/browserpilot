@@ -96,7 +96,7 @@ const COMPARISON_STAGES: ComparisonStage[] = [
     tradMetric: "Sub-2% Response",
     bpDetails: [
       "Direct identity resolution for engineering directors and lead recruiters",
-      "100% verified corporate work emails with SMTP handshake confirmation",
+      "100% verified corporate work emails with DNS MX validation",
       "Tailored pitch angles matched to team tech stack and architecture"
     ],
     tradDetails: [
@@ -104,7 +104,7 @@ const COMPARISON_STAGES: ComparisonStage[] = [
       "No direct contact details for hiring managers or technical leads",
       "Generic unmonitored automated receipts with zero human visibility"
     ],
-    portalBadge: "SMTP Handshake Confirmed"
+    portalBadge: "DNS MX Validated"
   }
 ];
 
@@ -576,7 +576,7 @@ export function ScrollComparisonSection() {
                         <MailCheck className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-[#006bff]" />
                         Sarah Lin (VP Infrastructure)
                       </span>
-                      <span className="text-[10px] sm:text-[11px] text-[#006bff] font-bold">SMTP Verified</span>
+                      <span className="text-[10px] sm:text-[11px] text-[#006bff] font-bold">DNS Validated</span>
                     </div>
                     
                     <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#f0f4f8]">

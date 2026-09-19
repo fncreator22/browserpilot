@@ -20,8 +20,8 @@ describe("v3.1 UI Alignment, Card Overflow & Hardening Suite", () => {
       "Marketplace header must NOT use semi-transparent bg-card/40"
     );
     assert.ok(
-      marketplacePage.includes("sticky top-16 z-30"),
-      "Marketplace header must retain sticky positioning"
+      marketplacePage.includes("sticky top-0 z-30"),
+      "Marketplace header must retain sticky positioning at top-0"
     );
   });
 

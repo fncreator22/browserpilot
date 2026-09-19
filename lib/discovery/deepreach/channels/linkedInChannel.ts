@@ -40,7 +40,7 @@ export function parseLinkedInRecruitersFromText(
       .replace(/\s*-\s*LinkedIn.*$/i, "")
       .trim();
 
-    const parts = cleanedTitle.split(/\s*[-–—:]\s*/);
+    const parts = cleanedTitle.split(/\s*[-:\u2013\u2014]\s*/);
     let fullName = parts[0]?.trim() || "";
     let roleTitle = parts[1]?.trim() || "Technical Recruiter & Talent Partner";
 

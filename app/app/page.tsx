@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useCallback } from "react";
+import { useState, useEffect, Suspense, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { 
@@ -11,15 +11,16 @@ import {
   Eye, 
   Layers, 
   Clock, 
-  CheckCircle2,
-  AlertTriangle,
-  RotateCw,
-  Search,
-  Radio,
-  Globe,
-  ShieldCheck,
-  ArrowRight,
-  MapPin
+  CheckCircle2, 
+  AlertTriangle, 
+  RotateCw, 
+  Search, 
+  Radio, 
+  Globe, 
+  ShieldCheck, 
+  ArrowRight, 
+  MapPin,
+  Loader2
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ import { SearchStatusBanner } from "@/components/discovery/search-status-banner"
 import { SearchRefinements } from "@/components/discovery/search-refinements";
 import { CompactExecutionPill } from "@/components/discovery/compact-execution-pill";
 import { PersonalizationIndicator } from "@/components/discovery/personalization-indicator";
+import { SearchAccessGateModal } from "@/components/auth/search-access-gate-modal";
 import { useUIState } from "@/components/providers/ui-state-provider";
 import { usePuter } from "@/hooks/usePuter";
 import { toast } from "sonner";
@@ -66,10 +68,61 @@ function DiscoverContent() {
   const { setActiveSearch } = useUIState();
   const [opportunityData, setOpportunityData] = useState<OpportunitySearchResultPayload | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [isHydratingSearch, setIsHydratingSearch] = useState(false);
   const [activeExecutionId, setActiveExecutionId] = useState<string | undefined>(undefined);
   const [activeQuery, setActiveQuery] = useState(initialQuery);
   const [searchHistory, setSearchHistory] = useState<Array<{ id: string; rawQuery: string; totalFound: number; createdAt: string }>>([]);
   const [hasCheckedHistory, setHasCheckedHistory] = useState(false);
+  const [showAccessGate, setShowAccessGate] = useState(false);
+  const searchCacheRef = useRef<Map<string, OpportunitySearchResultPayload>>(new Map());
+
+  // Automatic one-time warning pop-up if user is not connected to Puter or BYOK API key
+  useEffect(() => {
+    let isMounted = true;
+    async function checkProviderConnection() {
+      if (typeof window === "undefined") return;
+      const isDismissed = sessionStorage.getItem("browserpilot_access_gate_dismissed") === "true";
+      const hasPuter = Boolean(localStorage.getItem("puter.auth.token.v2") || (window as any).puter?.authToken);
+      const hasGemini = Boolean(localStorage.getItem("browserpilot_gemini_key"));
+      const hasDeepseek = Boolean(localStorage.getItem("browserpilot_deepseek_key"));
+
+      if (hasPuter || hasGemini || hasDeepseek) {
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/account/providers");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.providers) && data.providers.some((p: any) => p.status === "ACTIVE" || p.isActive)) {
+            return;
+          }
+        }
+      } catch {}
+
+      if (isMounted && !isDismissed) {
+        setShowAccessGate(true);
+      }
+    }
+
+    checkProviderConnection();
+
+    const handleProviderUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<{ provider?: string; disconnected?: boolean; removed?: boolean }>;
+      if (customEvent.detail?.disconnected || customEvent.detail?.removed) {
+        sessionStorage.removeItem("browserpilot_access_gate_dismissed");
+        checkProviderConnection();
+      } else {
+        setShowAccessGate(false);
+      }
+    };
+    window.addEventListener("browserai:provider-updated", handleProviderUpdate);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("browserai:provider-updated", handleProviderUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     setActiveSearch(isSearching, activeQuery);
@@ -91,15 +144,140 @@ function DiscoverContent() {
     }
   }, []);
 
+  // Load a prior search instantaneously with in-memory cache and input pre-population
+  const loadSearchById = useCallback(async (targetSearchId: string, directQuery?: string) => {
+    try {
+      if (directQuery) {
+        setActiveQuery(directQuery);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("browserai:set-prompt", { detail: { prompt: directQuery } }));
+        }
+      }
+      setIsSearching(false);
+
+      // Check fast in-memory cache
+      if (searchCacheRef.current.has(targetSearchId)) {
+        const cached = searchCacheRef.current.get(targetSearchId)!;
+        setOpportunityData(cached);
+        setActiveQuery(cached.query || directQuery || "");
+        setIsHydratingSearch(false);
+        if (typeof window !== "undefined") {
+          const newUrl = `/app?searchId=${targetSearchId}`;
+          if (window.location.pathname + window.location.search !== newUrl) {
+            window.history.pushState(null, "", newUrl);
+          }
+        }
+        return;
+      }
+      
+      setIsHydratingSearch(true);
+      const histRes = await fetch(`/api/search/history/${targetSearchId}`);
+      if (!histRes.ok) {
+        setIsHydratingSearch(false);
+        return;
+      }
+      const rawHist = await histRes.text();
+      const histData = rawHist && rawHist.trim().length > 0 ? JSON.parse(rawHist) : null;
+      if (histData?.search) {
+        if (histData.search.status === "RUNNING" || histData.search.status === "QUEUED") {
+          setActiveQuery(histData.search.rawQuery);
+          setActiveExecutionId(histData.search.id);
+          setIsSearching(true);
+          setIsHydratingSearch(false);
+          return;
+        }
+
+        const verifiedCount = (histData.search.results || []).length;
+        const rawStatus = histData.search.status === "COMPLETED" ? "COMPLETE" : histData.search.status;
+        const status = (verifiedCount === 0 && (rawStatus === "COMPLETE" || rawStatus === "COMPLETED"))
+          ? "NO_RESULTS"
+          : rawStatus;
+
+        const canonicalIntent = histData.search.canonicalIntent || {
+          role: histData.search.parsedRole || undefined,
+          roles: histData.search.parsedRole ? [histData.search.parsedRole] : [],
+          skills: histData.search.parsedSkills || [],
+          location: histData.search.parsedLocation || undefined,
+          locations: histData.search.parsedLocation ? [histData.search.parsedLocation] : [],
+          workMode: histData.search.parsedWorkMode || undefined,
+          workModes: histData.search.parsedWorkMode ? [histData.search.parsedWorkMode] : [],
+          targetGradYear: histData.search.targetGradYear || undefined,
+        };
+
+        const dynamicRequestedCount = histData.search.requestedCount || Math.max(verifiedCount, 15);
+
+        const formattedPayload: OpportunitySearchResultPayload = {
+          searchId: histData.search.id,
+          status,
+          query: histData.search.rawQuery,
+          results: histData.search.results || [],
+          verifiedCount,
+          requestedCount: dynamicRequestedCount,
+          canonicalIntent,
+          intent: canonicalIntent,
+          diagnostics: {
+            requestedCount: dynamicRequestedCount,
+            validResultCount: verifiedCount,
+            rejectedResultCount: 0,
+            stoppingReason: verifiedCount === 0 ? "NO_PROGRESS" : "TARGET_SATISFIED",
+          },
+          explanation: verifiedCount > 0
+            ? `Restored search conversation for "${histData.search.rawQuery}".`
+            : `No verified opportunities found for "${histData.search.rawQuery}".`,
+          metadata: {
+            totalUniqueOpportunities: verifiedCount,
+            returnedCount: verifiedCount,
+            durationMs: 0,
+            providersAttempted: 3,
+            providersSucceeded: 3,
+            explanation: verifiedCount > 0 ? "Restored search conversation." : "No verified opportunities found.",
+          },
+        };
+
+        searchCacheRef.current.set(targetSearchId, formattedPayload);
+        setOpportunityData(formattedPayload);
+        setActiveQuery(histData.search.rawQuery);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("browserai:set-prompt", { detail: { prompt: histData.search.rawQuery } }));
+          const newUrl = `/app?searchId=${targetSearchId}`;
+          if (window.location.pathname + window.location.search !== newUrl) {
+            window.history.pushState(null, "", newUrl);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[AppPage] Failed to load search by id:", err);
+    } finally {
+      setIsHydratingSearch(false);
+    }
+  }, []);
+
+  // Listen for instant search hydration custom events from sidebar
+  useEffect(() => {
+    const handleLoadSearchEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ searchId: string; rawQuery?: string }>;
+      if (customEvent.detail?.searchId) {
+        loadSearchById(customEvent.detail.searchId, customEvent.detail.rawQuery);
+      }
+    };
+    window.addEventListener("browserai:load-search", handleLoadSearchEvent);
+    return () => window.removeEventListener("browserai:load-search", handleLoadSearchEvent);
+  }, [loadSearchById]);
+
+  // Reactive watcher for searchIdParam URL changes
+  useEffect(() => {
+    if (searchIdParam && (!opportunityData || opportunityData.searchId !== searchIdParam)) {
+      loadSearchById(searchIdParam);
+    }
+  }, [searchIdParam, loadSearchById, opportunityData]);
+
   // Active search recovery and search history lookup (TASK-067 & Quality Pass Round 1)
   useEffect(() => {
     let cancelled = false;
     async function initDiscover() {
       try {
-        // 1. Fetch user search history to determine returning vs first-time state
         await refreshSearchHistory();
 
-        // 2. Check active search
         const cancelledExecutionId = typeof window !== "undefined"
           ? sessionStorage.getItem("browserai:cancelled_execution")
           : null;
@@ -117,70 +295,6 @@ function DiscoverContent() {
           setActiveQuery(data.query);
           if (data.executionId) setActiveExecutionId(data.executionId);
           setIsSearching(true);
-        } else if (searchIdParam && !opportunityData) {
-          const targetSearchId = searchIdParam;
-          if (cancelledExecutionId && targetSearchId === cancelledExecutionId) {
-            return;
-          }
-          const histRes = await fetch(`/api/search/history/${targetSearchId}`);
-          if (histRes.ok) {
-            const rawHist = await histRes.text();
-            const histData = rawHist && rawHist.trim().length > 0 ? JSON.parse(rawHist) : null;
-            if (!cancelled && histData?.search) {
-              if (histData.search.status === "RUNNING" || histData.search.status === "QUEUED") {
-                setActiveQuery(histData.search.rawQuery);
-                setActiveExecutionId(histData.search.id);
-                setIsSearching(true);
-                return;
-              }
-
-              const verifiedCount = (histData.search.results || []).length;
-              const rawStatus = histData.search.status === "COMPLETED" ? "COMPLETE" : histData.search.status;
-              const status = (verifiedCount === 0 && (rawStatus === "COMPLETE" || rawStatus === "COMPLETED"))
-                ? "NO_RESULTS"
-                : rawStatus;
-
-              const canonicalIntent = histData.search.canonicalIntent || {
-                role: histData.search.parsedRole || undefined,
-                roles: histData.search.parsedRole ? [histData.search.parsedRole] : [],
-                skills: histData.search.parsedSkills || [],
-                location: histData.search.parsedLocation || undefined,
-                locations: histData.search.parsedLocation ? [histData.search.parsedLocation] : [],
-                workMode: histData.search.parsedWorkMode || undefined,
-                workModes: histData.search.parsedWorkMode ? [histData.search.parsedWorkMode] : [],
-                targetGradYear: histData.search.targetGradYear || undefined,
-              };
-
-              setOpportunityData({
-                searchId: histData.search.id,
-                status,
-                query: histData.search.rawQuery,
-                results: histData.search.results || [],
-                verifiedCount,
-                requestedCount: 10,
-                canonicalIntent,
-                intent: canonicalIntent,
-                diagnostics: {
-                  requestedCount: 10,
-                  validResultCount: verifiedCount,
-                  rejectedResultCount: 0,
-                  stoppingReason: verifiedCount === 0 ? "NO_PROGRESS" : "TARGET_SATISFIED",
-                },
-                explanation: verifiedCount > 0
-                  ? `Restored recent search for "${histData.search.rawQuery}".`
-                  : `No verified opportunities found for "${histData.search.rawQuery}".`,
-                metadata: {
-                  totalUniqueOpportunities: verifiedCount,
-                  returnedCount: verifiedCount,
-                  durationMs: 0,
-                  providersAttempted: 3,
-                  providersSucceeded: 3,
-                  explanation: verifiedCount > 0 ? "Restored recent search." : "No verified opportunities found.",
-                },
-              });
-              setActiveQuery(histData.search.rawQuery);
-            }
-          }
         }
       } catch {
         // Non-fatal active search check
@@ -190,7 +304,7 @@ function DiscoverContent() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshSearchHistory]);
 
   const handleBookmarkChange = (opportunityId: string, isSaved: boolean) => {
     if (!opportunityData) return;
@@ -345,7 +459,7 @@ function DiscoverContent() {
       <main className="flex-1 container mx-auto max-w-7xl px-4 py-6 pb-32 md:pb-12 sm:px-6 space-y-6">
         {/* CASE 1: INITIAL STATE (Claude / ChatGPT / Nothing OS Pristine First Impressions) */}
         <AnimatePresence mode="wait">
-          {!opportunityData && !isSearching ? (
+          {!opportunityData && !isSearching && !isHydratingSearch ? (
             <motion.div
               key="intake-hero"
               initial={{ opacity: 0, y: 10 }}
@@ -388,13 +502,13 @@ function DiscoverContent() {
                     <Clock className="h-3 w-3" />
                     Recent:
                   </span>
-                  {searchHistory.slice(0, 3).map((item) => (
+                  {searchHistory.slice(0, 4).map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => {
                         setActiveQuery(item.rawQuery);
-                        executeDiscoverySearch(item.rawQuery, true);
+                        loadSearchById(item.id, item.rawQuery);
                       }}
                       className="px-2.5 py-1 rounded-full bg-muted/50 hover:bg-muted border border-border/60 hover:border-border text-foreground text-[11px] transition-colors cursor-pointer max-w-[200px] truncate"
                       title={item.rawQuery}
@@ -470,6 +584,22 @@ function DiscoverContent() {
                     onError={handleSearchError}
                     onCancel={handleCancelActiveSearch}
                   />
+                </div>
+              </motion.div>
+            )}
+
+            {/* HYDRATING SEARCH State: Fast Visual Feedback */}
+            {isHydratingSearch && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.15 }}
+                className="flex flex-col items-center justify-center py-8 space-y-3"
+              >
+                <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground bg-muted/60 border border-border/80 px-3.5 py-1.5 rounded-full shadow-xs">
+                  <RotateCw className="h-3.5 w-3.5 animate-spin text-primary" />
+                  <span>Loading verified candidates for &ldquo;{activeQuery}&rdquo;...</span>
                 </div>
               </motion.div>
             )}
@@ -685,6 +815,19 @@ function DiscoverContent() {
         </AnimatePresence>
 
 
+        {/* Automatic 1-Time Provider Warning Access Gate Modal */}
+        <SearchAccessGateModal
+          isOpen={showAccessGate}
+          onClose={() => {
+            setShowAccessGate(false);
+            sessionStorage.setItem("browserpilot_access_gate_dismissed", "true");
+          }}
+          onConnected={() => {
+            setShowAccessGate(false);
+            sessionStorage.setItem("browserpilot_access_gate_dismissed", "true");
+          }}
+          queryAttempted={activeQuery || undefined}
+        />
       </main>
     </div>
   );

@@ -9,9 +9,35 @@
  * or session leakage between runs.
  */
 
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import type { Browser, BrowserContext, Page } from "playwright";
 import { BrowserSessionManager } from "./browserSessionManager";
 import { BrowserConnectorError } from "./browserSessionTypes";
+import { parseCookieHeader } from "@/lib/security/credentialEncryption";
+
+/**
+ * Detects whether the current runtime is a serverless cloud container (e.g. Vercel Lambda, AWS Lambda).
+ */
+export function isServerlessEnvironment(): boolean {
+  return Boolean(
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.NETLIFY ||
+    process.env.NEXT_RUNTIME === "edge"
+  );
+}
+
+/**
+ * Dynamically loads Playwright chromium to prevent bundling bloat in serverless routes.
+ */
+async function getPlaywrightChromium() {
+  try {
+    const pw = await import("playwright");
+    return pw.chromium;
+  } catch (err) {
+    console.warn("[EphemeralBrowserContextRunner] Playwright failed to load dynamically:", err);
+    return null;
+  }
+}
 
 export interface EphemeralCookie {
   name: string;
@@ -47,7 +73,12 @@ export interface EphemeralContextHandle {
 const DEFAULT_SOURCE_DOMAINS: Record<string, string> = {
   LINKEDIN: ".linkedin.com",
   GOOGLE: ".google.com",
+  GOOGLE_JOBS: ".google.com",
   INDEED: ".indeed.com",
+  TWITTER: ".twitter.com",
+  X_TWITTER: ".x.com",
+  X: ".x.com",
+  REDDIT: ".reddit.com",
   GREENHOUSE: "boards.greenhouse.io",
   LEVER: "jobs.lever.co",
   ASHBY: "jobs.ashbyhq.com",
@@ -132,6 +163,47 @@ export class EphemeralBrowserContextRunner {
       return cookies;
     }
 
+    // Case 1b: Structured key-value dictionary in rawState.cookies { li_at: "val" } (e.g. BYOC session import)
+    if (rawState.cookies && typeof rawState.cookies === "object" && !Array.isArray(rawState.cookies)) {
+      for (const [key, val] of Object.entries(rawState.cookies as Record<string, unknown>)) {
+        if (typeof val === "string" && val.length > 0 && !["__proto__", "constructor", "prototype"].includes(key)) {
+          cookies.push({
+            name: key,
+            value: val,
+            domain: defaultDomain,
+            path: "/",
+            httpOnly: true,
+            secure: true,
+            sameSite: "Lax",
+          });
+        }
+      }
+      if (cookies.length > 0) {
+        return cookies;
+      }
+    }
+
+    // Case 1c: Raw cookieString header present (e.g. from BYOC import or fallback)
+    if (typeof rawState.cookieString === "string" && rawState.cookieString.trim()) {
+      const parsed = parseCookieHeader(rawState.cookieString);
+      for (const [key, val] of Object.entries(parsed)) {
+        if (typeof val === "string" && val.length > 0 && !["__proto__", "constructor", "prototype"].includes(key)) {
+          cookies.push({
+            name: key,
+            value: val,
+            domain: defaultDomain,
+            path: "/",
+            httpOnly: true,
+            secure: true,
+            sameSite: "Lax",
+          });
+        }
+      }
+      if (cookies.length > 0) {
+        return cookies;
+      }
+    }
+
     // Case 2: Array of cookie objects directly
     if (Array.isArray(rawState)) {
       for (const item of rawState) {
@@ -151,9 +223,26 @@ export class EphemeralBrowserContextRunner {
       return cookies;
     }
 
-    // Case 3: Raw key-value dictionary { li_at: "val", JSESSIONID: "val" }
+    // Case 3: Raw key-value dictionary { li_at: "val", JSESSIONID: "val" } (excluding session envelope keys)
+    const ignoredKeys = new Set([
+      "origins",
+      "sessionStorage",
+      "cookieString",
+      "cookies",
+      "token",
+      "importedAt",
+      "metadata",
+      "isByoc",
+      "cookieCount",
+      "hasToken",
+      "username",
+      "__proto__",
+      "constructor",
+      "prototype",
+    ]);
+
     for (const [key, val] of Object.entries(rawState)) {
-      if (typeof val === "string" && val.length > 0 && key !== "origins" && key !== "sessionStorage") {
+      if (typeof val === "string" && val.length > 0 && !ignoredKeys.has(key)) {
         cookies.push({
           name: key,
           value: val,
@@ -212,10 +301,38 @@ export class EphemeralBrowserContextRunner {
       context = options.mockContext;
       page = await context.newPage();
     } else {
+      // Guard against headless browser launch attempts in serverless environments (e.g. Vercel)
+      if (isServerlessEnvironment() && !options.browserInstance) {
+        throw new BrowserConnectorError({
+          source: normalizedSource,
+          category: "SYSTEM_FAILURE",
+          retryable: false,
+          userActionRequired: false,
+          message: `Ephemeral Playwright sandbox execution is disabled in serverless cloud environments (Vercel). Falling back to HTTP evidence verification.`,
+          userFacingMessage: `Headless browser sandbox is not supported in serverless runtimes. Using direct secure HTTP verification.`,
+          internalCode: "SERVERLESS_SANDBOX_BYPASS",
+          correlationId: `srvless_${Date.now()}_${userId.slice(0, 8)}`,
+        });
+      }
+
       let browser = options.browserInstance;
       if (!browser) {
+        const chromiumLauncher = await getPlaywrightChromium();
+        if (!chromiumLauncher) {
+          throw new BrowserConnectorError({
+            source: normalizedSource,
+            category: "SYSTEM_FAILURE",
+            retryable: false,
+            userActionRequired: false,
+            message: `Playwright Chromium binary is unavailable in current runtime.`,
+            userFacingMessage: `Browser automation engine unavailable in current environment.`,
+            internalCode: "CHROMIUM_BINARY_MISSING",
+            correlationId: `no_chrom_${Date.now()}_${userId.slice(0, 8)}`,
+          });
+        }
+
         ownsBrowser = true;
-        browser = await chromium.launch({
+        browser = await chromiumLauncher.launch({
           headless: true,
           args: [
             "--no-sandbox",

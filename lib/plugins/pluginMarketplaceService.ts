@@ -9,6 +9,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import crypto from "node:crypto";
+import { browserSessionManager } from "@/lib/discovery/browser/browserSessionManager";
 import { 
   type PluginType, 
   type PluginCategory, 
@@ -47,7 +48,7 @@ export class PluginMarketplaceService {
     const [userSessions, providerConnections, allDbSources] = await Promise.all([
       userId
         ? prisma.browserSession.findMany({
-            where: { userId, status: "CONNECTED" },
+            where: { userId },
           }).catch(() => [])
         : [],
       userId
@@ -98,15 +99,18 @@ export class PluginMarketplaceService {
       }
     }
 
-    const findActiveConnection = (pluginId: string): { isConnected: boolean; session?: any } => {
+    const findActiveConnection = (pluginId: string): { isConnected: boolean; isExpired: boolean; session?: any } => {
       const aliases = SOURCE_ALIASES[pluginId.toLowerCase()] || [pluginId.toLowerCase()];
       for (const alias of aliases) {
         const match = activeSessionMap.get(alias.toLowerCase());
         if (match) {
-          return { isConnected: true, session: match };
+          const expiredByDate = match.expiresAt && new Date(match.expiresAt).getTime() <= Date.now();
+          const isExpired = match.status === "EXPIRED" || match.status === "REQUIRES_VERIFICATION" || Boolean(expiredByDate);
+          const isConnected = (match.status === "CONNECTED" || !match.status) && !isExpired;
+          return { isConnected, isExpired, session: match };
         }
       }
-      return { isConnected: false };
+      return { isConnected: false, isExpired: false };
     };
 
     // Disabled or blocked sources configured in admin panel
@@ -157,7 +161,7 @@ export class PluginMarketplaceService {
     }
 
     return mergedPlugins.map((plugin) => {
-      const { isConnected: hasSession, session } = findActiveConnection(plugin.id);
+      const { isConnected: hasSession, isExpired, session } = findActiveConnection(plugin.id);
       const aliases = SOURCE_ALIASES[plugin.id.toLowerCase()] || [plugin.id.toLowerCase()];
       const isPreferred =
         aliases.some((a) => preferredSources.includes(a.toLowerCase())) ||
@@ -165,16 +169,43 @@ export class PluginMarketplaceService {
 
       // AUTH_REQUIRED plugins (Twitter/X, LinkedIn, Google, Reddit) strictly require an active authenticated session
       // DIRECT_FREE plugins are connected if user explicitly enabled them or has an active session
-      const isConnected = plugin.type === "AUTH_REQUIRED"
+      const isConnected = isExpired
+        ? false
+        : plugin.type === "AUTH_REQUIRED"
         ? hasSession
         : (hasSession || isPreferred);
+
+      let status: UserPluginStatus["status"] = "DISCONNECTED";
+      if (isExpired) {
+        status = "EXPIRED";
+      } else if (isConnected) {
+        status = "CONNECTED";
+      } else if (plugin.type === "AUTH_REQUIRED") {
+        status = "REQUIRES_AUTH";
+      }
+
+      let meta: any = {};
+      try {
+        if (session?.metadata) {
+          meta = typeof session.metadata === "string" ? JSON.parse(session.metadata) : session.metadata;
+        }
+      } catch {}
+
+      const reauthRequired = isExpired || Boolean(meta?.reauthRequired);
+      const reauthReason = isExpired
+        ? (meta?.lastAuthFailure?.reason || "Session expired or rejected by remote platform.")
+        : null;
 
       return {
         ...plugin,
         isConnected,
-        status: isConnected ? "CONNECTED" : plugin.type === "DIRECT_FREE" ? "DISCONNECTED" : "REQUIRES_AUTH",
+        status,
+        reauthRequired,
+        reauthReason,
+        lastHealthCheck: session?.lastVerifiedAt?.toISOString ? session.lastVerifiedAt.toISOString() : null,
+        authMethod: session?.authMethod || (plugin.type === "DIRECT_FREE" ? "DIRECT_FREE" : "SESSION_TOKEN"),
         connectedAt: session?.createdAt?.toISOString ? session.createdAt.toISOString() : (isConnected ? new Date().toISOString() : null),
-        maskedAccount: session?.username || (isConnected ? "Active in Discovery" : null),
+        maskedAccount: session?.username || (isConnected ? "Active in Discovery" : isExpired ? "Session Expired" : null),
         expiresAt: session?.expiresAt?.toISOString ? session.expiresAt.toISOString() : null,
       };
     });
@@ -186,7 +217,15 @@ export class PluginMarketplaceService {
   public async connectPlugin(
     userId: string,
     pluginId: string,
-    options: { code?: string; accountName?: string; redirectUri?: string; handle?: string } = {}
+    options: {
+      code?: string;
+      accountName?: string;
+      redirectUri?: string;
+      handle?: string;
+      cookieString?: string;
+      token?: string;
+      authMethod?: string;
+    } = {}
   ): Promise<{
     success: boolean;
     pluginId: string;
@@ -351,36 +390,47 @@ export class PluginMarketplaceService {
       };
     }
 
-    // CASE 3: Other Authenticated Plugins (LinkedIn, Google, Reddit)
+    // CASE 3: Other Authenticated Plugins (LinkedIn, Google, Reddit, etc.)
     if (plugin.type === "AUTH_REQUIRED") {
       const maskedName = options.accountName || `${plugin.displayName} Account`;
-      const encrypted = Buffer.from(JSON.stringify({ account: maskedName, connectedAt: Date.now() })).toString("base64");
 
-      try {
-        await prisma.browserSession.upsert({
-          where: {
-            userId_source: {
+      if (options.cookieString || options.token) {
+        await browserSessionManager.importByocSession(userId, plugin.id.toUpperCase(), {
+          cookieString: options.cookieString,
+          token: options.token,
+          username: maskedName,
+          metadata: { pluginId: plugin.id },
+        });
+      } else {
+        const { encryptCredential } = await import("@/lib/security/credentialEncryption");
+        const encrypted = encryptCredential(JSON.stringify({ account: maskedName, connectedAt: Date.now() })) || "";
+
+        try {
+          await prisma.browserSession.upsert({
+            where: {
+              userId_source: {
+                userId,
+                source: plugin.id.toUpperCase(),
+              },
+            },
+            create: {
               userId,
               source: plugin.id.toUpperCase(),
+              status: "CONNECTED",
+              encryptedState: encrypted,
+              authMethod: (options.authMethod as any) || "SESSION_TOKEN",
+              username: maskedName,
             },
-          },
-          create: {
-            userId,
-            source: plugin.id.toUpperCase(),
-            status: "CONNECTED",
-            encryptedState: encrypted,
-            authMethod: "SESSION_TOKEN",
-            username: maskedName,
-          },
-          update: {
-            status: "CONNECTED",
-            encryptedState: encrypted,
-            username: maskedName,
-            updatedAt: new Date(),
-          },
-        });
-      } catch (dbErr: any) {
-        console.warn(`[PluginMarketplaceService] BrowserSession auth connect notice:`, dbErr?.message || dbErr);
+            update: {
+              status: "CONNECTED",
+              encryptedState: encrypted,
+              username: maskedName,
+              updatedAt: new Date(),
+            },
+          });
+        } catch (dbErr: any) {
+          console.warn(`[PluginMarketplaceService] BrowserSession auth connect notice:`, dbErr?.message || dbErr);
+        }
       }
 
       return {

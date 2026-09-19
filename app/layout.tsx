@@ -9,6 +9,7 @@ import { CommandPalette } from "@/components/navigation/command-palette";
 import { GlobalSettingsModal } from "@/components/settings/global-settings-modal";
 import { AuditInteractionListener } from "@/components/audit/audit-interaction-listener";
 import { AnalyticsProvider } from "@/components/analytics/analytics-provider";
+import { RouteProgressBar } from "@/components/navigation/route-progress-bar";
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -80,6 +81,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${plusJakartaSans.variable} ${geistMono.variable} min-h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
+        <RouteProgressBar />
         <Script src="https://js.puter.com/v2/" strategy="afterInteractive" />
         <AuthSessionProvider>
           <UIStateProvider>

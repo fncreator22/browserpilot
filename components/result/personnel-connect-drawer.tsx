@@ -38,6 +38,10 @@ export interface ContactPersonnelItem {
   portfolioUrl?: string | null;
   contactType?: string | null;
   isVerified?: boolean;
+  confidenceScore?: number | null;
+  emailVerificationTier?: "derived" | "mx_verified" | "directory" | string | null;
+  provenance?: string | null;
+  mxRecords?: string[] | null;
 }
 
 interface PersonnelConnectDrawerProps {
@@ -47,6 +51,50 @@ interface PersonnelConnectDrawerProps {
   jobTitle: string;
   location?: string;
   contacts?: ContactPersonnelItem[];
+}
+
+function getProvenanceBadge(contact: ContactPersonnelItem) {
+  const tier = contact.emailVerificationTier;
+  const prov = contact.provenance;
+
+  if (tier === "mx_verified" || prov === "DNS Validated") {
+    return (
+      <span
+        className="text-[10px] px-1.5 py-0.5 rounded font-mono border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 flex items-center gap-1"
+        title={contact.mxRecords?.length ? `Valid MX: ${contact.mxRecords.slice(0, 2).join(", ")}` : "Domain MX records validated"}
+      >
+        <ShieldCheck className="h-3 w-3 text-emerald-500" />
+        DNS Validated
+      </span>
+    );
+  }
+
+  if (
+    tier === "directory" ||
+    prov === "Company Talent Directory" ||
+    contact.contactType === "OFFICIAL_PORTAL" ||
+    contact.fullName.toLowerCase().includes("team")
+  ) {
+    return (
+      <span
+        className="text-[10px] px-1.5 py-0.5 rounded font-mono border bg-[#0b3558]/10 text-[#0b3558] dark:text-sky-300 border-[#0b3558]/20 flex items-center gap-1"
+        title="Verified official company talent directory"
+      >
+        <Building2 className="h-3 w-3 text-[#006bff]" />
+        Company Talent Directory
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="text-[10px] px-1.5 py-0.5 rounded font-mono border bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 flex items-center gap-1"
+      title="Synthesized from public recruiter profile slug"
+    >
+      <UserCheck className="h-3 w-3 text-amber-500" />
+      Direct Recruiter Slug (Derived Email)
+    </span>
+  );
 }
 
 export function PersonnelConnectDrawer({
@@ -185,7 +233,7 @@ export function PersonnelConnectDrawer({
               </Badge>
               <Badge variant="outline" className="text-[10px] font-mono bg-primary/10 text-primary border-primary/20 flex items-center gap-1">
                 <ShieldCheck className="h-3 w-3 text-primary" />
-                <span>DeepReach v3.1</span>
+                <span>DeepReach DNS Verified</span>
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -253,7 +301,7 @@ export function PersonnelConnectDrawer({
                   {/* Personnel Info Header */}
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-medium text-xs sm:text-sm text-foreground">
                           {contact.fullName}
                         </span>
@@ -269,6 +317,7 @@ export function PersonnelConnectDrawer({
                         }`}>
                           {isHR ? "Recruiter" : "Team Lead"}
                         </span>
+                        {getProvenanceBadge(contact)}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {contact.roleTitle} {contact.department ? `• ${contact.department}` : ""}
@@ -284,6 +333,19 @@ export function PersonnelConnectDrawer({
                         <div className="flex items-center gap-1.5 truncate">
                           <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
                           <span className="truncate font-mono text-[11px]">{contact.email}</span>
+                          {contact.emailVerificationTier === "mx_verified" || contact.provenance === "DNS Validated" ? (
+                            <span className="text-[9px] px-1 py-0.2 rounded font-mono bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shrink-0" title="Domain MX Verified">
+                              MX Valid
+                            </span>
+                          ) : contact.emailVerificationTier === "directory" || contact.provenance === "Company Talent Directory" || contact.contactType === "OFFICIAL_PORTAL" || contact.fullName.toLowerCase().includes("team") ? (
+                            <span className="text-[9px] px-1 py-0.2 rounded font-mono bg-[#0b3558]/10 text-[#0b3558] dark:text-sky-300 border border-[#0b3558]/20 shrink-0" title="Official Talent Directory">
+                              Directory
+                            </span>
+                          ) : (
+                            <span className="text-[9px] px-1 py-0.2 rounded font-mono bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0" title="Pattern Derived Email">
+                              Derived
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           <button

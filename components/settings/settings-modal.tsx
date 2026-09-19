@@ -55,6 +55,7 @@ import { PrototypeBadge } from "@/components/ui/prototype-badge";
 import { getPlanPrice, formatCurrency } from "@/lib/billing/currency";
 import { ConnectorPreferencesPanel } from "@/components/connectors/connector-preferences-modal";
 import { CareerMemoryForm } from "@/components/profile/career-memory-form";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { 
   DEFAULT_DEEPREACH_CHANNELS, 
   type DeepReachChannelsPreferences 
@@ -923,6 +924,23 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     >
                       ₹ INR
                     </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Interface Appearance Preference */}
+              <div className="pt-3 border-t border-border/50">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/30 p-3.5 rounded-xl border border-border/70">
+                  <div>
+                    <label className="text-xs font-semibold text-foreground font-sans block">
+                      Interface Appearance
+                    </label>
+                    <p className="text-[11px] text-muted-foreground font-sans mt-0.5">
+                      Toggle workspace contrast between Obsidian Dark and Porcelain Light.
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex items-center gap-2">
+                    <ThemeToggle />
                   </div>
                 </div>
               </div>

@@ -89,7 +89,7 @@ const CAPABILITIES: CapabilityItem[] = [
       subheading: "Target Role: Staff Infrastructure at OpenAI",
       items: [
         { label: "Engineering Director", value: "Elena Rostova • Infrastructure", badge: "Hiring Manager" },
-        { label: "Verified Direct Email", value: "e.rostova@openai.com", badge: "SMTP Verified 100%" },
+        { label: "Verified Direct Email", value: "e.rostova@openai.com", badge: "DNS Validated" },
         { label: "Lead Tech Recruiter", value: "Marcus Vance • AI Infra", badge: "Active Now" },
         { label: "Recommended Pitch Angle", value: "Highlight distributed consensus & GPU orchestration", badge: "AI Tailored" }
       ],

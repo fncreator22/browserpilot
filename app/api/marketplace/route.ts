@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
 import { prisma } from "@/lib/db/prisma";
+import { searchCachedOpportunities, primeOpportunityCacheFromDb } from "@/lib/redis/redisOpportunityCache";
+import { resolveCompanyPersonnel } from "@/lib/discovery/personnel/companyPersonnelDirectory";
 
 export const dynamic = "force-dynamic";
 
@@ -115,16 +117,14 @@ function safeParseList(raw: unknown): string[] {
   return [];
 }
 
-import { resolveCompanyPersonnel } from "@/lib/discovery/personnel/companyPersonnelDirectory";
-
 export async function GET(request: NextRequest) {
-
   try {
     const session = await getServerSession(authOptions).catch(() => null);
     const userId = (session?.user as { id?: string })?.id;
 
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q")?.trim() || "";
+    const role = searchParams.get("role")?.trim() || "";
     const category = searchParams.get("category")?.trim() || "ALL";
     const workMode = searchParams.get("workMode")?.trim() || "ANY";
     const experienceLevel = searchParams.get("experienceLevel")?.trim() || "ANY";
@@ -133,153 +133,52 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(60, Math.max(1, parseInt(searchParams.get("limit") || "24", 10)));
     const sort = searchParams.get("sort") || "latest";
 
-    // Build Prisma query conditions
-    const where: any = {
-      status: "ACTIVE",
-    };
-
-    if (workMode && workMode !== "ANY") {
-      where.workMode = workMode;
-    }
-
-    if (experienceLevel && experienceLevel !== "ANY") {
-      where.experienceLevel = experienceLevel;
-    }
-
-    if (postedWithinDays && postedWithinDays > 0) {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - postedWithinDays);
-      where.lastVerifiedAt = { gte: cutoff };
-    }
-
-    if (q) {
-      where.OR = [
-        { title: { contains: q, mode: "insensitive" } },
-        { companyName: { contains: q, mode: "insensitive" } },
-        { description: { contains: q, mode: "insensitive" } },
-        { skills: { contains: q, mode: "insensitive" } },
-      ];
-    }
-
-    // Role or category filtering
-    if (category && category !== "ALL") {
-      const categoryKeywords: Record<string, string[]> = {
-        AI_ML: ["AI", "Machine Learning", "LLM", "Data", "Vision", "ML", "PyTorch"],
-        INFRASTRUCTURE: ["DevOps", "Cloud", "Kubernetes", "AWS", "Infrastructure", "Platform", "SRE", "Backend"],
-        FRONTEND: ["Frontend", "React", "Next.js", "Full Stack", "TypeScript", "UI", "Web"],
-        PRODUCT_DESIGN: ["Product Manager", "Design", "UX", "UI/UX", "Product"],
-        FINTECH: ["Fintech", "Payment", "Risk", "Trading", "Banking"],
-        MARKETING: ["Marketing", "Growth", "SEO", "Content", "Brand", "Campaign"],
-        SALES: ["Sales", "Account Executive", "BDR", "SDR", "RevOps", "Business Development"],
-        OPERATIONS: ["Operations", "Ops", "Chief of Staff", "Strategy", "Logistics", "Program Manager"],
-        FINANCE: ["Finance", "Accounting", "Financial", "Fintech", "Tax", "Audit", "Treasury"],
-        HEALTHCARE: ["Healthcare", "Health", "Clinical", "Biotech", "Medical", "Pharma"],
-        CUSTOMER_SUCCESS: ["Customer Success", "Support", "Client Success", "Account Manager", "CX"],
-        LEGAL: ["Legal", "Counsel", "Compliance", "Regulatory", "Attorney"],
-        DESIGN: ["Design", "Designer", "UX", "UI", "Graphic", "Creative", "Art Director"],
-      };
-
-      const keywords = categoryKeywords[category];
-      if (keywords && keywords.length > 0) {
-        const catConditions = keywords.map((k) => ({
-          title: { contains: k, mode: "insensitive" },
-        }));
-        if (where.OR) {
-          where.AND = [{ OR: where.OR }, { OR: catConditions }];
-          delete where.OR;
-        } else {
-          where.OR = catConditions;
+    // Auto-prime database and cache if empty on clean start
+    if (!q) {
+      const dbCount = await prisma.opportunity.count({ where: { status: "ACTIVE" } }).catch(() => 0);
+      if (dbCount === 0) {
+        try {
+          const { atsProvider } = await import("@/lib/scraper/providers/atsProvider");
+          await atsProvider.harvestCandidates(
+            { role: "Software Engineer", queryHint: "Software Engineer" },
+            { maxCandidates: 30, timeoutMs: 10000 }
+          );
+          await primeOpportunityCacheFromDb(true);
+        } catch (seedErr) {
+          console.warn("[MarketplaceAPI] Auto-prime error:", seedErr);
         }
       }
     }
 
-    // Ensure only genuine verified companies appear (exclude placeholders/demos/frontier tests)
-    const excludePatterns = [
-      "Acme", "Demo", "Test", "Frontier", "Placeholder", "Example", 
-      "HyperScale", "NewCo", "Alpha Tech", "Beta Labs", "Razorpay_",
-      "Apex Technologies", "Scale AI Ops"
-    ];
-    const excludeDemos = [
-      ...excludePatterns.map((pat) => ({ companyName: { contains: pat, mode: "insensitive" as const } })),
-      { title: { contains: "[Demo]", mode: "insensitive" as const } },
-      { title: { contains: "Demo", mode: "insensitive" as const } },
-      { primaryApplyUrl: { contains: "example.com", mode: "insensitive" as const } },
-      { primaryApplyUrl: { contains: "yc-ai-", mode: "insensitive" as const } },
-      { primaryApplyUrl: { contains: "newcodev.com", mode: "insensitive" as const } },
-      { primaryApplyUrl: { contains: "quantum.careers", mode: "insensitive" as const } },
-      { primaryApplyUrl: { contains: "apex.careers", mode: "insensitive" as const } },
-    ];
-    if (where.AND) {
-      where.AND.push({ NOT: excludeDemos });
-    } else {
-      where.NOT = excludeDemos;
-    }
-
-    // Determine sorting
-    let orderBy: any = { lastVerifiedAt: "desc" };
-    if (sort === "salary") {
-      orderBy = { salaryMax: "desc" };
-    } else if (sort === "oldest") {
-      orderBy = { firstSeenAt: "asc" };
-    }
-
-    let total = await prisma.opportunity.count({ where });
-
-    if (total === 0 && (!q || q.length === 0)) {
-      // Auto-prime database with initial batch of genuine top tech ATS opportunities
+    // Resolve user saved opportunity IDs if authenticated
+    const savedOppIds = new Set<string>();
+    if (userId) {
       try {
-        const { atsProvider } = await import("@/lib/scraper/providers/atsProvider");
-        await atsProvider.harvestCandidates(
-          { role: "Software Engineer", queryHint: "Software Engineer" },
-          { maxCandidates: 30, timeoutMs: 10000 }
-        );
-        total = await prisma.opportunity.count({ where });
-      } catch (seedErr) {
-        console.warn("[MarketplaceAPI] Auto-prime error:", seedErr);
-      }
+        const saved = await prisma.savedOpportunity.findMany({
+          where: { userId },
+          select: { opportunityId: true },
+        });
+        for (const s of saved) {
+          savedOppIds.add(s.opportunityId);
+        }
+      } catch {}
     }
 
-    const opportunities = await prisma.opportunity.findMany({
-      where,
-      orderBy,
-      skip: (page - 1) * limit,
-      take: limit,
-      include: {
-        sourceListings: {
-          select: {
-            sourcePlatform: true,
-            applyUrl: true,
-            verificationStatus: true,
-            rawSnippet: true,
-            seenAt: true,
-          },
-          take: 3,
-        },
-        companyContacts: {
-          select: {
-            id: true,
-            fullName: true,
-            roleTitle: true,
-            department: true,
-            profileUrl: true,
-            email: true,
-            personalEmail: true,
-            phone: true,
-            isVerified: true,
-            sourcePlatform: true,
-          },
-          take: 5,
-        },
-        savedByUsers: userId
-          ? {
-              where: { userId },
-              select: { id: true },
-            }
-          : false,
-      },
+    // Query through Redis sliding-window cache (capped at 10,000 items with automatic FIFO eviction)
+    const cacheResult = await searchCachedOpportunities({
+      q,
+      role,
+      category,
+      workMode,
+      experienceLevel,
+      postedWithinDays,
+      page,
+      limit,
+      sort,
+      userId,
     });
 
-    const items = opportunities
+    const items = cacheResult.items
       .filter((opp) => {
         if (/\d{6,}$/.test(opp.companyName.trim())) return false;
         const applyUrl = opp.primaryApplyUrl?.toLowerCase() || "";
@@ -289,71 +188,71 @@ export async function GET(request: NextRequest) {
         return true;
       })
       .map((opp) => {
-      // Priority: Compute freshness based on actual external posting date in snippet or firstSeenAt
-      const primarySnippet = opp.sourceListings[0]?.rawSnippet || opp.description;
-      const originalPostingDate = extractSnippetPostingDate(primarySnippet, opp.firstSeenAt);
-      const freshness = computeFreshness(originalPostingDate);
-      const isSaved = Array.isArray(opp.savedByUsers) && opp.savedByUsers.length > 0;
+        const primarySnippet = opp.sourceListings?.[0]?.rawSnippet || opp.description;
+        const originalPostingDate = extractSnippetPostingDate(primarySnippet, opp.firstSeenAt);
+        const freshness = computeFreshness(originalPostingDate);
+        const isSaved = savedOppIds.has(opp.id);
 
-      const resolvedContacts = (opp.companyContacts && opp.companyContacts.length > 0)
-        ? opp.companyContacts
-        : resolveCompanyPersonnel(opp.companyName).map((p) => ({
-            id: `${opp.id}_${p.fullName.replace(/\s+/g, '_')}`,
-            fullName: p.fullName,
-            roleTitle: p.roleTitle,
-            department: p.department || null,
-            profileUrl: p.profileUrl || null,
-            email: p.email || null,
-            personalEmail: p.personalEmail || null,
-            phone: p.phone || null,
-            isVerified: true,
-            sourcePlatform: p.sourcePlatform || "LINKEDIN",
-          }));
+        const resolvedContacts = (opp.companyContacts && opp.companyContacts.length > 0)
+          ? opp.companyContacts
+          : resolveCompanyPersonnel(opp.companyName).map((p) => ({
+              id: `${opp.id}_${p.fullName.replace(/\s+/g, '_')}`,
+              fullName: p.fullName,
+              roleTitle: p.roleTitle,
+              department: p.department || null,
+              profileUrl: p.profileUrl || null,
+              email: p.email || null,
+              personalEmail: p.personalEmail || null,
+              phone: p.phone || null,
+              isVerified: true,
+              sourcePlatform: p.sourcePlatform || "LINKEDIN",
+            }));
 
-      const cleanCompanyName = opp.companyName.replace(/\s+\d{6,}$/, "").trim();
-      const cleanTitle = opp.title.replace(/^\[Demo\]\s*/i, "").trim();
+        const cleanCompanyName = opp.companyName.replace(/\s+\d{6,}$/, "").trim();
+        const cleanTitle = opp.title.replace(/^\[Demo\]\s*/i, "").trim();
 
-      return {
-        id: opp.id,
-        canonicalHash: opp.canonicalHash,
-        title: cleanTitle,
-        companyName: cleanCompanyName,
-        location: opp.location,
-        workMode: opp.workMode,
-        experienceLevel: opp.experienceLevel,
-        opportunityType: opp.opportunityType,
-        salaryMin: opp.salaryMin,
-        salaryMax: opp.salaryMax,
-        salaryCurrency: opp.salaryCurrency || "USD",
-        description: opp.description,
-        requirements: safeParseList(opp.requirements),
-        skills: safeParseList(opp.skills),
-        primaryApplyUrl: opp.primaryApplyUrl,
-        firstSeenAt: opp.firstSeenAt,
-        lastVerifiedAt: opp.lastVerifiedAt,
-        rawSnippet: opp.sourceListings[0]?.rawSnippet || null,
-        companyContacts: resolvedContacts,
-        status: opp.status,
-        isVerified: (opp.status === "VERIFIED" || opp.sourceListings.some((s) => s.verificationStatus === "VERIFIED")) && !/\d{6,}$/.test(opp.companyName),
-        freshness,
-        isSaved,
-        sources: opp.sourceListings.map((s) => ({
-          platform: s.sourcePlatform,
-          applyUrl: s.applyUrl,
-          verified: s.verificationStatus === "VERIFIED",
-        })),
-      };
-    });
+        return {
+          id: opp.id,
+          canonicalHash: opp.canonicalHash,
+          title: cleanTitle,
+          companyName: cleanCompanyName,
+          location: opp.location,
+          workMode: opp.workMode,
+          experienceLevel: opp.experienceLevel,
+          opportunityType: opp.opportunityType,
+          salaryMin: opp.salaryMin,
+          salaryMax: opp.salaryMax,
+          salaryCurrency: opp.salaryCurrency || "USD",
+          description: opp.description,
+          requirements: safeParseList(opp.requirements),
+          skills: safeParseList(opp.skills),
+          primaryApplyUrl: opp.primaryApplyUrl,
+          firstSeenAt: opp.firstSeenAt,
+          lastVerifiedAt: opp.lastVerifiedAt,
+          rawSnippet: opp.sourceListings?.[0]?.rawSnippet || null,
+          companyContacts: resolvedContacts,
+          status: opp.status,
+          isVerified: (opp.status === "VERIFIED" || opp.sourceListings?.some((s) => s.verificationStatus === "VERIFIED")) && !/\d{6,}$/.test(opp.companyName),
+          freshness,
+          isSaved,
+          sources: (opp.sourceListings || []).map((s) => ({
+            platform: s.sourcePlatform,
+            applyUrl: s.applyUrl,
+            verified: s.verificationStatus === "VERIFIED",
+          })),
+        };
+      });
 
     return NextResponse.json({
       success: true,
       data: items,
       pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+        page: cacheResult.page,
+        limit: cacheResult.limit,
+        total: cacheResult.total,
+        totalPages: cacheResult.totalPages,
       },
+      cacheSource: cacheResult.source,
     });
   } catch (err: any) {
     console.error("[MarketplaceAPI] GET error:", err);

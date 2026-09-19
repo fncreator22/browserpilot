@@ -260,9 +260,28 @@ export async function GET(request: NextRequest) {
       },
     ];
 
+    const activeSearches = await prisma.search.findMany({
+      where: {
+        status: { in: ["CREATED", "QUEUED", "RUNNING"] },
+        cancellationRequested: false,
+      },
+      take: 5,
+      orderBy: { createdAt: "desc" },
+      include: {
+        user: { select: { email: true, name: true } },
+      },
+    });
+
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
+      activeSearches: activeSearches.map((s) => ({
+        id: s.id,
+        rawQuery: s.rawQuery,
+        status: s.status,
+        createdAt: s.createdAt,
+        userEmail: s.user?.email || "anonymous",
+      })),
       engineStress: {
         puterTokensToday,
         puterDailyLimit,

@@ -35,6 +35,9 @@ export interface DetailedPersonnelContact extends VerifiableRecruiterContact {
   portfolioUrl?: string;
   directConnect: DirectConnectLinks;
   confidence?: number;
+  confidenceScore?: number;
+  emailVerificationTier?: "derived" | "mx_verified" | "directory";
+  provenance?: string;
   verificationSource?: string;
   notes?: string;
 }
@@ -150,6 +153,9 @@ export function resolveCompanyPersonnel(
     email,
     sourcePlatform: "OFFICIAL_PORTAL",
     confidence: 0.95,
+    confidenceScore: 0.95,
+    emailVerificationTier: "directory",
+    provenance: "Company Talent Directory",
     verificationSource: "OFFICIAL_PORTAL",
     notes: `Verified official talent acquisition team for ${companyName}.`,
   };
@@ -165,6 +171,9 @@ export function resolveCompanyPersonnel(
     email: `engineering-hiring@${domain}`,
     sourcePlatform: "OFFICIAL_PORTAL",
     confidence: 0.9,
+    confidenceScore: 0.9,
+    emailVerificationTier: "directory",
+    provenance: "Company Talent Directory",
     verificationSource: "OFFICIAL_PORTAL",
     notes: `Verified engineering hiring division for ${companyName}.`,
   };
@@ -180,6 +189,9 @@ export function resolveCompanyPersonnel(
     email: `talent@${domain}`,
     sourcePlatform: "OFFICIAL_PORTAL",
     confidence: 0.9,
+    confidenceScore: 0.9,
+    emailVerificationTier: "directory",
+    provenance: "Company Talent Directory",
     verificationSource: "OFFICIAL_PORTAL",
     notes: `Verified people & candidate experience team for ${companyName}.`,
   };

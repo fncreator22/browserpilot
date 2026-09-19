@@ -41,10 +41,32 @@ export async function GET(request: NextRequest) {
       return [];
     }
 
-    return NextResponse.json({
-      history: searches.map((s) => ({
+    const mappedHistory = searches.map((s) => {
+      let chatTitle = s.rawQuery;
+      let isPinned = false;
+      let isSaved = false;
+
+      if (s.canonicalIntent) {
+        try {
+          const parsed = JSON.parse(s.canonicalIntent);
+          if (parsed.chatTitle && typeof parsed.chatTitle === "string") {
+            chatTitle = parsed.chatTitle;
+          }
+          if (typeof parsed.isPinned === "boolean") {
+            isPinned = parsed.isPinned;
+          }
+          if (typeof parsed.isSaved === "boolean") {
+            isSaved = parsed.isSaved;
+          }
+        } catch {}
+      }
+
+      return {
         id: s.id,
         rawQuery: s.rawQuery,
+        title: chatTitle,
+        isPinned,
+        isSaved,
         intentType: s.intentType,
         parsedRole: s.parsedRole,
         parsedSkills: parseStoredSkills(s.parsedSkills),
@@ -54,7 +76,18 @@ export async function GET(request: NextRequest) {
         totalFound: s.totalFound,
         status: s.status,
         createdAt: s.createdAt,
-      })),
+      };
+    });
+
+    // Pinned searches appear at top, followed by newest
+    mappedHistory.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    return NextResponse.json({
+      history: mappedHistory,
     });
   } catch (err: unknown) {
     console.error("[SearchHistoryAPI] Error retrieving search history:", err);

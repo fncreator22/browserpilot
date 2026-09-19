@@ -15,9 +15,13 @@ import {
   Briefcase, 
   Search,
   Check,
-  AlertCircle
+  AlertCircle,
+  Zap,
+  Cpu,
+  Key
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { MARKETPLACE_PLUGINS, type MarketplacePlugin, type UserPluginStatus } from "@/lib/plugins/pluginTypes";
@@ -28,6 +32,124 @@ export default function PluginsMarketplacePage() {
   const [activeCategory, setActiveCategory] = useState<string>("ALL");
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // AI Reasoning Connectors State (Puter, Gemini BYOK, DeepSeek BYOK)
+  const [puterConnected, setPuterConnected] = useState(false);
+  const [isConnectingPuter, setIsConnectingPuter] = useState(false);
+  const [geminiKeyInput, setGeminiKeyInput] = useState("");
+  const [deepseekKeyInput, setDeepseekKeyInput] = useState("");
+  const [hasGeminiKey, setHasGeminiKey] = useState(false);
+  const [hasDeepseekKey, setHasDeepseekKey] = useState(false);
+  const [isSavingKey, setIsSavingKey] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const pToken = localStorage.getItem("puter.auth.token.v2") || (window as any).puter?.authToken;
+      setPuterConnected(Boolean(pToken));
+      const gKey = localStorage.getItem("browserpilot_gemini_key");
+      if (gKey) {
+        setHasGeminiKey(true);
+        setGeminiKeyInput(gKey);
+      }
+      const dKey = localStorage.getItem("browserpilot_deepseek_key");
+      if (dKey) {
+        setHasDeepseekKey(true);
+        setDeepseekKeyInput(dKey);
+      }
+    }
+  }, []);
+
+  const handleConnectPuter = async () => {
+    setIsConnectingPuter(true);
+    try {
+      let puter = (window as any).puter;
+      if (!puter?.auth) {
+        await new Promise<void>((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = "https://js.puter.com/v2/";
+          s.onload = () => resolve();
+          s.onerror = () => reject(new Error("Failed to load Puter SDK"));
+          document.head.appendChild(s);
+        }).catch(() => null);
+        puter = (window as any).puter;
+      }
+
+      if (puter?.auth) {
+        const authRes = await puter.auth.signIn();
+        const token = puter.authToken || (authRes && typeof authRes === "object" ? (authRes as any).token : null) || localStorage.getItem("puter.auth.token.v2");
+        if (token) {
+          localStorage.setItem("puter.auth.token.v2", token);
+          await fetch("/api/account/providers/puter", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token, username: "Puter User" }),
+          }).catch(() => {});
+          setPuterConnected(true);
+          toast.success("Puter Connected", { description: "Free 1-click Puter AI reasoning connected successfully." });
+          window.dispatchEvent(new CustomEvent("browserai:provider-updated", { detail: { provider: "PUTER" } }));
+          return;
+        }
+      }
+      toast.info("Puter Connection", { description: "You can also add a Gemini or DeepSeek API key directly." });
+    } catch (err: any) {
+      toast.error("Puter Connection Failed", { description: err?.message || "Could not connect to Puter." });
+    } finally {
+      setIsConnectingPuter(false);
+    }
+  };
+
+  const handleDisconnectPuter = () => {
+    localStorage.removeItem("puter.auth.token.v2");
+    setPuterConnected(false);
+    toast.success("Puter Disconnected");
+    window.dispatchEvent(new CustomEvent("browserai:provider-updated", { detail: { provider: "PUTER", disconnected: true } }));
+  };
+
+  const handleSaveBYOKKey = async (provider: "gemini" | "deepseek", key: string) => {
+    const trimmed = key.trim();
+    if (!trimmed) {
+      toast.error("Please enter a valid API key");
+      return;
+    }
+    setIsSavingKey(true);
+    try {
+      const storageKey = provider === "gemini" ? "browserpilot_gemini_key" : "browserpilot_deepseek_key";
+      localStorage.setItem(storageKey, trimmed);
+      await fetch("/api/account/providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: provider === "gemini" ? "GEMINI_BYOK" : "DEEPSEEK_BYOK",
+          apiKey: trimmed,
+        }),
+      }).catch(() => {});
+      if (provider === "gemini") setHasGeminiKey(true);
+      if (provider === "deepseek") setHasDeepseekKey(true);
+      toast.success(`${provider === "gemini" ? "Google Gemini" : "DeepSeek"} Key Saved`, {
+        description: "API key stored securely for live autonomous searches.",
+      });
+      window.dispatchEvent(new CustomEvent("browserai:provider-updated", { detail: { provider, key: trimmed } }));
+    } catch {
+      toast.error("Failed to save key. Please retry.");
+    } finally {
+      setIsSavingKey(false);
+    }
+  };
+
+  const handleRemoveBYOKKey = (provider: "gemini" | "deepseek") => {
+    const storageKey = provider === "gemini" ? "browserpilot_gemini_key" : "browserpilot_deepseek_key";
+    localStorage.removeItem(storageKey);
+    if (provider === "gemini") {
+      setHasGeminiKey(false);
+      setGeminiKeyInput("");
+    }
+    if (provider === "deepseek") {
+      setHasDeepseekKey(false);
+      setDeepseekKeyInput("");
+    }
+    toast.info(`${provider === "gemini" ? "Google Gemini" : "DeepSeek"} Key Removed`);
+    window.dispatchEvent(new CustomEvent("browserai:provider-updated", { detail: { provider, removed: true } }));
+  };
 
   const fetchPlugins = async () => {
     try {
@@ -135,6 +257,176 @@ export default function PluginsMarketplacePage() {
                 placeholder="Search plugins..."
                 className="w-full h-8 pl-8 pr-3 rounded-lg border border-border bg-card text-xs font-sans text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground/40"
               />
+            </div>
+          </div>
+        </div>
+
+        {/* AI Reasoning Connectors Cluster */}
+        <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
+                <Sparkles className="h-4 w-4" />
+              </span>
+              <div>
+                <h2 className="text-sm font-bold text-foreground">
+                  AI Reasoning Providers & API Keys
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Connect Puter (1-click free) or enter your Gemini / DeepSeek API keys to execute verified autonomous searches.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* 1. Puter 1-Click */}
+            <div className="p-3.5 rounded-xl border border-border bg-background/60 flex flex-col justify-between gap-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border border-cyan-500/25">
+                      <Zap className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-xs font-bold text-foreground">Puter.com</span>
+                  </div>
+                  {puterConnected ? (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-500 border border-emerald-500/25 font-bold">
+                      CONNECTED
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-semibold">
+                      1-CLICK FREE
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Serverless client AI reasoning without personal API keys.
+                </p>
+              </div>
+              <div className="pt-2 border-t border-border/40 flex justify-end">
+                {puterConnected ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDisconnectPuter}
+                    className="h-7 text-xs border-destructive/40 text-destructive hover:bg-destructive/10 cursor-pointer"
+                  >
+                    Disconnect
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleConnectPuter}
+                    disabled={isConnectingPuter}
+                    className="h-7 text-xs bg-cyan-600 hover:bg-cyan-700 text-white cursor-pointer"
+                  >
+                    {isConnectingPuter ? <RotateCw className="h-3 w-3 animate-spin" /> : "Connect Puter"}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* 2. Google Gemini BYOK */}
+            <div className="p-3.5 rounded-xl border border-border bg-background/60 flex flex-col justify-between gap-3">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-xs font-bold text-foreground">Google Gemini</span>
+                  </div>
+                  {hasGeminiKey ? (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-500 border border-emerald-500/25 font-bold">
+                      ACTIVE
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-semibold">
+                      BYOK
+                    </span>
+                  )}
+                </div>
+                <Input
+                  type="password"
+                  placeholder="Paste AIzaSy... key"
+                  value={geminiKeyInput}
+                  onChange={(e) => setGeminiKeyInput(e.target.value)}
+                  className="h-7 text-xs font-mono"
+                />
+              </div>
+              <div className="pt-2 border-t border-border/40 flex items-center justify-between gap-2">
+                {hasGeminiKey && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveBYOKKey("gemini")}
+                    className="text-[10px] text-destructive hover:underline cursor-pointer"
+                  >
+                    Remove
+                  </button>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleSaveBYOKKey("gemini", geminiKeyInput)}
+                  disabled={isSavingKey || !geminiKeyInput.trim()}
+                  className="h-7 text-xs ml-auto bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                >
+                  {hasGeminiKey ? "Update" : "Save Key"}
+                </Button>
+              </div>
+            </div>
+
+            {/* 3. DeepSeek BYOK */}
+            <div className="p-3.5 rounded-xl border border-border bg-background/60 flex flex-col justify-between gap-3">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25">
+                      <Cpu className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-xs font-bold text-foreground">DeepSeek API</span>
+                  </div>
+                  {hasDeepseekKey ? (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-500 border border-emerald-500/25 font-bold">
+                      ACTIVE
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-semibold">
+                      BYOK
+                    </span>
+                  )}
+                </div>
+                <Input
+                  type="password"
+                  placeholder="Paste sk-... key"
+                  value={deepseekKeyInput}
+                  onChange={(e) => setDeepseekKeyInput(e.target.value)}
+                  className="h-7 text-xs font-mono"
+                />
+              </div>
+              <div className="pt-2 border-t border-border/40 flex items-center justify-between gap-2">
+                {hasDeepseekKey && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveBYOKKey("deepseek")}
+                    className="text-[10px] text-destructive hover:underline cursor-pointer"
+                  >
+                    Remove
+                  </button>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleSaveBYOKKey("deepseek", deepseekKeyInput)}
+                  disabled={isSavingKey || !deepseekKeyInput.trim()}
+                  className="h-7 text-xs ml-auto bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+                >
+                  {hasDeepseekKey ? "Update" : "Save Key"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { createUser, getUserByEmail } from "@/lib/db/users";
 import { rateLimiter } from "@/lib/security/rateLimiter";
 import { recordSecurityEvent } from "@/lib/security/auditLog";
+import { setCachedUser } from "@/lib/auth/redisUserCache";
 
 const RegisterSchema = z.object({
   name: z.string().trim().optional(),
@@ -87,6 +88,15 @@ export async function POST(request: Request) {
       passwordHash,
       geminiApiKey,
     });
+
+    // Prime the Redis user verification cache immediately
+    await setCachedUser({
+      id: newUser.id,
+      email: newUser.email,
+      name: newUser.name,
+      role: newUser.role || "USER",
+      passwordHash,
+    }).catch(() => {});
 
     return NextResponse.json(
       {

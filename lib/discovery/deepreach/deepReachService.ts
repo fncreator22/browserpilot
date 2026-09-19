@@ -11,9 +11,22 @@ import { normalizeCompany } from "@/lib/scraper/normalizer";
 import { 
   verifyJobCandidatesMidway, 
   verifyRecruiterContactsMidway, 
+  createRecruiterDossier,
+  verifyDomainMx,
+  domainMxCache,
   type VerifiableJobCandidate, 
-  type VerifiableRecruiterContact 
+  type VerifiableRecruiterContact,
+  type RecruiterDossier,
+  type EmailVerificationTier
 } from "@/lib/verification/midwayVerifier";
+
+export { 
+  createRecruiterDossier, 
+  verifyDomainMx, 
+  domainMxCache, 
+  type RecruiterDossier, 
+  type EmailVerificationTier 
+};
 
 import { 
   linkedInChannel, 
@@ -43,7 +56,7 @@ export interface DeepReachResult {
   companyName: string;
   normalizedName: string;
   jobs: VerifiableJobCandidate[];
-  recruiters: VerifiableRecruiterContact[];
+  recruiters: RecruiterDossier[];
   sourcesScanned: string[];
   verificationSummary: {
     scannedJobs: number;
@@ -70,9 +83,9 @@ import { resolveCompanyPersonnel } from "@/lib/discovery/personnel/companyPerson
 export async function discoverCompanyRecruiters(
   companyName: string,
   companyDomain?: string
-): Promise<VerifiableRecruiterContact[]> {
+): Promise<RecruiterDossier[]> {
   const norm = normalizeCompany(companyName);
-  const contacts: VerifiableRecruiterContact[] = [];
+  const contacts: RecruiterDossier[] = [];
 
   // Check if we already have verified individual contacts in DB for this company
   try {
@@ -86,22 +99,30 @@ export async function discoverCompanyRecruiters(
     );
 
     if (validNamedExisting.length > 0) {
-      return validNamedExisting.map((c) => ({
-        fullName: c.fullName,
-        roleTitle: c.roleTitle,
-        companyName: c.companyName,
-        profileUrl: c.profileUrl,
-        email: c.email || undefined,
-        personalEmail: c.personalEmail || undefined,
-        phone: c.phone || undefined,
-        whatsappUrl: c.whatsappUrl || undefined,
-        twitterUrl: c.twitterUrl || undefined,
-        githubUrl: c.githubUrl || undefined,
-        portfolioUrl: c.portfolioUrl || undefined,
-        contactType: (c.contactType as "RECRUITER" | "EMPLOYEE") || "RECRUITER",
-        department: c.department || undefined,
-        sourcePlatform: c.sourcePlatform,
-      }));
+      const dossiers = await Promise.all(
+        validNamedExisting.map((c) =>
+          createRecruiterDossier(
+            {
+              fullName: c.fullName,
+              roleTitle: c.roleTitle,
+              companyName: c.companyName,
+              profileUrl: c.profileUrl,
+              email: c.email || undefined,
+              personalEmail: c.personalEmail || undefined,
+              phone: c.phone || undefined,
+              whatsappUrl: c.whatsappUrl || undefined,
+              twitterUrl: c.twitterUrl || undefined,
+              githubUrl: c.githubUrl || undefined,
+              portfolioUrl: c.portfolioUrl || undefined,
+              contactType: (c.contactType as "RECRUITER" | "EMPLOYEE") || "RECRUITER",
+              department: c.department || undefined,
+              sourcePlatform: c.sourcePlatform,
+            },
+            companyDomain
+          )
+        )
+      );
+      return dossiers;
     }
   } catch {
     // Graceful continuation if DB table is unpopulated
@@ -144,7 +165,7 @@ export async function discoverCompanyRecruiters(
           ? `${first}.${last}@${companyDomain}`
           : undefined;
 
-        contacts.push({
+        const rawContact: VerifiableRecruiterContact = {
           fullName: formattedName,
           roleTitle: isEngQuery ? "Staff Engineer & Technical Hiring Lead" : "Technical Recruiter & Talent Partner",
           companyName,
@@ -153,7 +174,10 @@ export async function discoverCompanyRecruiters(
           contactType: isEngQuery ? "EMPLOYEE" : "RECRUITER",
           department: isEngQuery ? "Engineering" : "Talent Acquisition",
           sourcePlatform: "LINKEDIN",
-        });
+        };
+
+        const dossier = await createRecruiterDossier(rawContact, companyDomain);
+        contacts.push(dossier);
       }
     }
   }
@@ -162,7 +186,10 @@ export async function discoverCompanyRecruiters(
   // resolve via high-fidelity verified directory and deterministic personnel synthesizer
   if (contacts.length === 0) {
     const personnel = resolveCompanyPersonnel(companyName, companyDomain);
-    contacts.push(...personnel);
+    const dossiers = await Promise.all(
+      personnel.map((p) => createRecruiterDossier(p, companyDomain))
+    );
+    contacts.push(...dossiers);
   }
 
   // Persist newly discovered contacts to database for instant future lookups

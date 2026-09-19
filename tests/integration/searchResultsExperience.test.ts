@@ -45,6 +45,9 @@ export async function runSearchResultsExperienceTests() {
   await prisma.search.deleteMany({
     where: { userId: testUserId },
   }).catch(() => {});
+  await prisma.aIUsageEvent.deleteMany({
+    where: { userId: testUserId },
+  }).catch(() => {});
 
   await prisma.user.upsert({
     where: { id: testUserId },

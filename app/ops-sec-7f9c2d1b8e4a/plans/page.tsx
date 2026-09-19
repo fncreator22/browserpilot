@@ -26,7 +26,8 @@ import {
   TrendingUp,
   Receipt,
   ArrowUpRight,
-  Users
+  Users,
+  Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,11 +61,27 @@ interface AdminPlan {
 }
 
 export default function AdminPlansPage() {
-  const [activeTab, setActiveTab] = useState<"tiers" | "capabilities" | "coupons" | "assign" | "analytics">("tiers");
+  const [activeTab, setActiveTab] = useState<"tiers" | "capabilities" | "coupons" | "assign" | "analytics" | "trial">("tiers");
   const [plans, setPlans] = useState<AdminPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingPlanCode, setSavingPlanCode] = useState<string | null>(null);
   const [newCapKeys, setNewCapKeys] = useState<Record<string, string>>({});
+
+  // 15-Day Free Trial Engine State
+  const [trialConfig, setTrialConfig] = useState<{
+    enforceTrial: boolean;
+    defaultTrialDays: number;
+    userOverrides: Record<string, { extendedDays: number; exempt: boolean }>;
+  }>({
+    enforceTrial: true,
+    defaultTrialDays: 15,
+    userOverrides: {},
+  });
+  const [loadingTrial, setLoadingTrial] = useState(false);
+  const [savingTrial, setSavingTrial] = useState(false);
+  const [extendUserIdInput, setExtendUserIdInput] = useState("");
+  const [extendDaysInput, setExtendDaysInput] = useState(7);
+  const [exemptUserIdInput, setExemptUserIdInput] = useState("");
 
   // Subscription Analytics State
   const [analyticsData, setAnalyticsData] = useState<any | null>(null);
@@ -116,6 +133,55 @@ export default function AdminPlansPage() {
       return new URLSearchParams(window.location.search).get("admin_key");
     }
     return null;
+  };
+
+  const fetchTrialConfig = async () => {
+    try {
+      setLoadingTrial(true);
+      const adminKey = getAdminKey();
+      const url = adminKey
+        ? `${ADMIN_API_ROUTES.TRIAL}?admin_key=${encodeURIComponent(adminKey)}`
+        : ADMIN_API_ROUTES.TRIAL;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.config) {
+          setTrialConfig(data.config);
+        }
+      }
+    } catch {
+      toast.error("Failed to load trial configuration");
+    } finally {
+      setLoadingTrial(false);
+    }
+  };
+
+  const updateTrialConfig = async (updates: any) => {
+    try {
+      setSavingTrial(true);
+      const adminKey = getAdminKey();
+      const url = adminKey
+        ? `${ADMIN_API_ROUTES.TRIAL}?admin_key=${encodeURIComponent(adminKey)}`
+        : ADMIN_API_ROUTES.TRIAL;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.config) {
+          setTrialConfig(data.config);
+          toast.success("Trial configuration updated successfully");
+        }
+      } else {
+        toast.error("Failed to update trial configuration");
+      }
+    } catch {
+      toast.error("Error updating trial configuration");
+    } finally {
+      setSavingTrial(false);
+    }
   };
 
   const fetchPlans = async () => {
@@ -607,6 +673,22 @@ export default function AdminPlansPage() {
         >
           <BarChart3 className="h-4 w-4" />
           Subscription Analytics
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab("trial");
+            fetchTrialConfig();
+          }}
+          className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${
+            activeTab === "trial"
+              ? "bg-purple-600 text-white shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          }`}
+        >
+          <Clock className="h-4 w-4" />
+          15-Day Free Trial Engine
         </button>
       </div>
 
@@ -1889,6 +1971,233 @@ export default function AdminPlansPage() {
               </Button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB 6: 15-Day Free Trial Engine */}
+      {activeTab === "trial" && (
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-950/10 flex items-start justify-between gap-3 text-xs font-mono">
+            <div className="flex items-start gap-3">
+              <Clock className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-emerald-300 block">
+                  Server-Authoritative 15-Day Free Trial Clock Engine
+                </span>
+                <span className="text-muted-foreground mt-0.5 block">
+                  Calculates real-time 15-day countdown from user creation timestamps. Seamlessly gates expired accounts to Pro upgrade while exempting active subscribers.
+                </span>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={fetchTrialConfig}
+              disabled={loadingTrial}
+              className="h-7 text-xs font-mono border-border/60 hover:bg-muted/50 gap-1.5 shrink-0"
+            >
+              <RotateCw className={`h-3 w-3 ${loadingTrial ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
+
+          {/* Top Control Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-mono uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                  <span>Enforcement Status</span>
+                  <Badge variant="outline" className={`font-mono text-[10px] ${trialConfig.enforceTrial ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" : "border-amber-500/40 text-amber-400 bg-amber-500/10"}`}>
+                    {trialConfig.enforceTrial ? "ENFORCED" : "BYPASSED"}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground font-mono">
+                  {trialConfig.enforceTrial
+                    ? "Users past 15 days without paid subscription are prompted to upgrade."
+                    : "Trial clock is running in permissive mode. All users have full discovery access."}
+                </p>
+                <Button
+                  size="sm"
+                  onClick={() => updateTrialConfig({ enforceTrial: !trialConfig.enforceTrial })}
+                  disabled={savingTrial}
+                  className={`w-full font-mono text-xs ${trialConfig.enforceTrial ? "bg-amber-600 hover:bg-amber-700 text-white" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
+                >
+                  {trialConfig.enforceTrial ? "Disable Enforcement (Permissive)" : "Enable Strict Enforcement"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                  Default Trial Window
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={90}
+                    value={trialConfig.defaultTrialDays}
+                    onChange={(e) =>
+                      setTrialConfig((prev) => ({
+                        ...prev,
+                        defaultTrialDays: parseInt(e.target.value) || 15,
+                      }))
+                    }
+                    className="h-8 font-mono text-xs w-24 bg-background/50"
+                  />
+                  <span className="text-xs font-mono text-muted-foreground">days per new user</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => updateTrialConfig({ defaultTrialDays: trialConfig.defaultTrialDays })}
+                  disabled={savingTrial}
+                  className="w-full font-mono text-xs border-purple-500/40 hover:bg-purple-500/10 text-purple-300"
+                >
+                  Save Duration
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                  Active User Overrides
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="text-2xl font-bold font-mono text-foreground">
+                  {Object.keys(trialConfig.userOverrides || {}).length}
+                </div>
+                <p className="text-xs text-muted-foreground font-mono">
+                  Custom user extensions and exemptions granted by admin.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* User Overrides & Extensions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Plus className="h-4 w-4 text-emerald-400" />
+                  Grant User Trial Extension
+                </CardTitle>
+                <CardDescription className="text-xs font-mono">
+                  Add additional trial days to a specific user account.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono text-muted-foreground">User ID</label>
+                  <Input
+                    placeholder="usr_abc123 or database uuid"
+                    value={extendUserIdInput}
+                    onChange={(e) => setExtendUserIdInput(e.target.value)}
+                    className="h-8 font-mono text-xs bg-background/50"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono text-muted-foreground">Additional Days</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={extendDaysInput}
+                    onChange={(e) => setExtendDaysInput(parseInt(e.target.value) || 7)}
+                    className="h-8 font-mono text-xs bg-background/50 w-32"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (!extendUserIdInput.trim()) {
+                      toast.error("Please provide a User ID");
+                      return;
+                    }
+                    updateTrialConfig({
+                      extendUserId: extendUserIdInput.trim(),
+                      extendDays: extendDaysInput,
+                    });
+                    setExtendUserIdInput("");
+                  }}
+                  disabled={savingTrial || !extendUserIdInput.trim()}
+                  className="w-full font-mono text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  Grant {extendDaysInput}-Day Extension
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-cyan-400" />
+                  Set User Trial Exemption
+                </CardTitle>
+                <CardDescription className="text-xs font-mono">
+                  Grant a permanent trial exemption (VIP/Partner free sovereign access).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono text-muted-foreground">User ID</label>
+                  <Input
+                    placeholder="usr_abc123 or database uuid"
+                    value={exemptUserIdInput}
+                    onChange={(e) => setExemptUserIdInput(e.target.value)}
+                    className="h-8 font-mono text-xs bg-background/50"
+                  />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (!exemptUserIdInput.trim()) {
+                        toast.error("Please provide a User ID");
+                        return;
+                      }
+                      updateTrialConfig({
+                        exemptUserId: exemptUserIdInput.trim(),
+                        exempt: true,
+                      });
+                      setExemptUserIdInput("");
+                    }}
+                    disabled={savingTrial || !exemptUserIdInput.trim()}
+                    className="flex-1 font-mono text-xs bg-cyan-600 hover:bg-cyan-700 text-white"
+                  >
+                    Grant Exemption
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (!exemptUserIdInput.trim()) {
+                        toast.error("Please provide a User ID");
+                        return;
+                      }
+                      updateTrialConfig({
+                        exemptUserId: exemptUserIdInput.trim(),
+                        exempt: false,
+                      });
+                      setExemptUserIdInput("");
+                    }}
+                    disabled={savingTrial || !exemptUserIdInput.trim()}
+                    className="font-mono text-xs border-border/60 hover:bg-muted/50"
+                  >
+                    Revoke
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
     </div>

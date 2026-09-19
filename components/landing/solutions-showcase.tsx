@@ -265,7 +265,7 @@ export function SolutionsShowcase() {
 
               <div className="space-y-3 pt-2">
                 {[
-                  "100% verified corporate emails with SMTP handshake confirmation",
+                  "100% verified corporate emails with DNS MX validation",
                   "Customized cold outreach angles tailored to the hiring team's current stack",
                   "Direct LinkedIn and GitHub handles for technical decision-makers"
                 ].map((item, idx) => (
@@ -319,8 +319,8 @@ export function SolutionsShowcase() {
                       <span className="font-mono font-semibold text-[#0b3558]">s.lindqvist@vercel.com</span>
                     </div>
                     <div className="p-2.5 rounded-lg bg-white border border-[#d4e0ed]">
-                      <span className="text-[#476788] block text-[11px]">SMTP Handshake</span>
-                      <span className="font-mono font-semibold text-emerald-700">Valid Mailbox (250 OK)</span>
+                      <span className="text-[#476788] block text-[11px]">DNS MX Validation</span>
+                      <span className="font-mono font-semibold text-emerald-700">Valid MX (Active Host)</span>
                     </div>
                   </div>
                 </div>

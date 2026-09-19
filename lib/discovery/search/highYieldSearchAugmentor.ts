@@ -31,9 +31,9 @@ export async function augmentToGuaranteedYield(
   intent: SearchIntent,
   options: HighYieldAugmentationOptions = {}
 ): Promise<RankedOpportunity[]> {
-  const minTotalYield = options.minTotalYield ?? 10;
-  const maxTotalYield = options.maxTotalYield ?? 15;
-  const targetExactMax = options.targetExactMax ?? 8;
+  const minTotalYield = options.minTotalYield ?? 15;
+  const maxTotalYield = options.maxTotalYield ?? 30;
+  const targetExactMax = options.targetExactMax ?? 25;
 
   const existingHashes = new Set<string>();
   const exactMatches: RankedOpportunity[] = [];
@@ -68,7 +68,7 @@ export async function augmentToGuaranteedYield(
     }
   }
 
-  // Cap exact matches to targetExactMax (e.g. 5-8) to leave room for recommendations
+  // Cap exact matches to targetExactMax to leave room for recommendations
   const trimmedExact = exactMatches.slice(0, targetExactMax);
   const remainingSlots = Math.max(0, maxTotalYield - trimmedExact.length);
 
@@ -81,13 +81,13 @@ export async function augmentToGuaranteedYield(
     }));
   }
 
-  // Need additional recommendations to reach 10-15 total
+  // Need additional recommendations to reach 15-30 total verified yield
   const additionalNeeded = Math.max(minTotalYield - (trimmedExact.length + existingRecs.length), 5);
   const fetchedRecommendations = await fetchHighRelevanceRecommendations(
     rawQuery,
     intent,
     existingHashes,
-    additionalNeeded + 5,
+    Math.max(additionalNeeded + 10, remainingSlots, 15),
     options.signal
   );
 
@@ -239,7 +239,7 @@ async function fetchHighRelevanceRecommendations(
 
       const harvested = await atsProvider.harvestCandidates(
         relaxedIntent,
-        { maxCandidates: 25, timeoutMs: 7000 },
+        { maxCandidates: 40, timeoutMs: 7000 },
         { signal }
       );
 

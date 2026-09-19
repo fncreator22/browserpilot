@@ -6,6 +6,7 @@
 
 import { prisma } from "./prisma";
 import type { Opportunity, SourceListing, Search, SearchResult, SavedOpportunity } from "@prisma/client";
+import { syncOpportunityToRedisCache } from "@/lib/redis/redisOpportunityCache";
 
 export interface UpsertOpportunityInput {
   id?: string;
@@ -232,9 +233,11 @@ export async function upsertOpportunity(
     where: { canonicalHash: data.canonicalHash },
   });
 
+  let persistedRecord: Opportunity | null = null;
+
   if (!existing) {
     try {
-      return await txPrisma.opportunity.create({
+      persistedRecord = await txPrisma.opportunity.create({
         data: {
           id: data.id,
           canonicalHash: data.canonicalHash,
@@ -263,39 +266,48 @@ export async function upsertOpportunity(
       }).catch(() => null);
 
       if (raceExisting) {
-        return await applySafeOpportunityUpdate(raceExisting, data, reqString, skillsString, prisma);
+        persistedRecord = await applySafeOpportunityUpdate(raceExisting, data, reqString, skillsString, prisma);
       }
     }
   }
 
-  const targetRecord = existing || (await prisma.opportunity.findUnique({ where: { canonicalHash: data.canonicalHash } }).catch(() => null));
-  if (!targetRecord) {
-    // If neither exists, attempt direct create as ultimate fallback
-    return await prisma.opportunity.create({
-      data: {
-        id: data.id,
-        canonicalHash: data.canonicalHash,
-        title: data.title,
-        companyName: data.companyName,
-        location: data.location,
-        workMode: data.workMode || "ANY",
-        experienceLevel: data.experienceLevel || "ENTRY_LEVEL",
-        opportunityType: data.opportunityType || "FULL_TIME",
-        salaryMin: typeof data.salaryMin === "number" ? data.salaryMin : null,
-        salaryMax: typeof data.salaryMax === "number" ? data.salaryMax : null,
-        salaryCurrency: data.salaryCurrency || "USD",
-        description: data.description || "",
-        requirements: reqString,
-        skills: skillsString,
-        primaryApplyUrl: data.primaryApplyUrl,
-        status: data.status || "ACTIVE",
-        firstSeenAt: new Date(),
-        lastVerifiedAt: data.lastVerifiedAt || new Date(),
-      },
-    });
+  if (!persistedRecord) {
+    const targetRecord = existing || (await prisma.opportunity.findUnique({ where: { canonicalHash: data.canonicalHash } }).catch(() => null));
+    if (!targetRecord) {
+      // If neither exists, attempt direct create as ultimate fallback
+      persistedRecord = await prisma.opportunity.create({
+        data: {
+          id: data.id,
+          canonicalHash: data.canonicalHash,
+          title: data.title,
+          companyName: data.companyName,
+          location: data.location,
+          workMode: data.workMode || "ANY",
+          experienceLevel: data.experienceLevel || "ENTRY_LEVEL",
+          opportunityType: data.opportunityType || "FULL_TIME",
+          salaryMin: typeof data.salaryMin === "number" ? data.salaryMin : null,
+          salaryMax: typeof data.salaryMax === "number" ? data.salaryMax : null,
+          salaryCurrency: data.salaryCurrency || "USD",
+          description: data.description || "",
+          requirements: reqString,
+          skills: skillsString,
+          primaryApplyUrl: data.primaryApplyUrl,
+          status: data.status || "ACTIVE",
+          firstSeenAt: new Date(),
+          lastVerifiedAt: data.lastVerifiedAt || new Date(),
+        },
+      });
+    } else {
+      persistedRecord = await applySafeOpportunityUpdate(targetRecord, data, reqString, skillsString, txPrisma);
+    }
   }
 
-  return await applySafeOpportunityUpdate(targetRecord, data, reqString, skillsString, txPrisma);
+  // Database to Redis sliding-window synchronization (capped at 10,000 items)
+  try {
+    syncOpportunityToRedisCache(persistedRecord).catch(() => {});
+  } catch {}
+
+  return persistedRecord;
 }
 
 /**
@@ -533,29 +545,55 @@ export async function getActiveUserSearch(
 /**
  * Attaches an Opportunity to a Search with relevance matchScore and rankPosition.
  * Idempotent: updates ranking if the association already exists.
+ * Defensively verifies parent search existence to prevent P2003 foreign key crashes during concurrent teardowns.
  */
 export async function attachOpportunityToSearch(
   input: AttachSearchResultInput,
   txPrisma: typeof prisma = prisma
-): Promise<SearchResult> {
-  return await txPrisma.searchResult.upsert({
-    where: {
-      searchId_opportunityId: {
+): Promise<SearchResult | null> {
+  try {
+    // Verify parent search exists and is not cancelled or deleted
+    const parentSearch = await txPrisma.search.findUnique({
+      where: { id: input.searchId },
+      select: { id: true, cancellationRequested: true, status: true },
+    });
+
+    if (!parentSearch) {
+      console.warn(`[attachOpportunityToSearch] Parent search ${input.searchId} no longer exists. Skipping attachment.`);
+      return null;
+    }
+
+    if (parentSearch.cancellationRequested || parentSearch.status === "CANCELLED") {
+      console.warn(`[attachOpportunityToSearch] Parent search ${input.searchId} was cancelled. Skipping attachment.`);
+      return null;
+    }
+
+    return await txPrisma.searchResult.upsert({
+      where: {
+        searchId_opportunityId: {
+          searchId: input.searchId,
+          opportunityId: input.opportunityId,
+        },
+      },
+      update: {
+        matchScore: typeof input.matchScore === "number" ? input.matchScore : 0.0,
+        rankPosition: typeof input.rankPosition === "number" ? input.rankPosition : 0,
+      },
+      create: {
         searchId: input.searchId,
         opportunityId: input.opportunityId,
+        matchScore: typeof input.matchScore === "number" ? input.matchScore : 0.0,
+        rankPosition: typeof input.rankPosition === "number" ? input.rankPosition : 0,
       },
-    },
-    update: {
-      matchScore: typeof input.matchScore === "number" ? input.matchScore : 0.0,
-      rankPosition: typeof input.rankPosition === "number" ? input.rankPosition : 0,
-    },
-    create: {
-      searchId: input.searchId,
-      opportunityId: input.opportunityId,
-      matchScore: typeof input.matchScore === "number" ? input.matchScore : 0.0,
-      rankPosition: typeof input.rankPosition === "number" ? input.rankPosition : 0,
-    },
-  });
+    });
+  } catch (error: any) {
+    // Gracefully handle Prisma P2003 Foreign Key Constraint failure if parent record was deleted concurrently
+    if (error?.code === "P2003" || error?.message?.includes("search_results_searchId_fkey")) {
+      console.warn(`[attachOpportunityToSearch] P2003 Foreign key constraint caught for searchId=${input.searchId}: parent record deleted concurrently.`);
+      return null;
+    }
+    throw error;
+  }
 }
 
 /**

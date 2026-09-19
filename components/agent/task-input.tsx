@@ -155,6 +155,19 @@ export function TaskInput({
     }
   }, [initialPrompt]);
 
+  // Instant hydration listener for recent searches dispatched from sidebar or history chips
+  useEffect(() => {
+    const handleSetPrompt = (e: Event) => {
+      const customEvent = e as CustomEvent<{ prompt?: string }>;
+      if (typeof customEvent.detail?.prompt === "string") {
+        setPrompt(customEvent.detail.prompt);
+        prevInitialPromptRef.current = customEvent.detail.prompt;
+      }
+    };
+    window.addEventListener("browserai:set-prompt", handleSetPrompt);
+    return () => window.removeEventListener("browserai:set-prompt", handleSetPrompt);
+  }, []);
+
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
 
   useEffect(() => {
@@ -807,6 +820,18 @@ export function TaskInput({
           if (onOpportunitySearchResult) onOpportunitySearchResult(null);
           return;
         }
+        if (res.status === 402 || data?.error === "TRIAL_EXPIRED" || data?.code === "TRIAL_EXPIRED" || data?.upgradeRequired) {
+          setIsSubmitting(false);
+          if (onSearchingChange) onSearchingChange(false);
+          toast.error("15-Day Free Trial Ended", {
+            description: data?.message || "Your 15-day free trial has expired. Please upgrade to Pro to continue searching.",
+            action: {
+              label: "Upgrade Plan",
+              onClick: () => router.push("/app/billing"),
+            },
+          });
+          return;
+        }
         if (res.status === 401 || data?.error === "AUTH_OR_KEY_REQUIRED" || data?.errorCode === "AUTH_OR_KEY_REQUIRED") {
           setShowAccessGate(true);
           setIsSubmitting(false);
@@ -1048,7 +1073,7 @@ export function TaskInput({
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: -4 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute left-0 bottom-full mb-2 w-56 rounded-xl border border-border bg-popover/95 backdrop-blur-md p-1.5 shadow-marble-2 z-50 flex flex-col gap-1 text-xs font-sans"
+                    className="absolute left-0 bottom-full mb-2 w-56 rounded-xl border border-border bg-card p-1.5 shadow-marble-3 z-50 flex flex-col gap-1 text-xs font-sans"
                   >
                     {/* Media / Screenshot Upload */}
                     <button
@@ -1206,6 +1231,13 @@ export function TaskInput({
         isOpen={showAccessGate}
         onClose={() => setShowAccessGate(false)}
         onOpenProviders={() => openProfileModal("PROVIDERS")}
+        onConnected={() => {
+          setHasServerProvider(true);
+          setShowAccessGate(false);
+          if (prompt.trim()) {
+            handleSubmit();
+          }
+        }}
         queryAttempted={prompt}
       />
     </div>

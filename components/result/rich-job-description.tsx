@@ -16,14 +16,72 @@ function YouTubeIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   );
 }
 
-function decodeHtmlEntities(str: string): string {
+export function decodeHtmlEntities(str: string): string {
+  if (!str) return "";
   return str
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
     .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">");
+    .replace(/&gt;/gi, ">")
+    .replace(/&mdash;/gi, "-")
+    .replace(/&ndash;/gi, "-")
+    .replace(/\u2014/g, "-")
+    .replace(/\u2013/g, "-")
+    .replace(/&rsquo;/gi, "'")
+    .replace(/&lsquo;/gi, "'")
+    .replace(/&ldquo;/gi, '"')
+    .replace(/&rdquo;/gi, '"')
+    .replace(/&bull;/gi, "•")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+/**
+ * Strips all HTML markup, decodes entities, removes em-dashes and en-dashes, and produces a clean plain text snippet.
+ * Handles both raw HTML (<p>, <div>) and entity-escaped HTML (&lt;div&gt;, &amp;lt;p&amp;gt;).
+ * Ideal for job cards, lists, and summary previews.
+ */
+export function cleanTextSnippet(text?: string | null): string {
+  if (!text) return "";
+  let clean = text;
+
+  // 1. Resolve entity-escaped tags (e.g. &lt;div, &amp;lt;p&gt;) up to two passes
+  for (let pass = 0; pass < 2; pass++) {
+    if (/&(?:amp;)?(?:lt|gt|quot|#39|apos);/i.test(clean)) {
+      clean = clean
+        .replace(/&amp;lt;/gi, "<")
+        .replace(/&amp;gt;/gi, ">")
+        .replace(/&amp;quot;/gi, '"')
+        .replace(/&amp;apos;/gi, "'")
+        .replace(/&amp;#39;/gi, "'")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/&apos;/gi, "'");
+    }
+  }
+
+  // 2. Remove script and style elements and contents
+  clean = clean.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ");
+  // 3. Replace line break and block tags with whitespace
+  clean = clean.replace(/<br\s*\/?>/gi, " ");
+  clean = clean.replace(/<\/?(p|div|h[1-6]|li|ul|ol|section|article|header|footer|aside|main|tr|td|th)[^>]*>/gi, " ");
+  // 4. Strip remaining HTML tags
+  clean = clean.replace(/<[^>]+>/g, " ");
+  // 5. Decode text entities and convert em-dashes/en-dashes into hyphens (multi-pass to resolve double-encoded entities like &amp;amp;)
+  for (let pass = 0; pass < 3; pass++) {
+    const decoded = decodeHtmlEntities(clean);
+    if (decoded === clean) break;
+    clean = decoded;
+  }
+  // 6. Clean markdown artifacts if any
+  clean = clean.replace(/(\*\*|\*|__|_|##+|```)/g, "");
+  // 7. Normalize whitespace
+  return clean.replace(/\s+/g, " ").trim();
 }
 
 function renderFormattedText(str: string): React.ReactNode[] {
@@ -123,9 +181,23 @@ export function RichJobDescription({ content, className = "" }: RichJobDescripti
 
     let raw = content.trim();
 
+    // 0. Resolve entity-escaped tags (e.g. &lt;div, &amp;lt;p&gt;) so structured HTML parsing succeeds
+    for (let pass = 0; pass < 2; pass++) {
+      if (/&(?:amp;)?(?:lt|gt);/i.test(raw)) {
+        raw = raw
+          .replace(/&amp;lt;/gi, "<")
+          .replace(/&amp;gt;/gi, ">")
+          .replace(/&lt;/gi, "<")
+          .replace(/&gt;/gi, ">");
+      }
+    }
+
     // 1. Convert HTML tags to structured tokens if HTML present
     const hasHtml = /<[a-z][\s\S]*>/i.test(raw);
     if (hasHtml) {
+      // Strip script and style blocks entirely
+      raw = raw.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ");
+
       // Preserve bold and italics
       raw = raw.replace(/<(?:strong|b)[^>]*>([\s\S]*?)<\/(?:strong|b)>/gi, "**$1**");
       raw = raw.replace(/<(?:em|i)[^>]*>([\s\S]*?)<\/(?:em|i)>/gi, "*$1*");
@@ -143,12 +215,18 @@ export function RichJobDescription({ content, className = "" }: RichJobDescripti
       raw = raw.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, "\n• $1\n");
       raw = raw.replace(/<\/?(ul|ol)[^>]*>/gi, "\n");
 
+      // Convert structural containers into block separators
+      raw = raw.replace(/<\/?(?:div|section|article|header|footer|aside|main|nav)[^>]*>/gi, "\n");
+
       // Convert <p> and <br>
       raw = raw.replace(/<br\s*\/?>/gi, "\n");
       raw = raw.replace(/<p[^>]*>/gi, "\n\n").replace(/<\/p>/gi, "\n\n");
 
       // Strip remaining tags
       raw = raw.replace(/<[^>]+>/g, " ");
+
+      // Decode entities on raw text
+      raw = decodeHtmlEntities(raw);
     }
 
     // 2. Split into blocks by double newline
@@ -156,7 +234,7 @@ export function RichJobDescription({ content, className = "" }: RichJobDescripti
     const elements: React.ReactNode[] = [];
 
     const bulletRegex = /^(?:[•\-\*]|\(?\d+[\.\)])\s+/;
-    const topicHeadingRegex = /^(?:#{1,6}\s+.*|\*\*[A-Za-z0-9\s/&—–',:?-]{2,60}:?\*\*|[A-Z][A-Za-z0-9\s/&—–',?-]{2,50}:)$/;
+    const topicHeadingRegex = /^(?:#{1,6}\s+.*|\*\*[A-Za-z0-9\s/&\u2014\u2013',:?-]{2,60}:?\*\*|[A-Z][A-Za-z0-9\s/&\u2014\u2013',?-]{2,50}:)$/;
 
     rawBlocks.forEach((block, bIdx) => {
       const trimmed = block.trim();
@@ -164,7 +242,12 @@ export function RichJobDescription({ content, className = "" }: RichJobDescripti
 
       // Check if block is an explicit markdown heading
       if (trimmed.startsWith("###") || trimmed.startsWith("##") || trimmed.startsWith("#")) {
-        const title = trimmed.replace(/^#+\s*/, "").replace(/<[^>]+>/g, "").trim();
+        const rawTitle = trimmed.replace(/^#+\s*/, "").replace(/<[^>]+>/g, "").trim();
+        const title = rawTitle
+          .replace(/^\*\*+|\*\*+$/g, "")
+          .replace(/^__+|__+$/g, "")
+          .replace(/:$/, "")
+          .trim();
         elements.push(
           <h3
             key={`h-${bIdx}`}

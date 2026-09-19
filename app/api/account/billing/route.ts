@@ -85,8 +85,12 @@ export async function GET() {
       }
     } catch {}
 
+    const { getUserTrialStatus } = await import("@/lib/billing/trialService");
+    const trial = await getUserTrialStatus(activeUserId);
+
     return NextResponse.json({
       plan,
+      trial,
       subscription: subscription
         ? {
             id: subscription.id,

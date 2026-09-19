@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useUIState } from "@/components/providers/ui-state-provider";
 import { CompanyAvatar } from "@/components/ui/company-avatar";
+import { RichJobDescription, cleanTextSnippet } from "@/components/result/rich-job-description";
 
 interface OpportunityItem {
   id: string;
@@ -263,7 +264,7 @@ export default function JobMarketplacePage() {
     <div className="min-h-screen bg-background text-foreground pb-20 font-sans">
       {/* Top Utility Header with auto-hide on mobile scroll */}
       <div 
-        className={`border-b border-border bg-background/98 backdrop-blur-md sticky top-16 z-30 shadow-xs transition-transform duration-300 ease-in-out ${
+        className={`border-b border-border bg-background/98 backdrop-blur-md sticky top-0 z-30 shadow-xs transition-transform duration-300 ease-in-out ${
           hideFilterBar ? "-translate-y-full sm:translate-y-0 opacity-0 sm:opacity-100 pointer-events-none sm:pointer-events-auto" : "translate-y-0 opacity-100"
         }`}
       >
@@ -469,14 +470,14 @@ export default function JobMarketplacePage() {
                 return (
                   <div
                     key={opp.id}
-                    className="p-4 rounded-xl border border-border/80 bg-card hover:border-primary/40 hover:shadow-marble-1 transition-all flex flex-col justify-between space-y-3"
+                    className="p-4 rounded-xl border border-border/80 bg-card hover:border-primary/40 hover:shadow-marble-1 transition-all flex flex-col justify-between space-y-3 w-full max-w-full overflow-hidden min-w-0"
                   >
                     {/* Header: Company Avatar, Name, Title, Save */}
-                    <div className="space-y-2.5">
-                      <div className="flex items-start justify-between gap-2.5">
-                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                    <div className="space-y-2.5 min-w-0 max-w-full overflow-hidden">
+                      <div className="flex items-start justify-between gap-2.5 min-w-0 max-w-full">
+                        <div className="flex items-start gap-2.5 min-w-0 flex-1 overflow-hidden">
                           <CompanyAvatar companyName={opp.companyName} applyUrl={opp.primaryApplyUrl} size="md" />
-                          <div className="min-w-0 flex-1">
+                          <div className="min-w-0 flex-1 overflow-hidden">
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium truncate">
                               <span className="truncate font-semibold text-foreground">{opp.companyName}</span>
                               {opp.isVerified && (
@@ -486,7 +487,7 @@ export default function JobMarketplacePage() {
                               )}
                             </div>
                             <h2 
-                              className="text-sm font-bold text-foreground tracking-tight line-clamp-1 mt-0.5 cursor-pointer hover:text-primary transition-colors" 
+                              className="text-sm font-bold text-foreground tracking-tight line-clamp-1 mt-0.5 cursor-pointer hover:text-primary transition-colors truncate" 
                               title={opp.title}
                               onClick={() => setSelectedJob(opp)}
                             >
@@ -513,23 +514,23 @@ export default function JobMarketplacePage() {
                       {/* Description Snippet (TASK-001) */}
                       {opp.description && (
                         <p 
-                          className="text-xs text-muted-foreground line-clamp-2 leading-relaxed pt-0.5 cursor-pointer hover:text-foreground/90 transition-colors"
-                          title={opp.description}
+                          className="text-xs text-muted-foreground line-clamp-2 leading-relaxed pt-0.5 cursor-pointer hover:text-foreground/90 transition-colors font-sans min-w-0 max-w-full overflow-hidden"
+                          title={cleanTextSnippet(opp.description)}
                           onClick={() => setSelectedJob(opp)}
                         >
-                          {opp.description}
+                          {cleanTextSnippet(opp.description)}
                         </p>
                       )}
 
                       {/* Hiring Team Intelligence Pill */}
                       {opp.companyContacts && opp.companyContacts.length > 0 && (
                         <div 
-                          className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-500/20 truncate cursor-pointer hover:bg-emerald-500/15 transition-colors"
+                          className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-500/20 truncate cursor-pointer hover:bg-emerald-500/15 transition-colors w-full max-w-full overflow-hidden min-w-0"
                           onClick={() => setSelectedJob(opp)}
                           title={`Recruiter: ${opp.companyContacts[0].fullName}`}
                         >
                           <UserCheck className="h-3 w-3 shrink-0" />
-                          <span className="truncate">Hiring Team: {opp.companyContacts[0].fullName} ({opp.companyContacts[0].roleTitle})</span>
+                          <span className="truncate min-w-0 flex-1">Hiring Team: {opp.companyContacts[0].fullName} ({opp.companyContacts[0].roleTitle})</span>
                         </div>
                       )}
 
@@ -780,8 +781,8 @@ export default function JobMarketplacePage() {
                   <h3 className="font-bold text-xs text-foreground font-sans uppercase tracking-wider text-[11px]">
                     Role Description
                   </h3>
-                  <div className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line bg-muted/20 p-3.5 rounded-xl border border-border/50">
-                    {selectedJob.description || "No full description provided. Please visit the direct ATS application link below."}
+                  <div className="bg-muted/20 p-4 rounded-xl border border-border/50">
+                    <RichJobDescription content={selectedJob.description || "No full description provided. Please visit the direct ATS application link below."} />
                   </div>
                 </div>
 

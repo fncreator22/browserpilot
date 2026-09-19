@@ -35,6 +35,7 @@ export const ADMIN_API_ROUTES = {
   USERS: `/api/${ADMIN_ROUTE_SEGMENT}/users`,
   USER_DETAIL: (id: string) => `/api/${ADMIN_ROUTE_SEGMENT}/users/${id}`,
   PLANS: `/api/${ADMIN_ROUTE_SEGMENT}/plans`,
+  TRIAL: `/api/${ADMIN_ROUTE_SEGMENT}/plans/trial`,
   CONNECTORS: `/api/${ADMIN_ROUTE_SEGMENT}/connectors`,
   WATCHES: `/api/${ADMIN_ROUTE_SEGMENT}/watches`,
   RUNS: `/api/${ADMIN_ROUTE_SEGMENT}/runs`,

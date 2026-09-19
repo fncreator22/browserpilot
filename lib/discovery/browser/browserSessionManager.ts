@@ -157,6 +157,25 @@ export class BrowserSessionManager {
       };
     }
 
+    if (record.status === "EXPIRED") {
+      return {
+        isValid: false,
+        status: "EXPIRED",
+        reason: "Session expired or rejected by remote platform",
+        userFacingMessage: `Your ${source} session has expired. Please log in again to renew access.`,
+        expiresAt: record.expiresAt,
+      };
+    }
+
+    if (record.status === "DISCONNECTED") {
+      return {
+        isValid: false,
+        status: "DISCONNECTED",
+        reason: "Session is disconnected",
+        userFacingMessage: `Your ${source} session is disconnected.`,
+      };
+    }
+
     if (record.expiresAt && record.expiresAt.getTime() <= Date.now()) {
       await prisma.browserSession.update({
         where: { id: record.id },
@@ -185,6 +204,215 @@ export class BrowserSessionManager {
       status: "CONNECTED",
       expiresAt: record.expiresAt,
     };
+  }
+
+  /**
+   * Automated re-auth signal handler for HTTP 401/403 or anti-bot challenge detection.
+   * Marks the session as EXPIRED or REQUIRES_VERIFICATION, writes error telemetry to metadata,
+   * and notifies callers that user re-authentication is required.
+   */
+  public async handleAuthFailure(
+    userId: string,
+    source: string,
+    statusCode: number,
+    failureReason?: string
+  ): Promise<{
+    sessionExpired: boolean;
+    reauthRequired: boolean;
+    status: BrowserSessionStatus;
+    reason: string;
+    userFacingMessage: string;
+  }> {
+    const normalizedSource = source.toUpperCase();
+    const isExpired = statusCode === 401;
+    const isForbidden = statusCode === 403;
+    const nextStatus: BrowserSessionStatus = isExpired ? "EXPIRED" : isForbidden ? "REQUIRES_VERIFICATION" : "EXPIRED";
+
+    const reason = failureReason || (isExpired
+      ? `HTTP 401 Unauthorized: ${source} session token or cookie expired.`
+      : isForbidden
+      ? `HTTP 403 Forbidden: ${source} anti-bot or access challenge triggered.`
+      : `HTTP ${statusCode} authentication error on ${source}.`);
+
+    const userFacingMessage = isExpired
+      ? `Your ${source} session has expired. Please reconnect your account to continue discovering roles.`
+      : `Your ${source} session encountered a security check (HTTP 403). Please reconnect or verify your session.`;
+
+    try {
+      let record = await prisma.browserSession.findUnique({
+        where: {
+          userId_source: {
+            userId,
+            source: normalizedSource,
+          },
+        },
+      });
+
+      if (!record) {
+        // Fallback to alias matching if source was an alias (e.g. twitter -> x_twitter)
+        const cleanSource = source.toLowerCase();
+        const { SOURCE_ALIASES } = await import("@/lib/plugins/pluginMarketplaceService");
+        const aliases = SOURCE_ALIASES[cleanSource] || [];
+        for (const alias of aliases) {
+          const candidate = await prisma.browserSession.findUnique({
+            where: {
+              userId_source: {
+                userId,
+                source: alias.toUpperCase(),
+              },
+            },
+          });
+          if (candidate) {
+            record = candidate;
+            break;
+          }
+        }
+      }
+
+      if (record) {
+        let meta: Record<string, unknown> = {};
+        try {
+          meta = JSON.parse(record.metadata || "{}");
+        } catch {}
+
+        meta.lastAuthFailure = {
+          statusCode,
+          reason,
+          timestamp: new Date().toISOString(),
+        };
+        meta.reauthRequired = true;
+
+        await prisma.browserSession.update({
+          where: { id: record.id },
+          data: {
+            status: nextStatus,
+            metadata: JSON.stringify(meta),
+            updatedAt: new Date(),
+          },
+        });
+      }
+    } catch (err: any) {
+      console.warn(`[BrowserSessionManager] handleAuthFailure update notice:`, err?.message || err);
+    }
+
+    return {
+      sessionExpired: true,
+      reauthRequired: true,
+      status: nextStatus,
+      reason,
+      userFacingMessage,
+    };
+  }
+
+  /**
+   * Health check verifying whether session is active, expired, or flagged with reauthRequired.
+   */
+  public async checkSessionHealth(
+    userId: string,
+    source: string
+  ): Promise<BrowserSessionValidationResult & { reauthRequired: boolean; failureReason?: string }> {
+    const validation = await this.verifySession(userId, source);
+    const normalizedSource = source.toUpperCase();
+
+    const record = await prisma.browserSession.findUnique({
+      where: {
+        userId_source: {
+          userId,
+          source: normalizedSource,
+        },
+      },
+    });
+
+    let reauthRequired = !validation.isValid && validation.status !== "DISCONNECTED";
+    let failureReason: string | undefined = validation.reason;
+
+    if (record && !validation.isValid) {
+      try {
+        const meta = JSON.parse(record.metadata || "{}");
+        if (meta.reauthRequired || meta.lastAuthFailure) {
+          reauthRequired = true;
+          if (!failureReason && meta.lastAuthFailure?.reason) {
+            failureReason = meta.lastAuthFailure.reason;
+          }
+        }
+      } catch {}
+    }
+
+    return {
+      ...validation,
+      reauthRequired,
+      failureReason,
+    };
+  }
+
+  /**
+   * Imports a structured BYOC (Bring Your Own Cookie / Session Token) session with AES-256-GCM encryption.
+   */
+  public async importByocSession(
+    userId: string,
+    source: string,
+    payload: {
+      cookieString?: string;
+      token?: string;
+      username?: string;
+      expiresInMs?: number;
+      metadata?: Record<string, unknown>;
+    }
+  ): Promise<BrowserSessionRecord> {
+    const normalizedSource = source.toUpperCase();
+    if (payload.cookieString && payload.cookieString.length > 65536) {
+      throw new Error("BYOC cookieString exceeds maximum permitted length of 64KB.");
+    }
+    if (payload.token && payload.token.length > 16384) {
+      throw new Error("BYOC token exceeds maximum permitted length of 16KB.");
+    }
+    const { parseCookieHeader } = await import("@/lib/security/credentialEncryption");
+
+    const parsedCookies = payload.cookieString ? parseCookieHeader(payload.cookieString) : undefined;
+    const sessionState = {
+      cookieString: payload.cookieString,
+      cookies: parsedCookies,
+      token: payload.token,
+      importedAt: new Date().toISOString(),
+      ...(payload.metadata || {}),
+    };
+
+    const authMethod: BrowserAuthMethod = payload.token ? "SESSION_TOKEN" : "COOKIE_JAR";
+
+    return this.createOrUpdateSession(userId, normalizedSource, sessionState, {
+      authMethod,
+      username: payload.username || (payload.token ? "Token Authorized" : "BYOC Cookie Session"),
+      expiresInMs: payload.expiresInMs || 30 * 24 * 60 * 60 * 1000,
+      metadata: {
+        isByoc: true,
+        cookieCount: parsedCookies ? Object.keys(parsedCookies).length : 0,
+        hasToken: Boolean(payload.token),
+        ...(payload.metadata || {}),
+      },
+    });
+  }
+
+  /**
+   * Retrieves all expired or reauth-flagged sessions for a user.
+   */
+  public async getExpiredSessions(userId: string): Promise<BrowserSessionRecord[]> {
+    const now = new Date();
+    const records = await prisma.browserSession.findMany({
+      where: {
+        userId,
+        OR: [
+          { status: "EXPIRED" },
+          { status: "REQUIRES_VERIFICATION" },
+          {
+            status: "CONNECTED",
+            expiresAt: { lte: now },
+          },
+        ],
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    return records.map((r) => this.mapToRecord(r));
   }
 
   /**

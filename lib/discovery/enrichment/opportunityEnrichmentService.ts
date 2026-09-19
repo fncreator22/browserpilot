@@ -35,6 +35,10 @@ export interface EnrichedCompanyContact {
   directConnect: DirectConnectLinks;
   isVerified: boolean;
   sourcePlatform: string;
+  confidenceScore?: number;
+  emailVerificationTier?: "derived" | "mx_verified" | "directory";
+  provenance?: string;
+  mxRecords?: string[];
 }
 
 export interface EnrichedOpportunityData {
@@ -139,6 +143,14 @@ async function resolveCompanyIntel(companyName: string): Promise<CompanyIntelCac
             sourcePlatform: c.sourcePlatform,
           });
 
+          const isDirectory =
+            c.sourcePlatform === "OFFICIAL_PORTAL" ||
+            c.fullName.toLowerCase().includes("team") ||
+            c.fullName.toLowerCase().includes("talent acquisition");
+
+          const emailVerificationTier = isDirectory ? "directory" : "derived";
+          const provenance = isDirectory ? "Company Talent Directory" : "Direct Recruiter Slug (Derived Email)";
+
           contacts.push({
             id: c.id,
             fullName: c.fullName,
@@ -156,6 +168,9 @@ async function resolveCompanyIntel(companyName: string): Promise<CompanyIntelCac
             directConnect,
             isVerified: c.isVerified,
             sourcePlatform: c.sourcePlatform,
+            confidenceScore: isDirectory ? 0.95 : 0.7,
+            emailVerificationTier,
+            provenance,
           });
         }
       } else {
@@ -177,6 +192,9 @@ async function resolveCompanyIntel(companyName: string): Promise<CompanyIntelCac
             directConnect: p.directConnect,
             isVerified: true,
             sourcePlatform: p.sourcePlatform,
+            confidenceScore: p.confidenceScore ?? 0.95,
+            emailVerificationTier: p.emailVerificationTier ?? "directory",
+            provenance: p.provenance ?? "Company Talent Directory",
           });
 
           prisma.companyContact.create({

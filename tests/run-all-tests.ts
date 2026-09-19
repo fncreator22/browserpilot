@@ -75,6 +75,9 @@ import { runAutonomousJobMonitoringSimulation } from "./integration/autonomousJo
 import { runEndToEndPipelineTest } from "./e2e/autonomousPipeline.test";
 import { runAdminUserTokenVisibilityTests } from "./integration/adminUserTokenVisibility.test";
 import { runAdminSwarmAndEnrichmentTests } from "./unit/adminSwarmAndEnrichment.test";
+import { runStage4Tests } from "./unit/stage4-session-lifecycle.test";
+import { runStage5Tests } from "./unit/stage5-ui-token-and-viewport-governance.test";
+import { runStage8RedisSlidingWindowTests } from "./unit/stage8-redis-sliding-window-cache.test";
 
 async function runMasterTestSuite() {
   console.log("=================================================");
@@ -157,6 +160,9 @@ async function runMasterTestSuite() {
     { name: "Integration: Immediate Real Failure Propagation (Prompt C3)", fn: runImmediateFailurePropagationTest },
     { name: "Integration: Real Job Cancellation & Orphan Checks (Prompt C4)", fn: runJobCancellationIntegrationTest },
     { name: "Unit: Admin Swarms, HR Enrichment, Plugins & Multi-Gateway Payments", fn: runAdminSwarmAndEnrichmentTests },
+    { name: "Unit: Stage 4 Plugin Session Lifecycle & OAuth Realization", fn: runStage4Tests },
+    { name: "Unit: Stage 5 Front-End Ergonomics & Visual Token Governance", fn: runStage5Tests },
+    { name: "Unit: Stage 8 Redis Sliding Window Cache & Search Query Engine", fn: runStage8RedisSlidingWindowTests },
     { name: "E2E: Full Autonomous Agent Pipeline", fn: runEndToEndPipelineTest },
   ];
 
@@ -172,7 +178,7 @@ async function runMasterTestSuite() {
         durationMs: Date.now() - t0,
         error: (err as Error).message,
       });
-      console.error(`❌ Suite Failed: ${suite.name}\n`, err);
+      console.error(`[FAIL] Suite Failed: ${suite.name}\n`, err);
     }
   }
 
@@ -182,7 +188,7 @@ async function runMasterTestSuite() {
   console.log("  TEST EXECUTION SUMMARY MATRIX                  ");
   console.log("=================================================");
   summary.forEach((s) => {
-    const icon = s.status === "PASS" ? "✅" : "❌";
+    const icon = s.status === "PASS" ? "[PASS]" : "[FAIL]";
     console.log(`${icon} [${s.status}] ${s.suite.padEnd(54)} (${s.durationMs}ms)`);
     if (s.error) console.log(`   Error: ${s.error}`);
   });
@@ -192,7 +198,7 @@ async function runMasterTestSuite() {
 
   console.log("=================================================");
   console.log(`Total Duration: ${totalElapsed}ms`);
-  console.log(`Final Result: ${allPassed ? "ALL TEST SUITES GREEN! ✅" : "SOME SUITES FAILED ❌"}`);
+  console.log(`Final Result: ${allPassed ? "ALL TEST SUITES GREEN!" : "SOME SUITES FAILED"}`);
   console.log("=================================================\n");
 
   if (!allPassed) {

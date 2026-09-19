@@ -193,6 +193,8 @@ export async function processSearchDiscoveryJob(job: Job<SearchDiscoveryJobPaylo
           query || "Find software opportunities",
           canonicalIntent,
           {
+            minTotalYield: 15,
+            maxTotalYield: Math.min(Math.max(job.data.requestedCount || 15, 15), 30),
             userId,
             signal: executionAbort.signal,
           }

@@ -214,14 +214,20 @@ export async function runMultiAccountConcurrentCorrectnessTest() {
     // 4. Wait for background worker processing to finish for all 5 jobs
     console.log("\n▶ [STEP 4] Awaiting background worker processing of all 5 concurrent searches...");
     const tWorkerStart = Date.now();
-    while (Date.now() - tWorkerStart < 15000) {
-      if (capturedExecutions.length >= 5) break;
-      await new Promise((r) => setTimeout(r, 100));
+    while (Date.now() - tWorkerStart < 20000) {
+      if (capturedExecutions.length >= 5) {
+        const dbSearches = await prisma.search.findMany({
+          where: { id: { in: executionIds } },
+          include: { results: true },
+        });
+        if (dbSearches.length === 5 && dbSearches.every((s) => s.results.length > 0)) {
+          break;
+        }
+      }
+      await new Promise((r) => setTimeout(r, 200));
     }
-    // Allow DB persistence to complete
-    await new Promise((r) => setTimeout(r, 500));
 
-    console.log(`   ✓ All 5 background worker executions processed (captured ${capturedExecutions.length}/5)`);
+    console.log(`   ✓ All 5 background worker executions processed and persisted (captured ${capturedExecutions.length}/5)`);
 
     // 5. Verification 1: Provider and Token Correctness (NO CROSS-CONTAMINATION)
     console.log("\n▶ [STEP 5] Auditing provider and credential isolation per account...");
@@ -304,7 +310,8 @@ export async function runMultiAccountConcurrentCorrectnessTest() {
       assert.strictEqual(userSearch.userId, acc.id, `Search owner mismatch for user ${acc.id}`);
 
       if (userSearch.results.length > 0) {
-        const oppId = userSearch.results[0].opportunityId;
+        const userSpecificResult = userSearch.results.find((r) => r.opportunity.title.includes(acc.id)) || userSearch.results[0];
+        const oppId = userSpecificResult.opportunityId;
         await prisma.savedOpportunity.create({
           data: {
             userId: acc.id,
@@ -335,10 +342,19 @@ export async function runMultiAccountConcurrentCorrectnessTest() {
     console.log("\n▶ [STEP 8] Verifying mid-search provider failure isolation...");
     assert.strictEqual(simulatedFailureTriggered, true, "Simulated mid-search quota error was not triggered");
 
-    // Verify all 5 searches in database completed successfully
-    const allSearches = await prisma.search.findMany({
-      where: { id: { in: executionIds } },
-    });
+    // Verify all 5 searches in database completed successfully with settling poll
+    const tCheckStart = Date.now();
+    let allSearches: any[] = [];
+    while (Date.now() - tCheckStart < 10000) {
+      allSearches = await prisma.search.findMany({
+        where: { id: { in: executionIds } },
+      });
+      if (allSearches.length === 5 && allSearches.every((s) => s.status === "COMPLETED")) {
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+
     for (const s of allSearches) {
       assert.strictEqual(s.status, "COMPLETED", `Search ${s.id} for user ${s.userId} was expected to be COMPLETED, got ${s.status}`);
     }
@@ -350,6 +366,9 @@ export async function runMultiAccountConcurrentCorrectnessTest() {
   } finally {
     // Restore original harness
     intelligenceHarness.runLifecycle = originalRunLifecycle;
+
+    // Allow any in-flight asynchronous operations to settle
+    await new Promise((r) => setTimeout(r, 600));
 
     // Clean up test data
     console.log("▶ [CLEANUP] Cleaning up test accounts from Supabase...");

@@ -35,6 +35,7 @@ import { PersonnelConnectDrawer } from "@/components/result/personnel-connect-dr
 import { TrustScoreBadge } from "@/components/result/trust-score-badge";
 import { GhostJobBanner } from "@/components/result/ghost-job-banner";
 import { CompanyIntelligencePill } from "@/components/result/company-intelligence-pill";
+import { cleanTextSnippet } from "@/components/result/rich-job-description";
 import type { TrustScoreReport, UrlAnalysisResult } from "@/lib/verification/midwayVerifier";
 import type { CompanyIntelligenceRecord } from "@/lib/discovery/company/companyIntelligence";
 import { 
@@ -181,6 +182,10 @@ export interface DossierJobItem {
     contactType?: string | null;
     isVerified?: boolean;
     sourcePlatform?: string | null;
+    confidenceScore?: number | null;
+    emailVerificationTier?: string | null;
+    provenance?: string | null;
+    mxRecords?: string[] | null;
   }>;
   trustReport?: TrustScoreReport;
   urlAnalysis?: UrlAnalysisResult;
@@ -418,18 +423,18 @@ export function JobDossierDeck({
               <div
                 key={job.id}
                 onClick={() => setSelectedJob(job)}
-                className="group rounded-2xl border border-border bg-card hover:border-primary/50 shadow-marble-1 hover:shadow-marble-2 transition-all p-3.5 sm:p-4 flex flex-col justify-between gap-3 cursor-pointer select-none relative"
+                className="group rounded-2xl border border-border bg-card hover:border-primary/50 shadow-marble-1 hover:shadow-marble-2 transition-all p-3.5 sm:p-4 flex flex-col justify-between gap-3 cursor-pointer select-none relative w-full max-w-full overflow-hidden min-w-0"
               >
                 {/* Top Section: Company, Badges, Fit Score & Status */}
-                <div className="space-y-2.5">
+                <div className="space-y-2.5 min-w-0 max-w-full overflow-hidden">
                   {/* Row 1: Company + Verification Corner Status */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center justify-between gap-2 min-w-0 max-w-full">
+                    <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
                       <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary font-mono text-[10px] font-bold">
                         #{job.rankPosition || idx + 1}
                       </span>
                       <CompanyAvatar companyName={job.companyName || job.company || "Company"} applyUrl={effectiveUrl} size="sm" className="h-5 w-5 shrink-0" />
-                      <span className="font-sans font-bold text-xs sm:text-sm text-foreground truncate max-w-[160px]">
+                      <span className="font-sans font-bold text-xs sm:text-sm text-foreground truncate max-w-[140px] sm:max-w-[180px] min-w-0 flex-1">
                         {job.companyName}
                       </span>
                     </div>
@@ -537,24 +542,6 @@ export function JobDossierDeck({
                     />
                   )}
 
-                  {/* Recommendation vs Exact Match Badge if present */}
-                  {(job.matchBadge?.label === "Recommendation" || job.matchType?.startsWith("RECOMMENDED") || job.matchBadge?.type?.startsWith("RECOMMENDED")) ? (
-                    <Badge variant="outline" className="text-[10px] font-sans font-medium px-2 py-0 text-amber-800 border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 flex items-center gap-1 w-fit">
-                      <Sparkles className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
-                      <span>{job.matchBadge?.label || "Recommendation"}</span>
-                    </Badge>
-                  ) : (job.matchBadge?.label === "Exact Match" || job.matchBadge?.label === "Direct Match" || job.matchType === "EXACT_MATCH") ? (
-                    <Badge variant="outline" className="text-[10px] font-sans font-medium px-2 py-0 text-emerald-800 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1 w-fit">
-                      <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
-                      <span>{job.matchBadge?.label || "Exact Match"}</span>
-                    </Badge>
-                  ) : job.classification === "NEW_OPPORTUNITY" ? (
-                    <Badge variant="outline" className="text-[10px] font-sans px-1.5 py-0 text-emerald-700 border-emerald-300 bg-emerald-50 flex items-center gap-1 w-fit">
-                      <Sparkles className="h-2.5 w-2.5 stroke-[1.75]" />
-                      <span>{humanizeClassification(job.classification)}</span>
-                    </Badge>
-                  ) : null}
-
                   {/* Job Title */}
                   <h4 className="font-sans text-sm sm:text-base font-bold text-foreground group-hover:text-primary transition-colors leading-snug line-clamp-2">
                     {job.title}
@@ -576,11 +563,11 @@ export function JobDossierDeck({
                         setPersonnelDrawerJob(job);
                       }}
                       className="flex items-center justify-between gap-1.5 text-[11px] font-sans text-muted-foreground bg-muted/40 hover:bg-muted border border-border px-2.5 py-1 rounded-lg w-full max-w-full overflow-hidden mt-1 cursor-pointer transition-colors text-left"
-                      title="Click to view verified recruiter & employee contact channels"
+                      title="Click to view verified recruiter and employee contact channels"
                     >
-                      <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
                         <UserCheck className="h-3 w-3 text-primary shrink-0" />
-                        <span className="font-medium text-foreground truncate text-[11px] max-w-[120px]">
+                        <span className="font-medium text-foreground truncate text-[11px] min-w-0 flex-1 max-w-[130px] sm:max-w-none">
                           {job.companyContacts[0].fullName}
                         </span>
                         {job.companyContacts[0].roleTitle && (
@@ -601,11 +588,11 @@ export function JobDossierDeck({
                         setPersonnelDrawerJob(job);
                       }}
                       className="flex items-center justify-between gap-1.5 text-[11px] font-sans text-muted-foreground bg-muted/40 hover:bg-muted border border-border px-2.5 py-1 rounded-lg w-full max-w-full overflow-hidden mt-1 cursor-pointer transition-colors text-left"
-                      title="Click to view verified recruiter & employee contact channels"
+                      title="Click to view verified recruiter and employee contact channels"
                     >
-                      <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
                         <UserCheck className="h-3 w-3 text-primary shrink-0" />
-                        <span className="font-medium text-foreground truncate text-[11px] max-w-[150px]">
+                        <span className="font-medium text-foreground truncate text-[11px] min-w-0 flex-1 max-w-[150px] sm:max-w-none">
                           {job.companyName} Hiring Team
                         </span>
                       </div>
@@ -619,7 +606,7 @@ export function JobDossierDeck({
                     <div className="rounded-lg border border-border/70 bg-muted/25 p-2 text-xs font-sans text-foreground/90 flex items-start gap-1.5 mt-1 w-full max-w-full overflow-hidden">
                       <Quote className="h-3 w-3 text-muted-foreground shrink-0 mt-0.5 rotate-180" />
                       <p className="line-clamp-2 leading-relaxed text-[11px] text-muted-foreground font-sans min-w-0 break-words overflow-hidden">
-                        {job.sourceListings?.[0]?.rawSnippet || job.description}
+                        {cleanTextSnippet(job.sourceListings?.[0]?.rawSnippet || job.description)}
                       </p>
                     </div>
                   )}
