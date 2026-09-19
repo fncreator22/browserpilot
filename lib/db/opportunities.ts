@@ -359,7 +359,7 @@ export async function recordDiscoveredOpportunity(
   opportunityData: UpsertOpportunityInput,
   sourceListingData: Omit<UpsertSourceListingInput, "opportunityId">
 ): Promise<{ opportunity: Opportunity; sourceListing: SourceListing }> {
-  return await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const opp = await upsertOpportunity(opportunityData, tx as typeof prisma);
     const listing = await upsertSourceListing(
       {
@@ -371,6 +371,15 @@ export async function recordDiscoveredOpportunity(
 
     return { opportunity: opp, sourceListing: listing };
   });
+
+  try {
+    syncOpportunityToRedisCache({
+      ...result.opportunity,
+      sourceListings: [result.sourceListing],
+    }).catch(() => {});
+  } catch {}
+
+  return result;
 }
 
 /**

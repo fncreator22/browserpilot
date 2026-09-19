@@ -1190,18 +1190,18 @@ BrowserPilot couples PostgreSQL (canonical persistence of record) with a high-sp
 
 ### 18.3 Stage 8 Execution & Verification Summary
 
-- **When Completed**: 2026-09-20T05:20:00+05:30
+- **When Completed**: 2026-09-20T05:26:00+05:30
 - **What Implemented**:
-  1. Built `lib/redis/redisOpportunityCache.ts` with 10,000 item capacity, automatic FIFO eviction, and role/skill/category search.
-  2. Integrated continuous DB-to-Redis sync in `lib/db/opportunities.ts` (`upsertOpportunity`).
-  3. Upgraded `app/api/marketplace/route.ts` to query through Redis sliding-window cache.
+  1. Built `lib/redis/redisOpportunityCache.ts` with 10,000 item capacity, atomic pipeline eviction, acronym boundary protection, and multi-token role/skill/category search.
+  2. Integrated continuous DB-to-Redis sync in `lib/db/opportunities.ts` (`upsertOpportunity` and `recordDiscoveredOpportunity`).
+  3. Upgraded `app/api/marketplace/route.ts` to query through Redis sliding-window cache with auto-priming.
   4. Created isolated `test-deploy` git branch matching `main` to enforce pre-deployment staging verification.
-  5. Implemented comprehensive test suite in `tests/unit/stage8-redis-sliding-window-cache.test.ts` (11/11 passing tests).
+  5. Implemented comprehensive test suite in `tests/unit/stage8-redis-sliding-window-cache.test.ts` (13/13 passing tests).
   6. Verified strict zero em-dash, zero en-dash, zero emoji compliance and Navy Ink on Cool Marble styling tokens.
 
 | Verification Test | Command | Result | Telemetry Summary |
 | :--- | :--- | :--- | :--- |
-| **Stage 8 Redis Sliding-Window Cache** | `npx tsx tests/unit/stage8-redis-sliding-window-cache.test.ts` | **PASS (0)** | 11/11 passing tests: Normalization, sync, batch sync, role query, AI_ML category, INFRASTRUCTURE category, Kubernetes skills, REMOTE work mode, salary sort, FIFO timestamp eviction, and anti-slop checks. |
+| **Stage 8 Redis Sliding-Window Cache** | `npx tsx tests/unit/stage8-redis-sliding-window-cache.test.ts` | **PASS (0)** | 13/13 passing tests: Normalization, sync, batch sync, role query, AI_ML category, INFRASTRUCTURE category, Kubernetes skills, REMOTE work mode, salary sort, acronym boundary protection, multi-token search, atomic FIFO timestamp eviction, and anti-slop checks. |
 | **TypeScript Typecheck** | `npx tsc --noEmit` | **PASS (0)** | Exit code 0, zero type errors. |
 
 ---

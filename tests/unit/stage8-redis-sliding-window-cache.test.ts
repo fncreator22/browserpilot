@@ -55,14 +55,14 @@ export async function runStage8RedisSlidingWindowTests() {
   assert.equal(normalized.workMode, "HYBRID");
   assert.equal(Array.isArray(normalized.skills), true);
   assert.equal(normalized.skills?.length, 4);
-  console.log("  ✓ Opportunity normalized into robust cache structure");
+  console.log("  [PASS] Opportunity normalized into robust cache structure");
 
   // 2. Synchronization into Sliding Window Cache
   console.log("▶ [TEST 2] Sliding Window Synchronization...");
   await syncOpportunityToRedisCache(normalized);
   const statsAfterOne = await getOpportunityCacheStats();
   assert.ok(statsAfterOne.memoryCount >= 1, "In-memory cache should record synced item");
-  console.log(`  ✓ Synced single opportunity. Memory: ${statsAfterOne.memoryCount}, Redis: ${statsAfterOne.redisCount}`);
+  console.log(`  [PASS] Synced single opportunity. Memory: ${statsAfterOne.memoryCount}, Redis: ${statsAfterOne.redisCount}`);
 
   // 3. Batch Synchronization Test
   console.log("▶ [TEST 3] Batch Opportunity Synchronization...");
@@ -122,7 +122,7 @@ export async function runStage8RedisSlidingWindowTests() {
 
   const syncedCount = await syncBatchOpportunitiesToRedisCache(batchSamples);
   assert.equal(syncedCount, 3, "All 3 batch items should be processed");
-  console.log("  ✓ Batch synchronized 3 diverse domain opportunities");
+  console.log("  [PASS] Batch synchronized 3 diverse domain opportunities");
 
   // 4. Role, Skill, and Category Filtering over the Cache
   console.log("▶ [TEST 4] Cache Query: Role and Keyword Search...");
@@ -131,35 +131,35 @@ export async function runStage8RedisSlidingWindowTests() {
   });
   assert.ok(roleSearchResult.items.length >= 1, "Should find Full Stack role");
   assert.equal(roleSearchResult.items[0].id, "opp_test_001");
-  console.log(`  ✓ Role query found ${roleSearchResult.items.length} item(s)`);
+  console.log(`  [PASS] Role query found ${roleSearchResult.items.length} item(s)`);
 
   console.log("▶ [TEST 5] Cache Query: Category Filtering (AI_ML)...");
   const aiCategoryResult = await searchCachedOpportunities({
     category: "AI_ML",
   });
   assert.ok(aiCategoryResult.items.some((item) => item.id === "opp_test_002"), "AI_ML category should return Anthropic");
-  console.log(`  ✓ Category filtering matched AI/ML positions correctly`);
+  console.log(`  [PASS] Category filtering matched AI/ML positions correctly`);
 
   console.log("▶ [TEST 6] Cache Query: Category Filtering (INFRASTRUCTURE)...");
   const infraResult = await searchCachedOpportunities({
     category: "INFRASTRUCTURE",
   });
   assert.ok(infraResult.items.some((item) => item.id === "opp_test_003"), "INFRASTRUCTURE category should return Datadog");
-  console.log(`  ✓ Infrastructure category filtering verified`);
+  console.log(`  [PASS] Infrastructure category filtering verified`);
 
   console.log("▶ [TEST 7] Cache Query: Skill Filtering (Kubernetes)...");
   const skillResult = await searchCachedOpportunities({
     skills: ["Kubernetes"],
   });
   assert.ok(skillResult.items.some((item) => item.id === "opp_test_003"), "Skill filter should return Datadog");
-  console.log(`  ✓ Skill query matched Kubernetes skills correctly`);
+  console.log(`  [PASS] Skill query matched Kubernetes skills correctly`);
 
   console.log("▶ [TEST 8] Cache Query: WorkMode Filtering (REMOTE)...");
   const remoteResult = await searchCachedOpportunities({
     workMode: "REMOTE",
   });
   assert.ok(remoteResult.items.every((item) => item.workMode === "REMOTE"), "All results must have REMOTE workMode");
-  console.log(`  ✓ WorkMode filter matched remote jobs strictly`);
+  console.log(`  [PASS] WorkMode filter matched remote jobs strictly`);
 
   console.log("▶ [TEST 9] Cache Query: Salary Sorting...");
   const salarySortedResult = await searchCachedOpportunities({
@@ -169,11 +169,84 @@ export async function runStage8RedisSlidingWindowTests() {
   const firstSal = salarySortedResult.items[0].salaryMax || 0;
   const secondSal = salarySortedResult.items[1].salaryMax || 0;
   assert.ok(firstSal >= secondSal, "First item salary must be greater than or equal to second item salary");
-  console.log(`  ✓ Salary descending sort verified (${firstSal} >= ${secondSal})`);
+  console.log(`  [PASS] Salary descending sort verified (${firstSal} >= ${secondSal})`);
 
-  // 5. Automatic FIFO/LRU Eviction Beyond Capacity
-  console.log("▶ [TEST 10] Automatic FIFO/LRU Eviction Mechanism...");
-  // Test sliding-window trimming logic
+  // 5. Acronym Boundary Safety (Prevent false positive categorization)
+  console.log("▶ [TEST 10] Acronym Boundary Protection (Zero False Positives)...");
+  const edgeCaseJobs = [
+    {
+      id: "opp_edge_chain",
+      canonicalHash: "hash_edge_chain",
+      title: "Global Supply Chain Analyst",
+      companyName: "FedEx",
+      location: "Memphis, TN",
+      workMode: "ON_SITE",
+      skills: ["Logistics", "Operations", "Excel"],
+      primaryApplyUrl: "https://fedex.com/jobs/chain",
+      status: "ACTIVE",
+    },
+    {
+      id: "opp_edge_recruiter",
+      canonicalHash: "hash_edge_recruiter",
+      title: "Technical Recruiter",
+      companyName: "Workday",
+      location: "San Francisco, CA",
+      workMode: "REMOTE",
+      skills: ["Sourcing", "Interviewing", "HR"],
+      primaryApplyUrl: "https://workday.com/jobs/recruiter",
+      status: "ACTIVE",
+    },
+    {
+      id: "opp_edge_real_test",
+      canonicalHash: "hash_edge_real_test",
+      title: "Senior Backend Developer",
+      companyName: "TestGorilla",
+      location: "Remote",
+      workMode: "REMOTE",
+      skills: ["Python", "Django", "PostgreSQL"],
+      primaryApplyUrl: "https://testgorilla.com/jobs/dev",
+      status: "ACTIVE",
+    },
+  ];
+  await syncBatchOpportunitiesToRedisCache(edgeCaseJobs);
+
+  const falseAiMatch = await searchCachedOpportunities({ category: "AI_ML" });
+  assert.ok(
+    !falseAiMatch.items.some((item) => item.id === "opp_edge_chain"),
+    "Supply Chain Analyst must NOT be categorized under AI_ML (chain contains ai)"
+  );
+
+  const falseUiMatch = await searchCachedOpportunities({ category: "PRODUCT_DESIGN" });
+  assert.ok(
+    !falseUiMatch.items.some((item) => item.id === "opp_edge_recruiter"),
+    "Technical Recruiter must NOT be categorized under PRODUCT_DESIGN (recruiter contains ui)"
+  );
+
+  console.log("  [PASS] Acronym boundary protection successfully prevented false positives");
+
+  // 6. Multi-Token Role and Keyword Matching
+  console.log("▶ [TEST 11] Multi-Token Role and Keyword Matching Engine...");
+  const multiTokenRole = await searchCachedOpportunities({ role: "Full Stack Engineer" });
+  assert.ok(
+    multiTokenRole.items.some((item) => item.id === "opp_test_001"),
+    "Role search 'Full Stack Engineer' must match 'Senior Full Stack Engineer'"
+  );
+
+  const multiTokenKeyword = await searchCachedOpportunities({ q: "Remote Datadog" });
+  assert.ok(
+    multiTokenKeyword.items.some((item) => item.id === "opp_test_003"),
+    "Search 'Remote Datadog' must match Datadog job with REMOTE workMode"
+  );
+
+  const realCompanyResult = await searchCachedOpportunities({ q: "TestGorilla" });
+  assert.ok(
+    realCompanyResult.items.some((item) => item.id === "opp_edge_real_test"),
+    "Real legitimate company 'TestGorilla' must be preserved and searchable"
+  );
+  console.log("  [PASS] Multi-token role and cross-field query engine verified");
+
+  // 7. Automatic FIFO/LRU Eviction Mechanism
+  console.log("▶ [TEST 12] Automatic FIFO/LRU Eviction Mechanism...");
   const isRedisAvail = await isRedisCircuitAvailable().catch(() => false);
   if (isRedisAvail) {
     const redis = getSharedRedisClient();
@@ -198,7 +271,7 @@ export async function runStage8RedisSlidingWindowTests() {
     assert.equal(oldest[1], "test_opp_2");
 
     const pipe = redis.pipeline();
-    pipe.zremrangebyrank(testZsetKey, 0, excess - 1);
+    pipe.zrem(testZsetKey, ...oldest);
     pipe.hdel(testDataKey, ...oldest);
     await pipe.exec();
 
@@ -209,13 +282,13 @@ export async function runStage8RedisSlidingWindowTests() {
 
     // Cleanup test keys
     await redis.del(testZsetKey, testDataKey);
-    console.log("  ✓ Redis FIFO/LRU timestamp eviction verified (oldest items pruned first)");
+    console.log("  [PASS] Redis FIFO/LRU timestamp eviction verified (atomic key synchronization)");
   } else {
     console.log("  ℹ Redis offline: in-memory sliding window FIFO tested and verified");
   }
 
-  // 6. Strict Zero Em-Dash, En-Dash, and Emoji Conformance
-  console.log("▶ [TEST 11] Anti-Slop Governance (Zero em/en-dashes and emojis)...");
+  // 8. Strict Zero Em-Dash, En-Dash, and Emoji Conformance
+  console.log("▶ [TEST 13] Anti-Slop Governance (Zero em/en-dashes and emojis)...");
   const cacheFilePath = path.join(process.cwd(), "lib", "redis", "redisOpportunityCache.ts");
   const cacheFileContent = fs.readFileSync(cacheFilePath, "utf8");
 
@@ -223,10 +296,10 @@ export async function runStage8RedisSlidingWindowTests() {
   assert.equal(cacheFileContent.includes("\u2013"), false, "Must not contain en-dash (\\u2013)");
   const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
   assert.equal(emojiRegex.test(cacheFileContent), false, "Must not contain emojis");
-  console.log("  ✓ Strict zero em-dash, zero en-dash, zero emoji compliance verified");
+  console.log("  [PASS] Strict zero em-dash, zero en-dash, zero emoji compliance verified");
 
   console.log("\n=================================================");
-  console.log("  STAGE 8: ALL REDIS CACHE TESTS PASSED (11/11)");
+  console.log("  STAGE 8: ALL REDIS CACHE TESTS PASSED (13/13)");
   console.log("=================================================\n");
 }
 
