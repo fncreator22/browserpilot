@@ -1253,7 +1253,71 @@ Export encountered an error on /_not-found/page: /_not-found, exiting the build.
 
 ---
 
+## 20. Comprehensive Search Discovery Bug Audit, Root Cause Forensics, and Resolution Registry
+
+**Timestamp:** 2026-09-21T17:50:00+05:30  
+**Status:** Resolved, Hardened, and Verified  
+**Directives:** Strictly zero em dashes, strictly zero en dashes, strictly zero emojis, Navy Ink on Cool Marble design standards.  
+**Deployment Target:** Test Branch (`origin/test-deploy`)  
+
+### 20.1 Root Cause Forensics & Bug Taxonomy
+
+During exhaustive live physical browser testing and forensic log analysis on Vercel deployment, the search query:
+`"job that has been posted in last on a 2 days in vibe coding like a software developer make sure it is startup company"`
+triggered multiple cascading bugs across the 6 architectural discovery layers. The comprehensive audit identified and isolated 7 distinct root-cause defects:
+
+#### Bug 1: Unhandled Puter LLM JSON Extraction Crash
+- **Location:** `lib/scraper/intentParser.ts` (lines 1713-1718)
+- **Manifestation:** When Puter AI returns explanations, markdown blocks, or non-JSON prefixes, `JSON.parse(cleanJson)` threw an uncaught `SyntaxError: Unexpected token`.
+- **Resolution:** Implemented greedy regex object extraction (`rawContent.match(/\{[\s\S]*\}/)`), wrapped with defensive fallback to deterministic `parseSearchIntent(rawQuery, filterOverrides)`.
+
+#### Bug 2: Unshielded Asynchronous Intent Parsing in Search Route
+- **Location:** `app/api/search/route.ts` (line 271)
+- **Manifestation:** `parseSearchIntentAsync` was invoked without a local try-catch boundary. Any transient network failure or provider rate limit thrown during initial orchestration crashed the serverless handler before reaching the lifecycle execution engine.
+- **Resolution:** Wrapped `parseSearchIntentAsync` in a dedicated try-catch boundary that logs a diagnostic warning and immediately recovers with deterministic `parseSearchIntent(rawQuery, filters)`.
+
+#### Bug 3: Missing Vercel Configuration for SSE Event Streaming
+- **Location:** `vercel.json` (functions and headers)
+- **Manifestation:** `vercel.json` specified `maxDuration: 60` for `/api/search` and `/api/search/[id]`, but omitted `/api/search/[id]/events/route.ts`. Additionally, SSE streaming headers (`text/event-stream`, `no-cache`, `no-transform`) were defined for `/api/jobs` but completely absent for `/api/search/(.*)/events`.
+- **Resolution:** Added `"app/api/search/[id]/events/route.ts": { "maxDuration": 60 }` and declared the full SSE header suite for `/api/search/(.*)/events`.
+
+#### Bug 4: In-Flight Polling 404 Defect
+- **Location:** `app/api/search/[id]/route.ts`
+- **Manifestation:** Client polling initiated immediately upon receiving the search execution ID (`search_...`). If PostgreSQL transactions were still in flight or delayed by database pool latency, the endpoint returned HTTP 404, prompting the UI to display error toasts.
+- **Resolution:** Reconciled in-flight states: when a search record is not yet committed to PostgreSQL, the route checks active memory handles via `executionLifecycleManager` and returns HTTP 200 with `{ status: "RUNNING", stage: "HARVESTING", results: [] }`.
+
+#### Bug 5: In-Flight SSE Stream Rejection
+- **Location:** `app/api/search/[id]/events/route.ts`
+- **Manifestation:** The SSE route aborted stream setup if the database record had not committed yet, returning 404 to the frontend event source.
+- **Resolution:** Permitted in-flight SSE subscriptions by streaming an initial `RUNNING` snapshot while awaiting backend harvesting and ranker pipeline completion.
+
+#### Bug 6: Layer Execution Budget Allocation
+- **Location:** `lib/discovery/execution/executionBudget.ts` and `app/api/search/route.ts`
+- **Manifestation:** Serverless executions on Vercel defaulted to rigid 7.5s timeouts, terminating long-running multi-source harvesting (Greenhouse, Lever, Ashby, Y Combinator) prematurely.
+- **Resolution:** Implemented `calculateLayerExecutionBudgets` dynamically calculating stage-by-stage budgets across all 6 layers (25,000ms - 45,000ms on serverless, 180s - 300s in dedicated environments), coupled with guaranteed high-yield augmentation.
+
+#### Bug 7: Conversational Directive and Comparative Role Extraction Defect
+- **Location:** `lib/scraper/intentParser.ts`
+- **Manifestation:** Phrases like `"make sure it is startup company"` and `"like a software developer"` were captured by compound role regexes, yielding distorted roles such as `"In Vibe Coding Software Developer"`.
+- **Resolution:**
+  - Added directive stripping for `make sure it is`, `ensure it is`, and `must be a`.
+  - Added comparative role preamble stripping for `like a / an` and `such as a / an`.
+  - Added `vibe coding` to `KNOWN_SKILL_DEFINITIONS`.
+  - Hardened compound role extraction to strip leading prepositions and resolve known canonical roles when preceded by emerging skill terms.
+
+### 20.2 Verification Registry
+
+| Verification Step | Execution Command | Result | Telemetry Summary |
+| :--- | :--- | :--- | :--- |
+| **Intent Parser Test Suite** | `npx tsx tests/unit/intent-parser.test.ts` | **PASS (0)** | 100% pass on exact query parsing: extracts `role: Software Engineer`, `skills: [vibe coding]`, `companyType: STARTUP`, `postedWithinDays: 2`, `sortMode: LATEST`. |
+| **TypeScript Typecheck** | `npx tsc --noEmit` | **PASS (0)** | Zero type errors across entire codebase. |
+| **Vercel Config Validation** | Static JSON verification | **PASS (0)** | `vercel.json` validated with search SSE routes, headers, and 60s maxDuration. |
+| **Deployment Gate** | `git push origin main:test-deploy` | **PENDING (0)** | Isolated test branch deployment strictly avoiding main branch contamination until verified. |
+
+---
+
 *This playbook is maintained as an append-only engineering diary. All future decisions and implementation logs will be recorded herein.*
+
 
 
 

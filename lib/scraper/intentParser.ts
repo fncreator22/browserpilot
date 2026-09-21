@@ -99,6 +99,7 @@ export const KNOWN_SKILL_DEFINITIONS: KnownSkillDefinition[] = [
   { canonicalName: "swift", regex: /\b(swift|ios)\b/i },
   { canonicalName: "kotlin", regex: /\b(kotlin|android)\b/i },
   { canonicalName: "robotics", regex: /\b(robotics|ros|ros2|mechatronics)\b/i },
+  { canonicalName: "vibe coding", regex: /\b(vibe\s*coding|prompt\s*coding|ai\s*assisted\s*coding)\b/i },
 ];
 
 export interface KnownCompanyDefinition {
@@ -508,6 +509,12 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   workingQuery = workingQuery.replace(/\b(?:are\s+)?working\s+on\b/gi, " ");
   workingQuery = workingQuery.replace(/\b(?:and\s+)?hiring(?:\s+right\s+now|\s+now)?\b/gi, " ");
   workingQuery = workingQuery.replace(/\bright\s+now\b/gi, " ");
+
+  // Strip conversational directives (e.g. "make sure it is startup company", "make sure it is a", "ensure it is", "must be")
+  workingQuery = workingQuery.replace(/\b(?:make\s+sure\s+(?:that\s+)?(?:it\s+is\s+|they\s+are\s+)?|ensure\s+(?:that\s+)?(?:it\s+is\s+|they\s+are\s+)?|must\s+be\s+a?\s*)\b/gi, " ");
+
+  // Strip comparative role preambles (e.g. "like a software developer", "like an engineer", "such as a developer")
+  workingQuery = workingQuery.replace(/\b(?:like|such\s+as)\s+(?:a|an)\s+/gi, " ");
 
   // 1. Evidence Verification & Requested Evidence Requirements
   const requiresEvidenceVerification = /\b(verified|visual\s*(?:page\s*)?snapshots?|snapshots?|direct\s*application\s*links?)\b/i.test(lower);
@@ -1061,7 +1068,16 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
       /\b([a-zA-Z0-9/&+-]+(?:\s+[a-zA-Z0-9/&+-]+){0,3}\s+(?:engineer(?:ing)?|developer|programmer|coder|architect|designer|manager|specialist|lead|director|analyst|scientist|researcher|consultant|strategist|marketer|coordinator|officer|associate|executive|writer|editor|artist|technician|administrator|intern))\b/i
     );
     if (compoundMatch && compoundMatch[1]) {
-      const cand = compoundMatch[1].trim();
+      let cand = compoundMatch[1].trim();
+      cand = cand.replace(/^(?:in|on|for|at|as|with|into|about|targeting|to|from)\s+/i, "").trim();
+      const matchedSkill = KNOWN_SKILL_DEFINITIONS.find((s) => s.regex.test(cand));
+      if (matchedSkill) {
+        const afterSkill = cand.replace(matchedSkill.regex, "").trim();
+        const matchedKnownDef = KNOWN_ROLE_DEFINITIONS.find((def) => def.regex.test(afterSkill));
+        if (matchedKnownDef) {
+          cand = matchedKnownDef.canonicalName;
+        }
+      }
       const isBlacklistedCompound =
         /^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|fresh|remote|hybrid|posted|available|seeking|looking|applying)$/i.test(cand) ||
         KNOWN_LOCATION_DEFINITIONS.some((l) => l.regex.test(cand));
@@ -1710,9 +1726,20 @@ If days/freshness is specified (e.g. "last 4 days"), set postedWithinDays: 4, fr
         ],
       });
 
-      const rawContent = puterRes.content;
-      const cleanJson = rawContent.replace(/```json|```/gi, "").trim();
-      const parsed = JSON.parse(cleanJson);
+      const rawContent = puterRes.content || "";
+      let parsed: any = null;
+      try {
+        const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+        const jsonStr = jsonMatch ? jsonMatch[0] : rawContent.replace(/```json|```/gi, "").trim();
+        parsed = JSON.parse(jsonStr);
+      } catch (parseErr) {
+        console.warn("[IntentParser] Failed to parse Puter LLM JSON output:", parseErr, rawContent);
+      }
+
+      if (!parsed || typeof parsed !== "object") {
+        return parseSearchIntent(rawQuery, options?.filterOverrides);
+      }
+
       const baseIntent = parseSearchIntent(rawQuery, options?.filterOverrides);
 
         const isMetaRole = (r?: string) => {
