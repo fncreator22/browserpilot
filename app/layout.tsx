@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Script from "next/script";
 import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import "sonner/dist/styles.css";
@@ -81,7 +82,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${plusJakartaSans.variable} ${geistMono.variable} min-h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
-        <RouteProgressBar />
+        <Suspense fallback={null}>
+          <RouteProgressBar />
+        </Suspense>
         <Script src="https://js.puter.com/v2/" strategy="afterInteractive" />
         <AuthSessionProvider>
           <UIStateProvider>

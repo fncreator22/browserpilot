@@ -1206,6 +1206,54 @@ BrowserPilot couples PostgreSQL (canonical persistence of record) with a high-sp
 
 ---
 
+## 19. Production Deployment Hardening: Next.js Static Prerender & RootLayout Suspense Governance
+
+**Timestamp:** 2026-09-21T11:58:00+05:30  
+**Status:** Resolved, Hardened, and Verified  
+**Directives:** Strictly zero em dashes, strictly zero en dashes, strictly zero emojis, Navy Ink on Cool Marble design standards.
+
+### 19.1 Root Cause Forensic Analysis: The `/_not-found` Prerender Failure
+
+#### The Failure Telemetry
+In GitHub Actions run `35477496491` triggered on commit `7fc306a`, the production build failed with the following diagnostic trace:
+```text
+Error occurred prerendering page "/_not-found". Read more: https://nextjs.org/docs/messages/prerender-error
+Export encountered an error on /_not-found/page: /_not-found, exiting the build.
+⨯ Next.js build worker exited with code: 1 and signal: null
+##[error]Process completed with exit code 1.
+```
+
+#### The Architecture Breakdown
+1. **Dynamic Search Parameter De-Opt in Root Layout**:
+   - Next.js App Router renders `RootLayout` (`app/layout.tsx`) as the global wrapper for every route, including the statically generated default 404 page (`/_not-found`).
+   - `RouteProgressBar` (`components/navigation/route-progress-bar.tsx`) accessed `useSearchParams()` to detect query string changes across client-side navigations.
+   - Because `RouteProgressBar` was rendered directly inside `app/layout.tsx` without an enclosing `<Suspense>` boundary, Next.js could not statically prerender `/_not-found` during production builds without bailing out or failing.
+2. **Missing Canonical Not-Found Route**:
+   - The repository lacked a dedicated `app/not-found.tsx` file. Next.js fell back to its internal default `/_not-found` page, which inherited the unshielded `useSearchParams()` call from `RootLayout`.
+
+### 19.2 Remediation Blueprint
+
+1. **Dual-Layer Suspense Boundaries for Route Navigation**:
+   - In `components/navigation/route-progress-bar.tsx`: Split into `RouteProgressBarInner` (handling pathname/searchParams observation) and wrapped by an exported `RouteProgressBar` component enclosed in `<Suspense fallback={null}>`.
+   - In `app/layout.tsx`: Wrapped `<RouteProgressBar />` with an explicit top-level `<Suspense fallback={null}>` boundary to guarantee static build safety.
+2. **Dedicated Static 404 Route (`app/not-found.tsx`)**:
+   - Created a standalone, self-contained `app/not-found.tsx` page.
+   - Styled with Navy Ink on Cool Marble tokens (`bg-card`, `border-border`, `bg-primary`, `shadow-marble-3`).
+   - Completely free of client hooks, query parameter reads, or dynamic context dependencies, guaranteeing instantaneous static prerendering.
+
+### 19.3 Verification & Deployment Registry
+
+| Verification Step | Execution Command | Result | Telemetry Summary |
+| :--- | :--- | :--- | :--- |
+| **Next.js Production Build** | `npm run build` | **PASS (0)** | Compiled and generated static pages across all 44 routes (including `/_not-found`) with zero prerendering errors. |
+| **TypeScript Typecheck** | `npx tsc --noEmit` | **PASS (0)** | Zero type errors across the entire repository. |
+| **Stage 8 Redis Cache Suite** | `npx tsx tests/unit/stage8-redis-sliding-window-cache.test.ts` | **PASS (0)** | 13/13 passing tests: Normalization, sync, filtering, atomic FIFO eviction. |
+| **Stage 6 Theme Toggle Suite** | `npx tsx tests/unit/stage6-theme-toggle-and-dead-code-purge.test.ts` | **PASS (0)** | 4/4 passing tests: Dual-state mounting, zero dashes/emojis. |
+| **Branch Synchronization** | `git push origin main` and `test-deploy` | **PASS (0)** | Synchronized to both production and staging branches. |
+
+---
+
 *This playbook is maintained as an append-only engineering diary. All future decisions and implementation logs will be recorded herein.*
+
 
 

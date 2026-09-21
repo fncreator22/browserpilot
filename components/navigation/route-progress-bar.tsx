@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
-export function RouteProgressBar() {
+function RouteProgressBarInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isNavigating, setIsNavigating] = useState(false);
@@ -82,5 +82,13 @@ export function RouteProgressBar() {
         }}
       />
     </div>
+  );
+}
+
+export function RouteProgressBar() {
+  return (
+    <Suspense fallback={null}>
+      <RouteProgressBarInner />
+    </Suspense>
   );
 }
