@@ -813,8 +813,8 @@ export function TaskInput({
       }
 
       if (!res.ok) {
-        if (res.status === 504 || res.status === 502 || res.status === 503) {
-          const timeoutDesc = "The search service took longer than expected or is under high traffic. Please retry in a few moments.";
+        if (res.status >= 500) {
+          const timeoutDesc = data?.message || "The search service took longer than expected or is under high traffic. Please retry in a few moments.";
           setSubmitError(timeoutDesc);
           toast.error("Search Notice", { description: timeoutDesc });
           if (onOpportunitySearchResult) onOpportunitySearchResult(null);
@@ -854,7 +854,7 @@ export function TaskInput({
           }
           return;
         }
-        throw new Error(data?.message || data?.error || `Search failed with status ${res.status}. Please check your connection and AI provider settings.`);
+        throw new Error(data?.message || data?.error || "We could not complete your search request. Please check your query and try again.");
       }
 
       if (!data) {

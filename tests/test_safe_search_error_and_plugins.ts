@@ -1,4 +1,4 @@
-﻿import test from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
 import { formatCurrency, getPlanPrice, SUPPORTED_CURRENCIES } from "../lib/billing/currency";
 import { SOURCE_ALIASES } from "../lib/plugins/pluginMarketplaceService";
@@ -72,3 +72,15 @@ test("Client Search Error Sanitization Logic", () => {
   const friendly3 = sanitizeError(domainErr);
   assert.equal(friendly3, "Please sign in or configure an AI API key to execute discovery searches.");
 });
+
+test("Intent Parser: Data Scientist remote query resolution", async () => {
+  const { parseSearchIntent } = await import("../lib/scraper/intentParser");
+  const query = "find me a job in data scientist remote to work in last 3 days posted";
+  const intent = parseSearchIntent(query);
+
+  assert.ok(intent.roles.includes("Data Scientist"), "Should parse Data Scientist role");
+  assert.ok(intent.workModes.includes("REMOTE"), "Should parse REMOTE workMode");
+  assert.equal(intent.postedWithinDays, 3, "Should parse posted within 3 days");
+  assert.notEqual(intent.primaryLocation?.toLowerCase(), "data scientist", "Data scientist must not be identified as location");
+});
+

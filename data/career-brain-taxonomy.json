@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "lastUpdatedAt": "2026-09-20T01:03:18.172Z",
-  "totalRolesLearned": 473,
+  "lastUpdatedAt": "2026-09-21T07:20:46.468Z",
+  "totalRolesLearned": 479,
   "departments": {
     "engineering": {
       "id": "engineering",
@@ -3551,6 +3551,42 @@
               ],
               "firstObservedAt": "2026-09-19T22:32:15.225Z",
               "lastObservedAt": "2026-09-19T22:32:15.225Z"
+            },
+            "software-development-engineer-iii-users": {
+              "canonicalTitle": "Software Development Engineer III - Users",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T07:12:47.071Z",
+              "lastObservedAt": "2026-09-21T07:12:47.071Z"
+            },
+            "systems-engineer-ii": {
+              "canonicalTitle": "Systems Engineer II",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T07:12:47.072Z",
+              "lastObservedAt": "2026-09-21T07:12:47.073Z"
+            },
+            "compensation-and-benefits-analyst": {
+              "canonicalTitle": "Compensation and Benefits Analyst",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T07:12:47.073Z",
+              "lastObservedAt": "2026-09-21T07:12:47.073Z"
             }
           }
         },
@@ -5165,7 +5201,7 @@
               "lastObservedAt": "2026-09-19T05:46:59.015Z"
             },
             "ai-ml-intern-machine-learning-generative-ai": {
-              "canonicalTitle": "AI/ML Intern – Machine Learning & Generative AI",
+              "canonicalTitle": "AI/ML Intern - Machine Learning & Generative AI",
               "aliases": [],
               "coOccurringSkills": [],
               "observedCount": 1,
@@ -5263,7 +5299,7 @@
                 "Pandas",
                 "Scikit-Learn"
               ],
-              "observedCount": 135,
+              "observedCount": 136,
               "isDynamicallyLearned": false,
               "discoveredFromPortals": [
                 "LinkedIn",
@@ -5271,7 +5307,7 @@
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-01-01T00:00:00.000Z",
-              "lastObservedAt": "2026-09-18T17:11:09.895Z"
+              "lastObservedAt": "2026-09-21T07:20:46.466Z"
             },
             "data-analyst": {
               "canonicalTitle": "Data Analyst",
@@ -5679,6 +5715,42 @@
               ],
               "firstObservedAt": "2026-09-19T22:32:15.223Z",
               "lastObservedAt": "2026-09-19T22:32:15.223Z"
+            },
+            "data-scientist-risk-quant-analytics": {
+              "canonicalTitle": "Data Scientist, Risk & Quant Analytics",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T07:20:46.465Z",
+              "lastObservedAt": "2026-09-21T07:20:46.465Z"
+            },
+            "distributed-cloud-data-scientist": {
+              "canonicalTitle": "Distributed Cloud | Data Scientist",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T07:20:46.466Z",
+              "lastObservedAt": "2026-09-21T07:20:46.466Z"
+            },
+            "data-scientist-python-cloud-data-platforms-f-m-x": {
+              "canonicalTitle": "Data Scientist - Python & Cloud Data Platforms (f/m/x)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T07:20:46.468Z",
+              "lastObservedAt": "2026-09-21T07:20:46.468Z"
             }
           }
         }

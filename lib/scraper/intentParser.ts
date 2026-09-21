@@ -3,7 +3,7 @@
  * Translates natural-language user requests into structured, deterministic SearchIntent
  * and DiscoveryPlan configuration without requiring any external LLM calls or network latency.
  * 
- * 100% deterministic — Zero token overhead ($0).
+ * 100% deterministic - Zero token overhead ($0).
  */
 
 import { type SearchIntent } from "./providers/baseProvider";
@@ -279,6 +279,16 @@ export const KNOWN_ROLE_DEFINITIONS: KnownRoleDefinition[] = [
     canonicalName: "AI Engineer",
     regex: /\b(ai|artificial intelligence|machine learning|ml|deep learning|llm|nlp|genai)\b/i,
     related: ["Machine Learning Engineer", "ML Researcher", "Data Scientist", "Applied AI Engineer", "AI/ML Intern"],
+  },
+  {
+    canonicalName: "Data Scientist",
+    regex: /\b(data\s*scien(?:tist|ce)|applied\s*scien(?:tist|ce)|research\s*scien(?:tist|ce)|quantitative\s*researcher)\b/i,
+    related: ["Machine Learning Engineer", "Data Analyst", "Data Engineer", "AI Researcher", "Data Science Intern"],
+  },
+  {
+    canonicalName: "Machine Learning Engineer",
+    regex: /\b(machine\s*learning\s*engineer|ml\s*engineer|deep\s*learning\s*engineer|mlops|ai\s*engineer)\b/i,
+    related: ["Data Scientist", "AI Engineer", "MLOps Engineer", "Data Engineer", "ML Research Intern"],
   },
   {
     canonicalName: "Frontend Engineer",
@@ -942,7 +952,7 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
         /^(usd|eur|gbp|inr|cad|aud|dollars?|euros?|pounds?|rupees?|lpa|ctc|cash|equity|hourly|stipend)$/i.test(candLoc);
 
       const isRoleOrCompanyDescriptor =
-        /\b(news\s*outlets?|mid-sized|non-profit|ngos?|universities|law\s*firms?|startups?|companies?|firms?|management|engineering|policy|science|research|fellowships?)\b/i.test(candLoc) ||
+        /\b(news\s*outlets?|mid-sized|non-profit|ngos?|universities|law\s*firms?|startups?|companies?|firms?|management|engineering|policy|scien(?:ce|tist)s?|research|fellowships?|developer|engineer|analyst|specialist|designer|manager|programmer|architect)\b/i.test(candLoc) ||
         KNOWN_ROLE_DEFINITIONS.some((r) => r.regex.test(candLoc));
 
       const isPlatformDescriptor =
@@ -954,6 +964,7 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
         isPlatformDescriptor ||
         isWorldwideOrAnywhere ||
         /^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|mechanical|software|civil|electrical|chemical|process|nurse|financial|marketing|data|frontend|backend|fullstack|engineering|developer|intern|internship|entry|senior|junior|y\s*combinator|yc|techstars|startups?|companies?|firms?|enterprises?|faang|big\s*tech|fortune\s*500)$/i.test(candLoc) ||
+        /\b(scien(?:tist|ce)|engineer(?:ing)?|developer|analyst|designer|architect|programmer|coder|specialist|manager|officer|lead|executive|consultant|worker|employee)\b/i.test(candLoc) ||
         /\b(with|using|having|where|startup|startups|company|companies|accelerator|accelerators|y\s*combinator|yc|on\s+any|any\s+platform)\b/i.test(candLoc) ||
         KNOWN_SKILL_DEFINITIONS.some((s) => s.regex.test(candLoc)) ||
         KNOWN_COMPANY_DEFINITIONS.some((c) => c.regex.test(candLoc)) ||
