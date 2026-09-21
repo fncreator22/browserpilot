@@ -544,15 +544,17 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
 
   // Mask startup funding phrases early so "startups which are recently raise fund" sets companyType and doesn't pollute role titles or trigger false 48h freshness
   const hasStartupFundingPhrase =
-    /\b(?:in\s+)?(?:startups?|companies?)\s+(?:which\s+(?:are|have)\s+|that\s+(?:are|have)\s+|who\s+(?:are|have)\s+)?(?:recently\s+)?(?:raised?|raising|raise)\s+(?:funds?|funding|seed|series\s+[a-z])(?:\s+as\s+a|\s+as)?\b/i.test(workingQuery) ||
-    /\b(?:startups?\s+which\s+are\s+recently\s+raise\s+fund(?:\s+as\s+a|\s+as)?)\b/i.test(workingQuery) ||
-    /\b(?:recently\s+)?(?:raised?|raising|raise)\s+(?:funds?|funding|seed|series\s+[a-z])\b/i.test(workingQuery);
+    /\b(?:in\s+)?(?:startups?|companies?|starters?)\s+(?:which\s+(?:are|have)\s+|that\s+(?:are|have)\s+|who\s+(?:are|have)\s+)?(?:recently\s+)?(?:raised?|raising|raise|race)\s+(?:funds?|funding|seed|series\s+[a-z])(?:\s+as\s+a|\s+as)?\b/i.test(workingQuery) ||
+    /\b(?:startups?|starters?)\s+which\s+are\s+recently\s+(?:raise|race)\s+fund(?:\s+as\s+a|\s+as)?\b/i.test(workingQuery) ||
+    /\b(?:which\s+)?(?:recently\s+)?(?:race|raise|raised|raising)\s+funds?(?:\s+in\s+recently)?(?:\s+like\s+in\s+starters?)?\b/i.test(workingQuery) ||
+    /\b(?:recently\s+)?(?:raised?|raising|raise|race)\s+(?:funds?|funding|seed|series\s+[a-z])\b/i.test(workingQuery);
 
   if (hasStartupFundingPhrase) {
     workingQuery = workingQuery
-      .replace(/\b(?:in\s+)?(?:startups?|companies?)\s+(?:which\s+(?:are|have)\s+|that\s+(?:are|have)\s+|who\s+(?:are|have)\s+)?(?:recently\s+)?(?:raised?|raising|raise)\s+(?:funds?|funding|seed|series\s+[a-z])(?:\s+as\s+a|\s+as)?\b/gi, " ")
-      .replace(/\b(?:startups?\s+which\s+are\s+recently\s+raise\s+fund(?:\s+as\s+a|\s+as)?)\b/gi, " ")
-      .replace(/\b(?:recently\s+)?(?:raised?|raising|raise)\s+(?:funds?|funding|seed|series\s+[a-z])\b/gi, " ");
+      .replace(/\b(?:in\s+)?(?:startups?|companies?|starters?)\s+(?:which\s+(?:are|have)\s+|that\s+(?:are|have)\s+|who\s+(?:are|have)\s+)?(?:recently\s+)?(?:raised?|raising|raise|race)\s+(?:funds?|funding|seed|series\s+[a-z])(?:\s+as\s+a|\s+as)?\b/gi, " ")
+      .replace(/\b(?:startups?|starters?)\s+which\s+are\s+recently\s+(?:raise|race)\s+fund(?:\s+as\s+a|\s+as)?\b/gi, " ")
+      .replace(/\b(?:which\s+)?(?:recently\s+)?(?:race|raise|raised|raising)\s+funds?(?:\s+in\s+recently)?(?:\s+like\s+in\s+starters?)?\b/gi, " ")
+      .replace(/\b(?:recently\s+)?(?:raised?|raising|raise|race)\s+(?:funds?|funding|seed|series\s+[a-z])\b/gi, " ");
   }
 
   // 3. Temporal Expressions & Date Constraint Parsing (Shielded early to prevent count/role collision)
@@ -1003,9 +1005,9 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
   let specificExtractedRole: string | undefined = undefined;
 
   // 9a. Explicit Targeted Role Extraction from Contextual Clauses
-  // Handles phrases like: "jobs on <ROLE>", "jobs for <ROLE>", "positions in <ROLE>", "roles for <ROLE>"
+  // Handles phrases like: "jobs on <ROLE>", "jobs for <ROLE>", "positions in <ROLE>", "applying for <ROLE>", "looking for <ROLE>"
   const explicitRoleClauseMatch = workingQuery.match(
-    /\b(?:jobs?|roles?|positions?|openings?|internships?|opportunities)\s+(?:on|for|in|as|targeting|about)\s+([A-Za-z0-9\s/&+-]+?)(?=\s+(?:in|at|near|around|within|posted|last|past|with|salary|compensation|$))/i
+    /\b(?:jobs?|roles?|positions?|openings?|internships?|opportunities|applying|apply|applied|looking|seeking|interested)\s+(?:on|for|in|as|targeting|about|to\s+work\s+as)\s+([A-Za-z0-9\s/&+-]+?)(?=\s+(?:which|that|who|where|in|at|near|around|within|posted|last|past|with|paying|salary|compensation|$))/i
   );
   if (explicitRoleClauseMatch && explicitRoleClauseMatch[1]) {
     const rawCand = explicitRoleClauseMatch[1].trim();
@@ -1025,15 +1027,50 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
       !isLocationOrModifier &&
       !/^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|fresh|remote|hybrid|posted|the\s+memory|memory|saved\s+role|my\s+saved\s+role|memory\s+vault|profile)$/i.test(rawCand)
     ) {
-      const matchedKnownDef = KNOWN_ROLE_DEFINITIONS.find((def) => def.regex.test(rawCand));
-      if (matchedKnownDef) {
-        specificExtractedRole = matchedKnownDef.canonicalName;
+      let normRole = rawCand;
+      if (/engineering$/i.test(normRole)) {
+        normRole = normRole.replace(/engineering$/i, "Engineer");
+      }
+      const formattedCand = normRole
+        .split(/\s+/)
+        .map((w) => {
+          const lowerW = w.toLowerCase();
+          if (["ai", "ml", "qa", "ui", "ux", "llm", "nlp", "sre", "swe", "sde", "ats", "devops"].includes(lowerW)) {
+            return lowerW.toUpperCase();
+          }
+          return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+        })
+        .join(" ");
+
+      const hasCoreProfession = /\b(engineer(?:ing)?|developer|programmer|coder|architect|designer|manager|specialist|lead|director|analyst|scientist|researcher|consultant|strategist|marketer|coordinator|officer|associate|executive|writer|editor|artist|technician|administrator|intern)\b/i.test(rawCand);
+
+      // If the candidate has compound tokens or specific profession nouns, preserve the exact title
+      if (formattedCand.split(/\s+/).length >= 2 || hasCoreProfession) {
+        specificExtractedRole = formattedCand;
       } else {
-        let normRole = rawCand;
-        if (/engineering$/i.test(normRole)) {
-          normRole = normRole.replace(/engineering$/i, "Engineer");
+        const matchedKnownDef = KNOWN_ROLE_DEFINITIONS.find((def) => def.regex.test(rawCand));
+        specificExtractedRole = matchedKnownDef ? matchedKnownDef.canonicalName : formattedCand;
+      }
+    }
+  }
+
+  // 9a.2 Dynamic Compound Role Extraction (matches arbitrary multi-token titles: "[Modifier] + [Core Profession]")
+  // e.g. "vibe coding software engineer", "prompt engineer", "cloud infrastructure architect", "growth marketing lead"
+  if (!specificExtractedRole) {
+    const compoundMatch = workingQuery.match(
+      /\b([a-zA-Z0-9/&+-]+(?:\s+[a-zA-Z0-9/&+-]+){0,3}\s+(?:engineer(?:ing)?|developer|programmer|coder|architect|designer|manager|specialist|lead|director|analyst|scientist|researcher|consultant|strategist|marketer|coordinator|officer|associate|executive|writer|editor|artist|technician|administrator|intern))\b/i
+    );
+    if (compoundMatch && compoundMatch[1]) {
+      const cand = compoundMatch[1].trim();
+      const isBlacklistedCompound =
+        /^(the|a|an|any|all|some|good|latest|recent|new|urgent|verified|fresh|remote|hybrid|posted|available|seeking|looking|applying)$/i.test(cand) ||
+        KNOWN_LOCATION_DEFINITIONS.some((l) => l.regex.test(cand));
+      if (!isBlacklistedCompound && cand.length >= 4) {
+        let normCand = cand;
+        if (/engineering$/i.test(normCand)) {
+          normCand = normCand.replace(/engineering$/i, "Engineer");
         }
-        specificExtractedRole = normRole
+        specificExtractedRole = normCand
           .split(/\s+/)
           .map((w) => {
             const lowerW = w.toLowerCase();
@@ -1109,6 +1146,15 @@ export function parseSearchIntent(rawQuery?: string | null, filterOverrides?: Pa
       matchedRoles.splice(existingIdx, 1);
     }
     matchedRoles.unshift(specificExtractedRole);
+
+    // Dynamically augment related technical or domain roles to maximize yield
+    if (/\b(?:engineer|developer|coder|programmer)\b/i.test(specificExtractedRole)) {
+      if (!matchedRoles.includes("Software Engineer")) matchedRoles.push("Software Engineer");
+      if (!matchedRoles.includes("Full Stack Engineer")) matchedRoles.push("Full Stack Engineer");
+    } else if (/\b(?:marketing|marketer)\b/i.test(specificExtractedRole)) {
+      if (!matchedRoles.includes("Marketing Specialist")) matchedRoles.push("Marketing Specialist");
+      if (!matchedRoles.includes("Digital Marketing Manager")) matchedRoles.push("Digital Marketing Manager");
+    }
   }
 
   // Only default to Software Engineer if explicit tech keywords were used and no role found

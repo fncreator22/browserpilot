@@ -84,3 +84,24 @@ test("Intent Parser: Data Scientist remote query resolution", async () => {
   assert.notEqual(intent.primaryLocation?.toLowerCase(), "data scientist", "Data scientist must not be identified as location");
 });
 
+test("Intent Parser: Dynamic novel compound role and startup funding classification", async () => {
+  const { parseSearchIntent } = await import("../lib/scraper/intentParser");
+  
+  // Test user query 1: Marketing remote new
+  const q1 = "me some jobs in marketing I like to have remote work and it must be new";
+  const intent1 = parseSearchIntent(q1);
+  assert.ok(intent1.roles.some((r) => /marketing/i.test(r)), "Should extract marketing role");
+  assert.ok(intent1.workModes.includes("REMOTE"), "Should parse REMOTE workMode");
+
+  // Test user query 2: Funding slang and novel 'vibe coding software engineer' role
+  const q2 = "some jobs which race funds in recently like in starters I am applying for vibe coding software engineer which has recently posted their chance or looking for someone";
+  const intent2 = parseSearchIntent(q2);
+  assert.equal(intent2.companyType, "STARTUP", "Should classify 'race funds in recently like in starters' as STARTUP");
+  assert.ok(
+    intent2.roles.includes("Vibe Coding Software Engineer"),
+    "Should dynamically preserve novel compound role 'Vibe Coding Software Engineer'"
+  );
+  assert.equal(intent2.roles[0], "Vibe Coding Software Engineer", "Target role must be prioritized at index 0");
+});
+
+

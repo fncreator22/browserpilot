@@ -3,10 +3,12 @@
  * Zero-fee public web scraping & markdown extraction via Jina Reader.
  */
 
-export async function fetchViaJinaReader(url: string, timeoutMs: number = 8000): Promise<string | null> {
+export async function fetchViaJinaReader(url: string, timeoutMs?: number): Promise<string | null> {
+  const isServerless = Boolean(process.env.VERCEL === "1" || process.env.NEXT_SERVERLESS === "1" || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  const effectiveTimeout = timeoutMs ?? (isServerless ? 2500 : 8000);
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
 
     const jinaUrl = `https://r.jina.ai/${url.trim()}`;
     const response = await fetch(jinaUrl, {

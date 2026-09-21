@@ -11,6 +11,12 @@
     },
     "app/api/jobs/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/search/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/search/[id]/route.ts": {
+      "maxDuration": 60
     }
   },
   "headers": [

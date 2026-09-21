@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "lastUpdatedAt": "2026-09-21T07:20:46.468Z",
-  "totalRolesLearned": 479,
+  "lastUpdatedAt": "2026-09-21T07:46:34.782Z",
+  "totalRolesLearned": 484,
   "departments": {
     "engineering": {
       "id": "engineering",
@@ -6298,6 +6298,66 @@
               ],
               "firstObservedAt": "2026-09-19T05:46:59.016Z",
               "lastObservedAt": "2026-09-19T05:46:59.016Z"
+            },
+            "senior-marketing-specialist": {
+              "canonicalTitle": "Senior Marketing Specialist",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T07:46:34.778Z",
+              "lastObservedAt": "2026-09-21T07:46:34.778Z"
+            },
+            "marketing-specialist": {
+              "canonicalTitle": "Marketing Specialist",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 3,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T07:46:34.779Z",
+              "lastObservedAt": "2026-09-21T07:46:34.782Z"
+            },
+            "marketing-programme-specialist": {
+              "canonicalTitle": "Marketing Programme Specialist",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T07:46:34.780Z",
+              "lastObservedAt": "2026-09-21T07:46:34.780Z"
+            },
+            "3035-digital-marketing-specialist": {
+              "canonicalTitle": "3035_デジタルマーケティングスペシャリスト/Digital Marketing Specialist",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T07:46:34.782Z",
+              "lastObservedAt": "2026-09-21T07:46:34.782Z"
+            },
+            "marketing-specialist-ii-marketing": {
+              "canonicalTitle": "Marketing Specialist II - Marketing",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T07:46:34.782Z",
+              "lastObservedAt": "2026-09-21T07:46:34.782Z"
             }
           }
         }
