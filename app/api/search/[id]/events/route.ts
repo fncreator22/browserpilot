@@ -34,7 +34,11 @@ export async function GET(
     select: { id: true, userId: true },
   });
 
-  if (!preCheckRecord) {
+  const isClientOrActive =
+    executionId.startsWith("search_") ||
+    Boolean((globalThis as any).__browserpilot_active_execution_keys?.has(executionId));
+
+  if (!preCheckRecord && !isClientOrActive) {
     return NextResponse.json(
       { error: "NOT_FOUND", message: `Search execution '${executionId}' not found.` },
       { status: 404 }
@@ -42,7 +46,7 @@ export async function GET(
   }
 
   const isAdmin = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.role === "SUPERADMIN";
-  if (!isAdmin) {
+  if (!isAdmin && preCheckRecord) {
     if (preCheckRecord.userId && (!userId || preCheckRecord.userId !== userId)) {
       return NextResponse.json(
         { error: "FORBIDDEN", message: "You do not have access to subscribe to this search execution." },
@@ -109,40 +113,52 @@ export async function GET(
       });
 
       if (!searchRecord) {
-        await sendEvent("error", {
-          executionId,
-          error: "NOT_FOUND",
-          message: `Search execution '${executionId}' not found.`,
-        });
-        await cleanup();
-        return;
-      }
-
-      const isAdmin = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.role === "SUPERADMIN";
-      if (!isAdmin) {
-        if (searchRecord.userId && (!userId || searchRecord.userId !== userId)) {
+        if (!isClientOrActive) {
           await sendEvent("error", {
             executionId,
-            error: "FORBIDDEN",
-            message: "You do not have access to subscribe to this search execution.",
+            error: "NOT_FOUND",
+            message: `Search execution '${executionId}' not found.`,
           });
           await cleanup();
           return;
         }
+
+        // Search record is still in-flight, send initial starting snapshot
+        await sendEvent("snapshot", {
+          executionId,
+          status: "RUNNING",
+          stage: "HARVESTING",
+          totalFound: 0,
+          stoppingReason: null,
+          rawQuery: "",
+        });
+      } else {
+        const isAdmin = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.role === "SUPERADMIN";
+        if (!isAdmin) {
+          if (searchRecord.userId && (!userId || searchRecord.userId !== userId)) {
+            await sendEvent("error", {
+              executionId,
+              error: "FORBIDDEN",
+              message: "You do not have access to subscribe to this search execution.",
+            });
+            await cleanup();
+            return;
+          }
+        }
+
+        // Initial state snapshot
+        await sendEvent("snapshot", {
+          executionId: searchRecord.id,
+          status: searchRecord.status,
+          totalFound: searchRecord.totalFound,
+          stoppingReason: searchRecord.stoppingReason,
+          rawQuery: searchRecord.rawQuery,
+        });
       }
 
-      // Initial state snapshot
-      await sendEvent("snapshot", {
-        executionId: searchRecord.id,
-        status: searchRecord.status,
-        totalFound: searchRecord.totalFound,
-        stoppingReason: searchRecord.stoppingReason,
-        rawQuery: searchRecord.rawQuery,
-      });
-
       // If search is already completed or stopped, emit appropriate terminal event and finish
-      const isTerminal = ["COMPLETED", "PARTIAL", "STOPPED", "FAILED"].includes(searchRecord.status);
-      if (isTerminal) {
+      const isTerminal = searchRecord ? ["COMPLETED", "PARTIAL", "STOPPED", "FAILED"].includes(searchRecord.status) : false;
+      if (searchRecord && isTerminal) {
         if (
           searchRecord.status === "STOPPED" ||
           searchRecord.stoppingReason === "CANCELLED_BY_USER" ||

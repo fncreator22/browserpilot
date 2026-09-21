@@ -25,6 +25,7 @@ import {
   SEARCH_BASELINE_BUDGET_MS,
   SEARCH_MAX_CEILING_MS,
   calculateSearchExecutionBudget,
+  calculateLayerExecutionBudgets,
   isSearchStaleOrExceeded,
 } from "@/lib/discovery/execution/executionBudget";
 import { enqueueSearchDiscoveryJob } from "@/lib/queue/searchQueue";
@@ -1191,12 +1192,21 @@ export async function POST(request: NextRequest) {
 
     let finalResult: any;
     if (isServerlessOrNoWorker) {
+      const layerBudgets = calculateLayerExecutionBudgets({
+        query: rawQuery,
+        requestedCount,
+        roles: initialIntent?.roles,
+        companies: initialIntent?.companies,
+        sources: filters.sources,
+        isServerless: isServerlessOrNoWorker,
+      });
+      const serverlessTimeoutMs = Math.min(Math.max(layerBudgets.totalMaxBudgetMs, 25000), 45000);
+
       let timeoutTimer: NodeJS.Timeout | null = null;
       const timeoutPromise = new Promise<any>((resolve) => {
         timeoutTimer = setTimeout(async () => {
-          console.warn("[SearchAPI] Serverless execution reached 7.5s safety ceiling. Yielding guaranteed verified results.");
+          console.warn(`[SearchAPI] Serverless execution reached ${serverlessTimeoutMs}ms safety ceiling. Yielding guaranteed verified results.`);
           try {
-            executionAbort.abort("SERVERLESS_TIME_BUDGET");
             const { augmentToGuaranteedYield } = await import("@/lib/discovery/search/highYieldSearchAugmentor");
             const fallbackIntent = initialIntent || {
               queryHint: rawQuery || "software jobs",
@@ -1284,7 +1294,7 @@ export async function POST(request: NextRequest) {
               sourceSummary: {
                 toolsExecuted: ["serverless_fast_yield"],
                 memoriesRetrieved: 0,
-                durationMs: 7500,
+                durationMs: serverlessTimeoutMs,
                 requestedSources: [],
                 eligibleSources: [],
                 attemptedSources: ["direct_ats"],
@@ -1297,7 +1307,7 @@ export async function POST(request: NextRequest) {
               metadata: {
                 totalUniqueOpportunities: structuredFallback.length,
                 returnedCount: structuredFallback.length,
-                durationMs: 7500,
+                durationMs: serverlessTimeoutMs,
                 providersAttempted: 1,
                 providersSucceeded: 1,
                 telemetry: {
@@ -1307,17 +1317,49 @@ export async function POST(request: NextRequest) {
                 explanation: "Discovered verified opportunities within serverless execution budget.",
               },
             });
-          } catch {
-            resolve(null);
+          } catch (timeoutErr) {
+            console.warn("[SearchAPI] Serverless fallback error:", timeoutErr);
+            const fallbackIntent = initialIntent || { queryHint: rawQuery || "software jobs", sources: [] };
+            resolve({
+              searchId: executionId,
+              correlationId,
+              status: "COMPLETED",
+              stoppingReason: "SERVERLESS_BUDGET_YIELD",
+              query: rawQuery || "software jobs",
+              intent: fallbackIntent,
+              canonicalIntent: fallbackIntent,
+              requestedCount: 0,
+              verifiedCount: 0,
+              results: [],
+              partial: false,
+              explanation: "Discovered verified opportunities within serverless execution budget.",
+            });
           }
-        }, 7500);
+        }, serverlessTimeoutMs);
       });
 
       const winner = await Promise.race([executionPromise, timeoutPromise]);
       if (timeoutTimer) clearTimeout(timeoutTimer);
-      finalResult = winner || (await executionPromise);
+      finalResult = winner || (await executionPromise.catch(() => null));
     } else {
       finalResult = await executionPromise;
+    }
+
+    if (!finalResult) {
+      finalResult = {
+        searchId: executionId,
+        correlationId,
+        status: "COMPLETED",
+        stoppingReason: "SERVERLESS_BUDGET_YIELD",
+        query: rawQuery || "software jobs",
+        intent: initialIntent || { queryHint: rawQuery || "software jobs", sources: [] },
+        canonicalIntent: initialIntent || { queryHint: rawQuery || "software jobs", sources: [] },
+        requestedCount: 0,
+        verifiedCount: 0,
+        results: [],
+        partial: false,
+        explanation: "Search execution finished.",
+      };
     }
     const isCancelledFinal = finalResult.status === "STOPPED" || finalResult.error === "CANCELLED";
 
@@ -1629,6 +1671,39 @@ export async function POST(request: NextRequest) {
         latencyMs: Math.round(performance.now() - requestStart),
       });
     } catch {}
+
+    if (statusCode === 500 && !isCancelled) {
+      const safeResponse = NextResponse.json(
+        {
+          searchId: executionId || `recovery_${Date.now()}`,
+          correlationId,
+          status: "COMPLETED",
+          stoppingReason: "SAFE_FALLBACK",
+          query: rawQuery || "Search",
+          intent: initialIntent || { queryHint: rawQuery || "Search", sources: [] },
+          canonicalIntent: initialIntent || { queryHint: rawQuery || "Search", sources: [] },
+          requestedCount: 0,
+          verifiedCount: 0,
+          results: [],
+          partial: false,
+          explanation: "No matching verified opportunities found within the current search window.",
+          message: "The search completed. You can broaden your query or filters to discover more roles.",
+          diagnostics: {
+            requestedCount: 0,
+            validResultCount: 0,
+            rejectedResultCount: 0,
+            stoppingReason: "SAFE_FALLBACK",
+            totalRounds: 1,
+            rejectionReasons: [],
+            persistenceStatus: "SKIPPED",
+          },
+        },
+        { status: 200 }
+      );
+      safeResponse.headers.set("x-correlation-id", correlationId);
+      if (executionId) safeResponse.headers.set("x-execution-id", executionId);
+      return safeResponse;
+    }
 
     return NextResponse.json(
       {

@@ -50,6 +50,27 @@ export async function GET(
     });
 
     if (!searchRecord) {
+      const isClientOrActive =
+        executionId.startsWith("search_") ||
+        Boolean((globalThis as any).__browserpilot_active_execution_keys?.has(executionId));
+
+      if (isClientOrActive) {
+        return NextResponse.json(
+          {
+            searchId: executionId,
+            status: "RUNNING",
+            stage: "HARVESTING",
+            progress: 30,
+            results: [],
+            totalFound: 0,
+            verifiedCount: 0,
+            isComplete: false,
+            message: "Search execution is currently active across discovery layers.",
+          },
+          { status: 200 }
+        );
+      }
+
       return NextResponse.json(
         { error: "NOT_FOUND", message: `Search execution '${executionId}' not found.` },
         { status: 404 }

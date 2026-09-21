@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "lastUpdatedAt": "2026-09-21T07:46:34.782Z",
-  "totalRolesLearned": 484,
+  "lastUpdatedAt": "2026-09-21T10:12:19.872Z",
+  "totalRolesLearned": 495,
   "departments": {
     "engineering": {
       "id": "engineering",
@@ -1408,13 +1408,13 @@
               "canonicalTitle": "Customer Success Engineer, LATAM (Spanish, Portugese)",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 22,
+              "observedCount": 23,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-14T06:12:20.741Z",
-              "lastObservedAt": "2026-09-18T18:15:29.792Z"
+              "lastObservedAt": "2026-09-21T10:12:19.870Z"
             },
             "director-engineering-platform-operations-productivity": {
               "canonicalTitle": "Director, Engineering, Platform Operations & Productivity",
@@ -1576,25 +1576,25 @@
               "canonicalTitle": "Engineering Manager, Agent Foundations: Agent Execution",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 20,
+              "observedCount": 21,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-14T15:00:47.942Z",
-              "lastObservedAt": "2026-09-20T00:51:07.688Z"
+              "lastObservedAt": "2026-09-21T10:12:19.870Z"
             },
             "engineering-manager-build": {
               "canonicalTitle": "Engineering Manager, Build",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 20,
+              "observedCount": 21,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-14T15:00:47.942Z",
-              "lastObservedAt": "2026-09-20T00:51:07.688Z"
+              "lastObservedAt": "2026-09-21T10:12:19.870Z"
             },
             "drone-airframe-development-internship": {
               "canonicalTitle": "Drone Airframe Development Internship",
@@ -1720,25 +1720,25 @@
               "canonicalTitle": "Engineering Manager, Data Foundations",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 23,
+              "observedCount": 24,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-15T12:21:13.292Z",
-              "lastObservedAt": "2026-09-20T00:51:07.688Z"
+              "lastObservedAt": "2026-09-21T10:12:19.870Z"
             },
             "director-of-product-management-agentic-software-delivery": {
               "canonicalTitle": "Director of Product Management, Agentic Software Delivery",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 41,
+              "observedCount": 42,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-15T12:21:22.600Z",
-              "lastObservedAt": "2026-09-20T00:51:07.688Z"
+              "lastObservedAt": "2026-09-21T10:12:19.870Z"
             },
             "lead-internal-events-production-strategist": {
               "canonicalTitle": "Lead Internal Events & Production Strategist",
@@ -3040,13 +3040,13 @@
               "canonicalTitle": "Engineering Manager, Dedicated Integrations",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 16,
+              "observedCount": 17,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.813Z",
-              "lastObservedAt": "2026-09-20T00:51:07.688Z"
+              "lastObservedAt": "2026-09-21T10:12:19.870Z"
             },
             "engineering-manager-git-gitaly-operations": {
               "canonicalTitle": "Engineering Manager - Git & Gitaly Operations",
@@ -3088,25 +3088,25 @@
               "canonicalTitle": "Engineering Manager, Switchboard",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 16,
+              "observedCount": 17,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.814Z",
-              "lastObservedAt": "2026-09-20T00:51:07.688Z"
+              "lastObservedAt": "2026-09-21T10:12:19.870Z"
             },
             "engineering-manager-trusted-agentic-development": {
               "canonicalTitle": "Engineering Manager, Trusted Agentic Development",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 18,
+              "observedCount": 19,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.814Z",
-              "lastObservedAt": "2026-09-20T00:51:07.689Z"
+              "lastObservedAt": "2026-09-21T10:12:19.870Z"
             },
             "intermediate-backend-engineer": {
               "canonicalTitle": "Intermediate Backend Engineer",
@@ -3292,13 +3292,13 @@
               "canonicalTitle": "Engineering Manager, Tenant Scale:Git",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 1,
+              "observedCount": 2,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-18T18:15:29.795Z",
-              "lastObservedAt": "2026-09-18T18:15:29.795Z"
+              "lastObservedAt": "2026-09-21T10:12:19.870Z"
             },
             "forward-deployed-engineer-emea": {
               "canonicalTitle": "Forward Deployed Engineer - EMEA",
@@ -3587,6 +3587,54 @@
               ],
               "firstObservedAt": "2026-09-21T07:12:47.073Z",
               "lastObservedAt": "2026-09-21T07:12:47.073Z"
+            },
+            "intermediate-support-engineer-shift": {
+              "canonicalTitle": "Intermediate Support Engineer (SHIFT)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-21T10:12:19.871Z",
+              "lastObservedAt": "2026-09-21T10:12:19.871Z"
+            },
+            "manager-support-engineering-us-government": {
+              "canonicalTitle": "Manager, Support Engineering, US Government",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-21T10:12:19.871Z",
+              "lastObservedAt": "2026-09-21T10:12:19.871Z"
+            },
+            "migration-engineer-gitlab-dedicated": {
+              "canonicalTitle": "Migration Engineer - GitLab Dedicated",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-21T10:12:19.871Z",
+              "lastObservedAt": "2026-09-21T10:12:19.871Z"
+            },
+            "principal-engineer-duo-agent-platform": {
+              "canonicalTitle": "Principal Engineer, Duo Agent Platform",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-21T10:12:19.871Z",
+              "lastObservedAt": "2026-09-21T10:12:19.871Z"
             }
           }
         },
@@ -3936,13 +3984,13 @@
               "canonicalTitle": "Fullstack Engineer (TypeScript), AI Engineering: Duo Client SDK",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 1,
+              "observedCount": 2,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-18T18:15:29.796Z",
-              "lastObservedAt": "2026-09-18T18:15:29.796Z"
+              "lastObservedAt": "2026-09-21T10:12:19.870Z"
             },
             "senior-frontend-engineer-react-remote-friendly": {
               "canonicalTitle": "Senior Frontend Engineer (React) - Remote friendly",
@@ -4008,13 +4056,13 @@
               "canonicalTitle": "Senior Frontend Engineer",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 2,
+              "observedCount": 4,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-18T20:12:57.702Z",
-              "lastObservedAt": "2026-09-18T20:13:38.181Z"
+              "lastObservedAt": "2026-09-21T10:12:19.866Z"
             },
             "junior-react-developer-remote-work": {
               "canonicalTitle": "Junior React Developer - Remote Work",
@@ -4080,13 +4128,85 @@
               "canonicalTitle": "Sr. Frontend Software Engineer - Growth",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 1,
+              "observedCount": 2,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "LinkedIn"
               ],
               "firstObservedAt": "2026-09-19T14:14:42.449Z",
-              "lastObservedAt": "2026-09-19T14:14:42.449Z"
+              "lastObservedAt": "2026-09-21T10:12:19.865Z"
+            },
+            "sr-frontend-software-engineer-react-typescript-remote": {
+              "canonicalTitle": "Sr. Frontend Software Engineer - React, Typescript - REMOTE",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T10:12:19.866Z",
+              "lastObservedAt": "2026-09-21T10:12:19.866Z"
+            },
+            "web-engineer": {
+              "canonicalTitle": "Web Engineer",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T10:12:19.868Z",
+              "lastObservedAt": "2026-09-21T10:12:19.868Z"
+            },
+            "senior-frontend-software-engineer-consumer-engineering": {
+              "canonicalTitle": "Senior Frontend Software Engineer, Consumer Engineering",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T10:12:19.868Z",
+              "lastObservedAt": "2026-09-21T10:12:19.868Z"
+            },
+            "senior-front-end-software-engineer-remote": {
+              "canonicalTitle": "Senior Front-End Software Engineer (Remote)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T10:12:19.868Z",
+              "lastObservedAt": "2026-09-21T10:12:19.868Z"
+            },
+            "sr-staff-engineer-frontend": {
+              "canonicalTitle": "Sr Staff Engineer Frontend",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T10:12:19.868Z",
+              "lastObservedAt": "2026-09-21T10:12:19.868Z"
+            },
+            "senior-frontend-engineer-growth-usa-only-100-remote": {
+              "canonicalTitle": "Senior Frontend Engineer - Growth (USA Only, 100% Remote)",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "LinkedIn"
+              ],
+              "firstObservedAt": "2026-09-21T10:12:19.870Z",
+              "lastObservedAt": "2026-09-21T10:12:19.870Z"
             }
           }
         },
@@ -4370,6 +4490,18 @@
               ],
               "firstObservedAt": "2026-09-18T18:15:29.797Z",
               "lastObservedAt": "2026-09-18T18:15:29.797Z"
+            },
+            "principal-security-awareness-human-risk-engineer": {
+              "canonicalTitle": "Principal Security Awareness & Human Risk Engineer",
+              "aliases": [],
+              "coOccurringSkills": [],
+              "observedCount": 1,
+              "isDynamicallyLearned": true,
+              "discoveredFromPortals": [
+                "Greenhouse"
+              ],
+              "firstObservedAt": "2026-09-21T10:12:19.871Z",
+              "lastObservedAt": "2026-09-21T10:12:19.871Z"
             }
           }
         }
@@ -5144,13 +5276,13 @@
               "canonicalTitle": "Forward Deployed Engineer, AI and Agentic SDLC",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 16,
+              "observedCount": 17,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-17T20:03:26.814Z",
-              "lastObservedAt": "2026-09-20T00:51:07.689Z"
+              "lastObservedAt": "2026-09-21T10:12:19.870Z"
             },
             "data-scientist-with-ml-f-m-x": {
               "canonicalTitle": "Data Scientist with ML (f/m/x)",
@@ -5815,13 +5947,13 @@
               "canonicalTitle": "Principal Product Manager, AI Software Factory",
               "aliases": [],
               "coOccurringSkills": [],
-              "observedCount": 10,
+              "observedCount": 11,
               "isDynamicallyLearned": true,
               "discoveredFromPortals": [
                 "Greenhouse"
               ],
               "firstObservedAt": "2026-09-15T12:21:22.600Z",
-              "lastObservedAt": "2026-09-16T12:56:28.355Z"
+              "lastObservedAt": "2026-09-21T10:12:19.871Z"
             },
             "senior-product-manager-growth": {
               "canonicalTitle": "Senior Product Manager, Growth",

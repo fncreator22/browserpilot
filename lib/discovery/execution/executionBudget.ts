@@ -35,6 +35,105 @@ export interface CalculatedSearchBudget {
   reasons: string[];
 }
 
+export interface LayerExecutionBudgets {
+  layer1_intentMs: number;
+  layer2_contextMs: number;
+  layer3_planMs: number;
+  layer4_harvestMs: number;
+  layer5_verifyMs: number;
+  layer6_rankPersistMs: number;
+  totalMaxBudgetMs: number;
+  totalMaxBudgetSeconds: number;
+  isServerless: boolean;
+  breakdown: Record<string, number>;
+  reasons: string[];
+}
+
+/**
+ * Calculates stage-by-stage maximum time budgets for each architectural layer:
+ * Layer 1: Intent & Constraint Parsing (500ms max)
+ * Layer 2: Context & Memory Retrieval (1000ms max)
+ * Layer 3: Action Planning & Capability Guard (1500ms max)
+ * Layer 4: Multi-Source Federated Harvesting & DeepReach Social Scouting (14s-22s serverless / 120s dedicated)
+ * Layer 5: Evidence Verification & De-duplication (3s serverless / 25s dedicated)
+ * Layer 6: 100-Point Ranking & Chunked Persistence (3s serverless / 15s dedicated)
+ *
+ * Takes maximum time possibilities to allow full multi-source discovery while bounding total execution.
+ */
+export function calculateLayerExecutionBudgets(
+  options: SearchBudgetOptions & { isServerless?: boolean } = {}
+): LayerExecutionBudgets {
+  const isServerless =
+    options.isServerless ??
+    Boolean(
+      process.env.VERCEL === "1" ||
+      process.env.NEXT_SERVERLESS === "1" ||
+      process.env.AWS_LAMBDA_FUNCTION_NAME
+    );
+
+  const sources = options.sources || [];
+  const reasons: string[] = [];
+
+  const layer1_intentMs = 500;
+  const layer2_contextMs = 1000;
+  const layer3_planMs = 1500;
+
+  let layer4_harvestMs = isServerless ? 14000 : 120000;
+
+  if (sources.length > 2) {
+    const extraSources = sources.length - 2;
+    const add = isServerless ? extraSources * 1500 : extraSources * 15000;
+    layer4_harvestMs += add;
+    reasons.push(`additional_sources_${extraSources} (+${add / 1000}s)`);
+  }
+
+  if (options.companies && options.companies.length > 1) {
+    const add = isServerless ? Math.min(options.companies.length * 1000, 3000) : options.companies.length * 10000;
+    layer4_harvestMs += add;
+    reasons.push(`target_companies_${options.companies.length} (+${add / 1000}s)`);
+  }
+
+  if (isServerless) {
+    layer4_harvestMs = Math.min(layer4_harvestMs, 22000);
+  }
+
+  const layer5_verifyMs = isServerless ? 3000 : 25000;
+  const layer6_rankPersistMs = isServerless ? 3000 : 15000;
+
+  const rawTotal =
+    layer1_intentMs +
+    layer2_contextMs +
+    layer3_planMs +
+    layer4_harvestMs +
+    layer5_verifyMs +
+    layer6_rankPersistMs;
+
+  const totalMaxBudgetMs = isServerless
+    ? Math.min(Math.max(rawTotal, 20000), 45000)
+    : Math.min(Math.max(rawTotal, SEARCH_BASELINE_BUDGET_MS), SEARCH_MAX_CEILING_MS);
+
+  return {
+    layer1_intentMs,
+    layer2_contextMs,
+    layer3_planMs,
+    layer4_harvestMs,
+    layer5_verifyMs,
+    layer6_rankPersistMs,
+    totalMaxBudgetMs,
+    totalMaxBudgetSeconds: Math.round(totalMaxBudgetMs / 1000),
+    isServerless,
+    breakdown: {
+      layer1_intentMs,
+      layer2_contextMs,
+      layer3_planMs,
+      layer4_harvestMs,
+      layer5_verifyMs,
+      layer6_rankPersistMs,
+    },
+    reasons,
+  };
+}
+
 /**
  * Calculates a dynamically scaled execution time budget for discovery search.
  * Baseline: 180s (180,000ms).
