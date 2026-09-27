@@ -268,12 +268,17 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Precedence-Aware Intent Extraction & Canonical Normalization (TASK-053.1 & TASK-067)
-    initialIntent = await parseSearchIntentAsync(rawQuery, {
-      userId,
-      apiKey: inputApiKey,
-      puterToken: inputPuterToken,
-      filterOverrides: filters,
-    });
+    try {
+      initialIntent = await parseSearchIntentAsync(rawQuery, {
+        userId,
+        apiKey: inputApiKey,
+        puterToken: inputPuterToken,
+        filterOverrides: filters,
+      });
+    } catch (intentErr) {
+      console.warn("[SearchAPI] parseSearchIntentAsync failure, falling back to deterministic parser:", intentErr);
+      initialIntent = parseSearchIntent(rawQuery, filters);
+    }
     const requestedCount = initialIntent.requestedCount || filters.requestedCount || (typeof body.maxResults === "number" ? body.maxResults : 30);
 
     const canonicalNorm = executionLifecycleManager.computeCanonicalIntentHash({

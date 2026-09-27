@@ -17,11 +17,35 @@
     },
     "app/api/search/[id]/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/search/[id]/events/route.ts": {
+      "maxDuration": 60
     }
   },
   "headers": [
     {
       "source": "/api/jobs/(.*)/events",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/event-stream"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-transform"
+        },
+        {
+          "key": "Connection",
+          "value": "keep-alive"
+        },
+        {
+          "key": "X-Accel-Buffering",
+          "value": "no"
+        }
+      ]
+    },
+    {
+      "source": "/api/search/(.*)/events",
       "headers": [
         {
           "key": "Content-Type",
